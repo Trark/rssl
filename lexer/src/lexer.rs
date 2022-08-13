@@ -1,5 +1,4 @@
 use nom::{error::ErrorKind, IResult, Needed};
-use rssl_preprocess::PreprocessedText;
 use rssl_text::*;
 use rssl_tok::*;
 
@@ -1352,7 +1351,7 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
                     stream
                 };
                 let mut lex_tokens = Vec::with_capacity(stream.len());
-                for StreamToken(ref token, ref stream_location) in stream {
+                for StreamToken(ref token, stream_location) in stream {
                     let loc = match preprocessed.get_file_location(stream_location) {
                         Ok(file_location) => file_location,
                         Err(()) => return Err(LexError::Unknown),

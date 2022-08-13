@@ -62,26 +62,6 @@ impl std::fmt::Display for PreprocessError {
     }
 }
 
-pub struct PreprocessedText {
-    code: Vec<u8>,
-    debug_locations: LineMap,
-}
-
-impl PreprocessedText {
-    fn from_intermediate_text(text: IntermediateText) -> PreprocessedText {
-        PreprocessedText {
-            code: text.buffer.into_bytes(),
-            debug_locations: text.debug_locations,
-        }
-    }
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.code
-    }
-    pub fn get_file_location(&self, stream_location: &StreamLocation) -> Result<FileLocation, ()> {
-        self.debug_locations.get_file_location(stream_location)
-    }
-}
-
 struct IntermediateText {
     buffer: String,
     debug_locations: LineMap,
@@ -91,7 +71,7 @@ impl IntermediateText {
     fn new() -> IntermediateText {
         IntermediateText {
             buffer: String::new(),
-            debug_locations: LineMap { lines: vec![] },
+            debug_locations: LineMap::default(),
         }
     }
     fn push_str(&mut self, segment: &str, segment_location: FileLocation) {
@@ -110,51 +90,7 @@ impl IntermediateText {
                 self.buffer.push('\n');
             }
             self.debug_locations
-                .lines
-                .push((stream_location_in_buffer, location));
-        }
-    }
-}
-
-struct LineMap {
-    lines: Vec<(StreamLocation, FileLocation)>,
-}
-
-impl LineMap {
-    fn get_file_location(&self, stream_location: &StreamLocation) -> Result<FileLocation, ()> {
-        let mut lower = 0;
-        let mut upper = self.lines.len();
-        while lower < upper - 1 {
-            let next_index = (lower + upper) / 2;
-            assert!(next_index > lower);
-            assert!(next_index <= upper);
-
-            let &(ref line_stream, _) = &self.lines[next_index];
-            let matches = line_stream.0 <= stream_location.0;
-
-            if matches {
-                lower = next_index;
-            } else {
-                upper = next_index;
-            }
-        }
-        let last_line = if lower == self.lines.len() {
-            None
-        } else {
-            Some(lower)
-        };
-        match last_line {
-            Some(index) => {
-                let (ref line_stream, ref line_file) = self.lines[index];
-                Ok(match line_file {
-                    FileLocation::Known(file, line, column) => {
-                        let column = Column(column.0 + (stream_location.0 - line_stream.0));
-                        FileLocation::Known(file.clone(), *line, column)
-                    }
-                    FileLocation::Unknown => FileLocation::Unknown,
-                })
-            }
-            None => Err(()),
+                .push(stream_location_in_buffer, location);
         }
     }
 }
@@ -488,7 +424,7 @@ impl SubstitutedText {
                         let before = &remaining[..sz];
                         intermediate_text.push_str(
                             before,
-                            match line_map.get_file_location(&StreamLocation(loc)) {
+                            match line_map.get_file_location(StreamLocation(loc)) {
                                 Ok(loc) => loc,
                                 Err(()) => panic!("bad file location"),
                             },
@@ -637,7 +573,7 @@ impl ConditionChain {
 }
 
 fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
-    let mut line_map = LineMap { lines: vec![] };
+    let mut line_map = LineMap::default();
     let file_length = file_contents.len() as u64;
     let mut stream = file_contents;
     let mut current_line = 1;
@@ -647,10 +583,10 @@ fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
             None => (stream.len(), true),
         };
         let length_left = stream.len() as u64;
-        line_map.lines.push((
+        line_map.push(
             StreamLocation(file_length - length_left),
             FileLocation::Known(file_name.clone(), Line(current_line), Column(1)),
-        ));
+        );
         current_line = current_line + 1;
         stream = &stream[sz..];
         if final_segment {
@@ -996,6 +932,7 @@ fn preprocess_command<'a>(
     }
 }
 
+/// Internal process a single file during preprocessing
 fn preprocess_file(
     buffer: &mut IntermediateText,
     include_handler: &mut FileLoader,
@@ -1010,7 +947,7 @@ fn preprocess_file(
     let mut stream = file;
     loop {
         let stream_location_in_file = StreamLocation(file_length - stream.len() as u64);
-        let file_location = match line_map.get_file_location(&stream_location_in_file) {
+        let file_location = match line_map.get_file_location(stream_location_in_file) {
             Ok(loc) => loc,
             Err(_) => panic!("could not find line for current position in file"),
         };
@@ -1061,6 +998,7 @@ fn preprocess_file(
     Ok(())
 }
 
+/// Preprocess a file
 pub fn preprocess(
     input: &str,
     file_name: FileName,
@@ -1085,188 +1023,16 @@ pub fn preprocess(
         return Err(PreprocessError::ConditionChainNotFinished);
     }
 
-    Ok(PreprocessedText::from_intermediate_text(intermediate_text))
+    Ok(PreprocessedText::new(
+        intermediate_text.buffer,
+        intermediate_text.debug_locations,
+    ))
 }
 
+/// Preprocess a single file without any support for includes
 pub fn preprocess_single(
     input: &str,
     file_name: FileName,
 ) -> Result<PreprocessedText, PreprocessError> {
     preprocess(input, file_name, &mut NullIncludeHandler)
-}
-
-#[cfg(test)]
-fn preprocess_single_test(input: &str) -> Result<PreprocessedText, PreprocessError> {
-    preprocess(
-        input,
-        FileName("test.rssl".to_string()),
-        &mut NullIncludeHandler,
-    )
-}
-
-#[test]
-fn test_empty() {
-    let pp = preprocess_single_test;
-    assert_eq!(pp("").unwrap().code, b"");
-    assert_eq!(pp("test").unwrap().code, b"test");
-    assert_eq!(pp("t1\nt2").unwrap().code, b"t1\nt2");
-    assert_eq!(pp("t1\r\nt2").unwrap().code, b"t1\r\nt2");
-}
-
-#[test]
-fn test_define() {
-    let pp = preprocess_single_test;
-    assert_eq!(pp("#define X 0\nX").unwrap().code, b"0");
-    assert_eq!(pp("#define X 0\nX X").unwrap().code, b"0 0");
-    assert_eq!(pp("#define X 1\r\nX").unwrap().code, b"1");
-    assert_eq!(pp("#define X 2\n#define Y X\nX").unwrap().code, b"2");
-    assert_eq!(pp("#define X 2\\\n + 3\nX").unwrap().code, b"2\n + 3");
-    assert_eq!(pp("#define X(a) a\nX(2)").unwrap().code, b"2");
-    assert_eq!(pp("#define X(a,b) a+b\nX(2,3)").unwrap().code, b"2+3");
-    assert_eq!(pp("#define X(X,b) X+b\nX(2,3)").unwrap().code, b"2+3");
-    assert_eq!(pp("#define X(a,b) a+\\\nb\nX(2,3)").unwrap().code, b"2+\n3");
-    assert_eq!(
-        pp("#define X(a,b) a+\\\r\nb\nX(2,3)").unwrap().code,
-        b"2+\r\n3"
-    );
-    assert_eq!(pp("#define X").unwrap().code, b"");
-    assert_eq!(pp("#define X 0\n#define Y 1\nX Y").unwrap().code, b"0 1");
-    assert_eq!(pp("#define X 0\n#define XY 1\nXY X").unwrap().code, b"1 0");
-    assert_eq!(pp("#define X(a) a\n#define Y 1\nX(Y)").unwrap().code, b"1");
-    assert_eq!(
-        pp("#define X(a,ab,ba,b) a ab a ba b ab a\nX(0,1,2,3)")
-            .unwrap()
-            .code,
-        b"0 1 0 2 3 1 0"
-    );
-}
-
-#[test]
-fn test_condition() {
-    let pp = preprocess_single_test;
-    assert!(pp("#if 0\nX").is_err());
-    assert_eq!(pp("#if 0\nX\n#endif").unwrap().code, b"");
-    assert_eq!(pp("#if 1\nX\n#endif").unwrap().code, b"X\n");
-    assert_eq!(pp("#if 0\nX\n#else\nY\n#endif").unwrap().code, b"Y\n");
-    assert_eq!(pp("#if 1\nX\n#else\nY\n#endif").unwrap().code, b"X\n");
-    assert_eq!(pp("#if !0\nX\n#else\nY\n#endif").unwrap().code, b"X\n");
-    assert_eq!(pp("#if !1\nX\n#else\nY\n#endif").unwrap().code, b"Y\n");
-    assert_eq!(
-        pp("#if\t 1  \n X  \n #else \n Y \n#endif \n\t")
-            .unwrap()
-            .code,
-        b" X  \n\t"
-    );
-    assert_eq!(
-        pp("#define TRUE 1\n#if TRUE\nX\n#else\nY\n#endif")
-            .unwrap()
-            .code,
-        b"X\n"
-    );
-    assert_eq!(
-        pp("#define TRUE\n#ifdef TRUE\nX\n#else\nY\n#endif")
-            .unwrap()
-            .code,
-        b"X\n"
-    );
-    assert_eq!(
-        pp("#define TRUE\n#ifndef TRUE\nX\n#else\nY\n#endif")
-            .unwrap()
-            .code,
-        b"Y\n"
-    );
-    assert_eq!(
-        pp("#define TRUE 1\n#ifdef TRUE\nX\n#else\nY\n#endif")
-            .unwrap()
-            .code,
-        b"X\n"
-    );
-    assert_eq!(
-        pp("#define TRUE 0\n#ifndef TRUE\nX\n#else\nY\n#endif")
-            .unwrap()
-            .code,
-        b"Y\n"
-    );
-    assert_eq!(pp("#if 0\n#define X Y\n#endif\nX").unwrap().code, b"X");
-    assert_eq!(
-        pp("#if 1\n#define X Y\n#else\n#define X Z\n#endif\nX")
-            .unwrap()
-            .code,
-        b"Y"
-    );
-    assert_eq!(
-        pp("#if 1\n#define X Y\n#else\n#include\"fail\"\n#endif\nX")
-            .unwrap()
-            .code,
-        b"Y"
-    );
-    assert_eq!(
-        pp(
-            "#if 1 // comment\n#define X Y\n#else // comment\n#include\"fail\"\n#endif // \
-                   comment\nX"
-        )
-        .unwrap()
-        .code,
-        b"Y"
-    );
-}
-
-#[test]
-fn test_include() {
-    struct TestFileLoader;
-    impl IncludeHandler for TestFileLoader {
-        fn load(&mut self, file_name: &str) -> Result<String, IncludeError> {
-            Ok(match file_name.as_ref() {
-                "1.csh" => "X",
-                "2.csh" => "Y",
-                _ => return Err(IncludeError::FileNotFound),
-            }
-            .to_string())
-        }
-    }
-
-    fn pf(contents: &str) -> Result<PreprocessedText, PreprocessError> {
-        preprocess(
-            contents,
-            FileName("test.rssl".to_string()),
-            &mut TestFileLoader,
-        )
-    }
-
-    // Unknown files should always fail
-    assert!(pf("#include \"unknown.csh\"").is_err());
-    assert!(pf("#include").is_err());
-    assert!(pf("#include\n").is_err());
-    // Normal case
-    assert_eq!(pf("#include \"1.csh\"\n").unwrap().code, b"X\n");
-    // End of file include
-    assert_eq!(pf("#include \"1.csh\"").unwrap().code, b"X");
-    // Extra whitespace
-    assert_eq!(pf("#include \"1.csh\"\t\n").unwrap().code, b"X\n");
-    // Less whitespace
-    assert_eq!(pf("#include\"1.csh\"\n").unwrap().code, b"X\n");
-    // Alternative delimiters (not treated differently currently)
-    assert_eq!(pf("#include <1.csh>\n").unwrap().code, b"X\n");
-    assert_eq!(pf("#include<1.csh>\n").unwrap().code, b"X\n");
-    assert!(pf("#include \"1.csh>\n").is_err());
-    assert!(pf("#include <1.csh\"\n").is_err());
-    // Comments after includes needs to work
-    assert_eq!(pf("#include \"1.csh\" // include \n").unwrap().code, b"X\n");
-    assert_eq!(
-        pf("#include \"1.csh\"\n#include \"2.csh\"").unwrap().code,
-        b"X\nY"
-    );
-    // We don't want to read files that are #if'd out
-    assert_eq!(
-        pf("#if 1\n#include \"1.csh\"\n#else\n#include \"unknown.csh\"\n#endif")
-            .unwrap()
-            .code,
-        b"X\n"
-    );
-    assert_eq!(
-        pf("#if 0\n#include \"unknown.csh\"\n#else\n#include \"2.csh\"\n#endif")
-            .unwrap()
-            .code,
-        b"Y\n"
-    );
 }

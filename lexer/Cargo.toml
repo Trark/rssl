@@ -9,5 +9,4 @@ doctest = false
 [dependencies]
 rssl-text = { path = "../text" }
 rssl-tok = { path = "../tok" }
-rssl-preprocess = { path = "../preprocess" }
 nom = "7.1.1"
