@@ -103,6 +103,8 @@ fn test_include() {
             Ok(match file_name.as_ref() {
                 "1.csh" => "X",
                 "2.csh" => "Y",
+                "p1.rssl" => "#pragma once\n1",
+                "p2.rssl" => "2",
                 _ => return Err(IncludeError::FileNotFound),
             }
             .to_string())
@@ -148,5 +150,11 @@ fn test_include() {
     assert_text!(
         pf("#if 0\n#include \"unknown.csh\"\n#else\n#include \"2.csh\"\n#endif"),
         "Y\n"
+    );
+
+    // Check #pragma once
+    assert_text!(
+        pf("#include \"p1.rssl\"\n#include \"p1.rssl\"\n#include \"p2.rssl\"\n#include \"p2.rssl\"\n"),
+        "1\n\n2\n2\n"
     );
 }

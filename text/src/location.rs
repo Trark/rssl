@@ -37,7 +37,7 @@ impl<T> Located<T> {
     /// Create a located object with a location
     pub fn new(node: T, loc: FileLocation) -> Located<T> {
         Located {
-            node: node,
+            node,
             location: loc,
         }
     }
@@ -50,7 +50,7 @@ impl<T> Located<T> {
     /// Create a located object with no location
     pub fn none(node: T) -> Located<T> {
         Located {
-            node: node,
+            node,
             location: FileLocation::Unknown,
         }
     }
@@ -86,22 +86,22 @@ impl PreprocessedText {
         self.code.as_bytes()
     }
 
-    pub fn get_file_location(&self, stream_location: StreamLocation) -> Result<FileLocation, ()> {
+    pub fn get_file_location(
+        &self,
+        stream_location: StreamLocation,
+    ) -> Result<FileLocation, NoFileLocation> {
         self.debug_locations.get_file_location(stream_location)
     }
 }
 
 /// Links streams offsets to source file locations
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Default, Clone)]
 pub struct LineMap {
     lines: Vec<(StreamLocation, FileLocation)>,
 }
 
-impl Default for LineMap {
-    fn default() -> Self {
-        LineMap { lines: Vec::new() }
-    }
-}
+/// Error type when we can not obtain source file info for a position
+pub struct NoFileLocation;
 
 impl LineMap {
     /// Add a mapping from stream location back to source file location
@@ -110,7 +110,10 @@ impl LineMap {
     }
 
     /// Find the file location of a given stream position
-    pub fn get_file_location(&self, stream_location: StreamLocation) -> Result<FileLocation, ()> {
+    pub fn get_file_location(
+        &self,
+        stream_location: StreamLocation,
+    ) -> Result<FileLocation, NoFileLocation> {
         let mut lower = 0;
         let mut upper = self.lines.len();
         while lower < upper - 1 {
@@ -143,7 +146,7 @@ impl LineMap {
                     FileLocation::Unknown => FileLocation::Unknown,
                 })
             }
-            None => Err(()),
+            None => Err(NoFileLocation),
         }
     }
 }

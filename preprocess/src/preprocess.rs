@@ -107,7 +107,7 @@ impl<'a> FileLoader<'a> {
         FileLoader {
             file_store: HashMap::new(),
             pragma_once_files: HashSet::new(),
-            include_handler: include_handler,
+            include_handler,
         }
     }
 
@@ -135,7 +135,7 @@ impl<'a> FileLoader<'a> {
 }
 
 fn is_identifier_char(c: char) -> bool {
-    (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_')
+    matches!(c, 'A'..='Z' | 'a'..='z' | '_' | '0'..='9')
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -157,11 +157,11 @@ impl MacroSegment {
                         let after_offset = sz + arg.len();
                         let after = &text[after_offset..];
                         assert_eq!(before.to_string() + arg + after, text);
-                        if before.len() > 0 {
+                        if !before.is_empty() {
                             segments.push(MacroSegment::Text(before.to_string()));
                         }
                         segments.push(MacroSegment::Arg(MacroArg(index)));
-                        if after.len() > 0 {
+                        if !after.is_empty() {
                             MacroSegment::Text(after.to_string()).split(arg, index, segments);
                         }
                         return;
@@ -192,7 +192,7 @@ impl Macro {
                 loop {
                     let (sz, last) = match remaining.find(',') {
                         Some(sz) => (sz, false),
-                        None => match remaining.find(")") {
+                        None => match remaining.find(')') {
                             Some(sz) => (sz, true),
                             None => return Err(PreprocessError::InvalidDefine),
                         },
@@ -207,7 +207,7 @@ impl Macro {
                     }
                     arg_names.push(arg_name);
                     if last {
-                        if remaining.len() > 0 {
+                        if !remaining.is_empty() {
                             return Err(PreprocessError::InvalidDefine);
                         }
                         break;
@@ -298,7 +298,7 @@ impl SubstitutedSegment {
                             let sz = match remaining.find('(') {
                                 Some(sz) => {
                                     let gap = remaining[..sz].trim();
-                                    if gap.len() > 0 {
+                                    if !gap.is_empty() {
                                         return Err(PreprocessError::MacroRequiresArguments);
                                     }
                                     sz
@@ -310,7 +310,7 @@ impl SubstitutedSegment {
                             // Consume all the arguments
                             let mut args = vec![];
                             loop {
-                                let (sz, last) = match (remaining.find(','), remaining.find(")")) {
+                                let (sz, last) = match (remaining.find(','), remaining.find(')')) {
                                     (Some(szn), Some(szl)) if szn < szl => (szn, false),
                                     (_, Some(szl)) => (szl, true),
                                     (Some(szn), None) => (szn, false),
@@ -347,7 +347,7 @@ impl SubstitutedSegment {
 
                         let after_location =
                             StreamLocation(location.0 + (text.len() - after.len()) as u64);
-                        if before.len() > 0 {
+                        if !before.is_empty() {
                             output.push(SubstitutedSegment::Text(before.to_string(), location));
                         }
                         let mut replaced_text = String::new();
@@ -359,13 +359,13 @@ impl SubstitutedSegment {
                                 }
                             }
                         }
-                        if replaced_text.len() > 0 {
+                        if !replaced_text.is_empty() {
                             output.push(SubstitutedSegment::Replaced(
                                 replaced_text,
                                 macro_def.3.clone(),
                             ));
                         }
-                        if after.len() > 0 {
+                        if !after.is_empty() {
                             SubstitutedSegment::Text(after.to_string(), after_location)
                                 .apply(macro_def, macro_defs, output)?;
                         }
@@ -426,11 +426,11 @@ impl SubstitutedText {
                             before,
                             match line_map.get_file_location(StreamLocation(loc)) {
                                 Ok(loc) => loc,
-                                Err(()) => panic!("bad file location"),
+                                Err(_) => panic!("bad file location"),
                             },
                         );
                         remaining = &remaining[sz..];
-                        loc = loc + sz as u64;
+                        loc += sz as u64;
                         if last {
                             break;
                         }
@@ -568,7 +568,7 @@ impl ConditionChain {
     }
 
     fn is_active(&self) -> bool {
-        self.0.iter().fold(true, |acc, gate| acc && *gate)
+        self.0.iter().all(|gate| *gate)
     }
 }
 
@@ -578,7 +578,7 @@ fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
     let mut stream = file_contents;
     let mut current_line = 1;
     loop {
-        let (sz, final_segment) = match stream.find("\n") {
+        let (sz, final_segment) = match stream.find('\n') {
             Some(sz) => (sz + 1, false),
             None => (stream.len(), true),
         };
@@ -587,7 +587,7 @@ fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
             StreamLocation(file_length - length_left),
             FileLocation::Known(file_name.clone(), Line(current_line), Column(1)),
         );
-        current_line = current_line + 1;
+        current_line += 1;
         stream = &stream[sz..];
         if final_segment {
             break;
@@ -655,7 +655,7 @@ fn test_get_after_macro() {
 
 fn get_macro_line(remaining: &str) -> &str {
     let len = find_macro_end(remaining);
-    &remaining[..len].trim_end()
+    remaining[..len].trim_end()
 }
 
 #[test]
@@ -676,11 +676,10 @@ fn preprocess_command<'a>(
     condition_chain: &mut ConditionChain,
 ) -> Result<&'a str, PreprocessError> {
     let skip = !condition_chain.is_active();
-    if command.starts_with("include") {
+    if let Some(next) = command.strip_prefix("include") {
         if skip {
             return Ok(get_after_single_line(command));
         }
-        let next = &command[7..];
         match next.chars().next() {
             Some(' ') | Some('\t') | Some('"') | Some('<') => {
                 let args = next.trim_start();
@@ -720,7 +719,7 @@ fn preprocess_command<'a>(
                                     None => next.len(),
                                 };
                                 let remains = &next[..end].trim();
-                                if remains.len() != 0 && !remains.starts_with("//") {
+                                if !remains.is_empty() && !remains.starts_with("//") {
                                     return Err(PreprocessError::InvalidInclude);
                                 }
 
@@ -728,18 +727,16 @@ fn preprocess_command<'a>(
 
                                 Ok(next)
                             }
-                            Err(err) => {
-                                return Err(PreprocessError::FailedToFindFile(
-                                    file_name.to_string(),
-                                    err,
-                                ))
-                            }
+                            Err(err) => Err(PreprocessError::FailedToFindFile(
+                                file_name.to_string(),
+                                err,
+                            )),
                         }
                     }
-                    None => return Err(PreprocessError::InvalidInclude),
+                    None => Err(PreprocessError::InvalidInclude),
                 }
             }
-            _ => return Err(PreprocessError::InvalidInclude),
+            _ => Err(PreprocessError::InvalidInclude),
         }
     } else if command.starts_with("ifdef") || command.starts_with("ifndef") {
         if skip {
@@ -757,20 +754,19 @@ fn preprocess_command<'a>(
                 };
                 let body = &args[..end].trim();
 
-                let exists = macros.iter().fold(false, |acc, m| acc || &m.0 == body);
+                let exists = macros.iter().any(|m| &m.0 == body);
                 condition_chain.push(if not { !exists } else { exists });
 
                 let remaining = &args[end..];
                 Ok(remaining)
             }
-            _ => return Err(PreprocessError::InvalidIfndef(command.to_string())),
+            _ => Err(PreprocessError::InvalidIfndef(command.to_string())),
         }
-    } else if command.starts_with("if") {
+    } else if let Some(next) = command.strip_prefix("if") {
         if skip {
             condition_chain.push(false);
             return Ok(get_after_single_line(command));
         }
-        let next = &command[2..];
         match next.chars().next() {
             Some(' ') | Some('\t') | Some('(') => {
                 let args = next.trim_start();
@@ -797,10 +793,9 @@ fn preprocess_command<'a>(
 
                 Ok(remaining)
             }
-            _ => return Err(PreprocessError::InvalidIf(command.to_string())),
+            _ => Err(PreprocessError::InvalidIf(command.to_string())),
         }
-    } else if command.starts_with("else") {
-        let next = &command[4..];
+    } else if let Some(next) = command.strip_prefix("else") {
         match next.chars().next() {
             Some(' ') | Some('\t') | Some('\n') | Some('\r') => {
                 let args = next;
@@ -809,7 +804,7 @@ fn preprocess_command<'a>(
                     _ => return Err(PreprocessError::InvalidElse),
                 };
                 let body = args[..end].trim();
-                if body.len() != 0 && !body.starts_with("//") {
+                if !body.is_empty() && !body.starts_with("//") {
                     return Err(PreprocessError::InvalidElse);
                 }
 
@@ -818,10 +813,9 @@ fn preprocess_command<'a>(
                 let remaining = &args[end..];
                 Ok(remaining)
             }
-            _ => return Err(PreprocessError::InvalidElse),
+            _ => Err(PreprocessError::InvalidElse),
         }
-    } else if command.starts_with("endif") {
-        let next = &command[5..];
+    } else if let Some(next) = command.strip_prefix("endif") {
         match next.chars().next() {
             Some(' ') | Some('\t') | Some('\n') | Some('\r') | None => {
                 let args = next;
@@ -830,7 +824,7 @@ fn preprocess_command<'a>(
                     None => args.len(),
                 };
                 let body = &args[..end].trim();
-                if body.len() != 0 && !body.starts_with("//") {
+                if !body.is_empty() && !body.starts_with("//") {
                     return Err(PreprocessError::InvalidEndIf);
                 }
 
@@ -839,13 +833,12 @@ fn preprocess_command<'a>(
                 let remaining = &args[end..];
                 Ok(remaining)
             }
-            _ => return Err(PreprocessError::InvalidEndIf),
+            _ => Err(PreprocessError::InvalidEndIf),
         }
-    } else if command.starts_with("define") {
+    } else if let Some(next) = command.strip_prefix("define") {
         if skip {
             return Ok(get_after_macro(command));
         }
-        let next = &command[6..];
         match next.chars().next() {
             Some(' ') | Some('\t') => {
                 let mut remaining = next[1..].trim_start();
@@ -862,17 +855,14 @@ fn preprocess_command<'a>(
                 }
 
                 // Consume macro args
-                match remaining.chars().next() {
-                    Some('(') => {
-                        remaining = &remaining[1..];
-                        match remaining.find(')') {
-                            Some(sz) => {
-                                remaining = &remaining[(sz + 1)..];
-                            }
-                            None => return Err(PreprocessError::InvalidDefine),
+                if let Some('(') = remaining.chars().next() {
+                    remaining = &remaining[1..];
+                    match remaining.find(')') {
+                        Some(sz) => {
+                            remaining = &remaining[(sz + 1)..];
                         }
+                        None => return Err(PreprocessError::InvalidDefine),
                     }
-                    _ => {}
                 }
 
                 // Let the header be the name + args
@@ -893,9 +883,9 @@ fn preprocess_command<'a>(
 
                 let body = body.trim().replace("\\\n", "\n").replace("\\\r\n", "\r\n");
                 let subbed_body = SubstitutedText::new(&body, StreamLocation(0))
-                    .apply_all(&macros)?
+                    .apply_all(macros)?
                     .resolve();
-                let macro_def = Macro::from_definition(&header, &subbed_body, location)?;
+                let macro_def = Macro::from_definition(header, &subbed_body, location)?;
 
                 for current_macro in macros.iter() {
                     if *current_macro.0 == macro_def.0 {
@@ -908,10 +898,10 @@ fn preprocess_command<'a>(
 
                 Ok(remaining)
             }
-            _ => return Err(PreprocessError::InvalidDefine),
+            _ => Err(PreprocessError::InvalidDefine),
         }
-    } else if command.starts_with("pragma once") {
-        let pragma_command = get_macro_line(&command[7..]).trim();
+    } else if let Some(next) = command.strip_prefix("pragma") {
+        let pragma_command = get_macro_line(next).trim();
         if pragma_command == "once" {
             match location {
                 FileLocation::Known(file, _, _) => include_handler.mark_as_pragma_once(&file.0),
@@ -952,8 +942,8 @@ fn preprocess_file(
             Err(_) => panic!("could not find line for current position in file"),
         };
         let start_trimmed = stream.trim_start();
-        if start_trimmed.starts_with("#") {
-            let command = start_trimmed[1..].trim_start();
+        if let Some(command) = start_trimmed.strip_prefix('#') {
+            let command = command.trim_start();
             stream = preprocess_command(
                 buffer,
                 include_handler,
@@ -971,10 +961,10 @@ fn preprocess_file(
                         Some(sz) => (sz + 1, false),
                         None => (stream.len(), true),
                     };
-                    size = size + sz;
+                    size += sz;
                     final_segment = fs;
                     stream = &stream[sz..];
-                    if final_segment || stream.trim_start().starts_with("#") {
+                    if final_segment || stream.trim_start().starts_with('#') {
                         break;
                     }
                 }
@@ -1019,7 +1009,7 @@ pub fn preprocess(
         &mut condition_chain,
     )?;
 
-    if condition_chain.0.len() != 0 {
+    if !condition_chain.0.is_empty() {
         return Err(PreprocessError::ConditionChainNotFinished);
     }
 

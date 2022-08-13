@@ -17,7 +17,7 @@ impl std::fmt::Debug for LexError {
                 Ok(friendly) => {
                     let substr = match friendly.find('\n') {
                         Some(index) => &friendly[..index],
-                        None => &friendly,
+                        None => friendly,
                     };
                     write!(f, "FailedToParse(\"{}\")", substr)
                 }
@@ -94,15 +94,10 @@ fn digit(input: &[u8]) -> IResult<&[u8], u64> {
 /// Parse multiple decimal digits into a 64-bit value
 fn digits(input: &[u8]) -> IResult<&[u8], u64> {
     let (mut input, mut value) = digit(input)?;
-    loop {
-        match digit(input) {
-            Ok((next_input, d)) => {
-                input = next_input;
-                value = value * 10;
-                value += d;
-            }
-            _ => break,
-        }
+    while let Ok((next_input, d)) = digit(input) {
+        input = next_input;
+        value *= 10;
+        value += d;
     }
     Ok((input, value))
 }
@@ -164,15 +159,10 @@ fn digit_hex(input: &[u8]) -> IResult<&[u8], u64> {
 /// Parse multiple hexadecimal digits into a 64-bit value
 fn digits_hex(input: &[u8]) -> IResult<&[u8], u64> {
     let (mut input, mut value) = digit_hex(input)?;
-    loop {
-        match digit_hex(input) {
-            Ok((next_input, d)) => {
-                input = next_input;
-                value = value * 16;
-                value += d;
-            }
-            _ => break,
-        }
+    while let Ok((next_input, d)) = digit_hex(input) {
+        input = next_input;
+        value *= 16;
+        value += d;
     }
     Ok((input, value))
 }
@@ -220,15 +210,10 @@ fn digit_octal(input: &[u8]) -> IResult<&[u8], u64> {
 /// Parse multiple octal digits into a 64-bit value
 fn digits_octal(input: &[u8]) -> IResult<&[u8], u64> {
     let (mut input, mut value) = digit_octal(input)?;
-    loop {
-        match digit_octal(input) {
-            Ok((next_input, d)) => {
-                input = next_input;
-                value = value * 8;
-                value += d;
-            }
-            _ => break,
-        }
+    while let Ok((next_input, d)) = digit_octal(input) {
+        input = next_input;
+        value *= 8;
+        value += d;
     }
     Ok((input, value))
 }
@@ -343,7 +328,7 @@ fn fractional_constant(input: &[u8]) -> IResult<&[u8], Fraction> {
 
     // If there was not a whole part then the fractional part is mandatory
     let (input, fractional_part) = if whole_part.is_none() {
-        nom::combinator::map(digit_sequence, |v| Some(v))(input)?
+        nom::combinator::map(digit_sequence, Some)(input)?
     } else {
         nom::combinator::opt(digit_sequence)(input)?
     };
@@ -447,7 +432,7 @@ fn calculate_float_from_parts(
 ) -> Token {
     let mut left_combined = 0f64;
     for digit in left {
-        left_combined = left_combined * 10f64;
+        left_combined *= 10f64;
         left_combined += digit as f64;
     }
     let left_float = left_combined as f64;
@@ -455,23 +440,23 @@ fn calculate_float_from_parts(
     let mut right_combined = 0f64;
     let right_len = right.len();
     for digit in right {
-        right_combined = right_combined * 10f64;
+        right_combined *= 10f64;
         right_combined += digit as f64;
     }
     let mut right_float = right_combined as f64;
     for _ in 0..right_len {
-        right_float = right_float / 10f64;
+        right_float /= 10f64;
     }
 
     let mantissa = left_float + right_float;
     let mut value64 = mantissa;
     if exponent > 0 {
         for _ in 0..exponent {
-            value64 = value64 * 10f64;
+            value64 *= 10f64;
         }
     } else {
         for _ in 0..(-exponent) {
-            value64 = value64 / 10f64;
+            value64 /= 10f64;
         }
     }
 
@@ -545,45 +530,40 @@ fn test_literal_float() {
     assert!(p(b".").is_err());
 }
 
-fn identifier_firstchar<'a>(input: &'a [u8]) -> IResult<&'a [u8], u8> {
-    if input.len() == 0 {
+/// Parse the first character of an identifier
+fn identifier_firstchar(input: &[u8]) -> IResult<&[u8], u8> {
+    if input.is_empty() {
         Err(nom::Err::Incomplete(Needed::new(1)))
     } else {
         let byte = input[0];
-        let ch = byte as char;
-        if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch == '_') {
-            Ok((&input[1..], byte))
-        } else {
-            Err(nom::Err::Error(nom::error::Error::new(
+        match byte as char {
+            'A'..='Z' | 'a'..='z' | '_' => Ok((&input[1..], byte)),
+            _ => Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 ErrorKind::Tag,
-            )))
+            ))),
         }
     }
 }
 
-fn identifier_char<'a>(input: &'a [u8]) -> IResult<&'a [u8], u8> {
-    if input.len() == 0 {
+/// Parse characters in an identifier after the first
+fn identifier_char(input: &[u8]) -> IResult<&[u8], u8> {
+    if input.is_empty() {
         Err(nom::Err::Incomplete(Needed::new(1)))
     } else {
         let byte = input[0];
-        let ch = byte as char;
-        if (ch >= 'A' && ch <= 'Z')
-            || (ch >= 'a' && ch <= 'z')
-            || (ch == '_')
-            || (ch >= '0' && ch <= '9')
-        {
-            Ok((&input[1..], byte))
-        } else {
-            Err(nom::Err::Error(nom::error::Error::new(
+        match byte as char {
+            'A'..='Z' | 'a'..='z' | '_' | '0'..='9' => Ok((&input[1..], byte)),
+            _ => Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 ErrorKind::Tag,
-            )))
+            ))),
         }
     }
 }
 
-fn identifier<'a>(input: &'a [u8]) -> IResult<&'a [u8], Identifier> {
+/// Parse an identifier
+fn identifier(input: &[u8]) -> IResult<&[u8], Identifier> {
     let mut chars = Vec::new();
     let first_result = identifier_firstchar(input);
 
@@ -613,7 +593,7 @@ fn identifier<'a>(input: &'a [u8]) -> IResult<&'a [u8], Identifier> {
     // sub string at the start
     // Maybe just combine the identifier and reserved word parsing?
     if let Ok((slice, _)) = reserved_word(&chars[..]) {
-        if slice.len() == 0 {
+        if slice.is_empty() {
             return Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 ErrorKind::Tag,
@@ -629,7 +609,7 @@ fn identifier<'a>(input: &'a [u8]) -> IResult<&'a [u8], Identifier> {
 
 /// Parse trivial whitespace
 fn whitespace_simple(input: &[u8]) -> IResult<&[u8], ()> {
-    if input.len() == 0 {
+    if input.is_empty() {
         Err(nom::Err::Incomplete(Needed::new(1)))
     } else {
         match input[0] {
@@ -1288,7 +1268,7 @@ fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
     use nom::combinator::map;
     nom::branch::alt((
         // Literals and identifiers
-        map(identifier, |id| Token::Id(id)),
+        map(identifier, Token::Id),
         literal_float,
         literal_int,
         map(reserved_word_true, |_| Token::True),
@@ -1354,7 +1334,7 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
                 for StreamToken(ref token, stream_location) in stream {
                     let loc = match preprocessed.get_file_location(stream_location) {
                         Ok(file_location) => file_location,
-                        Err(()) => return Err(LexError::Unknown),
+                        Err(_) => return Err(LexError::Unknown),
                     };
                     lex_tokens.push(LexToken(token.clone(), loc));
                 }
@@ -1376,7 +1356,7 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
                         }
                     }
 
-                    if let Ok(_) = whitespace(after) {
+                    if whitespace(after).is_ok() {
                         break;
                     }
                 }
