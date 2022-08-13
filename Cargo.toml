@@ -1,0 +1,22 @@
+[package]
+name = "rssl"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+rssl-text = { path = "text" }
+rssl-tok = { path = "tok" }
+rssl-preprocess = { path = "preprocess" }
+rssl-lexer = { path = "lexer" }
+
+[workspace]
+members = [
+    "lexer",
+    "preprocess",
+    "text",
+    "tok",
+]
