@@ -75,22 +75,31 @@ impl IntermediateText {
         }
     }
     fn push_str(&mut self, segment: &str, segment_location: FileLocation) {
+        assert!(!segment.is_empty());
         let parts = segment.split('\n');
         let last = parts.clone().count() - 1;
         for (index, part) in parts.enumerate() {
-            let location = match segment_location {
-                FileLocation::Known(ref file, line, column) => {
-                    FileLocation::Known(file.clone(), Line(line.0 + index as u64), column)
-                }
-                FileLocation::Unknown => FileLocation::Unknown,
-            };
-            let stream_location_in_buffer = StreamLocation(self.buffer.len() as u64);
-            self.buffer.push_str(part);
-            if index != last {
+            let not_last = index != last;
+            // Avoid adding the part if nothing will be appended to the stream
+            // This avoids multiple locations for the same stream position
+            if !part.is_empty() || not_last {
+                let stream_location_in_buffer = StreamLocation(self.buffer.len() as u64);
+                self.buffer.push_str(part);
+
+                let location = match segment_location {
+                    FileLocation::Known(ref file, line, column) => FileLocation::Known(
+                        file.clone(),
+                        Line(line.0 + index as u64),
+                        if index == 0 { column } else { Column::first() },
+                    ),
+                    FileLocation::Unknown => FileLocation::Unknown,
+                };
+                self.debug_locations
+                    .push(stream_location_in_buffer, location);
+            }
+            if not_last {
                 self.buffer.push('\n');
             }
-            self.debug_locations
-                .push(stream_location_in_buffer, location);
         }
     }
 }
@@ -373,6 +382,7 @@ impl SubstitutedSegment {
                     }
                     None => {}
                 }
+                assert!(!text.is_empty());
                 output.push(SubstitutedSegment::Text(text, location))
             }
             SubstitutedSegment::Replaced(text, location) => {
@@ -388,7 +398,11 @@ struct SubstitutedText(Vec<SubstitutedSegment>);
 
 impl SubstitutedText {
     fn new(text: &str, location: StreamLocation) -> SubstitutedText {
-        SubstitutedText(vec![SubstitutedSegment::Text(text.to_string(), location)])
+        if text.is_empty() {
+            SubstitutedText(Vec::new())
+        } else {
+            SubstitutedText(vec![SubstitutedSegment::Text(text.to_string(), location)])
+        }
     }
 
     fn apply_all(self, macro_defs: &[Macro]) -> Result<SubstitutedText, PreprocessError> {
@@ -414,6 +428,7 @@ impl SubstitutedText {
         for substituted_segment in self.0 {
             match substituted_segment {
                 SubstitutedSegment::Text(text, location) => {
+                    assert!(!text.is_empty());
                     let mut remaining = &text[..];
                     let mut loc = location.0;
                     loop {
@@ -431,12 +446,13 @@ impl SubstitutedText {
                         );
                         remaining = &remaining[sz..];
                         loc += sz as u64;
-                        if last {
+                        if last || remaining.is_empty() {
                             break;
                         }
                     }
                 }
                 SubstitutedSegment::Replaced(text, location) => {
+                    assert!(!text.is_empty());
                     intermediate_text.push_str(&text, location)
                 }
             }
@@ -576,7 +592,7 @@ fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
     let mut line_map = LineMap::default();
     let file_length = file_contents.len() as u64;
     let mut stream = file_contents;
-    let mut current_line = 1;
+    let mut current_line = Line::first();
     loop {
         let (sz, final_segment) = match stream.find('\n') {
             Some(sz) => (sz + 1, false),
@@ -585,9 +601,9 @@ fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
         let length_left = stream.len() as u64;
         line_map.push(
             StreamLocation(file_length - length_left),
-            FileLocation::Known(file_name.clone(), Line(current_line), Column(1)),
+            FileLocation::Known(file_name.clone(), current_line, Column::first()),
         );
-        current_line += 1;
+        current_line.increment();
         stream = &stream[sz..];
         if final_segment {
             break;
