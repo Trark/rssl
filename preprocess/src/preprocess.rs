@@ -705,7 +705,7 @@ fn test_get_macro_line() {
 
 fn preprocess_command<'a>(
     buffer: &mut IntermediateText,
-    include_handler: &mut FileLoader,
+    file_loader: &mut FileLoader,
     command: &'a str,
     location: FileLocation,
     macros: &mut Vec<Macro>,
@@ -733,11 +733,11 @@ fn preprocess_command<'a>(
                         }
 
                         // Include the file
-                        match include_handler.load(file_name) {
+                        match file_loader.load(file_name) {
                             Ok(file) => {
-                                preprocess_file(
+                                preprocess_included_file(
                                     buffer,
-                                    include_handler,
+                                    file_loader,
                                     FileName(file.real_name),
                                     &file.contents,
                                     macros,
@@ -940,7 +940,7 @@ fn preprocess_command<'a>(
         let pragma_command = get_macro_line(next).trim();
         if pragma_command == "once" {
             match location {
-                FileLocation::Known(file, _, _) => include_handler.mark_as_pragma_once(&file.0),
+                FileLocation::Known(file, _, _) => file_loader.mark_as_pragma_once(&file.0),
                 FileLocation::Unknown => return Err(PreprocessError::PragmaOnceInUnknownFile),
             }
             return Ok(get_after_single_line(command));
@@ -959,9 +959,9 @@ fn preprocess_command<'a>(
 }
 
 /// Internal process a single file during preprocessing
-fn preprocess_file(
+fn preprocess_included_file(
     buffer: &mut IntermediateText,
-    include_handler: &mut FileLoader,
+    file_loader: &mut FileLoader,
     file_name: FileName,
     file: &str,
     macros: &mut Vec<Macro>,
@@ -982,7 +982,7 @@ fn preprocess_file(
             let command = command.trim_start();
             stream = preprocess_command(
                 buffer,
-                include_handler,
+                file_loader,
                 command,
                 file_location,
                 macros,
@@ -1024,21 +1024,19 @@ fn preprocess_file(
     Ok(())
 }
 
-/// Preprocess a file
-pub fn preprocess(
+/// Preprocess a file after having set up the file loader
+fn preprocess_with_file_loader(
     input: &str,
     file_name: FileName,
-    include_handler: &mut dyn IncludeHandler,
+    file_loader: &mut FileLoader,
 ) -> Result<PreprocessedText, PreprocessError> {
     let mut intermediate_text = IntermediateText::new();
     let mut macros = vec![];
     let mut condition_chain = ConditionChain::new();
 
-    let mut file_loader = FileLoader::new(include_handler);
-
-    preprocess_file(
+    preprocess_included_file(
         &mut intermediate_text,
-        &mut file_loader,
+        file_loader,
         file_name,
         input,
         &mut macros,
@@ -1053,6 +1051,33 @@ pub fn preprocess(
         intermediate_text.buffer,
         intermediate_text.debug_locations,
     ))
+}
+
+/// Preprocess a file - starting from memory
+pub fn preprocess(
+    input: &str,
+    file_name: FileName,
+    include_handler: &mut dyn IncludeHandler,
+) -> Result<PreprocessedText, PreprocessError> {
+    let mut file_loader = FileLoader::new(include_handler);
+    preprocess_with_file_loader(input, file_name, &mut file_loader)
+}
+
+/// Preprocess a file - starting from include handler
+pub fn preprocess_file(
+    entry_file_name: &str,
+    include_handler: &mut dyn IncludeHandler,
+) -> Result<PreprocessedText, PreprocessError> {
+    let mut file_loader = FileLoader::new(include_handler);
+    match file_loader.load(entry_file_name) {
+        Ok(file) => {
+            preprocess_with_file_loader(&file.contents, FileName(file.real_name), &mut file_loader)
+        }
+        Err(err) => Err(PreprocessError::FailedToFindFile(
+            entry_file_name.to_string(),
+            err,
+        )),
+    }
 }
 
 /// Preprocess a single file without any support for includes
