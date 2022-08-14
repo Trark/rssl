@@ -106,6 +106,7 @@ impl IntermediateText {
 
 /// Manage files that are returned from the external include handler
 struct FileLoader<'a> {
+    file_name_remap: HashMap<String, String>,
     file_store: HashMap<String, String>,
     pragma_once_files: HashSet<String>,
     include_handler: &'a mut dyn IncludeHandler,
@@ -114,27 +115,46 @@ struct FileLoader<'a> {
 impl<'a> FileLoader<'a> {
     fn new(include_handler: &'a mut dyn IncludeHandler) -> Self {
         FileLoader {
+            file_name_remap: HashMap::new(),
             file_store: HashMap::new(),
             pragma_once_files: HashSet::new(),
             include_handler,
         }
     }
 
-    fn load(&mut self, file_name: &str) -> Result<String, IncludeError> {
-        // If the file users #pragma once and has already been included then return nothing
-        if self.pragma_once_files.contains(file_name) {
-            return Ok(String::new());
+    fn load(&mut self, file_name: &str) -> Result<FileData, IncludeError> {
+        let real_name = self.file_name_remap.get(file_name);
+
+        // If we have already seen this file we will already have the real name
+        if let Some(real_name) = real_name {
+            // If the file users #pragma once and has already been included then return nothing
+            if self.pragma_once_files.contains(real_name) {
+                return Ok(FileData {
+                    real_name: real_name.clone(),
+                    contents: String::new(),
+                });
+            }
+
+            // If the file has already been loaded the return the previous result
+            if let Some(d) = self.file_store.get(real_name) {
+                return Ok(FileData {
+                    real_name: real_name.clone(),
+                    contents: d.clone(),
+                });
+            } else {
+                // Not expected - but this woudl be safe to ignore
+                panic!("File was loaded before but was not in the store");
+            }
         }
 
-        if let Some(d) = self.file_store.get(file_name) {
-            return Ok(d.clone());
-        }
+        let file_data = self.include_handler.load(file_name)?;
 
-        let file_source = self.include_handler.load(file_name)?;
+        self.file_name_remap
+            .insert(file_name.to_string(), file_data.real_name.clone());
         self.file_store
-            .insert(file_name.to_string(), file_source.clone());
+            .insert(file_data.real_name.to_string(), file_data.contents.clone());
 
-        Ok(file_source)
+        Ok(file_data)
     }
 
     fn mark_as_pragma_once(&mut self, file_name: &str) {
@@ -718,8 +738,8 @@ fn preprocess_command<'a>(
                                 preprocess_file(
                                     buffer,
                                     include_handler,
-                                    FileName(file_name.to_string()),
-                                    &file,
+                                    FileName(file.real_name),
+                                    &file.contents,
                                     macros,
                                     condition_chain,
                                 )?;
