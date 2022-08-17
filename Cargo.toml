@@ -10,12 +10,16 @@ doctest = false
 [dependencies]
 rssl-text = { path = "text" }
 rssl-tok = { path = "tok" }
+rssl-ast = { path = "ast" }
 rssl-preprocess = { path = "preprocess" }
 rssl-lexer = { path = "lexer" }
+rssl-parser = { path = "parser" }
 
 [workspace]
 members = [
+    "ast",
     "lexer",
+    "parser",
     "preprocess",
     "text",
     "tok",

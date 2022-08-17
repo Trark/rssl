@@ -1,0 +1,17 @@
+[package]
+name = "rssl-parser"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+rssl-text = { path = "../text" }
+rssl-tok = { path = "../tok" }
+rssl-ast = { path = "../ast" }
+nom = "7.1.1"
+
+[dev-dependencies]
+rssl-preprocess = { path = "../preprocess" }
+rssl-lexer = { path = "../lexer" }
