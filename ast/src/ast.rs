@@ -554,6 +554,15 @@ pub enum Semantic {
     GroupId,
     GroupIndex,
     GroupThreadId,
+    VertexId,
+    InstanceId,
+    PrimitiveId,
+    Position,
+    Target(u8),
+    Depth,
+    DepthGreaterEqual,
+    DepthLessEqual,
+    User(String),
 }
 
 #[derive(PartialEq, Debug, Clone)]
