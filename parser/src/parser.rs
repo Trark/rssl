@@ -2002,10 +2002,18 @@ impl Parse for FunctionDefinition {
             parse_typed::<FunctionParam>(st),
         )(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
+        let (input, return_semantic) = nom::combinator::opt(|input| {
+            let (input, _) = parse_token(Token::Colon)(input)?;
+            let (input, semantic) = parse_semantic(input)?;
+            Ok((input, semantic))
+        })(input)?;
         let (input, body) = statement_block(input, st)?;
         let def = FunctionDefinition {
             name: func_name.to_node(),
-            returntype: ret,
+            returntype: FunctionReturn {
+                return_type: ret,
+                semantic: return_semantic,
+            },
             params,
             body,
             attributes,
@@ -3068,10 +3076,13 @@ fn test_rootdefinition() {
 
     let functiondefinition_str = parse_from_str::<FunctionDefinition>();
 
-    let test_func_str = "void func(float x) { }";
+    let test_func_str = "float func(float x) : SV_Depth { }";
     let test_func_ast = FunctionDefinition {
         name: "func".to_string(),
-        returntype: Type::void(),
+        returntype: FunctionReturn {
+            return_type: Type::float(),
+            semantic: Some(Semantic::Depth),
+        },
         params: vec![FunctionParam {
             name: "x".to_string(),
             param_type: Type::float().into(),
@@ -3094,7 +3105,7 @@ fn test_rootdefinition() {
         rootdefinition_str("[numthreads(16, 16, 1)] void func(float x) { }"),
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string(),
-            returntype: Type::void(),
+            returntype: Type::void().into(),
             params: vec![FunctionParam {
                 name: "x".to_string(),
                 param_type: Type::float().into(),

@@ -591,9 +591,24 @@ pub struct FunctionParam {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct FunctionReturn {
+    pub return_type: Type,
+    pub semantic: Option<Semantic>,
+}
+
+impl From<Type> for FunctionReturn {
+    fn from(ty: Type) -> FunctionReturn {
+        FunctionReturn {
+            return_type: ty,
+            semantic: None,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct FunctionDefinition {
     pub name: String,
-    pub returntype: Type,
+    pub returntype: FunctionReturn,
     pub params: Vec<FunctionParam>,
     pub body: Vec<Statement>,
     pub attributes: Vec<FunctionAttribute>,
