@@ -71,6 +71,26 @@ impl SourceManager {
         source_file.base_location.offset(stream_location.0)
     }
 
+    /// Get the file id and offset from a source location
+    pub fn get_file_offset_from_source_location(
+        &self,
+        source_location: SourceLocation,
+    ) -> Option<(FileId, StreamLocation)> {
+        let mut current_offset = 0;
+        for (i, source_file) in self.files.iter().enumerate() {
+            let next_offset = current_offset + source_file.file_size + 1;
+            assert_eq!(source_file.base_location.0, current_offset);
+            if source_location.0 < next_offset {
+                let file_id = FileId(i as u32);
+                let source_offset = StreamLocation(source_location.0 - current_offset);
+                return Some((file_id, source_offset));
+            } else {
+                current_offset = next_offset;
+            }
+        }
+        None
+    }
+
     /// Get the full file location information from a source location
     pub fn get_file_location(&self, source_location: SourceLocation) -> FileLocation {
         let mut current_offset = 0;
@@ -98,6 +118,44 @@ impl SourceManager {
             }
         }
         FileLocation::Unknown
+    }
+
+    // Print file source around an error location
+    pub fn write_source_for_error(
+        &self,
+        f: &mut std::fmt::Formatter,
+        source_location: Option<SourceLocation>,
+    ) -> std::fmt::Result {
+        match source_location {
+            Some(loc) => {
+                let file_offset = self.get_file_offset_from_source_location(loc);
+                if let Some((file_id, file_offset)) = file_offset {
+                    let contents = self.get_contents(file_id);
+                    let fail_index = file_offset.0 as usize;
+                    let (before, after) = contents.split_at(fail_index);
+                    let line_start = match before.rfind('\n') {
+                        Some(i) => i + 1,
+                        None => 0,
+                    };
+                    let line_end = fail_index + after.find('\n').unwrap_or(after.len());
+
+                    // Print source line
+                    writeln!(f, "{}", &contents[line_start..line_end])?;
+
+                    if let FileLocation::Known(_, _, column) = self.get_file_location(loc) {
+                        for _ in 1..(column.0) {
+                            write!(f, " ")?;
+                        }
+                        writeln!(f, "^")?;
+                    }
+
+                    Ok(())
+                } else {
+                    writeln!(f, "Invalid source")
+                }
+            }
+            None => writeln!(f, "No location available"),
+        }
     }
 }
 
@@ -160,6 +218,17 @@ impl Column {
 pub enum FileLocation {
     Known(FileName, Line, Column),
     Unknown,
+}
+
+impl std::fmt::Display for FileLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self {
+            FileLocation::Known(file_name, line, column) => {
+                write!(f, "{}:{}:{}", file_name.0, line.0, column.0)
+            }
+            FileLocation::Unknown => write!(f, "<unknown>"),
+        }
+    }
 }
 
 /// The raw number of bytes from the start of a stream

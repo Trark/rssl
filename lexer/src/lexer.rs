@@ -2,18 +2,38 @@ use nom::{error::ErrorKind, IResult, Needed};
 use rssl_text::*;
 use rssl_tok::*;
 
+/// Provides details on why a lex operation failed
 #[derive(PartialEq, Clone)]
-pub enum LexError {
+pub struct LexerError {
+    reason: LexerErrorReason,
+    location: SourceLocation,
+}
+
+/// The basic reason for a lex failure
+#[derive(PartialEq, Clone)]
+pub enum LexerErrorReason {
     Unknown,
     FailedToParse(Vec<u8>),
     UnexpectedEndOfStream,
 }
 
-impl std::fmt::Debug for LexError {
+impl LexerError {
+    /// Create a new lexer error
+    pub fn new(reason: LexerErrorReason, location: SourceLocation) -> Self {
+        LexerError { reason, location }
+    }
+
+    /// Get formatter to print the error
+    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> LexerErrorPrinter<'a> {
+        LexerErrorPrinter(self, source_manager)
+    }
+}
+
+impl std::fmt::Debug for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            LexError::Unknown => write!(f, "Unknown"),
-            LexError::FailedToParse(ref data) => match std::str::from_utf8(data) {
+        match self.reason {
+            LexerErrorReason::Unknown => write!(f, "Unknown"),
+            LexerErrorReason::FailedToParse(ref data) => match std::str::from_utf8(data) {
                 Ok(friendly) => {
                     let substr = match friendly.find('\n') {
                         Some(index) => &friendly[..index],
@@ -23,27 +43,36 @@ impl std::fmt::Debug for LexError {
                 }
                 Err(_) => write!(f, "FailedToParse({:?})", data),
             },
-            LexError::UnexpectedEndOfStream => write!(f, "UnexpectedEndOfStream"),
+            LexerErrorReason::UnexpectedEndOfStream => write!(f, "UnexpectedEndOfStream"),
         }
     }
 }
 
-impl std::fmt::Display for LexError {
+impl std::fmt::Display for LexerErrorReason {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            LexError::Unknown => write!(f, "Unknown lexer error"),
-            LexError::FailedToParse(ref rest) => {
-                let next_space = rest
-                    .iter()
-                    .position(|c| *c == b' ' || *c == b'\t' || *c == b'\n' || *c == b'\r')
-                    .unwrap_or(rest.len());
-                match std::str::from_utf8(&rest[..next_space]) {
-                    Ok(s) => write!(f, "Failed to parse tokens: {}", s),
-                    _ => write!(f, "Failed to parse tokens: Invalid UTF-8"),
-                }
-            }
-            LexError::UnexpectedEndOfStream => write!(f, "Unexpected end of stream"),
+            LexerErrorReason::Unknown => write!(f, "Unknown lexer error"),
+            LexerErrorReason::FailedToParse(_) => write!(f, "Unexpected character"),
+            LexerErrorReason::UnexpectedEndOfStream => write!(f, "Unexpected end of stream"),
         }
+    }
+}
+
+/// Prints lexer errors
+pub struct LexerErrorPrinter<'a>(&'a LexerError, &'a SourceManager);
+
+impl<'a> std::fmt::Display for LexerErrorPrinter<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let LexerErrorPrinter(err, source_manager) = self;
+
+        // Get file location info
+        let file_location = source_manager.get_file_location(err.location);
+
+        // Print basic failure reason
+        writeln!(f, "{}: {}", file_location, err.reason)?;
+
+        // Print source that caused the error
+        source_manager.write_source_for_error(f, Some(err.location))
     }
 }
 
@@ -1321,7 +1350,7 @@ fn token_stream(input: &[u8]) -> IResult<&[u8], Vec<StreamToken>> {
 }
 
 /// Run the lexer on input text to turn it into a token stream
-pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
+pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
     let code_bytes = preprocessed.as_bytes();
     let total_length = code_bytes.len() as u32;
     match token_stream(code_bytes) {
@@ -1360,11 +1389,24 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
                 }
 
                 let failing_bytes = rest[..rest.len() - after.len()].to_vec();
-                Err(LexError::FailedToParse(failing_bytes))
+                let offset = StreamLocation((code_bytes.len() - rest.len()) as u32);
+                Err(LexerError::new(
+                    LexerErrorReason::FailedToParse(failing_bytes),
+                    preprocessed.get_source_location(offset),
+                ))
             }
         }
-        Err(nom::Err::Incomplete(_)) => Err(LexError::UnexpectedEndOfStream),
-        Err(_) => Err(LexError::Unknown),
+        Err(nom::Err::Incomplete(_)) => Err(LexerError::new(
+            LexerErrorReason::UnexpectedEndOfStream,
+            preprocessed.get_source_location(StreamLocation(code_bytes.len() as u32)),
+        )),
+        Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
+            let offset = StreamLocation((code_bytes.len() - err.input.len()) as u32);
+            Err(LexerError::new(
+                LexerErrorReason::Unknown,
+                preprocessed.get_source_location(offset),
+            ))
+        }
     }
 }
 

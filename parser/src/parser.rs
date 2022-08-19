@@ -192,25 +192,11 @@ fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
 /// Parse a stream of lex tokens into an abstract syntax tree
 pub fn parse(source: &[LexToken]) -> Result<Module, ParseError> {
     match parse_internal(source) {
-        Ok((rest, _)) if !rest.is_empty() => Err(ParseError(
-            ParseErrorReason::FailedToParse,
-            Some(rest.to_vec()),
-            None,
-        )),
+        Ok((rest, _)) if !rest.is_empty() => Err(ParseError::from_tokens_remaining(rest)),
         Ok((_, hlsl)) => Ok(Module {
             root_definitions: hlsl,
         }),
-        Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
-            Err(ParseError(err, Some(rest.to_vec()), None))
-        }
-        Err(nom::Err::Failure(ParseErrorContext(rest, err))) => {
-            Err(ParseError(err, Some(rest.to_vec()), None))
-        }
-        Err(nom::Err::Incomplete(_)) => Err(ParseError(
-            ParseErrorReason::UnexpectedEndOfStream,
-            None,
-            None,
-        )),
+        Err(err) => Err(ParseError::from(err)),
     }
 }
 

@@ -1,4 +1,4 @@
 mod lexer;
 
 pub use lexer::lex;
-pub use lexer::LexError;
+pub use lexer::LexerError;

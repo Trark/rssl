@@ -80,7 +80,7 @@ where
                     _ => Err(ParseErrorReason::FailedToParse),
                 }
             }
-            Err(error) => panic!("Failed to lex `{:?}`", error),
+            Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
         }
     }
 }
@@ -112,18 +112,13 @@ where
                             panic!("Tokens remaining while parsing `{:?}`: {:?}", stream, rem)
                         }
                     }
-                    Err(nom::Err::Incomplete(needed)) => {
-                        panic!("Failed to parse `{:?}`: Needed {:?} more", stream, needed)
-                    }
-                    Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
-                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
-                    }
-                    Err(nom::Err::Failure(ParseErrorContext(rest, err))) => {
-                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
+                    Err(err) => {
+                        let err = ParseError::from(err);
+                        panic!("{}{:?}", err.display(&source_manager), err)
                     }
                 }
             }
-            Err(error) => panic!("Failed to lex `{:?}`", error),
+            Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
         }
     }
 }
@@ -156,18 +151,13 @@ where
                             panic!("Tokens remaining while parsing `{:?}`: {:?}", stream, rem)
                         }
                     }
-                    Err(nom::Err::Incomplete(needed)) => {
-                        panic!("Failed to parse `{:?}`: Needed {:?} more", stream, needed)
-                    }
-                    Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
-                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
-                    }
-                    Err(nom::Err::Failure(ParseErrorContext(rest, err))) => {
-                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
+                    Err(err) => {
+                        let err = ParseError::from(err);
+                        panic!("{}{:?}", err.display(&source_manager), err)
                     }
                 }
             }
-            Err(error) => panic!("Failed to lex `{:?}`", error),
+            Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
         }
     }
 }

@@ -8,6 +8,38 @@ pub struct ParseError(
     pub Option<Box<ParseError>>,
 );
 
+impl ParseError {
+    /// Get formatter to print the error
+    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> ParserErrorPrinter<'a> {
+        ParserErrorPrinter(self, source_manager)
+    }
+
+    /// Make an error for when there were unused tokens after parsing
+    pub fn from_tokens_remaining(remaining: &[LexToken]) -> Self {
+        ParseError(
+            ParseErrorReason::FailedToParse,
+            Some(remaining.to_vec()),
+            None,
+        )
+    }
+}
+
+impl<'a> From<nom::Err<ParseErrorContext<'a>>> for ParseError {
+    fn from(internal_error: nom::Err<ParseErrorContext<'a>>) -> ParseError {
+        match internal_error {
+            nom::Err::Error(ParseErrorContext(rest, err)) => {
+                ParseError(err, Some(rest.to_vec()), None)
+            }
+            nom::Err::Failure(ParseErrorContext(rest, err)) => {
+                ParseError(err, Some(rest.to_vec()), None)
+            }
+            nom::Err::Incomplete(_) => {
+                ParseError(ParseErrorReason::UnexpectedEndOfStream, None, None)
+            }
+        }
+    }
+}
+
 impl std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -19,6 +51,36 @@ impl std::fmt::Debug for ParseError {
                 .map(|vec| if vec.len() > 12 { &vec[..12] } else { vec }),
             self.2
         )
+    }
+}
+
+/// Prints parser errors
+pub struct ParserErrorPrinter<'a>(&'a ParseError, &'a SourceManager);
+
+impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let ParserErrorPrinter(err, source_manager) = self;
+
+        // Find the failing location
+        let loc_opt = match &err.1 {
+            Some(tokens) => match tokens.as_slice() {
+                [LexToken(_, loc), ..] => Some(*loc),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        // Get file location info
+        let file_location = match loc_opt {
+            Some(loc) => source_manager.get_file_location(loc),
+            None => FileLocation::Unknown,
+        };
+
+        // Print basic failure reason
+        writeln!(f, "{}: Failed to parse source", file_location)?;
+
+        // Print source that caused the error
+        source_manager.write_source_for_error(f, loc_opt)
     }
 }
 
