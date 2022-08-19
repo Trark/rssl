@@ -286,9 +286,21 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         ))
     }
 
+    fn expr_p2_sizeof<'t>(
+        input: &'t [LexToken],
+        st: &SymbolTable,
+    ) -> ParseResult<'t, Located<Expression>> {
+        let (input, start) = parse_token(Token::SizeOf)(input)?;
+        let (input, _) = parse_token(Token::LeftParen)(input)?;
+        let (input, ty) = parse_typed::<Type>(st)(input)?;
+        let (input, _) = parse_token(Token::RightParen)(input)?;
+        Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
+    }
+
     nom::branch::alt((
         |input| expr_p2_unaryop(input, st),
         |input| expr_p2_cast(input, st),
+        |input| expr_p2_sizeof(input, st),
         |input| expr_p1(input, st),
     ))(input)
 }
@@ -1039,6 +1051,11 @@ fn test_expression() {
             .bloc(5)
         )
         .loc(1)
+    );
+
+    assert_eq!(
+        expr_str(" sizeof ( float4 ) "),
+        Expression::SizeOf(Type::floatn(4)).loc(1)
     );
 
     assert_eq!(

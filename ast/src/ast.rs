@@ -390,6 +390,7 @@ pub enum Expression {
     Call(Box<Located<Expression>>, Vec<Located<Expression>>),
     NumericConstructor(DataLayout, Vec<Located<Expression>>),
     Cast(Type, Box<Located<Expression>>),
+    SizeOf(Type),
 }
 
 #[derive(PartialEq, Debug, Clone)]
