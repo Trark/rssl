@@ -638,6 +638,5 @@ pub enum RootDefinition {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Module {
-    pub entry_point: String,
     pub root_definitions: Vec<RootDefinition>,
 }

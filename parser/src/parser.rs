@@ -147,7 +147,7 @@ mod functions;
 mod root_definitions;
 use root_definitions::rootdefinition_with_semicolon;
 
-fn module(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
+fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
     let mut roots = Vec::new();
     let mut rest = input;
     let mut symbol_table = SymbolTable::empty();
@@ -190,17 +190,14 @@ fn module(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
 }
 
 /// Parse a stream of lex tokens into an abstract syntax tree
-pub fn parse(entry_point: String, source: &[LexToken]) -> Result<Module, ParseError> {
-    let parse_result = module(source);
-
-    match parse_result {
+pub fn parse(source: &[LexToken]) -> Result<Module, ParseError> {
+    match parse_internal(source) {
         Ok((rest, _)) if !rest.is_empty() => Err(ParseError(
             ParseErrorReason::FailedToParse,
             Some(rest.to_vec()),
             None,
         )),
         Ok((_, hlsl)) => Ok(Module {
-            entry_point,
             root_definitions: hlsl,
         }),
         Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
