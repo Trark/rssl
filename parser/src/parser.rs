@@ -34,12 +34,6 @@ pub enum ParseErrorReason {
     ErrorKind(nom::error::ErrorKind),
 }
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "parser error")
-    }
-}
-
 enum SymbolType {
     Struct,
 }
@@ -1932,14 +1926,12 @@ impl Parse for FunctionDefinition {
         let (input, attributes) = nom::multi::many0(parse_typed::<FunctionAttribute>(st))(input)?;
         let (input, ret) = parse_typed::<Type>(st)(input)?;
         let (input, func_name) = parse_typed::<VariableName>(st)(input)?;
-        let (input, params) = nom::sequence::delimited(
-            parse_token(Token::LeftParen),
-            nom::multi::separated_list0(
-                parse_token(Token::Comma),
-                parse_typed::<FunctionParam>(st),
-            ),
-            parse_token(Token::RightParen),
+        let (input, _) = parse_token(Token::LeftParen)(input)?;
+        let (input, params) = nom::multi::separated_list0(
+            parse_token(Token::Comma),
+            parse_typed::<FunctionParam>(st),
         )(input)?;
+        let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, body) = statement_block(input, st)?;
         let def = FunctionDefinition {
             name: func_name.to_node(),
@@ -1997,9 +1989,23 @@ fn rootdefinition_with_semicolon<'t>(
 // Find the error with the longest tokens used
 fn get_most_relevant_error<'a: 'c, 'b: 'c, 'c>(
     lhs: nom::Err<ParseErrorContext<'a>>,
-    _: nom::Err<ParseErrorContext<'b>>,
+    rhs: nom::Err<ParseErrorContext<'b>>,
 ) -> nom::Err<ParseErrorContext<'c>> {
-    lhs
+    let lhs_remaining = match lhs {
+        nom::Err::Incomplete(_) => 0,
+        nom::Err::Error(ParseErrorContext(rest, _)) => rest.len(),
+        nom::Err::Failure(ParseErrorContext(rest, _)) => rest.len(),
+    };
+    let rhs_remaining = match rhs {
+        nom::Err::Incomplete(_) => 0,
+        nom::Err::Error(ParseErrorContext(rest, _)) => rest.len(),
+        nom::Err::Failure(ParseErrorContext(rest, _)) => rest.len(),
+    };
+    if rhs_remaining < lhs_remaining {
+        rhs
+    } else {
+        lhs
+    }
 }
 
 fn module(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
@@ -2048,8 +2054,12 @@ pub fn parse(entry_point: String, source: &[LexToken]) -> Result<Module, ParseEr
             entry_point,
             root_definitions: hlsl,
         }),
-        Err(nom::Err::Error(ParseErrorContext(_, err))) => Err(ParseError(err, None, None)),
-        Err(nom::Err::Failure(ParseErrorContext(_, err))) => Err(ParseError(err, None, None)),
+        Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
+            Err(ParseError(err, Some(rest.to_vec()), None))
+        }
+        Err(nom::Err::Failure(ParseErrorContext(rest, err))) => {
+            Err(ParseError(err, Some(rest.to_vec()), None))
+        }
         Err(nom::Err::Incomplete(_)) => Err(ParseError(
             ParseErrorReason::UnexpectedEndOfStream,
             None,
@@ -2127,11 +2137,11 @@ where
                     Err(nom::Err::Incomplete(needed)) => {
                         panic!("Failed to parse `{:?}`: Needed {:?} more", stream, needed)
                     }
-                    Err(nom::Err::Error(ParseErrorContext(_, err))) => {
-                        panic!("Failed to parse `{:?}`: Error: {:?}", err, stream)
+                    Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
+                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
                     }
-                    Err(nom::Err::Failure(ParseErrorContext(_, err))) => {
-                        panic!("Failed to parse `{:?}`: Error: {:?}", err, stream)
+                    Err(nom::Err::Failure(ParseErrorContext(rest, err))) => {
+                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
                     }
                 }
             }
@@ -2171,11 +2181,11 @@ where
                     Err(nom::Err::Incomplete(needed)) => {
                         panic!("Failed to parse `{:?}`: Needed {:?} more", stream, needed)
                     }
-                    Err(nom::Err::Error(ParseErrorContext(_, err))) => {
-                        panic!("Failed to parse `{:?}`: Error: {:?}", err, stream)
+                    Err(nom::Err::Error(ParseErrorContext(rest, err))) => {
+                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
                     }
-                    Err(nom::Err::Failure(ParseErrorContext(_, err))) => {
-                        panic!("Failed to parse `{:?}`: Error: {:?}", err, stream)
+                    Err(nom::Err::Failure(ParseErrorContext(rest, err))) => {
+                        panic!("Failed to parse with `{:?}`: {:?}", err, rest)
                     }
                 }
             }
