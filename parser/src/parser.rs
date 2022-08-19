@@ -12,11 +12,15 @@ pub struct ParseError(
 
 impl std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let tokens = match self.1 {
-            Some(ref vec) => Some(if vec.len() > 12 { &vec[..12] } else { &vec }),
-            None => None,
-        };
-        write!(f, "ParseError({:?}, {:?}, {:?})", self.0, tokens, self.2)
+        write!(
+            f,
+            "ParseError({:?}, {:?}, {:?})",
+            self.0,
+            self.1
+                .as_ref()
+                .map(|vec| if vec.len() > 12 { &vec[..12] } else { vec }),
+            self.2
+        )
     }
 }
 
@@ -133,7 +137,7 @@ impl Parse for VariableName {
 
         match &input[0] {
             LexToken(Token::Id(Identifier(name)), loc) => {
-                Ok((&input[1..], Located::new(name.clone(), loc.clone())))
+                Ok((&input[1..], Located::new(name.clone(), *loc)))
             }
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
@@ -764,7 +768,7 @@ fn expr_paren<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Lo
             };
             Ok((
                 &input[1..],
-                Located::new(Expression::Literal(literal), loc.clone()),
+                Located::new(Expression::Literal(literal), *loc),
             ))
         }
         None => Err(nom::Err::Incomplete(nom::Needed::new(1))),
@@ -866,7 +870,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn cons<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
         let loc = if !input.is_empty() {
-            input[0].1.clone()
+            input[0].1
         } else {
             return Err(nom::Err::Incomplete(nom::Needed::new(1)));
         };
@@ -893,7 +897,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     let (input, rights) = nom::multi::many0(|input| expr_p1_right(input, st))(input)?;
 
     let expr = {
-        let loc = left.location.clone();
+        let loc = left.location;
         let mut final_expression = left;
         for val in rights.iter() {
             final_expression = Located::new(
@@ -916,7 +920,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
                         Expression::Member(Box::new(final_expression), name)
                     }
                 },
-                loc.clone(),
+                loc,
             )
         }
         final_expression
@@ -1018,7 +1022,7 @@ fn combine_rights(
     left: Located<Expression>,
     rights: Vec<(BinOp, Located<Expression>)>,
 ) -> Located<Expression> {
-    let loc = left.location.clone();
+    let loc = left.location;
     let mut final_expression = left;
     for val in rights.iter() {
         let (ref op, ref exp) = *val;
@@ -1028,7 +1032,7 @@ fn combine_rights(
                 Box::new(final_expression),
                 Box::new(exp.clone()),
             ),
-            loc.clone(),
+            loc,
         )
     }
     final_expression
@@ -1248,7 +1252,7 @@ fn expr_p13<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     let (input, main) = expr_p12(input, st)?;
     match ternary_right(input, st) {
         Ok((input, (left, right))) => {
-            let loc = main.location.clone();
+            let loc = main.location;
             let expr = Located::new(
                 Expression::TernaryConditional(Box::new(main), Box::new(left), Box::new(right)),
                 loc,
@@ -1298,7 +1302,7 @@ fn expr_p14<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     let (input, main) = expr_p13(input, st)?;
     match binary_right(input, st) {
         Ok((input, (op, right))) => {
-            let loc = main.location.clone();
+            let loc = main.location;
             let expr = Located::new(
                 Expression::BinaryOperation(op, Box::new(main), Box::new(right)),
                 loc,

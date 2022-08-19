@@ -130,16 +130,16 @@ impl<'a> FileLoader<'a> {
         };
 
         if self.pragma_once_files.contains(&id) {
-            return Ok(InputFile {
+            Ok(InputFile {
                 file_id: id,
                 contents: String::new(),
-            });
+            })
         } else {
             let contents = self.source_manager.get_contents(id);
-            return Ok(InputFile {
+            Ok(InputFile {
                 file_id: id,
                 contents: contents.to_string(),
-            });
+            })
         }
     }
 
@@ -382,10 +382,7 @@ impl SubstitutedSegment {
                             }
                         }
                         if !replaced_text.is_empty() {
-                            output.push(SubstitutedSegment::Replaced(
-                                replaced_text,
-                                macro_def.3.clone(),
-                            ));
+                            output.push(SubstitutedSegment::Replaced(replaced_text, macro_def.3));
                         }
                         if !after.is_empty() {
                             SubstitutedSegment::Text(after.to_string(), after_location)

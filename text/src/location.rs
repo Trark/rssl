@@ -101,6 +101,12 @@ impl SourceManager {
     }
 }
 
+impl Default for SourceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A buffer for a single loaded file
 struct SourceFile {
     file_name: FileName,
