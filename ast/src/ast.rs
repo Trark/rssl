@@ -73,6 +73,9 @@ pub enum ObjectType {
     RWTexture2DArray(DataType),
     RWTexture3D(DataType),
 
+    // Constant buffers
+    ConstantBuffer(StructuredType),
+
     // Tesselation patches
     InputPatch,
     OutputPatch,
@@ -528,6 +531,7 @@ pub enum GlobalSlot {
     ReadSlot(u32),
     ReadWriteSlot(u32),
     SamplerSlot(u32),
+    ConstantSlot(u32),
 }
 
 #[derive(PartialEq, Debug, Clone)]

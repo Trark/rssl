@@ -429,6 +429,8 @@ impl Parse for ObjectType {
             RWTexture2DArray,
             RWTexture3D,
 
+            ConstantBuffer,
+
             InputPatch,
             OutputPatch,
         }
@@ -460,6 +462,8 @@ impl Parse for ObjectType {
                 "RWTexture2D" => ParseType::RWTexture2D,
                 "RWTexture2DArray" => ParseType::RWTexture2DArray,
                 "RWTexture3D" => ParseType::RWTexture3D,
+
+                "ConstantBuffer" => ParseType::ConstantBuffer,
 
                 "InputPatch" => ParseType::InputPatch,
                 "OutputPatch" => ParseType::OutputPatch,
@@ -543,7 +547,8 @@ impl Parse for ObjectType {
             ParseType::StructuredBuffer
             | ParseType::RWStructuredBuffer
             | ParseType::AppendStructuredBuffer
-            | ParseType::ConsumeStructuredBuffer => {
+            | ParseType::ConsumeStructuredBuffer
+            | ParseType::ConstantBuffer => {
                 let (buffer_arg, rest) = match nom::sequence::delimited(
                     match_left_angle_bracket,
                     parse_typed::<StructuredType>(st),
@@ -570,6 +575,7 @@ impl Parse for ObjectType {
                     ParseType::ConsumeStructuredBuffer => {
                         ObjectType::ConsumeStructuredBuffer(buffer_arg)
                     }
+                    ParseType::ConstantBuffer => ObjectType::ConstantBuffer(buffer_arg),
                     _ => unreachable!(),
                 };
                 Ok((rest, ty))
@@ -1793,10 +1799,7 @@ impl Parse for GlobalSlot {
                 RegisterSlot::T(slot) => Ok((rest, GlobalSlot::ReadSlot(slot))),
                 RegisterSlot::U(slot) => Ok((rest, GlobalSlot::ReadWriteSlot(slot))),
                 RegisterSlot::S(slot) => Ok((rest, GlobalSlot::SamplerSlot(slot))),
-                _ => Err(nom::Err::Error(ParseErrorContext(
-                    input,
-                    ParseErrorReason::WrongSlotType,
-                ))),
+                RegisterSlot::B(slot) => Ok((rest, GlobalSlot::ConstantSlot(slot))),
             },
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
