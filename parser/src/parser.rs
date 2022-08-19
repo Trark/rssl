@@ -1594,11 +1594,16 @@ impl Parse for Statement {
             }
             LexToken(Token::Break, _) => Ok((tail, Statement::Break)),
             LexToken(Token::Continue, _) => Ok((tail, Statement::Continue)),
-            LexToken(Token::Return, _) => {
-                let (input, expression_statement) = parse_typed::<Expression>(st)(tail)?;
-                let (input, _) = parse_token(Token::Semicolon)(input)?;
-                Ok((input, Statement::Return(expression_statement)))
-            }
+            LexToken(Token::Return, _) => match parse_typed::<Expression>(st)(tail) {
+                Ok((input, expression_statement)) => {
+                    let (input, _) = parse_token(Token::Semicolon)(input)?;
+                    Ok((input, Statement::Return(Some(expression_statement))))
+                }
+                Err(_) => {
+                    let (input, _) = parse_token(Token::Semicolon)(tail)?;
+                    Ok((input, Statement::Return(None)))
+                }
+            },
             LexToken(Token::LeftBrace, _) => {
                 let (input, s) = statement_block(input, st)?;
                 Ok((input, Statement::Block(s)))
@@ -3102,7 +3107,7 @@ fn test_rootdefinition() {
         Expression::Literal(Literal::UntypedInt(1)).loc(20),
     );
     assert_eq!(
-        rootdefinition_str("[numthreads(16, 16, 1)] void func(float x) { }"),
+        rootdefinition_str("[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }"),
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string(),
             returntype: Type::void().into(),
@@ -3111,7 +3116,15 @@ fn test_rootdefinition() {
                 param_type: Type::float().into(),
                 semantic: None,
             }],
-            body: vec![],
+            body: vec![Statement::If(
+                Expression::BinaryOperation(
+                    BinOp::LessThan,
+                    "x".as_bvar(49),
+                    Expression::Literal(Literal::UntypedInt(0)).bloc(53)
+                )
+                .loc(49),
+                Box::new(Statement::Block(vec![Statement::Return(None)])),
+            )],
             attributes: vec![numthreads],
         })
     );

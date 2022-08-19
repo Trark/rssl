@@ -467,7 +467,7 @@ pub enum Statement {
     While(Located<Expression>, Box<Statement>),
     Break,
     Continue,
-    Return(Located<Expression>),
+    Return(Option<Located<Expression>>),
 }
 
 #[derive(PartialEq, Debug, Clone)]
