@@ -33,13 +33,15 @@ pub enum ParseErrorReason {
     WrongSlotType,
     UnknownType,
     DuplicateStructSymbol,
-    SymbolIsNotAStruct,
+    DuplicateEnumSymbol,
+    SymbolIsNotAStructuredType,
     UnexpectedAttribute(String),
     ErrorKind(nom::error::ErrorKind),
 }
 
 enum SymbolType {
     Struct,
+    Enum,
 }
 
 struct SymbolTable(HashMap<String, SymbolType>);
@@ -372,9 +374,10 @@ impl Parse for StructuredLayout {
         match match_identifier(input) {
             Ok((input, Identifier(name))) => match st.0.get(name) {
                 Some(&SymbolType::Struct) => Ok((input, StructuredLayout::Custom(name.clone()))),
+                Some(&SymbolType::Enum) => Ok((input, StructuredLayout::Custom(name.clone()))),
                 _ => Err(nom::Err::Error(ParseErrorContext(
                     input,
-                    ParseErrorReason::SymbolIsNotAStruct,
+                    ParseErrorReason::SymbolIsNotAStructuredType,
                 ))),
             },
             Err(err) => Err(err),
@@ -1722,6 +1725,131 @@ impl Parse for StructDefinition {
     }
 }
 
+impl Parse for EnumValue {
+    type Output = Self;
+    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
+        let (input, name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, value) = match parse_token(Token::Equals)(input) {
+            Ok((input, _)) => {
+                let (input, expr) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+                (input, Some(expr))
+            }
+            Err(_) => (input, None),
+        };
+        let sd = EnumValue {
+            name: name.to_node(),
+            value,
+        };
+        Ok((input, sd))
+    }
+}
+
+impl Parse for EnumDefinition {
+    type Output = Self;
+    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
+        let (input, _) = parse_token(Token::Enum)(input)?;
+        let (input, name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, _) = parse_token(Token::LeftBrace)(input)?;
+        let (input, values) = nom::multi::separated_list0(
+            parse_token(Token::Comma),
+            parse_typed::<EnumValue>(st),
+        )(input)?;
+        // Read optional trailing comma on last element
+        let input = if !values.is_empty() {
+            match parse_token(Token::Comma)(input) {
+                Ok((input, _)) => input,
+                Err(_) => input,
+            }
+        } else {
+            input
+        };
+        let (input, _) = parse_token(Token::RightBrace)(input)?;
+        let (input, _) = parse_token(Token::Semicolon)(input)?;
+        let sd = EnumDefinition {
+            name: name.to_node(),
+            values,
+        };
+        Ok((input, sd))
+    }
+}
+
+#[test]
+fn test_enum_definition() {
+    use test_support::*;
+    let enum_definition_str = parse_from_str::<EnumDefinition>();
+
+    assert_eq!(
+        enum_definition_str("enum TestEnum {};"),
+        EnumDefinition {
+            name: "TestEnum".to_string(),
+            values: Vec::new(),
+        }
+    );
+
+    assert_eq!(
+        enum_definition_str("enum TestEnum { X, Y, Z, };"),
+        EnumDefinition {
+            name: "TestEnum".to_string(),
+            values: vec![
+                EnumValue {
+                    name: "X".to_string(),
+                    value: None
+                },
+                EnumValue {
+                    name: "Y".to_string(),
+                    value: None
+                },
+                EnumValue {
+                    name: "Z".to_string(),
+                    value: None
+                }
+            ],
+        }
+    );
+
+    assert_eq!(
+        enum_definition_str("enum TestEnum { X, Y, Z };"),
+        EnumDefinition {
+            name: "TestEnum".to_string(),
+            values: vec![
+                EnumValue {
+                    name: "X".to_string(),
+                    value: None
+                },
+                EnumValue {
+                    name: "Y".to_string(),
+                    value: None
+                },
+                EnumValue {
+                    name: "Z".to_string(),
+                    value: None
+                }
+            ],
+        }
+    );
+
+    assert_eq!(
+        enum_definition_str("enum TestEnum { X = 0, Y, Z = 3, };"),
+        EnumDefinition {
+            name: "TestEnum".to_string(),
+            values: vec![
+                EnumValue {
+                    name: "X".to_string(),
+                    value: Some(Expression::Literal(Literal::UntypedInt(0)).loc(20)),
+                },
+                EnumValue {
+                    name: "Y".to_string(),
+                    value: None
+                },
+                EnumValue {
+                    name: "Z".to_string(),
+                    value: Some(Expression::Literal(Literal::UntypedInt(3)).loc(30)),
+                }
+            ],
+        }
+    );
+}
+
 impl Parse for ConstantVariableName {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
@@ -2040,6 +2168,12 @@ impl Parse for RootDefinition {
             Err(e) => e,
         };
 
+        let err = match EnumDefinition::parse(input, st) {
+            Ok((rest, enumdef)) => return Ok((rest, RootDefinition::Enum(enumdef))),
+            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+            Err(e) => get_most_relevant_error(err, e),
+        };
+
         let err = match ConstantBuffer::parse(input, st) {
             Ok((rest, cbuffer)) => return Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
             Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
@@ -2107,6 +2241,15 @@ fn module(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
                     match symbol_table.0.insert(sd.name.clone(), SymbolType::Struct) {
                         Some(_) => {
                             let reason = ParseErrorReason::DuplicateStructSymbol;
+                            return Err(nom::Err::Error(ParseErrorContext(input, reason)));
+                        }
+                        None => {}
+                    }
+                }
+                RootDefinition::Enum(ref ed) => {
+                    match symbol_table.0.insert(ed.name.clone(), SymbolType::Enum) {
+                        Some(_) => {
+                            let reason = ParseErrorReason::DuplicateEnumSymbol;
                             return Err(nom::Err::Error(ParseErrorContext(input, reason)));
                         }
                         None => {}

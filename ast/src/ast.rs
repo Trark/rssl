@@ -489,6 +489,18 @@ pub struct StructDefinition {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct EnumValue {
+    pub name: String,
+    pub value: Option<Located<Expression>>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct EnumDefinition {
+    pub name: String,
+    pub values: Vec<EnumValue>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct ConstantSlot(pub u32);
 
 #[derive(PartialEq, Debug, Clone)]
@@ -617,6 +629,7 @@ pub struct FunctionDefinition {
 #[derive(PartialEq, Debug, Clone)]
 pub enum RootDefinition {
     Struct(StructDefinition),
+    Enum(EnumDefinition),
     SamplerState,
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),

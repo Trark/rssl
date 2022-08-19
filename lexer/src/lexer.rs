@@ -1245,6 +1245,7 @@ fn token_no_whitespace_words(input: &[u8]) -> IResult<&[u8], Token> {
         )),
         // Types
         map(reserved_word_struct, |_| Token::Struct),
+        map(reserved_word_enum, |_| Token::Enum),
         map(reserved_word_samplerstate, |_| Token::SamplerState),
         map(reserved_word_cbuffer, |_| Token::ConstantBuffer),
         register,

@@ -77,6 +77,7 @@ pub enum Token {
     Continue,
 
     Struct,
+    Enum,
     SamplerState,
     ConstantBuffer,
     Register(RegisterSlot),
@@ -104,7 +105,6 @@ pub enum Token {
     Default,
     Delete,
     DynamicCast,
-    Enum,
     Explicit,
     Friend,
     Goto,
