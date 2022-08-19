@@ -64,102 +64,96 @@ impl std::fmt::Display for PreprocessError {
 
 struct IntermediateText {
     buffer: String,
-    debug_locations: LineMap,
+    locations: StreamToSourceMap,
 }
 
 impl IntermediateText {
     fn new() -> IntermediateText {
         IntermediateText {
             buffer: String::new(),
-            debug_locations: LineMap::default(),
+            locations: StreamToSourceMap::default(),
         }
     }
-    fn push_str(&mut self, segment: &str, segment_location: FileLocation) {
-        assert!(!segment.is_empty());
-        let parts = segment.split('\n');
-        let last = parts.clone().count() - 1;
-        for (index, part) in parts.enumerate() {
-            let not_last = index != last;
-            // Avoid adding the part if nothing will be appended to the stream
-            // This avoids multiple locations for the same stream position
-            if !part.is_empty() || not_last {
-                let stream_location_in_buffer = StreamLocation(self.buffer.len() as u64);
-                self.buffer.push_str(part);
 
-                let location = match segment_location {
-                    FileLocation::Known(ref file, line, column) => FileLocation::Known(
-                        file.clone(),
-                        Line(line.0 + index as u64),
-                        if index == 0 { column } else { Column::first() },
-                    ),
-                    FileLocation::Unknown => FileLocation::Unknown,
-                };
-                self.debug_locations
-                    .push(stream_location_in_buffer, location);
-            }
-            if not_last {
-                self.buffer.push('\n');
-            }
-        }
+    fn push_str(&mut self, segment: &str, location: SourceLocation) {
+        assert!(!segment.is_empty());
+        let stream_location_in_buffer = StreamLocation(self.buffer.len() as u32);
+        self.locations.push(stream_location_in_buffer, location);
+        self.buffer.push_str(segment);
     }
 }
 
 /// Manage files that are returned from the external include handler
 struct FileLoader<'a> {
-    file_name_remap: HashMap<String, String>,
-    file_store: HashMap<String, String>,
-    pragma_once_files: HashSet<String>,
+    file_name_remap: HashMap<String, FileId>,
+    pragma_once_files: HashSet<FileId>,
+    source_manager: &'a mut SourceManager,
     include_handler: &'a mut dyn IncludeHandler,
 }
 
+/// Loaded file that will be processed
+struct InputFile {
+    file_id: FileId,
+    contents: String,
+}
+
 impl<'a> FileLoader<'a> {
-    fn new(include_handler: &'a mut dyn IncludeHandler) -> Self {
+    fn new(
+        source_manager: &'a mut SourceManager,
+        include_handler: &'a mut dyn IncludeHandler,
+    ) -> Self {
         FileLoader {
             file_name_remap: HashMap::new(),
-            file_store: HashMap::new(),
             pragma_once_files: HashSet::new(),
+            source_manager,
             include_handler,
         }
     }
 
-    fn load(&mut self, file_name: &str) -> Result<FileData, IncludeError> {
-        let real_name = self.file_name_remap.get(file_name);
+    fn load(&mut self, file_name: &str) -> Result<InputFile, IncludeError> {
+        let id = match self.file_name_remap.get(file_name) {
+            Some(id) => *id,
+            None => {
+                // Load the file
+                let file_data = self.include_handler.load(file_name)?;
 
-        // If we have already seen this file we will already have the real name
-        if let Some(real_name) = real_name {
-            // If the file users #pragma once and has already been included then return nothing
-            if self.pragma_once_files.contains(real_name) {
-                return Ok(FileData {
-                    real_name: real_name.clone(),
-                    contents: String::new(),
-                });
-            }
+                // Add it to the source manager
+                let id = self
+                    .source_manager
+                    .add_file(FileName(file_data.real_name), file_data.contents);
 
-            // If the file has already been loaded the return the previous result
-            if let Some(d) = self.file_store.get(real_name) {
-                return Ok(FileData {
-                    real_name: real_name.clone(),
-                    contents: d.clone(),
-                });
-            } else {
-                // Not expected - but this woudl be safe to ignore
-                panic!("File was loaded before but was not in the store");
+                // Remember the file id
+                self.file_name_remap.insert(file_name.to_string(), id);
+
+                id
             }
+        };
+
+        if self.pragma_once_files.contains(&id) {
+            return Ok(InputFile {
+                file_id: id,
+                contents: String::new(),
+            });
+        } else {
+            let contents = self.source_manager.get_contents(id);
+            return Ok(InputFile {
+                file_id: id,
+                contents: contents.to_string(),
+            });
         }
-
-        let file_data = self.include_handler.load(file_name)?;
-
-        self.file_name_remap
-            .insert(file_name.to_string(), file_data.real_name.clone());
-        self.file_store
-            .insert(file_data.real_name.to_string(), file_data.contents.clone());
-
-        Ok(file_data)
     }
 
-    fn mark_as_pragma_once(&mut self, file_name: &str) {
-        debug_assert!(self.file_store.contains_key(file_name));
-        self.pragma_once_files.insert(file_name.to_string());
+    fn get_source_location_from_file_offset(
+        &self,
+        file_id: FileId,
+        stream_location: StreamLocation,
+    ) -> SourceLocation {
+        self.source_manager
+            .get_source_location_from_file_offset(file_id, stream_location)
+    }
+
+    fn mark_as_pragma_once(&mut self, file_id: FileId) {
+        self.pragma_once_files.insert(file_id);
     }
 }
 
@@ -205,13 +199,13 @@ impl MacroSegment {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-struct Macro(String, u64, Vec<MacroSegment>, FileLocation);
+struct Macro(String, u64, Vec<MacroSegment>, SourceLocation);
 
 impl Macro {
     fn from_definition(
         head: &str,
         body: &str,
-        location: FileLocation,
+        location: SourceLocation,
     ) -> Result<Macro, PreprocessError> {
         Ok(match head.find('(') {
             Some(sz) => {
@@ -269,8 +263,8 @@ impl Macro {
 
 #[derive(PartialEq, Debug, Clone)]
 enum SubstitutedSegment {
-    Text(String, StreamLocation),
-    Replaced(String, FileLocation),
+    Text(String, SourceLocation),
+    Replaced(String, SourceLocation),
 }
 
 fn find_macro(text: &str, name: &str) -> Option<usize> {
@@ -367,15 +361,14 @@ impl SubstitutedSegment {
                         // Substitute macros inside macro arguments
                         let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
                             let mut vec = vec?;
-                            let raw_text = SubstitutedText::new(arg, StreamLocation(0));
+                            let raw_text = SubstitutedText::new(arg, SourceLocation::UNKNOWN);
                             let subbed_text = raw_text.apply_all(macro_defs)?;
                             let final_text = subbed_text.resolve();
                             vec.push(final_text);
                             Ok(vec)
                         })?;
 
-                        let after_location =
-                            StreamLocation(location.0 + (text.len() - after.len()) as u64);
+                        let after_location = location.offset((text.len() - after.len()) as u32);
                         if !before.is_empty() {
                             output.push(SubstitutedSegment::Text(before.to_string(), location));
                         }
@@ -417,7 +410,7 @@ impl SubstitutedSegment {
 struct SubstitutedText(Vec<SubstitutedSegment>);
 
 impl SubstitutedText {
-    fn new(text: &str, location: StreamLocation) -> SubstitutedText {
+    fn new(text: &str, location: SourceLocation) -> SubstitutedText {
         if text.is_empty() {
             SubstitutedText(Vec::new())
         } else {
@@ -444,28 +437,21 @@ impl SubstitutedText {
         Ok(SubstitutedText(vec?))
     }
 
-    fn store(self, intermediate_text: &mut IntermediateText, line_map: &LineMap) {
+    fn store(self, intermediate_text: &mut IntermediateText) {
         for substituted_segment in self.0 {
             match substituted_segment {
-                SubstitutedSegment::Text(text, location) => {
+                SubstitutedSegment::Text(text, mut loc) => {
                     assert!(!text.is_empty());
                     let mut remaining = &text[..];
-                    let mut loc = location.0;
                     loop {
                         let (sz, last) = match remaining.find('\n') {
                             Some(sz) => (sz + 1, false),
                             None => (remaining.len(), true),
                         };
                         let before = &remaining[..sz];
-                        intermediate_text.push_str(
-                            before,
-                            match line_map.get_file_location(StreamLocation(loc)) {
-                                Ok(loc) => loc,
-                                Err(_) => panic!("bad file location"),
-                            },
-                        );
+                        intermediate_text.push_str(before, loc);
                         remaining = &remaining[sz..];
-                        loc += sz as u64;
+                        loc = loc.offset(sz as u32);
                         if last || remaining.is_empty() {
                             break;
                         }
@@ -495,43 +481,43 @@ impl SubstitutedText {
 #[test]
 fn macro_from_definition() {
     assert_eq!(
-        Macro::from_definition("B", "0", FileLocation::Unknown).unwrap(),
+        Macro::from_definition("B", "0", SourceLocation::UNKNOWN).unwrap(),
         Macro(
             "B".to_string(),
             0,
             vec![MacroSegment::Text("0".to_string())],
-            FileLocation::Unknown
+            SourceLocation::UNKNOWN
         )
     );
     assert_eq!(
-        Macro::from_definition("B(x)", "x", FileLocation::Unknown).unwrap(),
+        Macro::from_definition("B(x)", "x", SourceLocation::UNKNOWN).unwrap(),
         Macro(
             "B".to_string(),
             1,
             vec![MacroSegment::Arg(MacroArg(0))],
-            FileLocation::Unknown
+            SourceLocation::UNKNOWN
         )
     );
     assert_eq!(
-        Macro::from_definition("B(x,y)", "x", FileLocation::Unknown).unwrap(),
+        Macro::from_definition("B(x,y)", "x", SourceLocation::UNKNOWN).unwrap(),
         Macro(
             "B".to_string(),
             2,
             vec![MacroSegment::Arg(MacroArg(0))],
-            FileLocation::Unknown
+            SourceLocation::UNKNOWN
         )
     );
     assert_eq!(
-        Macro::from_definition("B(x,y)", "y", FileLocation::Unknown).unwrap(),
+        Macro::from_definition("B(x,y)", "y", SourceLocation::UNKNOWN).unwrap(),
         Macro(
             "B".to_string(),
             2,
             vec![MacroSegment::Arg(MacroArg(1))],
-            FileLocation::Unknown
+            SourceLocation::UNKNOWN
         )
     );
     assert_eq!(
-        Macro::from_definition("B(x,xy)", "(x || xy)", FileLocation::Unknown).unwrap(),
+        Macro::from_definition("B(x,xy)", "(x || xy)", SourceLocation::UNKNOWN).unwrap(),
         Macro(
             "B".to_string(),
             2,
@@ -542,7 +528,7 @@ fn macro_from_definition() {
                 MacroSegment::Arg(MacroArg(1)),
                 MacroSegment::Text(")".to_string()),
             ],
-            FileLocation::Unknown
+            SourceLocation::UNKNOWN
         )
     );
 }
@@ -550,7 +536,7 @@ fn macro_from_definition() {
 #[test]
 fn macro_resolve() {
     fn run(input: &str, macros: &[Macro], expected_output: &str) {
-        let text = SubstitutedText::new(input, StreamLocation(0));
+        let text = SubstitutedText::new(input, SourceLocation::UNKNOWN);
         let resolved_text = text.apply_all(&macros).unwrap().resolve();
         assert_eq!(resolved_text, expected_output);
     }
@@ -558,8 +544,8 @@ fn macro_resolve() {
     run(
         "(A || B) && BC",
         &[
-            Macro::from_definition("B", "0", FileLocation::Unknown).unwrap(),
-            Macro::from_definition("BC", "1", FileLocation::Unknown).unwrap(),
+            Macro::from_definition("B", "0", SourceLocation::UNKNOWN).unwrap(),
+            Macro::from_definition("BC", "1", SourceLocation::UNKNOWN).unwrap(),
         ],
         "(A || 0) && 1",
     );
@@ -567,8 +553,8 @@ fn macro_resolve() {
     run(
         "(A || B(0, 1)) && BC",
         &[
-            Macro::from_definition("B(x, y)", "(x && y)", FileLocation::Unknown).unwrap(),
-            Macro::from_definition("BC", "1", FileLocation::Unknown).unwrap(),
+            Macro::from_definition("B(x, y)", "(x && y)", SourceLocation::UNKNOWN).unwrap(),
+            Macro::from_definition("BC", "1", SourceLocation::UNKNOWN).unwrap(),
         ],
         "(A || (0 && 1)) && 1",
     );
@@ -606,30 +592,6 @@ impl ConditionChain {
     fn is_active(&self) -> bool {
         self.0.iter().all(|gate| *gate)
     }
-}
-
-fn build_file_linemap(file_contents: &str, file_name: FileName) -> LineMap {
-    let mut line_map = LineMap::default();
-    let file_length = file_contents.len() as u64;
-    let mut stream = file_contents;
-    let mut current_line = Line::first();
-    loop {
-        let (sz, final_segment) = match stream.find('\n') {
-            Some(sz) => (sz + 1, false),
-            None => (stream.len(), true),
-        };
-        let length_left = stream.len() as u64;
-        line_map.push(
-            StreamLocation(file_length - length_left),
-            FileLocation::Known(file_name.clone(), current_line, Column::first()),
-        );
-        current_line.increment();
-        stream = &stream[sz..];
-        if final_segment {
-            break;
-        }
-    }
-    line_map
 }
 
 // Function to find end of definition past escaped endlines
@@ -707,7 +669,8 @@ fn preprocess_command<'a>(
     buffer: &mut IntermediateText,
     file_loader: &mut FileLoader,
     command: &'a str,
-    location: FileLocation,
+    file_id: FileId,
+    location: SourceLocation,
     macros: &mut Vec<Macro>,
     condition_chain: &mut ConditionChain,
 ) -> Result<&'a str, PreprocessError> {
@@ -738,8 +701,7 @@ fn preprocess_command<'a>(
                                 preprocess_included_file(
                                     buffer,
                                     file_loader,
-                                    FileName(file.real_name),
-                                    &file.contents,
+                                    file,
                                     macros,
                                     condition_chain,
                                 )?;
@@ -813,7 +775,7 @@ fn preprocess_command<'a>(
                 let body = &args[..end].trim();
                 let remaining = &args[end..];
 
-                let resolved = SubstitutedText::new(body, StreamLocation(0))
+                let resolved = SubstitutedText::new(body, SourceLocation::UNKNOWN)
                     .apply_all(macros)?
                     .resolve();
 
@@ -918,7 +880,7 @@ fn preprocess_command<'a>(
                 };
 
                 let body = body.trim().replace("\\\n", "\n").replace("\\\r\n", "\r\n");
-                let subbed_body = SubstitutedText::new(&body, StreamLocation(0))
+                let subbed_body = SubstitutedText::new(&body, SourceLocation::UNKNOWN)
                     .apply_all(macros)?
                     .resolve();
                 let macro_def = Macro::from_definition(header, &subbed_body, location)?;
@@ -939,10 +901,7 @@ fn preprocess_command<'a>(
     } else if let Some(next) = command.strip_prefix("pragma") {
         let pragma_command = get_macro_line(next).trim();
         if pragma_command == "once" {
-            match location {
-                FileLocation::Known(file, _, _) => file_loader.mark_as_pragma_once(&file.0),
-                FileLocation::Unknown => return Err(PreprocessError::PragmaOnceInUnknownFile),
-            }
+            file_loader.mark_as_pragma_once(file_id);
             return Ok(get_after_single_line(command));
         } else {
             return Err(PreprocessError::UnknownCommand(format!(
@@ -962,21 +921,17 @@ fn preprocess_command<'a>(
 fn preprocess_included_file(
     buffer: &mut IntermediateText,
     file_loader: &mut FileLoader,
-    file_name: FileName,
-    file: &str,
+    input_file: InputFile,
     macros: &mut Vec<Macro>,
     condition_chain: &mut ConditionChain,
 ) -> Result<(), PreprocessError> {
-    let line_map = build_file_linemap(file, file_name);
-    let file_length = file.len() as u64;
+    let file_length = input_file.contents.len() as u32;
 
-    let mut stream = file;
+    let mut stream = input_file.contents.as_str();
     loop {
-        let stream_location_in_file = StreamLocation(file_length - stream.len() as u64);
-        let file_location = match line_map.get_file_location(stream_location_in_file) {
-            Ok(loc) => loc,
-            Err(_) => panic!("could not find line for current position in file"),
-        };
+        let stream_location_in_file = StreamLocation(file_length - stream.len() as u32);
+        let source_location = file_loader
+            .get_source_location_from_file_offset(input_file.file_id, stream_location_in_file);
         let start_trimmed = stream.trim_start();
         if let Some(command) = start_trimmed.strip_prefix('#') {
             let command = command.trim_start();
@@ -984,7 +939,8 @@ fn preprocess_included_file(
                 buffer,
                 file_loader,
                 command,
-                file_location,
+                input_file.file_id,
+                source_location,
                 macros,
                 condition_chain,
             )?;
@@ -1011,9 +967,9 @@ fn preprocess_included_file(
             let line = &stream[..sz];
             stream = &stream[sz..];
             if condition_chain.is_active() {
-                SubstitutedText::new(line, stream_location_in_file)
+                SubstitutedText::new(line, source_location)
                     .apply_all(macros)?
-                    .store(buffer, &line_map);
+                    .store(buffer);
             }
             if final_segment {
                 break;
@@ -1025,9 +981,8 @@ fn preprocess_included_file(
 }
 
 /// Preprocess a file after having set up the file loader
-fn preprocess_with_file_loader(
-    input: &str,
-    file_name: FileName,
+fn preprocess_initial_file(
+    input_file: InputFile,
     file_loader: &mut FileLoader,
 ) -> Result<PreprocessedText, PreprocessError> {
     let mut intermediate_text = IntermediateText::new();
@@ -1037,8 +992,7 @@ fn preprocess_with_file_loader(
     preprocess_included_file(
         &mut intermediate_text,
         file_loader,
-        file_name,
-        input,
+        input_file,
         &mut macros,
         &mut condition_chain,
     )?;
@@ -1049,30 +1003,37 @@ fn preprocess_with_file_loader(
 
     Ok(PreprocessedText::new(
         intermediate_text.buffer,
-        intermediate_text.debug_locations,
+        intermediate_text.locations,
     ))
 }
 
 /// Preprocess a file - starting from memory
-pub fn preprocess(
+pub fn preprocess_direct(
     input: &str,
     file_name: FileName,
+    source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
 ) -> Result<PreprocessedText, PreprocessError> {
-    let mut file_loader = FileLoader::new(include_handler);
-    preprocess_with_file_loader(input, file_name, &mut file_loader)
+    // Store the input in the source manager
+    let file_id = source_manager.add_file(file_name, input.to_string());
+    let input_file = InputFile {
+        file_id,
+        contents: source_manager.get_contents(file_id).to_string(),
+    };
+
+    let mut file_loader = FileLoader::new(source_manager, include_handler);
+    preprocess_initial_file(input_file, &mut file_loader)
 }
 
 /// Preprocess a file - starting from include handler
-pub fn preprocess_file(
+pub fn preprocess(
     entry_file_name: &str,
+    source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
 ) -> Result<PreprocessedText, PreprocessError> {
-    let mut file_loader = FileLoader::new(include_handler);
+    let mut file_loader = FileLoader::new(source_manager, include_handler);
     match file_loader.load(entry_file_name) {
-        Ok(file) => {
-            preprocess_with_file_loader(&file.contents, FileName(file.real_name), &mut file_loader)
-        }
+        Ok(file) => preprocess_initial_file(file, &mut file_loader),
         Err(err) => Err(PreprocessError::FailedToFindFile(
             entry_file_name.to_string(),
             err,
@@ -1080,10 +1041,11 @@ pub fn preprocess_file(
     }
 }
 
-/// Preprocess a single file without any support for includes
-pub fn preprocess_single(
+/// Preprocess a single block of text without any support for includes
+pub fn preprocess_fragment(
     input: &str,
     file_name: FileName,
+    source_manager: &mut SourceManager,
 ) -> Result<PreprocessedText, PreprocessError> {
-    preprocess(input, file_name, &mut NullIncludeHandler)
+    preprocess_direct(input, file_name, source_manager, &mut NullIncludeHandler)
 }

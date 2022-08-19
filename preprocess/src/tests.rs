@@ -2,7 +2,12 @@ use crate::*;
 use rssl_text::*;
 
 fn preprocess_single_test(input: &str) -> Result<PreprocessedText, PreprocessError> {
-    preprocess_single(input, FileName("test.rssl".to_string()))
+    let mut source_manager = SourceManager::new();
+    preprocess_fragment(
+        input,
+        FileName("test.rssl".to_string()),
+        &mut source_manager,
+    )
 }
 
 macro_rules! assert_text {
@@ -115,9 +120,11 @@ fn test_include() {
     }
 
     fn pf(contents: &str) -> Result<PreprocessedText, PreprocessError> {
-        preprocess(
+        let mut source_manager = SourceManager::new();
+        preprocess_direct(
             contents,
             FileName("test.rssl".to_string()),
+            &mut source_manager,
             &mut TestFileLoader,
         )
     }

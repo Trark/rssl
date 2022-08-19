@@ -31,7 +31,7 @@ impl std::fmt::Debug for LexError {
 impl std::fmt::Display for LexError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            LexError::Unknown => write!(f, "unknown lexer error"),
+            LexError::Unknown => write!(f, "Unknown lexer error"),
             LexError::FailedToParse(ref rest) => {
                 let next_space = rest
                     .iter()
@@ -42,13 +42,13 @@ impl std::fmt::Display for LexError {
                     _ => write!(f, "Failed to parse tokens: Invalid UTF-8"),
                 }
             }
-            LexError::UnexpectedEndOfStream => write!(f, "unexpected end of stream"),
+            LexError::UnexpectedEndOfStream => write!(f, "Unexpected end of stream"),
         }
     }
 }
 
 #[derive(PartialEq, Debug, Clone)]
-struct IntermediateLocation(u64);
+struct IntermediateLocation(u32);
 
 #[derive(PartialEq, Debug, Clone)]
 struct IntermediateToken(Token, IntermediateLocation);
@@ -1291,7 +1291,7 @@ fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
 /// Parse any single non-whitespace token - with a location
 fn token_no_whitespace(input: &[u8]) -> IResult<&[u8], IntermediateToken> {
     let (remaining, token) = token_no_whitespace_intermediate(input)?;
-    let intermediate_token = IntermediateToken(token, IntermediateLocation(input.len() as u64));
+    let intermediate_token = IntermediateToken(token, IntermediateLocation(input.len() as u32));
     Ok((remaining, intermediate_token))
 }
 
@@ -1306,7 +1306,7 @@ fn token(input: &[u8]) -> IResult<&[u8], IntermediateToken> {
 
 /// Parse all tokens in a stream
 fn token_stream(input: &[u8]) -> IResult<&[u8], Vec<StreamToken>> {
-    let total_length = input.len() as u64;
+    let total_length = input.len() as u32;
     match nom::multi::many0(nom::combinator::complete(token))(input) {
         Ok((rest, itokens)) => {
             let tokens = itokens
@@ -1322,7 +1322,7 @@ fn token_stream(input: &[u8]) -> IResult<&[u8], Vec<StreamToken>> {
 /// Run the lexer on input text to turn it into a token stream
 pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
     let code_bytes = preprocessed.as_bytes();
-    let total_length = code_bytes.len() as u64;
+    let total_length = code_bytes.len() as u32;
     match token_stream(code_bytes) {
         Ok((rest, mut stream)) => {
             if rest.is_empty() {
@@ -1332,11 +1332,8 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
                 };
                 let mut lex_tokens = Vec::with_capacity(stream.len());
                 for StreamToken(ref token, stream_location) in stream {
-                    let loc = match preprocessed.get_file_location(stream_location) {
-                        Ok(file_location) => file_location,
-                        Err(_) => return Err(LexError::Unknown),
-                    };
-                    lex_tokens.push(LexToken(token.clone(), loc));
+                    let source_location = preprocessed.get_source_location(stream_location);
+                    lex_tokens.push(LexToken(token.clone(), source_location));
                 }
                 Ok(Tokens { stream: lex_tokens })
             } else {
@@ -1372,7 +1369,7 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexError> {
 
 #[test]
 fn test_token() {
-    fn from_end(tok: Token, from: u64) -> IntermediateToken {
+    fn from_end(tok: Token, from: u32) -> IntermediateToken {
         IntermediateToken(tok, IntermediateLocation(from))
     }
 
@@ -1649,10 +1646,10 @@ fn test_token() {
 fn test_token_stream() {
     assert_eq!(token_stream(&b""[..]), Ok((&b""[..], vec![])));
 
-    fn token_id(name: &'static str, loc: u64) -> StreamToken {
+    fn token_id(name: &'static str, loc: u32) -> StreamToken {
         StreamToken(Token::Id(Identifier(name.to_string())), StreamLocation(loc))
     }
-    fn loc(tok: Token, loc: u64) -> StreamToken {
+    fn loc(tok: Token, loc: u32) -> StreamToken {
         StreamToken(tok, StreamLocation(loc))
     }
 

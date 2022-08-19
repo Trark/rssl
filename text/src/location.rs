@@ -1,10 +1,125 @@
+/// Source file location
+/// Requires `SourceManager` to decode
+#[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
+pub struct SourceLocation(u32);
+
+impl SourceLocation {
+    /// Source location that represents an unknown source
+    pub const UNKNOWN: SourceLocation = SourceLocation(u32::MAX);
+
+    /// Create first source location
+    pub fn first() -> Self {
+        SourceLocation(0)
+    }
+
+    /// Add an offset to a source location
+    /// Expects the offset to be within range of the stream
+    pub fn offset(self, offset: u32) -> Self {
+        if self == SourceLocation::UNKNOWN {
+            self
+        } else {
+            SourceLocation(self.0 + offset)
+        }
+    }
+}
+
+/// Owns all source files loaded into the compiler
+pub struct SourceManager {
+    files: Vec<SourceFile>,
+    next_location: SourceLocation,
+}
+
+impl SourceManager {
+    /// Create a new source manager with no files
+    pub fn new() -> Self {
+        SourceManager {
+            files: Vec::new(),
+            next_location: SourceLocation::first(),
+        }
+    }
+
+    /// Add a file into the source manager
+    pub fn add_file(&mut self, file_name: FileName, contents: String) -> FileId {
+        assert!(contents.len() < u32::MAX as usize);
+        assert!(self.files.len() < u32::MAX as usize);
+        let file_id = FileId(self.files.len() as u32);
+        let file_size = contents.len() as u32;
+        self.files.push(SourceFile {
+            file_name,
+            file_size,
+            contents,
+            base_location: self.next_location,
+        });
+        // Base source location + file size is used for End-of-file token, so we reserve file size + 1 slots
+        self.next_location = self.next_location.offset(file_size + 1);
+        file_id
+    }
+
+    /// Get the full source for a given file
+    pub fn get_contents(&self, file_id: FileId) -> &str {
+        &self.files[file_id.0 as usize].contents
+    }
+
+    /// Get the source location from a certain position in a file
+    pub fn get_source_location_from_file_offset(
+        &self,
+        file_id: FileId,
+        stream_location: StreamLocation,
+    ) -> SourceLocation {
+        let source_file = &self.files[file_id.0 as usize];
+        assert!(stream_location.0 < source_file.file_size + 1);
+        source_file.base_location.offset(stream_location.0)
+    }
+
+    /// Get the full file location information from a source location
+    pub fn get_file_location(&self, source_location: SourceLocation) -> FileLocation {
+        let mut current_offset = 0;
+        for source_file in &self.files {
+            let next_offset = current_offset + source_file.file_size + 1;
+            assert_eq!(source_file.base_location.0, current_offset);
+            if source_location.0 < next_offset {
+                let source_offset = source_location.0 - current_offset;
+                let mut line = Line::first();
+                let mut column = Column::first();
+                for c in &source_file.contents.as_bytes()[..(source_offset as usize)] {
+                    match c {
+                        b'\n' => {
+                            line.increment();
+                            column = Column::first();
+                        }
+                        _ => {
+                            column.increment();
+                        }
+                    }
+                }
+                return FileLocation::Known(source_file.file_name.clone(), line, column);
+            } else {
+                current_offset = next_offset;
+            }
+        }
+        FileLocation::Unknown
+    }
+}
+
+/// A buffer for a single loaded file
+struct SourceFile {
+    file_name: FileName,
+    file_size: u32,
+    contents: String,
+    base_location: SourceLocation,
+}
+
+/// A source file identifier
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FileId(u32);
+
 /// A file used as an input
 #[derive(PartialEq, Debug, Clone)]
 pub struct FileName(pub String);
 
 /// A line number in a file
 #[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
-pub struct Line(pub u64);
+pub struct Line(pub u32);
 
 impl Line {
     /// Construct for the first line
@@ -20,7 +135,7 @@ impl Line {
 
 /// The column index in a line
 #[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
-pub struct Column(pub u64);
+pub struct Column(pub u32);
 
 impl Column {
     /// Construct for the first column
@@ -37,68 +152,24 @@ impl Column {
 /// Fully qualified location
 #[derive(PartialEq, Debug, Clone)]
 pub enum FileLocation {
-    Known(
-        // TODO: Avoid using a string here so this can be used where it is replicated many times
-        FileName,
-        Line,
-        Column,
-    ),
+    Known(FileName, Line, Column),
     Unknown,
-}
-
-impl FileLocation {
-    /// Increase location by advancing through text
-    pub fn advance(self, text_range: &[u8]) -> Self {
-        match self {
-            FileLocation::Known(file, line, column) => {
-                let (line, column) = Self::advance_parts(line, column, text_range);
-                FileLocation::Known(file, line, column)
-            }
-            FileLocation::Unknown => FileLocation::Unknown,
-        }
-    }
-
-    /// Increase line/column parts by advancing through text
-    pub fn advance_parts(mut line: Line, mut column: Column, text_range: &[u8]) -> (Line, Column) {
-        for c in text_range {
-            match c {
-                b'\n' => {
-                    line.increment();
-                    column = Column::first();
-                }
-                _ => {
-                    column.increment();
-                }
-            }
-        }
-        (line, column)
-    }
-
-    /// Increase location by advancing a number of columns
-    pub fn advance_columns(self, num_columns: u64) -> Self {
-        match self {
-            FileLocation::Known(file, line, column) => {
-                FileLocation::Known(file, line, Column(column.0 + num_columns))
-            }
-            FileLocation::Unknown => FileLocation::Unknown,
-        }
-    }
 }
 
 /// The raw number of bytes from the start of a stream
 #[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
-pub struct StreamLocation(pub u64);
+pub struct StreamLocation(pub u32);
 
-/// Wrapper to pair a node with a FileLocation
+/// Wrapper to pair a node with a source location
 #[derive(PartialEq, Debug, Clone)]
 pub struct Located<T> {
     pub node: T,
-    pub location: FileLocation,
+    pub location: SourceLocation,
 }
 
 impl<T> Located<T> {
     /// Create a located object with a location
-    pub fn new(node: T, loc: FileLocation) -> Located<T> {
+    pub fn new(node: T, loc: SourceLocation) -> Located<T> {
         Located {
             node,
             location: loc,
@@ -114,7 +185,7 @@ impl<T> Located<T> {
     pub fn none(node: T) -> Located<T> {
         Located {
             node,
-            location: FileLocation::Unknown,
+            location: SourceLocation::UNKNOWN,
         }
     }
 }
@@ -130,16 +201,12 @@ impl<T> std::ops::Deref for Located<T> {
 #[derive(PartialEq, Debug, Clone)]
 pub struct PreprocessedText {
     code: String,
-    debug_locations: StreamToFileMap,
+    locations: StreamToSourceMap,
 }
 
 impl PreprocessedText {
-    pub fn new(text: String, locations: LineMap) -> Self {
-        let debug_locations = StreamToFileMap::from_line_map(text.as_bytes(), locations);
-        PreprocessedText {
-            code: text,
-            debug_locations,
-        }
+    pub fn new(code: String, locations: StreamToSourceMap) -> Self {
+        PreprocessedText { code, locations }
     }
 
     pub fn as_str(&self) -> &str {
@@ -150,22 +217,18 @@ impl PreprocessedText {
         self.code.as_bytes()
     }
 
-    pub fn get_file_location(
-        &self,
-        stream_location: StreamLocation,
-    ) -> Result<FileLocation, NoFileLocation> {
-        self.debug_locations
-            .get_file_location(stream_location, self.as_bytes())
+    pub fn get_source_location(&self, stream_location: StreamLocation) -> SourceLocation {
+        self.locations.get_source_location(stream_location)
     }
 
     /// Generate string from text with #line markers
-    pub fn export_with_line_markers(&self) -> String {
+    pub fn export_with_line_markers(&self, source_manager: &SourceManager) -> String {
         let mut output = Vec::with_capacity(self.code.len());
 
         let bytes = self.code.as_bytes();
         let mut processed = 0;
-        for (stream_location, file_location) in &self.debug_locations.remap {
-            let next = stream_location.0 as usize;
+        for entry in &self.locations.remap {
+            let next = entry.stream.0 as usize;
             assert!((processed == 0 && next == 0) || processed < next);
             let text_range = &bytes[processed..next];
 
@@ -180,7 +243,8 @@ impl PreprocessedText {
             };
 
             // Get the file / line from the location
-            let (file_name, line) = match file_location {
+            let file_location = source_manager.get_file_location(entry.source);
+            let (file_name, line) = match &file_location {
                 FileLocation::Known(file_name, line, _) => (file_name.0.as_str(), line.0),
                 FileLocation::Unknown => ("unknown", 1),
             };
@@ -206,140 +270,50 @@ impl PreprocessedText {
 }
 
 /// Links streams offsets to source file locations
-/// Requires external source to decode line transitions
 #[derive(PartialEq, Debug, Default, Clone)]
-struct StreamToFileMap {
-    remap: Vec<(StreamLocation, FileLocation)>,
+pub struct StreamToSourceMap {
+    remap: Vec<StreamToSourceEntry>,
 }
 
-/// Links streams offsets to source file locations
-/// Expects unique entries for each line
-#[derive(PartialEq, Debug, Default, Clone)]
-pub struct LineMap {
-    lines: StreamToFileMap,
+#[derive(PartialEq, Debug, Clone)]
+struct StreamToSourceEntry {
+    stream: StreamLocation,
+    source: SourceLocation,
 }
 
-/// Error type when we can not obtain source file info for a position
-pub struct NoFileLocation;
-
-impl StreamToFileMap {
-    /// Construct stream to file map by simplifying a line map
-    fn from_line_map(source: &[u8], line_map: LineMap) -> Self {
-        // Extract current map which we will consume
-        let old_line_map = line_map.lines.remap;
-
-        // Build new map - assuming a size similar to the old one
-        let mut new_line_map = Vec::with_capacity(old_line_map.len());
-
-        // Remember previous stream/file locations as we process each entry
-        let mut last_stream_location: Option<StreamLocation> = None;
-        let mut last_file_location = FileLocation::Unknown;
-
-        for (stream_location, file_location) in old_line_map {
-            let mut keep = true;
-
-            if let Some(last_stream_location) = last_stream_location {
-                if let FileLocation::Known(ref last_file, last_line, last_column) =
-                    last_file_location
-                {
-                    if let FileLocation::Known(ref next_file, next_line, next_column) =
-                        &file_location
-                    {
-                        if last_file == next_file {
-                            let start = last_stream_location.0 as usize;
-                            let end = stream_location.0 as usize;
-
-                            let (line, column) = FileLocation::advance_parts(
-                                last_line,
-                                last_column,
-                                &source[start..end],
-                            );
-
-                            if line == *next_line && column == *next_column {
-                                keep = false;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // If the mapping still contains information then add it back to the new map
-            if keep {
-                last_stream_location = Some(stream_location);
-                last_file_location = file_location.clone();
-                new_line_map.push((stream_location, file_location));
-            }
-        }
-
-        StreamToFileMap {
-            remap: new_line_map,
-        }
-    }
-
-    /// Find the file location of a given stream position
-    fn get_file_location_parts(
-        &self,
-        stream_location: StreamLocation,
-    ) -> Result<(FileLocation, u64), NoFileLocation> {
-        let mut lower = 0;
-        let mut upper = self.remap.len();
-        while lower < upper - 1 {
-            let next_index = (lower + upper) / 2;
-            assert!(next_index > lower);
-            assert!(next_index <= upper);
-
-            let &(ref line_stream, _) = &self.remap[next_index];
-            let matches = line_stream.0 <= stream_location.0;
-
-            if matches {
-                lower = next_index;
-            } else {
-                upper = next_index;
-            }
-        }
-        let last_line = if lower == self.remap.len() {
-            None
-        } else {
-            Some(lower)
-        };
-        match last_line {
-            Some(index) => {
-                let (line_stream, line_file) = self.remap[index].clone();
-                Ok((line_file, stream_location.0 - line_stream.0))
-            }
-            None => Err(NoFileLocation),
-        }
-    }
-
-    /// Find the file location of a given stream position
-    fn get_file_location(
-        &self,
-        stream_location: StreamLocation,
-        stream_source: &[u8],
-    ) -> Result<FileLocation, NoFileLocation> {
-        let (base_loc, offset) = self.get_file_location_parts(stream_location)?;
-        let text_range =
-            &stream_source[((stream_location.0 - offset) as usize)..(stream_location.0 as usize)];
-        Ok(base_loc.advance(text_range))
-    }
-}
-
-impl LineMap {
+impl StreamToSourceMap {
     /// Add a mapping from stream location back to source file location
-    pub fn push(&mut self, stream_location: StreamLocation, file_location: FileLocation) {
+    pub fn push(&mut self, stream_location: StreamLocation, source_location: SourceLocation) {
         // Ensure stream locations are in order and there are no duplicates
-        if let Some((previous_stream_location, _)) = self.lines.remap.last() {
-            assert!(*previous_stream_location < stream_location);
-        };
-        self.lines.remap.push((stream_location, file_location))
+        if let Some(previous) = self.remap.last() {
+            assert!(previous.stream < stream_location);
+        } else {
+            assert!(stream_location.0 == 0);
+        }
+        self.remap.push(StreamToSourceEntry {
+            stream: stream_location,
+            source: source_location,
+        })
     }
 
-    /// Find the file location of a given stream position
-    pub fn get_file_location(
-        &self,
-        stream_location: StreamLocation,
-    ) -> Result<FileLocation, NoFileLocation> {
-        let (base_loc, offset) = self.lines.get_file_location_parts(stream_location)?;
-        Ok(base_loc.advance_columns(offset))
+    /// Get the source location for a position in a stream
+    pub fn get_source_location(&self, stream_location: StreamLocation) -> SourceLocation {
+        if self.remap.is_empty() {
+            return SourceLocation::UNKNOWN;
+        }
+
+        assert_eq!(self.remap[0].stream.0, 0);
+
+        let mut index = self.remap.len() - 1;
+        for entry in self.remap.iter().rev() {
+            if entry.stream <= stream_location {
+                break;
+            }
+            index -= 1;
+        }
+
+        let previous = &self.remap[index];
+        let offset = stream_location.0 - previous.stream.0;
+        previous.source.offset(offset)
     }
 }

@@ -131,17 +131,17 @@ pub enum Token {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct LexToken(pub Token, pub FileLocation);
+pub struct LexToken(pub Token, pub SourceLocation);
 
 impl LexToken {
     /// Extract the file location from a lex token
-    pub fn to_loc(self) -> FileLocation {
+    pub fn to_loc(self) -> SourceLocation {
         self.1
     }
 
     /// Create a token with no file location
     pub fn with_no_loc(token: Token) -> LexToken {
-        LexToken(token, FileLocation::Unknown)
+        LexToken(token, SourceLocation::UNKNOWN)
     }
 }
 

@@ -2,8 +2,8 @@ mod condition_parser;
 mod preprocess;
 
 pub use preprocess::preprocess;
-pub use preprocess::preprocess_file;
-pub use preprocess::preprocess_single;
+pub use preprocess::preprocess_direct;
+pub use preprocess::preprocess_fragment;
 pub use preprocess::PreprocessError;
 
 #[cfg(test)]
