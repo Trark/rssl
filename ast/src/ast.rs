@@ -391,13 +391,13 @@ pub enum Expression {
         /// Function to invoke
         Box<Located<Expression>>,
         /// Template arguments
-        Vec<Type>,
+        Vec<Located<Type>>,
         /// Arguments
         Vec<Located<Expression>>,
     ),
     NumericConstructor(DataLayout, Vec<Located<Expression>>),
-    Cast(Type, Box<Located<Expression>>),
-    SizeOf(Type),
+    Cast(Located<Type>, Box<Located<Expression>>),
+    SizeOf(Located<Type>),
 }
 
 #[derive(PartialEq, Debug, Clone)]

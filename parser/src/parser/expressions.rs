@@ -55,16 +55,21 @@ fn expr_paren<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Lo
 fn parse_template_args_opt<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
-) -> ParseResult<'t, Vec<Type>> {
+) -> ParseResult<'t, Vec<Located<Type>>> {
     let (input, _) = match_left_angle_bracket(input)?;
-    let (input, type_args) =
-        nom::multi::separated_list0(parse_token(Token::Comma), parse_typed::<Type>(st))(input)?;
+    let (input, type_args) = nom::multi::separated_list0(
+        parse_token(Token::Comma),
+        locate(parse_typed::<Type>(st)),
+    )(input)?;
     let (input, _) = match_right_angle_bracket(input)?;
     Ok((input, type_args))
 }
 
 /// Parse a list of template arguments or no arguments
-fn parse_template_args<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Vec<Type>> {
+fn parse_template_args<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, Vec<Located<Type>>> {
     match parse_template_args_opt(input, st) {
         Ok(ok) => Ok(ok),
         Err(_) => Ok((input, Vec::new())),
@@ -76,7 +81,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     enum Precedence1Postfix {
         Increment,
         Decrement,
-        Call(Vec<Type>, Vec<Located<Expression>>),
+        Call(Vec<Located<Type>>, Vec<Located<Expression>>),
         ArraySubscript(Located<Expression>),
         Member(String),
     }
@@ -297,7 +302,7 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
-        let (input, cast) = parse_typed::<Type>(st)(input)?;
+        let (input, cast) = locate(parse_typed::<Type>(st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st)?;
         Ok((
@@ -312,7 +317,7 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::SizeOf)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, ty) = parse_typed::<Type>(st)(input)?;
+        let (input, ty) = locate(parse_typed::<Type>(st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
     }
@@ -889,7 +894,7 @@ fn test_expression() {
 
     assert_eq!(
         expr_str("(float3) x"),
-        Expression::Cast(Type::floatn(3), "x".as_bvar(9)).loc(0)
+        Expression::Cast(Type::floatn(3).loc(1), "x".as_bvar(9)).loc(0)
     );
 
     let ambiguous_sum_or_cast = "(a) + (b)";
@@ -905,7 +910,7 @@ fn test_expression() {
     assert_eq!(
         expr_str_with_symbols(ambiguous_sum_or_cast, &st_a_is_type),
         Expression::Cast(
-            Type::custom("a"),
+            Type::custom("a").loc(1),
             Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
         )
         .loc(0)
@@ -926,7 +931,7 @@ fn test_expression() {
         let x = "x".as_bvar(9);
         let y = "y".as_bvar(12);
         let binop = Expression::BinaryOperation(BinOp::Sequence, x, y).bloc(8);
-        let cons = Expression::Cast(Type::floatn(2), binop);
+        let cons = Expression::Cast(Type::floatn(2).loc(1), binop);
         cons.loc(0)
     };
     assert_eq!(expr_str(fake_cons), fake_cons_out);
@@ -1075,7 +1080,7 @@ fn test_expression() {
 
     assert_eq!(
         expr_str(" sizeof ( float4 ) "),
-        Expression::SizeOf(Type::floatn(4)).loc(1)
+        Expression::SizeOf(Type::floatn(4).loc(10)).loc(1)
     );
 
     assert_eq!(
@@ -1132,11 +1137,11 @@ fn test_expression() {
         expr_str("array.Load<float4>(i * sizeof(float4))"),
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
-            vec![Type::floatn(4)],
+            vec![Type::floatn(4).loc(11)],
             vec![Expression::BinaryOperation(
                 BinOp::Multiply,
                 "i".as_bvar(19),
-                Expression::SizeOf(Type::floatn(4)).bloc(23)
+                Expression::SizeOf(Type::floatn(4).loc(30)).bloc(23)
             )
             .loc(19)],
         )
@@ -1145,7 +1150,7 @@ fn test_expression() {
 
     assert_eq!(
         expr_str("(float) b"),
-        Expression::Cast(Type::float(), "b".as_bvar(8)).loc(0)
+        Expression::Cast(Type::float().loc(1), "b".as_bvar(8)).loc(0)
     );
 
     assert_eq!(

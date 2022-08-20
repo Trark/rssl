@@ -19,11 +19,6 @@ pub trait TestLocationExt
 where
     Self: Sized,
 {
-    fn loc(self, offset: u32) -> Located<Self>;
-    fn bloc(self, offset: u32) -> Box<Located<Self>>;
-}
-
-impl TestLocationExt for Expression {
     fn loc(self, offset: u32) -> Located<Self> {
         Located::new(self, SourceLocation::first().offset(offset))
     }
@@ -32,6 +27,9 @@ impl TestLocationExt for Expression {
         Box::new(Located::new(self, SourceLocation::first().offset(offset)))
     }
 }
+
+impl TestLocationExt for Expression {}
+impl TestLocationExt for Type {}
 
 pub trait TestVariableExt {
     fn as_var(self, offset: u32) -> Located<Expression>;

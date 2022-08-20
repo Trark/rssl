@@ -36,6 +36,24 @@ fn parse_typed<'t, 's, T: Parse>(
     move |input: &'t [LexToken]| T::parse(input, st)
 }
 
+/// Augment a parser with location information
+fn locate<'t, 's, T>(
+    parser: impl Fn(&'t [LexToken]) -> ParseResult<T> + 's,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Located<T>> + 's {
+    move |input: &'t [LexToken]| match parser(input) {
+        Ok((after, value)) => {
+            assert_ne!(
+                input.len(),
+                after.len(),
+                "Parser used in locate used no tokens"
+            );
+            assert!(!input.is_empty());
+            Ok((after, Located::new(value, input[0].1)))
+        }
+        Err(err) => Err(err),
+    }
+}
+
 /// Parse an exact token from the start of the stream
 fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<LexToken> {
     move |input: &'t [LexToken]| {
