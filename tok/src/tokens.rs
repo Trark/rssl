@@ -1,7 +1,13 @@
 use rssl_text::*;
 
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 pub struct Identifier(pub String);
+
+impl std::fmt::Debug for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "\"{}\"", self.0)
+    }
+}
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum FollowedBy {
@@ -130,7 +136,7 @@ pub enum Token {
     Virtual,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct LexToken(pub Token, pub SourceLocation);
 
 impl LexToken {
@@ -142,6 +148,12 @@ impl LexToken {
     /// Create a token with no file location
     pub fn with_no_loc(token: Token) -> LexToken {
         LexToken(token, SourceLocation::UNKNOWN)
+    }
+}
+
+impl std::fmt::Debug for LexToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?} @ {}", self.0, self.1.get_raw())
     }
 }
 

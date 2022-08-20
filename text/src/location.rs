@@ -21,6 +21,11 @@ impl SourceLocation {
             SourceLocation(self.0 + offset)
         }
     }
+
+    /// Get the raw integer inside the location
+    pub fn get_raw(&self) -> u32 {
+        self.0
+    }
 }
 
 /// Owns all source files loaded into the compiler
@@ -236,7 +241,7 @@ impl std::fmt::Display for FileLocation {
 pub struct StreamLocation(pub u32);
 
 /// Wrapper to pair a node with a source location
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Located<T> {
     pub node: T,
     pub location: SourceLocation,
@@ -269,6 +274,12 @@ impl<T> std::ops::Deref for Located<T> {
     type Target = T;
     fn deref(&self) -> &T {
         &self.node
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for Located<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?} @ {}", self.node, self.location.get_raw())
     }
 }
 

@@ -1,7 +1,7 @@
 use rssl_text::Located;
 
 /// Basic scalar types
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum ScalarType {
     Bool,
     UntypedInt,
@@ -10,6 +10,20 @@ pub enum ScalarType {
     Half,
     Float,
     Double,
+}
+
+impl std::fmt::Debug for ScalarType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ScalarType::Bool => write!(f, "bool"),
+            ScalarType::UntypedInt => write!(f, "integer"),
+            ScalarType::Int => write!(f, "int"),
+            ScalarType::UInt => write!(f, "uint"),
+            ScalarType::Half => write!(f, "half"),
+            ScalarType::Float => write!(f, "float"),
+            ScalarType::Double => write!(f, "double"),
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -81,7 +95,7 @@ pub enum ObjectType {
     OutputPatch,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum TypeLayout {
     Void,
     Scalar(ScalarType),
@@ -150,6 +164,20 @@ impl From<StructuredLayout> for TypeLayout {
     }
 }
 
+impl std::fmt::Debug for TypeLayout {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TypeLayout::Void => write!(f, "void"),
+            TypeLayout::Scalar(st) => write!(f, "{:?}", st),
+            TypeLayout::Vector(st, x) => write!(f, "{:?}{}", st, x),
+            TypeLayout::Matrix(st, x, y) => write!(f, "{:?}{}x{}", st, x, y),
+            TypeLayout::Custom(s) => write!(f, "{}", s),
+            TypeLayout::SamplerState => write!(f, "SamplerState"),
+            TypeLayout::Object(ot) => write!(f, "{:?}", ot),
+        }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum RowOrder {
     Row,
@@ -162,6 +190,24 @@ pub struct TypeModifier {
     pub row_order: RowOrder,
     pub precise: bool,
     pub volatile: bool,
+}
+
+impl TypeModifier {
+    fn format_pretty(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.precise {
+            write!(f, "precise ")?;
+        }
+        if self.row_order == RowOrder::Row {
+            write!(f, "row_major ")?;
+        }
+        if self.is_const {
+            write!(f, "const ")?;
+        }
+        if self.volatile {
+            write!(f, "volatile ")?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for TypeModifier {
@@ -222,8 +268,15 @@ impl Default for LocalStorage {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Type(pub TypeLayout, pub TypeModifier);
+
+impl std::fmt::Debug for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.1.format_pretty(f)?;
+        self.0.fmt(f)
+    }
+}
 
 impl Type {
     pub fn void() -> Type {
