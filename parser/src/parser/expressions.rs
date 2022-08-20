@@ -51,12 +51,32 @@ fn expr_paren<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Lo
     }
 }
 
+/// Parse a list of template arguments
+fn parse_template_args_opt<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, Vec<Type>> {
+    let (input, _) = match_left_angle_bracket(input)?;
+    let (input, type_args) =
+        nom::multi::separated_list0(parse_token(Token::Comma), parse_typed::<Type>(st))(input)?;
+    let (input, _) = match_right_angle_bracket(input)?;
+    Ok((input, type_args))
+}
+
+/// Parse a list of template arguments or no arguments
+fn parse_template_args<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Vec<Type>> {
+    match parse_template_args_opt(input, st) {
+        Ok(ok) => Ok(ok),
+        Err(_) => Ok((input, Vec::new())),
+    }
+}
+
 fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     #[derive(Clone)]
     enum Precedence1Postfix {
         Increment,
         Decrement,
-        Call(Vec<Located<Expression>>),
+        Call(Vec<Type>, Vec<Located<Expression>>),
         ArraySubscript(Located<Expression>),
         Member(String),
     }
@@ -100,19 +120,19 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         input: &'t [LexToken],
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
+        let (input, template_args) = parse_template_args(input, st)?;
+
         let (input, start) = parse_token(Token::LeftParen)(input)?;
 
-        let (input, params) = nom::multi::separated_list0(
+        let (input, args) = nom::multi::separated_list0(
             parse_token(Token::Comma),
             parse_typed::<ExpressionNoSeq>(st),
         )(input)?;
 
         let (input, _) = parse_token(Token::RightParen)(input)?;
 
-        Ok((
-            input,
-            Located::new(Precedence1Postfix::Call(params), start.to_loc()),
-        ))
+        let call = Precedence1Postfix::Call(template_args, args);
+        Ok((input, Located::new(call, start.to_loc())))
     }
 
     fn expr_p1_subscript<'t>(
@@ -186,8 +206,8 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
                         UnaryOp::PostfixDecrement,
                         Box::new(final_expression),
                     ),
-                    Precedence1Postfix::Call(params) => {
-                        Expression::Call(Box::new(final_expression), params)
+                    Precedence1Postfix::Call(template_args, args) => {
+                        Expression::Call(Box::new(final_expression), template_args, args)
                     }
                     Precedence1Postfix::ArraySubscript(expr) => {
                         Expression::ArraySubscript(Box::new(final_expression), Box::new(expr))
@@ -1066,7 +1086,8 @@ fn test_expression() {
         expr_str("array.Load()"),
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
-            vec![]
+            vec![],
+            vec![],
         )
         .loc(0)
     );
@@ -1074,7 +1095,8 @@ fn test_expression() {
         expr_str(" array . Load ( ) "),
         Expression::Call(
             Expression::Member("array".as_bvar(1), "Load".to_string()).bloc(1),
-            vec![]
+            vec![],
+            vec![],
         )
         .loc(1)
     );
@@ -1082,7 +1104,8 @@ fn test_expression() {
         expr_str("array.Load(a)"),
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
-            vec!["a".as_var(11)]
+            vec![],
+            vec!["a".as_var(11)],
         )
         .loc(0)
     );
@@ -1090,7 +1113,8 @@ fn test_expression() {
         expr_str("array.Load(a,b)"),
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
-            vec!["a".as_var(11), "b".as_var(13)]
+            vec![],
+            vec!["a".as_var(11), "b".as_var(13)],
         )
         .loc(0)
     );
@@ -1098,7 +1122,23 @@ fn test_expression() {
         expr_str("array.Load(a, b)"),
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
-            vec!["a".as_var(11), "b".as_var(14)]
+            vec![],
+            vec!["a".as_var(11), "b".as_var(14)],
+        )
+        .loc(0)
+    );
+
+    assert_eq!(
+        expr_str("array.Load<float4>(i * sizeof(float4))"),
+        Expression::Call(
+            Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
+            vec![Type::floatn(4)],
+            vec![Expression::BinaryOperation(
+                BinOp::Multiply,
+                "i".as_bvar(19),
+                Expression::SizeOf(Type::floatn(4)).bloc(23)
+            )
+            .loc(19)],
         )
         .loc(0)
     );

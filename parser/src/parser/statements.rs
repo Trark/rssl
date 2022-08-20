@@ -351,11 +351,11 @@ fn test_statement() {
     // Expression statements
     assert_eq!(
         statement_str("func();"),
-        Statement::Expression(Expression::Call("func".as_bvar(0), vec![]).loc(0))
+        Statement::Expression(Expression::Call("func".as_bvar(0), vec![], vec![]).loc(0))
     );
     assert_eq!(
         statement_str(" func ( ) ; "),
-        Statement::Expression(Expression::Call("func".as_bvar(1), vec![]).loc(1))
+        Statement::Expression(Expression::Call("func".as_bvar(1), vec![], vec![]).loc(1))
     );
 
     // For loop init statement
@@ -405,15 +405,15 @@ fn test_statement() {
     assert_eq!(
         statement_str("{one();two();}"),
         Statement::Block(vec![
-            Statement::Expression(Expression::Call("one".as_bvar(1), vec![]).loc(1)),
-            Statement::Expression(Expression::Call("two".as_bvar(7), vec![]).loc(7)),
+            Statement::Expression(Expression::Call("one".as_bvar(1), vec![], vec![]).loc(1)),
+            Statement::Expression(Expression::Call("two".as_bvar(7), vec![], vec![]).loc(7)),
         ])
     );
     assert_eq!(
         statement_str(" { one(); two(); } "),
         Statement::Block(vec![
-            Statement::Expression(Expression::Call("one".as_bvar(3), vec![]).loc(3)),
-            Statement::Expression(Expression::Call("two".as_bvar(10), vec![]).loc(10)),
+            Statement::Expression(Expression::Call("one".as_bvar(3), vec![], vec![]).loc(3)),
+            Statement::Expression(Expression::Call("two".as_bvar(10), vec![], vec![]).loc(10)),
         ])
     );
 
@@ -423,7 +423,7 @@ fn test_statement() {
         Statement::If(
             "a".as_var(3),
             Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(5), vec![]).loc(5)
+                Expression::Call("func".as_bvar(5), vec![], vec![]).loc(5)
             ))
         )
     );
@@ -432,7 +432,7 @@ fn test_statement() {
         Statement::If(
             "a".as_var(4),
             Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(7), vec![]).loc(7)
+                Expression::Call("func".as_bvar(7), vec![], vec![]).loc(7)
             ))
         )
     );
@@ -441,8 +441,8 @@ fn test_statement() {
         Statement::If(
             "a".as_var(4),
             Box::new(Statement::Block(vec![
-                Statement::Expression(Expression::Call("one".as_bvar(10), vec![]).loc(10)),
-                Statement::Expression(Expression::Call("two".as_bvar(18), vec![]).loc(18)),
+                Statement::Expression(Expression::Call("one".as_bvar(10), vec![], vec![]).loc(10)),
+                Statement::Expression(Expression::Call("two".as_bvar(18), vec![], vec![]).loc(18)),
             ]))
         )
     );
@@ -453,10 +453,10 @@ fn test_statement() {
         Statement::IfElse(
             "a".as_var(4),
             Box::new(Statement::Expression(
-                Expression::Call("one".as_bvar(7), vec![]).loc(7)
+                Expression::Call("one".as_bvar(7), vec![], vec![]).loc(7)
             )),
             Box::new(Statement::Expression(
-                Expression::Call("two".as_bvar(19), vec![]).loc(19)
+                Expression::Call("two".as_bvar(19), vec![], vec![]).loc(19)
             ))
         )
     );
@@ -467,8 +467,8 @@ fn test_statement() {
         Statement::While(
             "a".as_var(7),
             Box::new(Statement::Block(vec![
-                Statement::Expression(Expression::Call("one".as_bvar(13), vec![]).loc(13)),
-                Statement::Expression(Expression::Call("two".as_bvar(21), vec![]).loc(21)),
+                Statement::Expression(Expression::Call("one".as_bvar(13), vec![], vec![]).loc(13)),
+                Statement::Expression(Expression::Call("two".as_bvar(21), vec![], vec![]).loc(21)),
             ]))
         )
     );
@@ -481,7 +481,7 @@ fn test_statement() {
             "b".as_var(6),
             "c".as_var(8),
             Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(10), vec![]).loc(10)
+                Expression::Call("func".as_bvar(10), vec![], vec![]).loc(10)
             ))
         )
     );
@@ -496,7 +496,7 @@ fn test_statement() {
             "i".as_var(17),
             Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
             Box::new(Statement::Block(vec![Statement::Expression(
-                Expression::Call("func".as_bvar(27), vec![]).loc(27)
+                Expression::Call("func".as_bvar(27), vec![], vec![]).loc(27)
             )]))
         )
     );
