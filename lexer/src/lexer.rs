@@ -1039,15 +1039,23 @@ fn test_rightanglebracket() {
     );
 }
 
-/// Parse a = or == token
-fn symbol_equals(input: &[u8]) -> IResult<&[u8], Token> {
-    match input {
-        [b'=', b'=', b'=', ..] => Err(nom::Err::Error(nom::error::Error::new(
+/// Parse a binary operation that can either be standalone or combined into an assignment operation
+fn symbol_op_or_op_equals(
+    op_char: u8,
+    op_token: Token,
+    op_equals_token: Token,
+    op_op_token: Token,
+) -> impl Fn(&[u8]) -> IResult<&[u8], Token> {
+    move |input: &[u8]| match input {
+        [c, b'=', b'=', ..] if *c == op_char => Err(nom::Err::Error(nom::error::Error::new(
             input,
             ErrorKind::Not,
         ))),
-        [b'=', b'=', ..] => Ok((&input[2..], Token::DoubleEquals)),
-        [b'=', ..] => Ok((&input[1..], Token::Equals)),
+        [c, b'=', ..] if *c == op_char => Ok((&input[2..], op_equals_token.clone())),
+        [c1, c2, ..] if *c1 == op_char && *c2 == op_char && op_op_token != Token::Eof => {
+            Ok((&input[2..], op_op_token.clone()))
+        }
+        [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
         _ => Err(nom::Err::Error(nom::error::Error::new(
             input,
             ErrorKind::Tag,
@@ -1055,13 +1063,18 @@ fn symbol_equals(input: &[u8]) -> IResult<&[u8], Token> {
     }
 }
 
+/// Parse a = or == token
+fn symbol_equals(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(b'=', Token::Equals, Token::EqualsEquals, Token::Eof)(input)
+}
+
 #[test]
 fn test_symbol_equals() {
     let p = symbol_equals;
     assert_eq!(p(b"="), Ok((&b""[..], Token::Equals)));
     assert_eq!(p(b"= "), Ok((&b" "[..], Token::Equals)));
-    assert_eq!(p(b"=="), Ok((&b""[..], Token::DoubleEquals)));
-    assert_eq!(p(b"== "), Ok((&b" "[..], Token::DoubleEquals)));
+    assert_eq!(p(b"=="), Ok((&b""[..], Token::EqualsEquals)));
+    assert_eq!(p(b"== "), Ok((&b" "[..], Token::EqualsEquals)));
     assert_eq!(
         p(b""),
         Err(nom::Err::Error(nom::error::Error::new(
@@ -1085,29 +1098,79 @@ fn test_symbol_equals() {
     );
 }
 
+/// Parse a + token
+fn symbol_plus(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(b'+', Token::Plus, Token::PlusEquals, Token::PlusPlus)(input)
+}
+
+/// Parse a - token
+fn symbol_minus(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(b'-', Token::Minus, Token::MinusEquals, Token::MinusMinus)(input)
+}
+
+/// Parse a / token
+fn symbol_forward_slash(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(
+        b'/',
+        Token::ForwardSlash,
+        Token::ForwardSlashEquals,
+        Token::Eof,
+    )(input)
+}
+
+/// Parse a % token
+fn symbol_percent(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(b'%', Token::Percent, Token::PercentEquals, Token::Eof)(input)
+}
+
+/// Parse a * token
+fn symbol_asterix(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(b'*', Token::Asterix, Token::AsterixEquals, Token::Eof)(input)
+}
+
+/// Parse a & token
+fn symbol_ampersand(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(
+        b'&',
+        Token::Ampersand,
+        Token::AmpersandEquals,
+        Token::AmpersandAmpersand,
+    )(input)
+}
+
+/// Parse a | token
+fn symbol_verticalbar(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(
+        b'|',
+        Token::VerticalBar,
+        Token::VerticalBarEquals,
+        Token::VerticalBarVerticalBar,
+    )(input)
+}
+
+/// Parse a ^ token
+fn symbol_hat(input: &[u8]) -> IResult<&[u8], Token> {
+    symbol_op_or_op_equals(b'^', Token::Hat, Token::HatEquals, Token::Eof)(input)
+}
+
 /// Parse a ! or != token
 fn symbol_exclamation(input: &[u8]) -> IResult<&[u8], Token> {
-    match input {
-        [b'!', b'=', b'=', ..] => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Not,
-        ))),
-        [b'!', b'=', ..] => Ok((&input[2..], Token::ExclamationEquals)),
-        [b'!', ..] => Ok((&input[1..], Token::ExclamationPoint)),
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
-    }
+    symbol_op_or_op_equals(
+        b'!',
+        Token::ExclamationPoint,
+        Token::ExclamationPointEquals,
+        Token::Eof,
+    )(input)
 }
 
 #[test]
 fn test_symbol_exclamation() {
+    // Test covers implementation used by ! % * /
     let p = symbol_exclamation;
     assert_eq!(p(b"!"), Ok((&b""[..], Token::ExclamationPoint)));
     assert_eq!(p(b"! "), Ok((&b" "[..], Token::ExclamationPoint)));
-    assert_eq!(p(b"!="), Ok((&b""[..], Token::ExclamationEquals)));
-    assert_eq!(p(b"!= "), Ok((&b" "[..], Token::ExclamationEquals)));
+    assert_eq!(p(b"!="), Ok((&b""[..], Token::ExclamationPointEquals)));
+    assert_eq!(p(b"!= "), Ok((&b" "[..], Token::ExclamationPointEquals)));
     assert_eq!(
         p(b""),
         Err(nom::Err::Error(nom::error::Error::new(
@@ -1131,88 +1194,16 @@ fn test_symbol_exclamation() {
     );
 }
 
-/// Parse a & token
-fn symbol_ampersand(input: &[u8]) -> IResult<&[u8], Token> {
-    match input.first() {
-        Some(b'&') => {
-            let input = &input[1..];
-            let token = match lookahead_token(input)?.1 {
-                Some(_) => Token::Ampersand(FollowedBy::Token),
-                _ => Token::Ampersand(FollowedBy::Whitespace),
-            };
-            Ok((input, token))
-        }
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
-    }
-}
-
 #[test]
 fn test_symbol_ampersand() {
+    // Test covers implementation used by + - && ||
     let p = symbol_ampersand;
-    assert_eq!(
-        p(b"&"),
-        Ok((&b""[..], Token::Ampersand(FollowedBy::Whitespace)))
-    );
-    assert_eq!(
-        p(b"& "),
-        Ok((&b" "[..], Token::Ampersand(FollowedBy::Whitespace)))
-    );
-    assert_eq!(
-        p(b"&&"),
-        Ok((&b"&"[..], Token::Ampersand(FollowedBy::Token)))
-    );
-    assert_eq!(
-        p(b""),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b""[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b" "),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b" "[..],
-            ErrorKind::Tag,
-        )))
-    );
-}
-
-/// Parse a | token
-fn symbol_verticalbar(input: &[u8]) -> IResult<&[u8], Token> {
-    match input.first() {
-        Some(b'|') => {
-            let input = &input[1..];
-            let token = match lookahead_token(input)?.1 {
-                Some(_) => Token::VerticalBar(FollowedBy::Token),
-                _ => Token::VerticalBar(FollowedBy::Whitespace),
-            };
-            Ok((input, token))
-        }
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
-    }
-}
-
-#[test]
-fn test_symbol_verticalbar() {
-    let p = symbol_verticalbar;
-    assert_eq!(
-        p(b"|"),
-        Ok((&b""[..], Token::VerticalBar(FollowedBy::Whitespace)))
-    );
-    assert_eq!(
-        p(b"| "),
-        Ok((&b" "[..], Token::VerticalBar(FollowedBy::Whitespace)))
-    );
-    assert_eq!(
-        p(b"||"),
-        Ok((&b"|"[..], Token::VerticalBar(FollowedBy::Token)))
-    );
+    assert_eq!(p(b"&"), Ok((&b""[..], Token::Ampersand)));
+    assert_eq!(p(b"& "), Ok((&b" "[..], Token::Ampersand)));
+    assert_eq!(p(b"&="), Ok((&b""[..], Token::AmpersandEquals)));
+    assert_eq!(p(b"&= "), Ok((&b" "[..], Token::AmpersandEquals)));
+    assert_eq!(p(b"&&"), Ok((&b""[..], Token::AmpersandAmpersand)));
+    assert_eq!(p(b"&& "), Ok((&b" "[..], Token::AmpersandAmpersand)));
     assert_eq!(
         p(b""),
         Err(nom::Err::Error(nom::error::Error::new(
@@ -1236,18 +1227,18 @@ fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
     nom::branch::alt((
         map(tag(";"), |_| Token::Semicolon),
         map(tag(","), |_| Token::Comma),
-        map(tag("+"), |_| Token::Plus),
-        map(tag("-"), |_| Token::Minus),
-        map(tag("/"), |_| Token::ForwardSlash),
-        map(tag("%"), |_| Token::Percent),
-        map(tag("*"), |_| Token::Asterix),
-        symbol_verticalbar,
+        symbol_plus,
+        symbol_minus,
+        symbol_forward_slash,
+        symbol_percent,
+        symbol_asterix,
         symbol_ampersand,
-        map(tag("^"), |_| Token::Hat),
+        symbol_verticalbar,
+        symbol_hat,
+        symbol_exclamation,
         symbol_equals,
         map(tag("#"), |_| Token::Hash),
         map(tag("@"), |_| Token::At),
-        symbol_exclamation,
         map(tag("~"), |_| Token::Tilde),
         map(tag("."), |_| Token::Period),
         map(tag(":"), |_| Token::Colon),
@@ -1565,28 +1556,19 @@ fn test_token() {
     );
     assert_eq!(
         token(&b"| "[..]),
-        Ok((
-            &b""[..],
-            from_end(Token::VerticalBar(FollowedBy::Whitespace), 2)
-        ))
+        Ok((&b""[..], from_end(Token::VerticalBar, 2)))
     );
     assert_eq!(
         token(&b"|| "[..]),
-        Ok((
-            &b"| "[..],
-            from_end(Token::VerticalBar(FollowedBy::Token), 3)
-        ))
+        Ok((&b""[..], from_end(Token::VerticalBarVerticalBar, 3)))
     );
     assert_eq!(
         token(&b"& "[..]),
-        Ok((
-            &b""[..],
-            from_end(Token::Ampersand(FollowedBy::Whitespace), 2)
-        ))
+        Ok((&b""[..], from_end(Token::Ampersand, 2)))
     );
     assert_eq!(
         token(&b"&& "[..]),
-        Ok((&b"& "[..], from_end(Token::Ampersand(FollowedBy::Token), 3)))
+        Ok((&b""[..], from_end(Token::AmpersandAmpersand, 3)))
     );
     assert_eq!(token(&b"^ "[..]), Ok((&b""[..], from_end(Token::Hat, 2))));
     assert_eq!(

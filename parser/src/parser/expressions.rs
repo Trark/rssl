@@ -87,9 +87,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     }
 
     fn expr_p1_increment(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
-        // TODO: ++ tokens
-        let (input, start) = parse_token(Token::Plus)(input)?;
-        let (input, _) = parse_token(Token::Plus)(input)?;
+        let (input, start) = parse_token(Token::PlusPlus)(input)?;
         Ok((
             input,
             Located::new(Precedence1Postfix::Increment, start.to_loc()),
@@ -97,9 +95,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     }
 
     fn expr_p1_decrement(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
-        // TODO: -- tokens
-        let (input, start) = parse_token(Token::Minus)(input)?;
-        let (input, _) = parse_token(Token::Minus)(input)?;
+        let (input, start) = parse_token(Token::MinusMinus)(input)?;
         Ok((
             input,
             Located::new(Precedence1Postfix::Decrement, start.to_loc()),
@@ -232,9 +228,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
 fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
     fn unaryop_increment(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
-        // TODO: ++ tokens
-        let (input, start) = parse_token(Token::Plus)(input)?;
-        let (input, _) = parse_token(Token::Plus)(input)?;
+        let (input, start) = parse_token(Token::PlusPlus)(input)?;
         Ok((
             input,
             Located::new(UnaryOp::PrefixIncrement, start.to_loc()),
@@ -242,9 +236,7 @@ fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
     }
 
     fn unaryop_decrement(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
-        // TODO: -- tokens
-        let (input, start) = parse_token(Token::Minus)(input)?;
-        let (input, _) = parse_token(Token::Minus)(input)?;
+        let (input, start) = parse_token(Token::MinusMinus)(input)?;
         Ok((
             input,
             Located::new(UnaryOp::PrefixDecrement, start.to_loc()),
@@ -458,8 +450,10 @@ fn expr_p6<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 fn expr_p7<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
-            [LexToken(Token::DoubleEquals, _), rest @ ..] => Ok((rest, BinOp::Equality)),
-            [LexToken(Token::ExclamationEquals, _), rest @ ..] => Ok((rest, BinOp::Inequality)),
+            [LexToken(Token::EqualsEquals, _), rest @ ..] => Ok((rest, BinOp::Equality)),
+            [LexToken(Token::ExclamationPointEquals, _), rest @ ..] => {
+                Ok((rest, BinOp::Inequality))
+            }
             [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
@@ -474,7 +468,7 @@ fn expr_p7<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 fn expr_p8<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
-            [LexToken(Token::Ampersand(_), _), rest @ ..] => Ok((rest, BinOp::BitwiseAnd)),
+            [LexToken(Token::Ampersand, _), rest @ ..] => Ok((rest, BinOp::BitwiseAnd)),
             [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
@@ -504,7 +498,7 @@ fn expr_p9<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 fn expr_p10<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
-            [LexToken(Token::VerticalBar(_), _), rest @ ..] => Ok((rest, BinOp::BitwiseOr)),
+            [LexToken(Token::VerticalBar, _), rest @ ..] => Ok((rest, BinOp::BitwiseOr)),
             [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
@@ -519,9 +513,7 @@ fn expr_p10<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
 fn expr_p11<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
-            [LexToken(Token::Ampersand(FollowedBy::Token), _), LexToken(Token::Ampersand(_), _), rest @ ..] => {
-                Ok((rest, BinOp::BooleanAnd))
-            }
+            [LexToken(Token::AmpersandAmpersand, _), rest @ ..] => Ok((rest, BinOp::BooleanAnd)),
             [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
@@ -536,9 +528,7 @@ fn expr_p11<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
 fn expr_p12<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
-            [LexToken(Token::VerticalBar(FollowedBy::Token), _), LexToken(Token::VerticalBar(_), _), rest @ ..] => {
-                Ok((rest, BinOp::BooleanOr))
-            }
+            [LexToken(Token::VerticalBarVerticalBar, _), rest @ ..] => Ok((rest, BinOp::BooleanOr)),
             [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
@@ -580,19 +570,13 @@ fn expr_p14<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Equals, _), rest @ ..] => Ok((rest, BinOp::Assignment)),
-            [LexToken(Token::Plus, _), LexToken(Token::Equals, _), rest @ ..] => {
-                Ok((rest, BinOp::SumAssignment))
-            }
-            [LexToken(Token::Minus, _), LexToken(Token::Equals, _), rest @ ..] => {
-                Ok((rest, BinOp::DifferenceAssignment))
-            }
-            [LexToken(Token::Asterix, _), LexToken(Token::Equals, _), rest @ ..] => {
-                Ok((rest, BinOp::ProductAssignment))
-            }
-            [LexToken(Token::ForwardSlash, _), LexToken(Token::Equals, _), rest @ ..] => {
+            [LexToken(Token::PlusEquals, _), rest @ ..] => Ok((rest, BinOp::SumAssignment)),
+            [LexToken(Token::MinusEquals, _), rest @ ..] => Ok((rest, BinOp::DifferenceAssignment)),
+            [LexToken(Token::AsterixEquals, _), rest @ ..] => Ok((rest, BinOp::ProductAssignment)),
+            [LexToken(Token::ForwardSlashEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::QuotientAssignment))
             }
-            [LexToken(Token::Percent, _), LexToken(Token::Equals, _), rest @ ..] => {
+            [LexToken(Token::PercentEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::RemainderAssignment))
             }
             [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
