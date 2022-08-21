@@ -2,11 +2,7 @@ use super::*;
 
 /// Provides details on why a parse operation failed
 #[derive(PartialEq, Clone)]
-pub struct ParseError(
-    pub ParseErrorReason,
-    pub Option<Vec<LexToken>>,
-    pub Option<Box<ParseError>>,
-);
+pub struct ParseError(pub ParseErrorReason, pub Option<Vec<LexToken>>);
 
 impl ParseError {
     /// Get formatter to print the error
@@ -16,26 +12,16 @@ impl ParseError {
 
     /// Make an error for when there were unused tokens after parsing
     pub fn from_tokens_remaining(remaining: &[LexToken]) -> Self {
-        ParseError(
-            ParseErrorReason::FailedToParse,
-            Some(remaining.to_vec()),
-            None,
-        )
+        ParseError(ParseErrorReason::FailedToParse, Some(remaining.to_vec()))
     }
 }
 
 impl<'a> From<nom::Err<ParseErrorContext<'a>>> for ParseError {
     fn from(internal_error: nom::Err<ParseErrorContext<'a>>) -> ParseError {
         match internal_error {
-            nom::Err::Error(ParseErrorContext(rest, err)) => {
-                ParseError(err, Some(rest.to_vec()), None)
-            }
-            nom::Err::Failure(ParseErrorContext(rest, err)) => {
-                ParseError(err, Some(rest.to_vec()), None)
-            }
-            nom::Err::Incomplete(_) => {
-                ParseError(ParseErrorReason::UnexpectedEndOfStream, None, None)
-            }
+            nom::Err::Error(ParseErrorContext(rest, err)) => ParseError(err, Some(rest.to_vec())),
+            nom::Err::Failure(ParseErrorContext(rest, err)) => ParseError(err, Some(rest.to_vec())),
+            nom::Err::Incomplete(_) => ParseError(ParseErrorReason::UnexpectedEndOfStream, None),
         }
     }
 }
@@ -44,12 +30,11 @@ impl std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "ParseError({:?}, {:?}, {:?})",
+            "ParseError({:?}, {:?})",
             self.0,
             self.1
                 .as_ref()
-                .map(|vec| if vec.len() > 12 { &vec[..12] } else { vec }),
-            self.2
+                .map(|vec| if vec.len() > 12 { &vec[..12] } else { vec })
         )
     }
 }
