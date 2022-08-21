@@ -100,6 +100,14 @@ impl<'a> nom::error::ParseError<&'a [LexToken]> for ParseErrorContext<'a> {
     fn append(_: &[LexToken], _: nom::error::ErrorKind, other: Self) -> Self {
         other
     }
+
+    fn or(self, other: Self) -> Self {
+        if other.0.len() < self.0.len() {
+            other
+        } else {
+            self
+        }
+    }
 }
 
 /// Find the error with the longest tokens used

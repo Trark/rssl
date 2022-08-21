@@ -1,29 +1,7 @@
 use super::*;
 
-fn expr_paren<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
-    // Try to parse an expression nested in parenthesis
-    {
-        let res: ParseResult<'t, Located<Expression>> = (|| {
-            let (input, start) = parse_token(Token::LeftParen)(input)?;
-            let (input, expr) = Expression::parse(input, st)?;
-            let (input, _) = parse_token(Token::RightParen)(input)?;
-
-            Ok((input, Located::new(expr.to_node(), start.to_loc())))
-        })();
-        if let Ok(res) = res {
-            return Ok(res);
-        }
-    }
-
-    // Try to parse a variable identifier
-    if let Ok((input, name)) = VariableName::parse(input, st) {
-        return Ok((
-            input,
-            Located::new(Expression::Variable(name.node), name.location),
-        ));
-    }
-
-    // Try to parse a literal
+/// Try to parse a literal
+fn expr_literal<'t>(input: &'t [LexToken]) -> ParseResult<'t, Located<Expression>> {
     match input.first() {
         Some(LexToken(tok, ref loc)) => {
             let literal = match *tok {
@@ -48,6 +26,44 @@ fn expr_paren<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Lo
             ))
         }
         None => Err(nom::Err::Incomplete(nom::Needed::new(1))),
+    }
+}
+
+/// Try to parse an expression inside parenthesis
+fn expr_in_paren<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
+    let (input, start) = parse_token(Token::LeftParen)(input)?;
+    let (input, expr) = Expression::parse(input, st)?;
+    let (input, _) = parse_token(Token::RightParen)(input)?;
+
+    Ok((input, Located::new(expr.to_node(), start.to_loc())))
+}
+
+/// Try to parse one of the base components of an expression
+fn expr_leaf<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+    // Try to parse an expression nested in parenthesis
+    let err = match expr_in_paren(input, st) {
+        Ok(res) => return Ok(res),
+        Err(err) => err,
+    };
+
+    // Try to parse a variable identifier
+    let err = match VariableName::parse(input, st) {
+        Ok((input, name)) => {
+            return Ok((
+                input,
+                Located::new(Expression::Variable(name.node), name.location),
+            ));
+        }
+        Err(e) => get_most_relevant_error(err, e),
+    };
+
+    // Try to parse a literal
+    match expr_literal(input) {
+        Ok(res) => Ok(res),
+        Err(e) => Err(get_most_relevant_error(err, e)),
     }
 }
 
@@ -190,7 +206,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         Err(_) => input,
     };
 
-    let (input, left) = expr_paren(input, st)?;
+    let (input, left) = expr_leaf(input, st)?;
     let (input, rights) = nom::multi::many0(|input| expr_p1_right(input, st))(input)?;
 
     let expr = {
@@ -351,9 +367,23 @@ fn parse_binary_operations<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
     let (input, left) = expression_fn(input, st)?;
-    let (input, rights) = nom::multi::many0(nom::sequence::tuple((operator_fn, |input| {
-        expression_fn(input, st)
-    })))(input)?;
+
+    let mut input = input;
+    let mut rights = Vec::new();
+    loop {
+        // Attempt to parse an operator
+        let (rest, op) = match operator_fn(input) {
+            Ok(ok) => ok,
+            Err(_) => break,
+        };
+
+        // Unconditionally parse right side after an operator is successfully parsed
+        let (rest, right) = expression_fn(rest, st)?;
+
+        rights.push((op, right));
+        input = rest;
+    }
+
     let expr = combine_rights(left, rights);
     Ok((input, expr))
 }
