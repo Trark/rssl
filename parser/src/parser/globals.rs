@@ -1,60 +1,60 @@
 use super::*;
 
-impl Parse for GlobalType {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        if input.is_empty() {
-            return Err(nom::Err::Incomplete(nom::Needed::new(1)));
-        }
-        // Interpolation modifiers unimplemented
-        // Non-standard combinations of storage classes unimplemented
-        let (input, gs) = match input[0] {
-            LexToken(Token::Static, _) => (&input[1..], Some(GlobalStorage::Static)),
-            LexToken(Token::GroupShared, _) => (&input[1..], Some(GlobalStorage::GroupShared)),
-            LexToken(Token::Extern, _) => (&input[1..], Some(GlobalStorage::Extern)),
-            _ => (input, None),
-        };
-        let (input, ty) = Type::parse(input, st)?;
-        let gt = GlobalType(ty, gs.unwrap_or_default(), None);
-        Ok((input, gt))
+/// Parse the type for a global variable
+fn parse_global_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, GlobalType> {
+    if input.is_empty() {
+        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
     }
+    // Interpolation modifiers unimplemented
+    // Non-standard combinations of storage classes unimplemented
+    let (input, gs) = match input[0] {
+        LexToken(Token::Static, _) => (&input[1..], Some(GlobalStorage::Static)),
+        LexToken(Token::GroupShared, _) => (&input[1..], Some(GlobalStorage::GroupShared)),
+        LexToken(Token::Extern, _) => (&input[1..], Some(GlobalStorage::Extern)),
+        _ => (input, None),
+    };
+    let (input, ty) = parse_type(input, st)?;
+    let gt = GlobalType(ty, gs.unwrap_or_default(), None);
+    Ok((input, gt))
 }
 
-impl Parse for ConstantVariableName {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, name) = contextual(VariableName::parse, st)(input)?;
-        let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
-        let v = ConstantVariableName {
-            name: name.to_node(),
-            bind: match array_dim {
-                Some(ref expr) => VariableBind::Array(expr.clone()),
-                None => VariableBind::Normal,
-            },
-            offset: None,
-        };
-        Ok((input, v))
-    }
+/// Parse a single named constant in a constant buffer definition
+fn parse_constant_variable_name<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, ConstantVariableName> {
+    let (input, name) = parse_variable_name(input)?;
+    let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
+    let v = ConstantVariableName {
+        name: name.to_node(),
+        bind: match array_dim {
+            Some(ref expr) => VariableBind::Array(expr.clone()),
+            None => VariableBind::Normal,
+        },
+        offset: None,
+    };
+    Ok((input, v))
 }
 
-impl Parse for ConstantVariable {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, typename) = contextual(Type::parse, st)(input)?;
-        let (input, defs) = nom::multi::separated_list1(
-            parse_token(Token::Comma),
-            contextual(ConstantVariableName::parse, st),
-        )(input)?;
-        let (input, _) = parse_token(Token::Semicolon)(input)?;
-        let var = ConstantVariable { ty: typename, defs };
-        Ok((input, var))
-    }
+/// Parse a single line in a constant buffer definition
+fn parse_constant_variable<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, ConstantVariable> {
+    let (input, typename) = parse_type(input, st)?;
+    let (input, defs) = nom::multi::separated_list1(
+        parse_token(Token::Comma),
+        contextual(parse_constant_variable_name, st),
+    )(input)?;
+    let (input, _) = parse_token(Token::Semicolon)(input)?;
+    let var = ConstantVariable { ty: typename, defs };
+    Ok((input, var))
 }
 
 #[test]
 fn test_constant_variable() {
     use test_support::*;
-    let constantvariable = ParserTester::new(ConstantVariable::parse);
+    let constantvariable = ParserTester::new(parse_constant_variable);
 
     let test_cbuffervar_str = "float4x4 wvp;";
     let test_cbuffervar_ast = ConstantVariable {
@@ -68,23 +68,20 @@ fn test_constant_variable() {
     constantvariable.check(test_cbuffervar_str, test_cbuffervar_ast);
 }
 
-impl Parse for ConstantSlot {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], _: &SymbolTable) -> ParseResult<'t, Self> {
-        match input {
-            [LexToken(Token::Colon, _), LexToken(Token::Register(reg), _), rest @ ..] => match *reg
-            {
-                RegisterSlot::B(slot) => Ok((rest, ConstantSlot(slot))),
-                _ => Err(nom::Err::Error(ParseErrorContext(
-                    input,
-                    ParseErrorReason::WrongSlotType,
-                ))),
-            },
+/// Parse a register slot for a constant buffer
+fn parse_constant_slot(input: &[LexToken]) -> ParseResult<ConstantSlot> {
+    match input {
+        [LexToken(Token::Colon, _), LexToken(Token::Register(reg), _), rest @ ..] => match *reg {
+            RegisterSlot::B(slot) => Ok((rest, ConstantSlot(slot))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
-                ParseErrorReason::WrongToken,
+                ParseErrorReason::WrongSlotType,
             ))),
-        }
+        },
+        _ => Err(nom::Err::Error(ParseErrorContext(
+            input,
+            ParseErrorReason::WrongToken,
+        ))),
     }
 }
 
@@ -92,82 +89,82 @@ impl Parse for ConstantSlot {
 fn test_constant_slot() {
     use test_support::*;
 
-    let cbuffer_register = ParserTester::new(ConstantSlot::parse);
+    let cbuffer_register = ParserTester::new(|input, _| parse_constant_slot(input));
     cbuffer_register.check(" : register(b12) ", ConstantSlot(12));
 }
 
-impl Parse for ConstantBuffer {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
-        let (input, name) = contextual(VariableName::parse, st)(input)?;
-        let (input, slot) = nom::combinator::opt(contextual(ConstantSlot::parse, st))(input)?;
-        let (input, members) = nom::sequence::delimited(
-            parse_token(Token::LeftBrace),
-            nom::multi::many0(contextual(ConstantVariable::parse, st)),
-            parse_token(Token::RightBrace),
-        )(input)?;
-        let cb = ConstantBuffer {
-            name: name.to_node(),
-            slot,
-            members,
-        };
-        Ok((input, cb))
+/// Parse a constant buffer definition
+pub fn parse_constant_buffer<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, ConstantBuffer> {
+    let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
+    let (input, name) = parse_variable_name(input)?;
+    let (input, slot) = nom::combinator::opt(parse_constant_slot)(input)?;
+    let (input, members) = nom::sequence::delimited(
+        parse_token(Token::LeftBrace),
+        nom::multi::many0(contextual(parse_constant_variable, st)),
+        parse_token(Token::RightBrace),
+    )(input)?;
+    let cb = ConstantBuffer {
+        name: name.to_node(),
+        slot,
+        members,
+    };
+    Ok((input, cb))
+}
+
+/// Parse a register slot for a resource
+fn parse_global_slot(input: &[LexToken]) -> ParseResult<GlobalSlot> {
+    match input {
+        [LexToken(Token::Colon, _), LexToken(Token::Register(reg), _), rest @ ..] => match *reg {
+            RegisterSlot::T(slot) => Ok((rest, GlobalSlot::ReadSlot(slot))),
+            RegisterSlot::U(slot) => Ok((rest, GlobalSlot::ReadWriteSlot(slot))),
+            RegisterSlot::S(slot) => Ok((rest, GlobalSlot::SamplerSlot(slot))),
+            RegisterSlot::B(slot) => Ok((rest, GlobalSlot::ConstantSlot(slot))),
+        },
+        _ => Err(nom::Err::Error(ParseErrorContext(
+            input,
+            ParseErrorReason::WrongToken,
+        ))),
     }
 }
 
-impl Parse for GlobalSlot {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], _: &SymbolTable) -> ParseResult<'t, Self> {
-        match input {
-            [LexToken(Token::Colon, _), LexToken(Token::Register(reg), _), rest @ ..] => match *reg
-            {
-                RegisterSlot::T(slot) => Ok((rest, GlobalSlot::ReadSlot(slot))),
-                RegisterSlot::U(slot) => Ok((rest, GlobalSlot::ReadWriteSlot(slot))),
-                RegisterSlot::S(slot) => Ok((rest, GlobalSlot::SamplerSlot(slot))),
-                RegisterSlot::B(slot) => Ok((rest, GlobalSlot::ConstantSlot(slot))),
-            },
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
-        }
-    }
+/// Parse a single name in a global variable definition
+fn parse_global_variable_name<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, GlobalVariableName> {
+    let (input, name) = parse_variable_name(input)?;
+    let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
+    let (input, slot) = nom::combinator::opt(parse_global_slot)(input)?;
+    let (input, init) = parse_initializer(input, st)?;
+    let v = GlobalVariableName {
+        name: name.to_node(),
+        bind: match array_dim {
+            Some(ref expr) => VariableBind::Array(expr.clone()),
+            None => VariableBind::Normal,
+        },
+        slot,
+        init,
+    };
+    Ok((input, v))
 }
 
-impl Parse for GlobalVariableName {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, name) = contextual(VariableName::parse, st)(input)?;
-        let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
-        let (input, slot) = nom::combinator::opt(contextual(GlobalSlot::parse, st))(input)?;
-        let (input, init) = contextual(Initializer::parse, st)(input)?;
-        let v = GlobalVariableName {
-            name: name.to_node(),
-            bind: match array_dim {
-                Some(ref expr) => VariableBind::Array(expr.clone()),
-                None => VariableBind::Normal,
-            },
-            slot,
-            init,
-        };
-        Ok((input, v))
-    }
-}
-
-impl Parse for GlobalVariable {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, typename) = contextual(GlobalType::parse, st)(input)?;
-        let (input, defs) = nom::multi::separated_list1(
-            parse_token(Token::Comma),
-            contextual(GlobalVariableName::parse, st),
-        )(input)?;
-        let (input, _) = parse_token(Token::Semicolon)(input)?;
-        let var = GlobalVariable {
-            global_type: typename,
-            defs,
-        };
-        Ok((input, var))
-    }
+/// Parse a global variable definition
+pub fn parse_global_variable<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, GlobalVariable> {
+    let (input, typename) = parse_global_type(input, st)?;
+    let (input, defs) = nom::multi::separated_list1(
+        parse_token(Token::Comma),
+        contextual(parse_global_variable_name, st),
+    )(input)?;
+    let (input, _) = parse_token(Token::Semicolon)(input)?;
+    let var = GlobalVariable {
+        global_type: typename,
+        defs,
+    };
+    Ok((input, var))
 }

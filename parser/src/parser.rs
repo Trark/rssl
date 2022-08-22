@@ -23,12 +23,6 @@ impl SymbolTable {
     }
 }
 
-/// Provides standard way of parsing the implementing type
-pub trait Parse: Sized {
-    type Output;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self::Output>;
-}
-
 /// Provide symbol table to another parser
 fn contextual<'t, 's, T>(
     parse_fn: impl Fn(&'t [LexToken], &'s SymbolTable) -> ParseResult<'t, T> + 's,
@@ -104,37 +98,33 @@ fn match_right_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
     }
 }
 
-/// Helper type for parsing identifiers that may be variable names
-struct VariableName;
+/// Parsing identifier that may be a variable name
+fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
+    if input.is_empty() {
+        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+    }
 
-impl Parse for VariableName {
-    type Output = Located<String>;
-    fn parse<'t>(input: &'t [LexToken], _: &SymbolTable) -> ParseResult<'t, Self::Output> {
-        if input.is_empty() {
-            return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+    match &input[0] {
+        LexToken(Token::Id(Identifier(name)), loc) => {
+            Ok((&input[1..], Located::new(name.clone(), *loc)))
         }
-
-        match &input[0] {
-            LexToken(Token::Id(Identifier(name)), loc) => {
-                Ok((&input[1..], Located::new(name.clone(), *loc)))
-            }
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
-        }
+        _ => Err(nom::Err::Error(ParseErrorContext(
+            input,
+            ParseErrorReason::WrongToken,
+        ))),
     }
 }
 
 // Implement parsing for type names
 mod types;
+use types::{parse_data_layout, parse_type};
 
 fn parse_arraydim<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, Option<Located<Expression>>> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
-    let (input, constant_expression) = match ExpressionNoSeq::parse(input, st) {
+    let (input, constant_expression) = match parse_expression_no_seq(input, st) {
         Ok((rest, constant_expression)) => (rest, Some(constant_expression)),
         _ => (input, None),
     };
@@ -144,11 +134,12 @@ fn parse_arraydim<'t>(
 
 // Implement parsing for expressions
 mod expressions;
-use expressions::ExpressionNoSeq;
+use expressions::parse_expression;
+use expressions::parse_expression_no_seq;
 
 // Implement parsing for statements
 mod statements;
-use statements::statement_block;
+use statements::{parse_initializer, statement_block};
 
 // Implement parsing for struct types
 mod structs;
@@ -164,14 +155,14 @@ mod functions;
 
 // Implement parsing for root definitions
 mod root_definitions;
-use root_definitions::rootdefinition_with_semicolon;
+use root_definitions::parse_root_definition_with_semicolon;
 
 fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
     let mut roots = Vec::new();
     let mut rest = input;
     let mut symbol_table = SymbolTable::empty();
     loop {
-        let last_def = rootdefinition_with_semicolon(rest, &symbol_table);
+        let last_def = parse_root_definition_with_semicolon(rest, &symbol_table);
         if let Ok((remaining, root)) = last_def {
             match root {
                 RootDefinition::Struct(ref sd) => {

@@ -35,7 +35,7 @@ fn expr_in_paren<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
     let (input, start) = parse_token(Token::LeftParen)(input)?;
-    let (input, expr) = Expression::parse(input, st)?;
+    let (input, expr) = parse_expression(input, st)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
 
     Ok((input, Located::new(expr.to_node(), start.to_loc())))
@@ -50,7 +50,7 @@ fn expr_leaf<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loc
     };
 
     // Try to parse a variable identifier
-    let err = match VariableName::parse(input, st) {
+    let err = match parse_variable_name(input) {
         Ok((input, name)) => {
             return Ok((
                 input,
@@ -75,7 +75,7 @@ fn parse_template_args_opt<'t>(
     let (input, _) = match_left_angle_bracket(input)?;
     let (input, type_args) = nom::multi::separated_list0(
         parse_token(Token::Comma),
-        locate(contextual(Type::parse, st)),
+        locate(contextual(parse_type, st)),
     )(input)?;
     let (input, _) = match_right_angle_bracket(input)?;
     Ok((input, type_args))
@@ -118,12 +118,9 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         ))
     }
 
-    fn expr_p1_member<'t>(
-        input: &'t [LexToken],
-        st: &SymbolTable,
-    ) -> ParseResult<'t, Located<Precedence1Postfix>> {
+    fn expr_p1_member(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
         let (input, _) = parse_token(Token::Period)(input)?;
-        let (input, member) = contextual(VariableName::parse, st)(input)?;
+        let (input, member) = parse_variable_name(input)?;
         Ok((
             input,
             Located::new(
@@ -143,7 +140,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
         let (input, args) = nom::multi::separated_list0(
             parse_token(Token::Comma),
-            contextual(ExpressionNoSeq::parse, st),
+            contextual(parse_expression_no_seq, st),
         )(input)?;
 
         let (input, _) = parse_token(Token::RightParen)(input)?;
@@ -157,7 +154,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
         let (input, start) = parse_token(Token::LeftSquareBracket)(input)?;
-        let (input, subscript) = contextual(ExpressionNoSeq::parse, st)(input)?;
+        let (input, subscript) = parse_expression_no_seq(input, st)?;
         let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
         Ok((
             input,
@@ -176,7 +173,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
             expr_p1_increment,
             expr_p1_decrement,
             |input| expr_p1_call(input, st),
-            |input| expr_p1_member(input, st),
+            expr_p1_member,
             |input| expr_p1_subscript(input, st),
         ))(input)
     }
@@ -187,11 +184,11 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         } else {
             return Err(nom::Err::Incomplete(nom::Needed::new(1)));
         };
-        let (input, dtyl) = DataLayout::parse(input, st)?;
+        let (input, dtyl) = parse_data_layout(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
         let (input, list) = nom::multi::separated_list0(
             parse_token(Token::Comma),
-            contextual(ExpressionNoSeq::parse, st),
+            contextual(parse_expression_no_seq, st),
         )(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((
@@ -310,7 +307,7 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
-        let (input, cast) = locate(contextual(Type::parse, st))(input)?;
+        let (input, cast) = locate(contextual(parse_type, st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st)?;
         Ok((
@@ -325,7 +322,7 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::SizeOf)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, ty) = locate(contextual(Type::parse, st))(input)?;
+        let (input, ty) = locate(contextual(parse_type, st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
     }
@@ -652,22 +649,20 @@ fn expr_p15<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     parse_binary_operations(parse_op, expr_p14, input, st)
 }
 
-impl Parse for Expression {
-    type Output = Located<Self>;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self::Output> {
-        expr_p15(input, st)
-    }
+/// Parse an expression
+pub fn parse_expression<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
+    expr_p15(input, st)
 }
 
-/// Fake node for parsing an expression where the comma has a different meaning
-/// at the top level, so skip that node
-pub struct ExpressionNoSeq;
-
-impl Parse for ExpressionNoSeq {
-    type Output = Located<Expression>;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self::Output> {
-        expr_p14(input, st)
-    }
+/// Parse an expression in a context where a comma has a different meaning at the top level
+pub fn parse_expression_no_seq<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
+    expr_p14(input, st)
 }
 
 #[test]
@@ -676,7 +671,7 @@ fn test_expression() {
 
     fn expr(input: &[LexToken]) -> ParseResult<Located<Expression>> {
         let no_symbols = SymbolTable::empty();
-        Expression::parse(input, &no_symbols)
+        parse_expression(input, &no_symbols)
     }
 
     assert_eq!(
@@ -799,7 +794,7 @@ fn test_expression() {
         ))
     );
 
-    let expr = ParserTester::new(Expression::parse);
+    let expr = ParserTester::new(parse_expression);
 
     expr.check("a", "a".as_var(0));
     expr.check("4", Expression::Literal(Literal::UntypedInt(4)).loc(0));

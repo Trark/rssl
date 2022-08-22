@@ -1,49 +1,55 @@
 use super::*;
+use enums::parse_enum_definition;
+use functions::parse_function_definition;
+use globals::{parse_constant_buffer, parse_global_variable};
+use structs::parse_struct_definition;
 
-impl Parse for RootDefinition {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let err = match StructDefinition::parse(input, st) {
-            Ok((rest, structdef)) => return Ok((rest, RootDefinition::Struct(structdef))),
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-            Err(e) => e,
-        };
-
-        let err = match EnumDefinition::parse(input, st) {
-            Ok((rest, enumdef)) => return Ok((rest, RootDefinition::Enum(enumdef))),
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-            Err(e) => get_most_relevant_error(err, e),
-        };
-
-        let err = match ConstantBuffer::parse(input, st) {
-            Ok((rest, cbuffer)) => return Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-            Err(e) => get_most_relevant_error(err, e),
-        };
-
-        let err = match GlobalVariable::parse(input, st) {
-            Ok((rest, globalvariable)) => {
-                return Ok((rest, RootDefinition::GlobalVariable(globalvariable)))
-            }
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-            Err(e) => get_most_relevant_error(err, e),
-        };
-
-        let err = match FunctionDefinition::parse(input, st) {
-            Ok((rest, funcdef)) => return Ok((rest, RootDefinition::Function(funcdef))),
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-            Err(e) => get_most_relevant_error(err, e),
-        };
-
-        Err(err)
-    }
-}
-
-pub fn rootdefinition_with_semicolon<'t>(
+/// Parse a root element in a shader document
+fn parse_root_definition<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, RootDefinition> {
-    let (input, def) = contextual(RootDefinition::parse, st)(input)?;
+    let err = match parse_struct_definition(input, st) {
+        Ok((rest, structdef)) => return Ok((rest, RootDefinition::Struct(structdef))),
+        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+        Err(e) => e,
+    };
+
+    let err = match parse_enum_definition(input, st) {
+        Ok((rest, enumdef)) => return Ok((rest, RootDefinition::Enum(enumdef))),
+        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+        Err(e) => get_most_relevant_error(err, e),
+    };
+
+    let err = match parse_constant_buffer(input, st) {
+        Ok((rest, cbuffer)) => return Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
+        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+        Err(e) => get_most_relevant_error(err, e),
+    };
+
+    let err = match parse_global_variable(input, st) {
+        Ok((rest, globalvariable)) => {
+            return Ok((rest, RootDefinition::GlobalVariable(globalvariable)))
+        }
+        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+        Err(e) => get_most_relevant_error(err, e),
+    };
+
+    let err = match parse_function_definition(input, st) {
+        Ok((rest, funcdef)) => return Ok((rest, RootDefinition::Function(funcdef))),
+        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+        Err(e) => get_most_relevant_error(err, e),
+    };
+
+    Err(err)
+}
+
+/// Parse a root definition which may have many semicolons after it
+pub fn parse_root_definition_with_semicolon<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, RootDefinition> {
+    let (input, def) = parse_root_definition(input, st)?;
     let (input, _) = nom::multi::many0(parse_token(Token::Semicolon))(input)?;
     Ok((input, def))
 }
@@ -51,8 +57,8 @@ pub fn rootdefinition_with_semicolon<'t>(
 #[test]
 fn test_struct() {
     use test_support::*;
-    let rootdefinition = ParserTester::new(RootDefinition::parse);
-    let structdefinition = ParserTester::new(StructDefinition::parse);
+    let rootdefinition = ParserTester::new(parse_root_definition);
+    let structdefinition = ParserTester::new(parse_struct_definition);
 
     let test_struct_str = "struct MyStruct { uint a; float b; };";
     let test_struct_ast = StructDefinition {
@@ -81,8 +87,8 @@ fn test_struct() {
 #[test]
 fn test_function() {
     use test_support::*;
-    let rootdefinition = ParserTester::new(RootDefinition::parse);
-    let functiondefinition = ParserTester::new(FunctionDefinition::parse);
+    let rootdefinition = ParserTester::new(parse_root_definition);
+    let functiondefinition = ParserTester::new(parse_function_definition);
 
     let test_func_str = "float func(float x) : SV_Depth { }";
     let test_func_ast = FunctionDefinition {
@@ -133,8 +139,8 @@ fn test_function() {
 #[test]
 fn test_constant_buffer() {
     use test_support::*;
-    let rootdefinition = ParserTester::new(RootDefinition::parse);
-    let cbuffer = ParserTester::new(ConstantBuffer::parse);
+    let rootdefinition = ParserTester::new(parse_root_definition);
+    let cbuffer = ParserTester::new(parse_constant_buffer);
 
     let test_cbuffer1_str = "cbuffer globals { float4x4 wvp; }";
     let test_cbuffer1_ast = ConstantBuffer {
@@ -193,8 +199,8 @@ fn test_constant_buffer() {
 #[test]
 fn test_global_variable() {
     use test_support::*;
-    let rootdefinition = ParserTester::new(RootDefinition::parse);
-    let globalvariable = ParserTester::new(GlobalVariable::parse);
+    let rootdefinition = ParserTester::new(parse_root_definition);
+    let globalvariable = ParserTester::new(parse_global_variable);
 
     let test_buffersrv_str = "Buffer g_myBuffer : register(t1);";
     let test_buffersrv_ast = GlobalVariable {

@@ -1,36 +1,33 @@
 use super::*;
 
-impl Parse for InputModifier {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], _: &SymbolTable) -> ParseResult<'t, Self> {
-        match input {
-            [LexToken(Token::In, _), rest @ ..] => Ok((rest, InputModifier::In)),
-            [LexToken(Token::Out, _), rest @ ..] => Ok((rest, InputModifier::Out)),
-            [LexToken(Token::InOut, _), rest @ ..] => Ok((rest, InputModifier::InOut)),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
-        }
+/// Parse an input modifier for a function parameter
+fn parse_input_modifier(input: &[LexToken]) -> ParseResult<InputModifier> {
+    match input {
+        [LexToken(Token::In, _), rest @ ..] => Ok((rest, InputModifier::In)),
+        [LexToken(Token::Out, _), rest @ ..] => Ok((rest, InputModifier::Out)),
+        [LexToken(Token::InOut, _), rest @ ..] => Ok((rest, InputModifier::InOut)),
+        _ => Err(nom::Err::Error(ParseErrorContext(
+            input,
+            ParseErrorReason::WrongToken,
+        ))),
     }
 }
 
-impl Parse for ParamType {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, it) = match InputModifier::parse(input, st) {
-            Ok((input, it)) => (input, it),
-            Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-            Err(_) => (input, InputModifier::default()),
-        };
-        // Todo: interpolation modifiers
-        match Type::parse(input, st) {
-            Ok((rest, ty)) => Ok((rest, ParamType(ty, it, None))),
-            Err(err) => Err(err),
-        }
+/// Parse the type of a function parameter
+fn parse_param_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, ParamType> {
+    let (input, it) = match parse_input_modifier(input) {
+        Ok((input, it)) => (input, it),
+        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
+        Err(_) => (input, InputModifier::default()),
+    };
+    // Todo: interpolation modifiers
+    match parse_type(input, st) {
+        Ok((rest, ty)) => Ok((rest, ParamType(ty, it, None))),
+        Err(err) => Err(err),
     }
 }
 
+/// Parse the [numthreads] attribute
 fn parse_numthreads(input: &[LexToken]) -> ParseResult<()> {
     match input.first() {
         Some(LexToken(Token::Id(Identifier(name)), _)) => match &name[..] {
@@ -47,27 +44,29 @@ fn parse_numthreads(input: &[LexToken]) -> ParseResult<()> {
     }
 }
 
-impl Parse for FunctionAttribute {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
+/// Parse an attribute for a function
+fn parse_function_attribute<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, FunctionAttribute> {
+    let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
 
-        // Only currently support [numthreads]
-        let (input, _) = parse_numthreads(input)?;
-        let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, x) = contextual(ExpressionNoSeq::parse, st)(input)?;
-        let (input, _) = parse_token(Token::Comma)(input)?;
-        let (input, y) = contextual(ExpressionNoSeq::parse, st)(input)?;
-        let (input, _) = parse_token(Token::Comma)(input)?;
-        let (input, z) = contextual(ExpressionNoSeq::parse, st)(input)?;
-        let (input, _) = parse_token(Token::RightParen)(input)?;
-        let attr = FunctionAttribute::NumThreads(x, y, z);
+    // Only currently support [numthreads]
+    let (input, _) = parse_numthreads(input)?;
+    let (input, _) = parse_token(Token::LeftParen)(input)?;
+    let (input, x) = parse_expression_no_seq(input, st)?;
+    let (input, _) = parse_token(Token::Comma)(input)?;
+    let (input, y) = parse_expression_no_seq(input, st)?;
+    let (input, _) = parse_token(Token::Comma)(input)?;
+    let (input, z) = parse_expression_no_seq(input, st)?;
+    let (input, _) = parse_token(Token::RightParen)(input)?;
+    let attr = FunctionAttribute::NumThreads(x, y, z);
 
-        let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
-        Ok((input, attr))
-    }
+    let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
+    Ok((input, attr))
 }
 
+/// Parse a semantic
 fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
     match input.first() {
         Some(LexToken(Token::Id(Identifier(name)), _)) => {
@@ -103,34 +102,35 @@ fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
     }
 }
 
-impl Parse for FunctionParam {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, ty) = contextual(ParamType::parse, st)(input)?;
-        let (input, param) = contextual(VariableName::parse, st)(input)?;
+/// Parse a parameter for a function
+fn parse_function_param<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, FunctionParam> {
+    let (input, ty) = parse_param_type(input, st)?;
+    let (input, param) = parse_variable_name(input)?;
 
-        // Parse semantic if present
-        let (input, semantic) = match parse_token(Token::Colon)(input) {
-            Ok((input, _)) => match parse_semantic(input) {
-                Ok((input, semantic)) => (input, Some(semantic)),
-                Err(err) => return Err(err),
-            },
-            Err(_) => (input, None),
-        };
+    // Parse semantic if present
+    let (input, semantic) = match parse_token(Token::Colon)(input) {
+        Ok((input, _)) => match parse_semantic(input) {
+            Ok((input, semantic)) => (input, Some(semantic)),
+            Err(err) => return Err(err),
+        },
+        Err(_) => (input, None),
+    };
 
-        let param = FunctionParam {
-            name: param.to_node(),
-            param_type: ty,
-            semantic,
-        };
-        Ok((input, param))
-    }
+    let param = FunctionParam {
+        name: param.to_node(),
+        param_type: ty,
+        semantic,
+    };
+    Ok((input, param))
 }
 
 #[test]
 fn test_function_param() {
     use test_support::*;
-    let function_param = ParserTester::new(FunctionParam::parse);
+    let function_param = ParserTester::new(parse_function_param);
 
     function_param.check(
         "float x",
@@ -182,35 +182,35 @@ fn test_function_param() {
     );
 }
 
-impl Parse for FunctionDefinition {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, attributes) =
-            nom::multi::many0(contextual(FunctionAttribute::parse, st))(input)?;
-        let (input, ret) = contextual(Type::parse, st)(input)?;
-        let (input, func_name) = contextual(VariableName::parse, st)(input)?;
-        let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, params) = nom::multi::separated_list0(
-            parse_token(Token::Comma),
-            contextual(FunctionParam::parse, st),
-        )(input)?;
-        let (input, _) = parse_token(Token::RightParen)(input)?;
-        let (input, return_semantic) = nom::combinator::opt(|input| {
-            let (input, _) = parse_token(Token::Colon)(input)?;
-            let (input, semantic) = parse_semantic(input)?;
-            Ok((input, semantic))
-        })(input)?;
-        let (input, body) = statement_block(input, st)?;
-        let def = FunctionDefinition {
-            name: func_name.to_node(),
-            returntype: FunctionReturn {
-                return_type: ret,
-                semantic: return_semantic,
-            },
-            params,
-            body,
-            attributes,
-        };
-        Ok((input, def))
-    }
+/// Parse a function definition
+pub fn parse_function_definition<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, FunctionDefinition> {
+    let (input, attributes) = nom::multi::many0(contextual(parse_function_attribute, st))(input)?;
+    let (input, ret) = parse_type(input, st)?;
+    let (input, func_name) = parse_variable_name(input)?;
+    let (input, _) = parse_token(Token::LeftParen)(input)?;
+    let (input, params) = nom::multi::separated_list0(
+        parse_token(Token::Comma),
+        contextual(parse_function_param, st),
+    )(input)?;
+    let (input, _) = parse_token(Token::RightParen)(input)?;
+    let (input, return_semantic) = nom::combinator::opt(|input| {
+        let (input, _) = parse_token(Token::Colon)(input)?;
+        let (input, semantic) = parse_semantic(input)?;
+        Ok((input, semantic))
+    })(input)?;
+    let (input, body) = statement_block(input, st)?;
+    let def = FunctionDefinition {
+        name: func_name.to_node(),
+        returntype: FunctionReturn {
+            return_type: ret,
+            semantic: return_semantic,
+        },
+        params,
+        body,
+        attributes,
+    };
+    Ok((input, def))
 }

@@ -1,57 +1,56 @@
 use super::*;
 
-impl Parse for EnumValue {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, name) = contextual(VariableName::parse, st)(input)?;
-        let (input, value) = match parse_token(Token::Equals)(input) {
-            Ok((input, _)) => {
-                let (input, expr) = contextual(ExpressionNoSeq::parse, st)(input)?;
-                (input, Some(expr))
-            }
-            Err(_) => (input, None),
-        };
-        let sd = EnumValue {
-            name: name.to_node(),
-            value,
-        };
-        Ok((input, sd))
-    }
+/// Parse a declaration of a value inside an enum
+fn parse_enum_value<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, EnumValue> {
+    let (input, name) = parse_variable_name(input)?;
+    let (input, value) = match parse_token(Token::Equals)(input) {
+        Ok((input, _)) => {
+            let (input, expr) = parse_expression_no_seq(input, st)?;
+            (input, Some(expr))
+        }
+        Err(_) => (input, None),
+    };
+    let sd = EnumValue {
+        name: name.to_node(),
+        value,
+    };
+    Ok((input, sd))
 }
 
-impl Parse for EnumDefinition {
-    type Output = Self;
-    fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, _) = parse_token(Token::Enum)(input)?;
-        let (input, name) = contextual(VariableName::parse, st)(input)?;
-        let (input, _) = parse_token(Token::LeftBrace)(input)?;
-        let (input, values) = nom::multi::separated_list0(
-            parse_token(Token::Comma),
-            contextual(EnumValue::parse, st),
-        )(input)?;
-        // Read optional trailing comma on last element
-        let input = if !values.is_empty() {
-            match parse_token(Token::Comma)(input) {
-                Ok((input, _)) => input,
-                Err(_) => input,
-            }
-        } else {
-            input
-        };
-        let (input, _) = parse_token(Token::RightBrace)(input)?;
-        let (input, _) = parse_token(Token::Semicolon)(input)?;
-        let sd = EnumDefinition {
-            name: name.to_node(),
-            values,
-        };
-        Ok((input, sd))
-    }
+/// Parse an enum definition
+pub fn parse_enum_definition<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, EnumDefinition> {
+    let (input, _) = parse_token(Token::Enum)(input)?;
+    let (input, name) = parse_variable_name(input)?;
+    let (input, _) = parse_token(Token::LeftBrace)(input)?;
+    let (input, values) = nom::multi::separated_list0(
+        parse_token(Token::Comma),
+        contextual(parse_enum_value, st),
+    )(input)?;
+    // Read optional trailing comma on last element
+    let input = if !values.is_empty() {
+        match parse_token(Token::Comma)(input) {
+            Ok((input, _)) => input,
+            Err(_) => input,
+        }
+    } else {
+        input
+    };
+    let (input, _) = parse_token(Token::RightBrace)(input)?;
+    let (input, _) = parse_token(Token::Semicolon)(input)?;
+    let sd = EnumDefinition {
+        name: name.to_node(),
+        values,
+    };
+    Ok((input, sd))
 }
 
 #[test]
 fn test_enum_definition() {
     use test_support::*;
-    let enum_definition = ParserTester::new(EnumDefinition::parse);
+    let enum_definition = ParserTester::new(parse_enum_definition);
 
     enum_definition.check(
         "enum TestEnum {};",
