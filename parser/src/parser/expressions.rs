@@ -1,7 +1,7 @@
 use super::*;
 
 /// Try to parse a literal
-fn expr_literal<'t>(input: &'t [LexToken]) -> ParseResult<'t, Located<Expression>> {
+fn expr_literal(input: &[LexToken]) -> ParseResult<Located<Expression>> {
     match input.first() {
         Some(LexToken(tok, ref loc)) => {
             let literal = match *tok {
