@@ -75,7 +75,7 @@ fn parse_template_args_opt<'t>(
     let (input, _) = match_left_angle_bracket(input)?;
     let (input, type_args) = nom::multi::separated_list0(
         parse_token(Token::Comma),
-        locate(parse_typed::<Type>(st)),
+        locate(contextual(Type::parse, st)),
     )(input)?;
     let (input, _) = match_right_angle_bracket(input)?;
     Ok((input, type_args))
@@ -123,7 +123,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
         let (input, _) = parse_token(Token::Period)(input)?;
-        let (input, member) = parse_typed::<VariableName>(st)(input)?;
+        let (input, member) = contextual(VariableName::parse, st)(input)?;
         Ok((
             input,
             Located::new(
@@ -143,7 +143,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
         let (input, args) = nom::multi::separated_list0(
             parse_token(Token::Comma),
-            parse_typed::<ExpressionNoSeq>(st),
+            contextual(ExpressionNoSeq::parse, st),
         )(input)?;
 
         let (input, _) = parse_token(Token::RightParen)(input)?;
@@ -157,7 +157,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
         let (input, start) = parse_token(Token::LeftSquareBracket)(input)?;
-        let (input, subscript) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+        let (input, subscript) = contextual(ExpressionNoSeq::parse, st)(input)?;
         let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
         Ok((
             input,
@@ -191,7 +191,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         let (input, _) = parse_token(Token::LeftParen)(input)?;
         let (input, list) = nom::multi::separated_list0(
             parse_token(Token::Comma),
-            parse_typed::<ExpressionNoSeq>(st),
+            contextual(ExpressionNoSeq::parse, st),
         )(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((
@@ -310,7 +310,7 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
-        let (input, cast) = locate(parse_typed::<Type>(st))(input)?;
+        let (input, cast) = locate(contextual(Type::parse, st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st)?;
         Ok((
@@ -325,7 +325,7 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::SizeOf)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, ty) = locate(parse_typed::<Type>(st))(input)?;
+        let (input, ty) = locate(contextual(Type::parse, st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
     }

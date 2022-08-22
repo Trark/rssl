@@ -29,11 +29,12 @@ pub trait Parse: Sized {
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self::Output>;
 }
 
-/// Create parser for a type that implements Parse
-fn parse_typed<'t, 's, T: Parse>(
+/// Provide symbol table to another parser
+fn contextual<'t, 's, T>(
+    parse_fn: impl Fn(&'t [LexToken], &'s SymbolTable) -> ParseResult<'t, T> + 's,
     st: &'s SymbolTable,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<T::Output> + 's {
-    move |input: &'t [LexToken]| T::parse(input, st)
+) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, T> + 's {
+    move |input: &'t [LexToken]| parse_fn(input, st)
 }
 
 /// Augment a parser with location information

@@ -4,7 +4,7 @@ impl Parse for Initializer {
     type Output = Option<Initializer>;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self::Output> {
         fn init_expr<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Initializer> {
-            let (input, expr) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+            let (input, expr) = contextual(ExpressionNoSeq::parse, st)(input)?;
             Ok((input, Initializer::Expression(expr)))
         }
 
@@ -144,12 +144,12 @@ impl Parse for LocalType {
 impl Parse for VarDef {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, typename) = parse_typed::<LocalType>(st)(input)?;
+        let (input, typename) = contextual(LocalType::parse, st)(input)?;
         let (input, defs) = nom::multi::separated_list1(parse_token(Token::Comma), |input| {
-            let (input, varname) = parse_typed::<VariableName>(st)(input)?;
+            let (input, varname) = contextual(VariableName::parse, st)(input)?;
             let (input, array_dim) =
                 nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
-            let (input, init) = parse_typed::<Initializer>(st)(input)?;
+            let (input, init) = contextual(Initializer::parse, st)(input)?;
             let v = LocalVariableName {
                 name: varname.to_node(),
                 bind: match array_dim {
@@ -172,10 +172,10 @@ impl Parse for InitStatement {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
         let res = nom::branch::alt((
-            nom::combinator::map(parse_typed::<VarDef>(st), |vd| {
+            nom::combinator::map(contextual(VarDef::parse, st), |vd| {
                 InitStatement::Declaration(vd)
             }),
-            nom::combinator::map(parse_typed::<Expression>(st), |e| {
+            nom::combinator::map(contextual(Expression::parse, st), |e| {
                 InitStatement::Expression(e)
             }),
         ))(input);
@@ -224,9 +224,9 @@ impl Parse for Statement {
             LexToken(Token::Semicolon, _) => Ok((tail, Statement::Empty)),
             LexToken(Token::If, _) => {
                 let (input, _) = parse_token(Token::LeftParen)(tail)?;
-                let (input, cond) = parse_typed::<Expression>(st)(input)?;
+                let (input, cond) = contextual(Expression::parse, st)(input)?;
                 let (input, _) = parse_token(Token::RightParen)(input)?;
-                let (input, inner_statement) = parse_typed::<Statement>(st)(input)?;
+                let (input, inner_statement) = contextual(Statement::parse, st)(input)?;
                 let inner_statement = Box::new(inner_statement);
                 if input.is_empty() {
                     return Err(nom::Err::Incomplete(nom::Needed::new(1)));
@@ -245,25 +245,25 @@ impl Parse for Statement {
             }
             LexToken(Token::For, _) => {
                 let (input, _) = parse_token(Token::LeftParen)(tail)?;
-                let (input, init) = parse_typed::<InitStatement>(st)(input)?;
+                let (input, init) = contextual(InitStatement::parse, st)(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
-                let (input, cond) = parse_typed::<Expression>(st)(input)?;
+                let (input, cond) = contextual(Expression::parse, st)(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
-                let (input, inc) = parse_typed::<Expression>(st)(input)?;
+                let (input, inc) = contextual(Expression::parse, st)(input)?;
                 let (input, _) = parse_token(Token::RightParen)(input)?;
-                let (input, inner) = parse_typed::<Statement>(st)(input)?;
+                let (input, inner) = contextual(Statement::parse, st)(input)?;
                 Ok((input, Statement::For(init, cond, inc, Box::new(inner))))
             }
             LexToken(Token::While, _) => {
                 let (input, _) = parse_token(Token::LeftParen)(tail)?;
-                let (input, cond) = parse_typed::<Expression>(st)(input)?;
+                let (input, cond) = contextual(Expression::parse, st)(input)?;
                 let (input, _) = parse_token(Token::RightParen)(input)?;
-                let (input, inner) = parse_typed::<Statement>(st)(input)?;
+                let (input, inner) = contextual(Statement::parse, st)(input)?;
                 Ok((input, Statement::While(cond, Box::new(inner))))
             }
             LexToken(Token::Break, _) => Ok((tail, Statement::Break)),
             LexToken(Token::Continue, _) => Ok((tail, Statement::Continue)),
-            LexToken(Token::Return, _) => match parse_typed::<Expression>(st)(tail) {
+            LexToken(Token::Return, _) => match contextual(Expression::parse, st)(tail) {
                 Ok((input, expression_statement)) => {
                     let (input, _) = parse_token(Token::Semicolon)(input)?;
                     Ok((input, Statement::Return(Some(expression_statement))))
@@ -283,7 +283,7 @@ impl Parse for Statement {
                     input: &'t [LexToken],
                     st: &SymbolTable,
                 ) -> ParseResult<'t, Statement> {
-                    let (input, var) = parse_typed::<VarDef>(st)(input)?;
+                    let (input, var) = contextual(VarDef::parse, st)(input)?;
                     let (input, _) = parse_token(Token::Semicolon)(input)?;
                     Ok((input, Statement::Var(var)))
                 }
@@ -297,7 +297,7 @@ impl Parse for Statement {
                     input: &'t [LexToken],
                     st: &SymbolTable,
                 ) -> ParseResult<'t, Statement> {
-                    let (input, expression_statement) = parse_typed::<Expression>(st)(input)?;
+                    let (input, expression_statement) = contextual(Expression::parse, st)(input)?;
                     let (input, _) = parse_token(Token::Semicolon)(input)?;
                     Ok((input, Statement::Expression(expression_statement)))
                 }

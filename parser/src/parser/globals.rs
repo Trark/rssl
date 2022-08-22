@@ -23,7 +23,7 @@ impl Parse for GlobalType {
 impl Parse for ConstantVariableName {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, name) = contextual(VariableName::parse, st)(input)?;
         let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
         let v = ConstantVariableName {
             name: name.to_node(),
@@ -40,10 +40,10 @@ impl Parse for ConstantVariableName {
 impl Parse for ConstantVariable {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, typename) = parse_typed::<Type>(st)(input)?;
+        let (input, typename) = contextual(Type::parse, st)(input)?;
         let (input, defs) = nom::multi::separated_list1(
             parse_token(Token::Comma),
-            parse_typed::<ConstantVariableName>(st),
+            contextual(ConstantVariableName::parse, st),
         )(input)?;
         let (input, _) = parse_token(Token::Semicolon)(input)?;
         let var = ConstantVariable { ty: typename, defs };
@@ -100,11 +100,11 @@ impl Parse for ConstantBuffer {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
         let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
-        let (input, name) = parse_typed::<VariableName>(st)(input)?;
-        let (input, slot) = nom::combinator::opt(parse_typed::<ConstantSlot>(st))(input)?;
+        let (input, name) = contextual(VariableName::parse, st)(input)?;
+        let (input, slot) = nom::combinator::opt(contextual(ConstantSlot::parse, st))(input)?;
         let (input, members) = nom::sequence::delimited(
             parse_token(Token::LeftBrace),
-            nom::multi::many0(parse_typed::<ConstantVariable>(st)),
+            nom::multi::many0(contextual(ConstantVariable::parse, st)),
             parse_token(Token::RightBrace),
         )(input)?;
         let cb = ConstantBuffer {
@@ -138,10 +138,10 @@ impl Parse for GlobalSlot {
 impl Parse for GlobalVariableName {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, name) = contextual(VariableName::parse, st)(input)?;
         let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
-        let (input, slot) = nom::combinator::opt(parse_typed::<GlobalSlot>(st))(input)?;
-        let (input, init) = parse_typed::<Initializer>(st)(input)?;
+        let (input, slot) = nom::combinator::opt(contextual(GlobalSlot::parse, st))(input)?;
+        let (input, init) = contextual(Initializer::parse, st)(input)?;
         let v = GlobalVariableName {
             name: name.to_node(),
             bind: match array_dim {
@@ -158,10 +158,10 @@ impl Parse for GlobalVariableName {
 impl Parse for GlobalVariable {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, typename) = parse_typed::<GlobalType>(st)(input)?;
+        let (input, typename) = contextual(GlobalType::parse, st)(input)?;
         let (input, defs) = nom::multi::separated_list1(
             parse_token(Token::Comma),
-            parse_typed::<GlobalVariableName>(st),
+            contextual(GlobalVariableName::parse, st),
         )(input)?;
         let (input, _) = parse_token(Token::Semicolon)(input)?;
         let var = GlobalVariable {

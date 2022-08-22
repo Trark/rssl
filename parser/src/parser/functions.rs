@@ -55,11 +55,11 @@ impl Parse for FunctionAttribute {
         // Only currently support [numthreads]
         let (input, _) = parse_numthreads(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, x) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+        let (input, x) = contextual(ExpressionNoSeq::parse, st)(input)?;
         let (input, _) = parse_token(Token::Comma)(input)?;
-        let (input, y) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+        let (input, y) = contextual(ExpressionNoSeq::parse, st)(input)?;
         let (input, _) = parse_token(Token::Comma)(input)?;
-        let (input, z) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+        let (input, z) = contextual(ExpressionNoSeq::parse, st)(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let attr = FunctionAttribute::NumThreads(x, y, z);
 
@@ -106,8 +106,8 @@ fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
 impl Parse for FunctionParam {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, ty) = parse_typed::<ParamType>(st)(input)?;
-        let (input, param) = parse_typed::<VariableName>(st)(input)?;
+        let (input, ty) = contextual(ParamType::parse, st)(input)?;
+        let (input, param) = contextual(VariableName::parse, st)(input)?;
 
         // Parse semantic if present
         let (input, semantic) = match parse_token(Token::Colon)(input) {
@@ -185,13 +185,14 @@ fn test_function_param() {
 impl Parse for FunctionDefinition {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, attributes) = nom::multi::many0(parse_typed::<FunctionAttribute>(st))(input)?;
-        let (input, ret) = parse_typed::<Type>(st)(input)?;
-        let (input, func_name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, attributes) =
+            nom::multi::many0(contextual(FunctionAttribute::parse, st))(input)?;
+        let (input, ret) = contextual(Type::parse, st)(input)?;
+        let (input, func_name) = contextual(VariableName::parse, st)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
         let (input, params) = nom::multi::separated_list0(
             parse_token(Token::Comma),
-            parse_typed::<FunctionParam>(st),
+            contextual(FunctionParam::parse, st),
         )(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, return_semantic) = nom::combinator::opt(|input| {

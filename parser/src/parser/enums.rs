@@ -3,10 +3,10 @@ use super::*;
 impl Parse for EnumValue {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
-        let (input, name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, name) = contextual(VariableName::parse, st)(input)?;
         let (input, value) = match parse_token(Token::Equals)(input) {
             Ok((input, _)) => {
-                let (input, expr) = parse_typed::<ExpressionNoSeq>(st)(input)?;
+                let (input, expr) = contextual(ExpressionNoSeq::parse, st)(input)?;
                 (input, Some(expr))
             }
             Err(_) => (input, None),
@@ -23,11 +23,11 @@ impl Parse for EnumDefinition {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Self> {
         let (input, _) = parse_token(Token::Enum)(input)?;
-        let (input, name) = parse_typed::<VariableName>(st)(input)?;
+        let (input, name) = contextual(VariableName::parse, st)(input)?;
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
         let (input, values) = nom::multi::separated_list0(
             parse_token(Token::Comma),
-            parse_typed::<EnumValue>(st),
+            contextual(EnumValue::parse, st),
         )(input)?;
         // Read optional trailing comma on last element
         let input = if !values.is_empty() {

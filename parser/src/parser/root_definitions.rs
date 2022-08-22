@@ -43,7 +43,7 @@ pub fn rootdefinition_with_semicolon<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, RootDefinition> {
-    let (input, def) = parse_typed::<RootDefinition>(st)(input)?;
+    let (input, def) = contextual(RootDefinition::parse, st)(input)?;
     let (input, _) = nom::multi::many0(parse_token(Token::Semicolon))(input)?;
     Ok((input, def))
 }

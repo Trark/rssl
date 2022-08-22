@@ -359,7 +359,7 @@ impl Parse for ObjectType {
             | ParseType::RWTexture3D => {
                 let (buffer_arg, rest) = match nom::sequence::delimited(
                     match_left_angle_bracket,
-                    parse_typed::<DataType>(st),
+                    contextual(DataType::parse, st),
                     match_right_angle_bracket,
                 )(rest)
                 {
@@ -403,7 +403,7 @@ impl Parse for ObjectType {
             | ParseType::ConstantBuffer => {
                 let (buffer_arg, rest) = match nom::sequence::delimited(
                     match_left_angle_bracket,
-                    parse_typed::<StructuredType>(st),
+                    contextual(StructuredType::parse, st),
                     match_right_angle_bracket,
                 )(rest)
                 {
