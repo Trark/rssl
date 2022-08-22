@@ -368,16 +368,13 @@ fn parse_binary_operations<'t>(
 ) -> ParseResult<'t, Located<Expression>> {
     let (input, left) = expression_fn(input, st)?;
 
+    // Parse as many operators / right expressions as we can
     let mut input = input;
     let mut rights = Vec::new();
-    loop {
-        // Attempt to parse an operator
-        let (rest, op) = match operator_fn(input) {
-            Ok(ok) => ok,
-            Err(_) => break,
-        };
-
-        // Unconditionally parse right side after an operator is successfully parsed
+    // First attempt to parse an operator
+    while let Ok((rest, op)) = operator_fn(input) {
+        // Then after an operator is successfully parsed
+        // Unconditionally parse right side
         let (rest, right) = expression_fn(rest, st)?;
 
         rights.push((op, right));
