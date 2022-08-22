@@ -802,132 +802,128 @@ fn test_expression() {
         ))
     );
 
-    let expr_str = parse_from_str::<Expression>();
-    let expr_str_fail = parse_result_from_str::<Expression>();
-    let expr_str_with_symbols = parse_from_str_with_symbols::<Expression>();
+    let expr = ParserTester::new(Expression::parse);
 
-    assert_eq!(expr_str("a"), "a".as_var(0));
-    assert_eq!(
-        expr_str("4"),
-        Expression::Literal(Literal::UntypedInt(4)).loc(0)
+    expr.check("a", "a".as_var(0));
+    expr.check("4", Expression::Literal(Literal::UntypedInt(4)).loc(0));
+    expr.check(
+        "a+b",
+        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(2)).loc(0),
     );
-    assert_eq!(
-        expr_str("a+b"),
-        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(2)).loc(0)
+    expr.check(
+        "a*b",
+        Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).loc(0),
     );
-    assert_eq!(
-        expr_str("a*b"),
-        Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a + b"),
-        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
+    expr.check(
+        "a + b",
+        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
     );
 
-    assert_eq!(
-        expr_str("a-b+c"),
+    expr.check(
+        "a-b+c",
         Expression::BinaryOperation(
             BinOp::Add,
             Expression::BinaryOperation(BinOp::Subtract, "a".as_bvar(0), "b".as_bvar(2)).bloc(0),
-            "c".as_bvar(4)
+            "c".as_bvar(4),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a-b*c"),
+    expr.check(
+        "a-b*c",
         Expression::BinaryOperation(
             BinOp::Subtract,
             "a".as_bvar(0),
-            Expression::BinaryOperation(BinOp::Multiply, "b".as_bvar(2), "c".as_bvar(4)).bloc(2)
+            Expression::BinaryOperation(BinOp::Multiply, "b".as_bvar(2), "c".as_bvar(4)).bloc(2),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a*b-c"),
+    expr.check(
+        "a*b-c",
         Expression::BinaryOperation(
             BinOp::Subtract,
             Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).bloc(0),
-            "c".as_bvar(4)
+            "c".as_bvar(4),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a-b*c"),
+    expr.check(
+        "a-b*c",
         Expression::BinaryOperation(
             BinOp::Subtract,
             "a".as_bvar(0),
-            Expression::BinaryOperation(BinOp::Multiply, "b".as_bvar(2), "c".as_bvar(4)).bloc(2)
+            Expression::BinaryOperation(BinOp::Multiply, "b".as_bvar(2), "c".as_bvar(4)).bloc(2),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a*b-c"),
+    expr.check(
+        "a*b-c",
         Expression::BinaryOperation(
             BinOp::Subtract,
             Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).bloc(0),
-            "c".as_bvar(4)
+            "c".as_bvar(4),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a*(b-c)"),
+    expr.check(
+        "a*(b-c)",
         Expression::BinaryOperation(
             BinOp::Multiply,
             "a".as_bvar(0),
-            Expression::BinaryOperation(BinOp::Subtract, "b".as_bvar(3), "c".as_bvar(5)).bloc(2)
+            Expression::BinaryOperation(BinOp::Subtract, "b".as_bvar(3), "c".as_bvar(5)).bloc(2),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a*b/c"),
+    expr.check(
+        "a*b/c",
         Expression::BinaryOperation(
             BinOp::Divide,
             Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).bloc(0),
-            "c".as_bvar(4)
+            "c".as_bvar(4),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("(a*b)/c"),
+    expr.check(
+        "(a*b)/c",
         Expression::BinaryOperation(
             BinOp::Divide,
             Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(1), "b".as_bvar(3)).bloc(0),
-            "c".as_bvar(6)
+            "c".as_bvar(6),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a*(b/c)"),
+    expr.check(
+        "a*(b/c)",
         Expression::BinaryOperation(
             BinOp::Multiply,
             "a".as_bvar(0),
-            Expression::BinaryOperation(BinOp::Divide, "b".as_bvar(3), "c".as_bvar(5)).bloc(2)
+            Expression::BinaryOperation(BinOp::Divide, "b".as_bvar(3), "c".as_bvar(5)).bloc(2),
         )
-        .loc(0)
+        .loc(0),
     );
 
-    assert_eq!(
-        expr_str("(float3) x"),
-        Expression::Cast(Type::floatn(3).loc(1), "x".as_bvar(9)).loc(0)
+    expr.check(
+        "(float3) x",
+        Expression::Cast(Type::floatn(3).loc(1), "x".as_bvar(9)).loc(0),
     );
 
     let ambiguous_sum_or_cast = "(a) + (b)";
-    assert_eq!(
-        expr_str(ambiguous_sum_or_cast),
-        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6)).loc(0)
+    expr.check(
+        ambiguous_sum_or_cast,
+        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6)).loc(0),
     );
     let st_a_is_type = SymbolTable({
         let mut map = HashMap::new();
         map.insert("a".to_string(), SymbolType::Struct);
         map
     });
-    assert_eq!(
-        expr_str_with_symbols(ambiguous_sum_or_cast, &st_a_is_type),
+    expr.check_symbolic(
+        ambiguous_sum_or_cast,
+        &st_a_is_type,
         Expression::Cast(
             Type::custom("a").loc(1),
             Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
         )
-        .loc(0)
+        .loc(0),
     );
 
     let numeric_cons = "float2(x, y)";
@@ -938,7 +934,7 @@ fn test_expression() {
         let cons = Expression::NumericConstructor(ty, vec![x, y]);
         cons.loc(0)
     };
-    assert_eq!(expr_str(numeric_cons), numeric_cons_out);
+    expr.check(numeric_cons, numeric_cons_out);
 
     let fake_cons = "(float2)(x, y)";
     let fake_cons_out = {
@@ -948,305 +944,288 @@ fn test_expression() {
         let cons = Expression::Cast(Type::floatn(2).loc(1), binop);
         cons.loc(0)
     };
-    assert_eq!(expr_str(fake_cons), fake_cons_out);
+    expr.check(fake_cons, fake_cons_out);
 
-    assert_eq!(
-        expr_str("a++"),
-        Expression::UnaryOperation(UnaryOp::PostfixIncrement, "a".as_bvar(0)).loc(0)
+    expr.check(
+        "a++",
+        Expression::UnaryOperation(UnaryOp::PostfixIncrement, "a".as_bvar(0)).loc(0),
     );
-    assert_eq!(
-        expr_str("a--"),
-        Expression::UnaryOperation(UnaryOp::PostfixDecrement, "a".as_bvar(0)).loc(0)
+    expr.check(
+        "a--",
+        Expression::UnaryOperation(UnaryOp::PostfixDecrement, "a".as_bvar(0)).loc(0),
     );
-    assert_eq!(
-        expr_str("++a"),
-        Expression::UnaryOperation(UnaryOp::PrefixIncrement, "a".as_bvar(2)).loc(0)
+    expr.check(
+        "++a",
+        Expression::UnaryOperation(UnaryOp::PrefixIncrement, "a".as_bvar(2)).loc(0),
     );
-    assert_eq!(
-        expr_str("--a"),
-        Expression::UnaryOperation(UnaryOp::PrefixDecrement, "a".as_bvar(2)).loc(0)
+    expr.check(
+        "--a",
+        Expression::UnaryOperation(UnaryOp::PrefixDecrement, "a".as_bvar(2)).loc(0),
     );
-    assert_eq!(
-        expr_str("+a"),
-        Expression::UnaryOperation(UnaryOp::Plus, "a".as_bvar(1)).loc(0)
+    expr.check(
+        "+a",
+        Expression::UnaryOperation(UnaryOp::Plus, "a".as_bvar(1)).loc(0),
     );
-    assert_eq!(
-        expr_str("-a"),
-        Expression::UnaryOperation(UnaryOp::Minus, "a".as_bvar(1)).loc(0)
+    expr.check(
+        "-a",
+        Expression::UnaryOperation(UnaryOp::Minus, "a".as_bvar(1)).loc(0),
     );
-    assert_eq!(
-        expr_str("!a"),
-        Expression::UnaryOperation(UnaryOp::LogicalNot, "a".as_bvar(1)).loc(0)
+    expr.check(
+        "!a",
+        Expression::UnaryOperation(UnaryOp::LogicalNot, "a".as_bvar(1)).loc(0),
     );
-    assert_eq!(
-        expr_str("~a"),
-        Expression::UnaryOperation(UnaryOp::BitwiseNot, "a".as_bvar(1)).loc(0)
-    );
-
-    assert_eq!(
-        expr_str("a << b"),
-        Expression::BinaryOperation(BinOp::LeftShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a >> b"),
-        Expression::BinaryOperation(BinOp::RightShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a < b"),
-        Expression::BinaryOperation(BinOp::LessThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a <= b"),
-        Expression::BinaryOperation(BinOp::LessEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a > b"),
-        Expression::BinaryOperation(BinOp::GreaterThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a >= b"),
-        Expression::BinaryOperation(BinOp::GreaterEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a == b"),
-        Expression::BinaryOperation(BinOp::Equality, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a != b"),
-        Expression::BinaryOperation(BinOp::Inequality, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a & b"),
-        Expression::BinaryOperation(BinOp::BitwiseAnd, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a | b"),
-        Expression::BinaryOperation(BinOp::BitwiseOr, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a ^ b"),
-        Expression::BinaryOperation(BinOp::BitwiseXor, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a && b"),
-        Expression::BinaryOperation(BinOp::BooleanAnd, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
-    );
-    assert_eq!(
-        expr_str("a || b"),
-        Expression::BinaryOperation(BinOp::BooleanOr, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
+    expr.check(
+        "~a",
+        Expression::UnaryOperation(UnaryOp::BitwiseNot, "a".as_bvar(1)).loc(0),
     );
 
-    assert_eq!(
-        expr_str_fail("a < < b"),
-        Err(ParseErrorReason::FailedToParse)
+    expr.check(
+        "a << b",
+        Expression::BinaryOperation(BinOp::LeftShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
     );
-    assert_eq!(
-        expr_str_fail("a > > b"),
-        Err(ParseErrorReason::FailedToParse)
+    expr.check(
+        "a >> b",
+        Expression::BinaryOperation(BinOp::RightShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
     );
-    assert_eq!(
-        expr_str_fail("a < = b"),
-        Err(ParseErrorReason::FailedToParse)
+    expr.check(
+        "a < b",
+        Expression::BinaryOperation(BinOp::LessThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
     );
-    assert_eq!(
-        expr_str_fail("a > = b"),
-        Err(ParseErrorReason::FailedToParse)
+    expr.check(
+        "a <= b",
+        Expression::BinaryOperation(BinOp::LessEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
     );
-    assert_eq!(
-        expr_str_fail("a = = b"),
-        Err(ParseErrorReason::FailedToParse)
+    expr.check(
+        "a > b",
+        Expression::BinaryOperation(BinOp::GreaterThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
     );
-    assert_eq!(
-        expr_str_fail("a ! = b"),
-        Err(ParseErrorReason::FailedToParse)
+    expr.check(
+        "a >= b",
+        Expression::BinaryOperation(BinOp::GreaterEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a == b",
+        Expression::BinaryOperation(BinOp::Equality, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a != b",
+        Expression::BinaryOperation(BinOp::Inequality, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a & b",
+        Expression::BinaryOperation(BinOp::BitwiseAnd, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a | b",
+        Expression::BinaryOperation(BinOp::BitwiseOr, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a ^ b",
+        Expression::BinaryOperation(BinOp::BitwiseXor, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a && b",
+        Expression::BinaryOperation(BinOp::BooleanAnd, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a || b",
+        Expression::BinaryOperation(BinOp::BooleanOr, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
     );
 
-    assert_eq!(
-        expr_str("a[b]"),
-        Expression::ArraySubscript("a".as_bvar(0), "b".as_bvar(2)).loc(0)
+    expr.expect_fail("a < < b", ParseErrorReason::WrongToken, 4);
+    expr.expect_fail("a > > b", ParseErrorReason::WrongToken, 4);
+    expr.expect_fail("a < = b", ParseErrorReason::WrongToken, 4);
+    expr.expect_fail("a > = b", ParseErrorReason::WrongToken, 4);
+    // These pass with a sub expression - needs investigation
+    expr.expect_fail("a = = b", ParseErrorReason::TokensUnconsumed, 2);
+    expr.expect_fail("a ! = b", ParseErrorReason::TokensUnconsumed, 2);
+
+    expr.check(
+        "a[b]",
+        Expression::ArraySubscript("a".as_bvar(0), "b".as_bvar(2)).loc(0),
     );
-    assert_eq!(
-        expr_str("d+a[b+c]"),
+    expr.check(
+        "d+a[b+c]",
         Expression::BinaryOperation(
             BinOp::Add,
             "d".as_bvar(0),
             Expression::ArraySubscript(
                 "a".as_bvar(2),
-                Expression::BinaryOperation(BinOp::Add, "b".as_bvar(4), "c".as_bvar(6)).bloc(4)
+                Expression::BinaryOperation(BinOp::Add, "b".as_bvar(4), "c".as_bvar(6)).bloc(4),
             )
-            .bloc(2)
+            .bloc(2),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str(" d + a\t[ b\n+ c ]"),
+    expr.check(
+        " d + a\t[ b\n+ c ]",
         Expression::BinaryOperation(
             BinOp::Add,
             "d".as_bvar(1),
             Expression::ArraySubscript(
                 "a".as_bvar(5),
-                Expression::BinaryOperation(BinOp::Add, "b".as_bvar(9), "c".as_bvar(13)).bloc(9)
+                Expression::BinaryOperation(BinOp::Add, "b".as_bvar(9), "c".as_bvar(13)).bloc(9),
             )
-            .bloc(5)
+            .bloc(5),
         )
-        .loc(1)
+        .loc(1),
     );
 
-    assert_eq!(
-        expr_str(" sizeof ( float4 ) "),
-        Expression::SizeOf(Type::floatn(4).loc(10)).loc(1)
+    expr.check(
+        " sizeof ( float4 ) ",
+        Expression::SizeOf(Type::floatn(4).loc(10)).loc(1),
     );
 
-    assert_eq!(
-        expr_str("array.Load"),
-        Expression::Member("array".as_bvar(0), "Load".to_string()).loc(0)
+    expr.check(
+        "array.Load",
+        Expression::Member("array".as_bvar(0), "Load".to_string()).loc(0),
     );
-    assert_eq!(
-        expr_str("array.Load()"),
+    expr.check(
+        "array.Load()",
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
             vec![],
             vec![],
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str(" array . Load ( ) "),
+    expr.check(
+        " array . Load ( ) ",
         Expression::Call(
             Expression::Member("array".as_bvar(1), "Load".to_string()).bloc(1),
             vec![],
             vec![],
         )
-        .loc(1)
+        .loc(1),
     );
-    assert_eq!(
-        expr_str("array.Load(a)"),
+    expr.check(
+        "array.Load(a)",
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
             vec![],
             vec!["a".as_var(11)],
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("array.Load(a,b)"),
+    expr.check(
+        "array.Load(a,b)",
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
             vec![],
             vec!["a".as_var(11), "b".as_var(13)],
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("array.Load(a, b)"),
+    expr.check(
+        "array.Load(a, b)",
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
             vec![],
             vec!["a".as_var(11), "b".as_var(14)],
         )
-        .loc(0)
+        .loc(0),
     );
 
-    assert_eq!(
-        expr_str("array.Load<float4>(i * sizeof(float4))"),
+    expr.check(
+        "array.Load<float4>(i * sizeof(float4))",
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
             vec![Type::floatn(4).loc(11)],
             vec![Expression::BinaryOperation(
                 BinOp::Multiply,
                 "i".as_bvar(19),
-                Expression::SizeOf(Type::floatn(4).loc(30)).bloc(23)
+                Expression::SizeOf(Type::floatn(4).loc(30)).bloc(23),
             )
             .loc(19)],
         )
-        .loc(0)
+        .loc(0),
     );
 
-    assert_eq!(
-        expr_str("(float) b"),
-        Expression::Cast(Type::float().loc(1), "b".as_bvar(8)).loc(0)
+    expr.check(
+        "(float) b",
+        Expression::Cast(Type::float().loc(1), "b".as_bvar(8)).loc(0),
     );
 
-    assert_eq!(
-        expr_str("float2(b)"),
+    expr.check(
+        "float2(b)",
         Expression::NumericConstructor(
             DataLayout::Vector(ScalarType::Float, 2),
-            vec!["b".as_var(7)]
+            vec!["b".as_var(7)],
         )
-        .loc(0)
+        .loc(0),
     );
 
-    assert_eq!(
-        expr_str("a = b"),
-        Expression::BinaryOperation(BinOp::Assignment, "a".as_bvar(0), "b".as_bvar(4)).loc(0)
+    expr.check(
+        "a = b",
+        Expression::BinaryOperation(BinOp::Assignment, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
     );
-    assert_eq!(
-        expr_str("a = b = c"),
+    expr.check(
+        "a = b = c",
         Expression::BinaryOperation(
             BinOp::Assignment,
             "a".as_bvar(0),
-            Expression::BinaryOperation(BinOp::Assignment, "b".as_bvar(4), "c".as_bvar(8)).bloc(4)
+            Expression::BinaryOperation(BinOp::Assignment, "b".as_bvar(4), "c".as_bvar(8)).bloc(4),
         )
-        .loc(0)
+        .loc(0),
     );
 
-    assert_eq!(
-        expr_str("a += b"),
-        Expression::BinaryOperation(BinOp::SumAssignment, "a".as_bvar(0), "b".as_bvar(5)).loc(0)
+    expr.check(
+        "a += b",
+        Expression::BinaryOperation(BinOp::SumAssignment, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
     );
 
-    assert_eq!(
-        expr_str("a -= b"),
+    expr.check(
+        "a -= b",
         Expression::BinaryOperation(BinOp::DifferenceAssignment, "a".as_bvar(0), "b".as_bvar(5))
-            .loc(0)
+            .loc(0),
     );
-    assert_eq!(
-        expr_str("a *= b"),
+    expr.check(
+        "a *= b",
         Expression::BinaryOperation(BinOp::ProductAssignment, "a".as_bvar(0), "b".as_bvar(5))
-            .loc(0)
+            .loc(0),
     );
-    assert_eq!(
-        expr_str("a /= b"),
+    expr.check(
+        "a /= b",
         Expression::BinaryOperation(BinOp::QuotientAssignment, "a".as_bvar(0), "b".as_bvar(5))
-            .loc(0)
+            .loc(0),
     );
-    assert_eq!(
-        expr_str("a %= b"),
+    expr.check(
+        "a %= b",
         Expression::BinaryOperation(BinOp::RemainderAssignment, "a".as_bvar(0), "b".as_bvar(5))
-            .loc(0)
+            .loc(0),
     );
 
-    assert_eq!(
-        expr_str("a ? b : c"),
-        Expression::TernaryConditional("a".as_bvar(0), "b".as_bvar(4), "c".as_bvar(8)).loc(0)
+    expr.check(
+        "a ? b : c",
+        Expression::TernaryConditional("a".as_bvar(0), "b".as_bvar(4), "c".as_bvar(8)).loc(0),
     );
-    assert_eq!(
-        expr_str("a ? b ? c : d : e"),
+    expr.check(
+        "a ? b ? c : d : e",
         Expression::TernaryConditional(
             "a".as_bvar(0),
             Expression::TernaryConditional("b".as_bvar(4), "c".as_bvar(8), "d".as_bvar(12)).bloc(4),
-            "e".as_bvar(16)
+            "e".as_bvar(16),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a ? b : c ? d : e"),
+    expr.check(
+        "a ? b : c ? d : e",
         Expression::TernaryConditional(
             "a".as_bvar(0),
             "b".as_bvar(4),
             Expression::TernaryConditional("c".as_bvar(8), "d".as_bvar(12), "e".as_bvar(16))
-                .bloc(8)
+                .bloc(8),
         )
-        .loc(0)
+        .loc(0),
     );
-    assert_eq!(
-        expr_str("a ? b ? c : d : e ? f : g"),
+    expr.check(
+        "a ? b ? c : d : e ? f : g",
         Expression::TernaryConditional(
             "a".as_bvar(0),
             Expression::TernaryConditional("b".as_bvar(4), "c".as_bvar(8), "d".as_bvar(12)).bloc(4),
             Expression::TernaryConditional("e".as_bvar(16), "f".as_bvar(20), "g".as_bvar(24))
-                .bloc(16)
+                .bloc(16),
         )
-        .loc(0)
+        .loc(0),
     );
 }

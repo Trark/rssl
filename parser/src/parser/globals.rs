@@ -51,6 +51,23 @@ impl Parse for ConstantVariable {
     }
 }
 
+#[test]
+fn test_constant_variable() {
+    use test_support::*;
+    let constantvariable = ParserTester::new(ConstantVariable::parse);
+
+    let test_cbuffervar_str = "float4x4 wvp;";
+    let test_cbuffervar_ast = ConstantVariable {
+        ty: Type::float4x4(),
+        defs: vec![ConstantVariableName {
+            name: "wvp".to_string(),
+            bind: VariableBind::Normal,
+            offset: None,
+        }],
+    };
+    constantvariable.check(test_cbuffervar_str, test_cbuffervar_ast);
+}
+
 impl Parse for ConstantSlot {
     type Output = Self;
     fn parse<'t>(input: &'t [LexToken], _: &SymbolTable) -> ParseResult<'t, Self> {
@@ -69,6 +86,14 @@ impl Parse for ConstantSlot {
             ))),
         }
     }
+}
+
+#[test]
+fn test_constant_slot() {
+    use test_support::*;
+
+    let cbuffer_register = ParserTester::new(ConstantSlot::parse);
+    cbuffer_register.check(" : register(b12) ", ConstantSlot(12));
 }
 
 impl Parse for ConstantBuffer {

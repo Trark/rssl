@@ -51,60 +51,60 @@ impl Parse for EnumDefinition {
 #[test]
 fn test_enum_definition() {
     use test_support::*;
-    let enum_definition_str = parse_from_str::<EnumDefinition>();
+    let enum_definition = ParserTester::new(EnumDefinition::parse);
 
-    assert_eq!(
-        enum_definition_str("enum TestEnum {};"),
+    enum_definition.check(
+        "enum TestEnum {};",
         EnumDefinition {
             name: "TestEnum".to_string(),
             values: Vec::new(),
-        }
+        },
     );
 
-    assert_eq!(
-        enum_definition_str("enum TestEnum { X, Y, Z, };"),
+    enum_definition.check(
+        "enum TestEnum { X, Y, Z, };",
         EnumDefinition {
             name: "TestEnum".to_string(),
             values: vec![
                 EnumValue {
                     name: "X".to_string(),
-                    value: None
+                    value: None,
                 },
                 EnumValue {
                     name: "Y".to_string(),
-                    value: None
+                    value: None,
                 },
                 EnumValue {
                     name: "Z".to_string(),
-                    value: None
-                }
+                    value: None,
+                },
             ],
-        }
+        },
     );
 
-    assert_eq!(
-        enum_definition_str("enum TestEnum { X, Y, Z };"),
+    enum_definition.check(
+        "enum TestEnum { X, Y, Z };",
         EnumDefinition {
             name: "TestEnum".to_string(),
             values: vec![
                 EnumValue {
                     name: "X".to_string(),
-                    value: None
+                    value: None,
                 },
                 EnumValue {
                     name: "Y".to_string(),
-                    value: None
+                    value: None,
                 },
                 EnumValue {
                     name: "Z".to_string(),
-                    value: None
-                }
+                    value: None,
+                },
             ],
-        }
+        },
     );
 
-    assert_eq!(
-        enum_definition_str("enum TestEnum { X = 0, Y, Z = 3, };"),
+    enum_definition.check(
+        "enum TestEnum { X = 0, Y, Z = 3, };",
         EnumDefinition {
             name: "TestEnum".to_string(),
             values: vec![
@@ -114,13 +114,13 @@ fn test_enum_definition() {
                 },
                 EnumValue {
                     name: "Y".to_string(),
-                    value: None
+                    value: None,
                 },
                 EnumValue {
                     name: "Z".to_string(),
                     value: Some(Expression::Literal(Literal::UntypedInt(3)).loc(30)),
-                }
+                },
             ],
-        }
+        },
     );
 }

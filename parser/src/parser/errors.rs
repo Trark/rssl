@@ -74,6 +74,7 @@ impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
 pub enum ParseErrorReason {
     Unknown,
     UnexpectedEndOfStream,
+    TokensUnconsumed,
     FailedToParse,
     WrongToken,
     WrongSlotType,

@@ -46,116 +46,90 @@ impl TestVariableExt for &str {
     }
 }
 
-pub fn parse_result_from_str<T>(
-) -> impl Fn(&'static str) -> Result<<T as Parse>::Output, ParseErrorReason>
-where
-    T: Parse + 'static,
-{
-    use rssl_lexer::lex;
-    use rssl_preprocess::preprocess_fragment;
-    move |string: &'static str| {
-        let mut source_manager = SourceManager::new();
-        let modified_string = string.to_string() + "\n";
-        let preprocessed_text = preprocess_fragment(
-            &modified_string,
-            FileName("parser_test.hlsl".to_string()),
-            &mut source_manager,
-        )
-        .expect("preprocess failed");
-        let lex_result = lex(&preprocessed_text);
-        match lex_result {
-            Ok(tokens) => {
-                let stream = &tokens.stream;
-                match T::parse(stream, &SymbolTable::empty()) {
-                    Ok((rem, exp)) => {
-                        if rem.len() == 1 && rem[0].0 == Token::Eof {
-                            Ok(exp)
-                        } else {
-                            Err(ParseErrorReason::FailedToParse)
-                        }
-                    }
-                    Err(nom::Err::Incomplete(_)) => Err(ParseErrorReason::UnexpectedEndOfStream),
-                    _ => Err(ParseErrorReason::FailedToParse),
-                }
-            }
-            Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
-        }
+/// Turn a string into lex tokens for a test
+#[track_caller]
+fn lex_from_str(source: &str) -> (Vec<LexToken>, SourceManager) {
+    // Create source manager to store the source into
+    let mut source_manager = SourceManager::new();
+
+    // Add a newline to the end of every test string as the lexer requires a clean ending
+    let modified_string = source.to_string() + "\n";
+
+    // Preprocess the text
+    let preprocessed_text = rssl_preprocess::preprocess_fragment(
+        &modified_string,
+        FileName("parser_test.hlsl".to_string()),
+        &mut source_manager,
+    )
+    .expect("preprocess failed");
+
+    // Run the lexer on the input
+    match rssl_lexer::lex(&preprocessed_text) {
+        Ok(tokens) => (tokens.stream, source_manager),
+        Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
     }
 }
 
-pub fn parse_from_str<T>() -> impl Fn(&'static str) -> <T as Parse>::Output
-where
-    T: Parse + 'static,
+/// Helper type to invoke parsing on fragments of text
+pub struct ParserTester<F, T>(F, std::marker::PhantomData<T>);
+
+impl<
+        T: std::cmp::PartialEq + std::fmt::Debug,
+        F: for<'t> Fn(&'t [LexToken], &SymbolTable) -> ParseResult<'t, T>,
+    > ParserTester<F, T>
 {
-    use rssl_lexer::lex;
-    use rssl_preprocess::preprocess_fragment;
-    move |string: &'static str| {
-        let mut source_manager = SourceManager::new();
-        let modified_string = string.to_string() + "\n";
-        let preprocessed_text = preprocess_fragment(
-            &modified_string,
-            FileName("parser_test.hlsl".to_string()),
-            &mut source_manager,
-        )
-        .expect("preprocess failed");
-        let lex_result = lex(&preprocessed_text);
-        match lex_result {
-            Ok(tokens) => {
-                let stream = &tokens.stream;
-                match T::parse(stream, &SymbolTable::empty()) {
-                    Ok((rem, exp)) => {
-                        if rem.len() == 1 && rem[0].0 == Token::Eof {
-                            exp
-                        } else {
-                            panic!("Tokens remaining while parsing `{:?}`: {:?}", stream, rem)
-                        }
-                    }
-                    Err(err) => {
-                        let err = ParseError::from(err);
-                        panic!("{}{:?}", err.display(&source_manager), err)
-                    }
+    /// Create a new tester object from a parse function
+    pub fn new(parse_fn: F) -> Self {
+        ParserTester(parse_fn, std::marker::PhantomData)
+    }
+
+    /// Check that a source string parses into the given value
+    #[track_caller]
+    pub fn check(&self, input: &str, value: T) {
+        self.check_symbolic(input, &SymbolTable::empty(), value);
+    }
+
+    /// Check that a source string parses into the given value - in the scope of a given symbol table
+    #[track_caller]
+    pub fn check_symbolic(&self, input: &str, symbols: &SymbolTable, value: T) {
+        let (tokens, source_manager) = lex_from_str(input);
+        match (self.0)(&tokens, symbols) {
+            Ok((rem, exp)) => {
+                if rem.len() == 1 && rem[0].0 == Token::Eof {
+                    assert_eq!(exp, value);
+                } else {
+                    panic!(
+                        "{}",
+                        ParseError::from_tokens_remaining(rem).display(&source_manager)
+                    );
                 }
             }
-            Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
+            Err(err) => panic!("{}", ParseError::from(err).display(&source_manager)),
         }
     }
-}
 
-pub fn parse_from_str_with_symbols<T>(
-) -> impl Fn(&'static str, &SymbolTable) -> <T as Parse>::Output
-where
-    T: Parse + 'static,
-{
-    use rssl_lexer::lex;
-    use rssl_preprocess::preprocess_fragment;
-    move |string: &'static str, symbols: &SymbolTable| {
-        let mut source_manager = SourceManager::new();
-        let modified_string = string.to_string() + "\n";
-        let preprocessed_text = preprocess_fragment(
-            &modified_string,
-            FileName("parser_test.hlsl".to_string()),
-            &mut source_manager,
-        )
-        .expect("preprocess failed");
-        let lex_result = lex(&preprocessed_text);
-        match lex_result {
-            Ok(tokens) => {
-                let stream = &tokens.stream;
-                match T::parse(stream, symbols) {
-                    Ok((rem, exp)) => {
-                        if rem.len() == 1 && rem[0].0 == Token::Eof {
-                            exp
-                        } else {
-                            panic!("Tokens remaining while parsing `{:?}`: {:?}", stream, rem)
-                        }
-                    }
-                    Err(err) => {
-                        let err = ParseError::from(err);
-                        panic!("{}{:?}", err.display(&source_manager), err)
-                    }
+    /// Check that parsing will fail for the given string
+    #[track_caller]
+    pub fn expect_fail(&self, input: &str, error_reason: ParseErrorReason, offset: u32) {
+        let (tokens, _) = lex_from_str(input);
+        match (self.0)(&tokens, &SymbolTable::empty()) {
+            Ok((rem, exp)) => {
+                if rem.len() == 1 && rem[0].0 == Token::Eof {
+                    panic!("{:?}", exp);
+                } else {
+                    assert_eq!(
+                        (ParseErrorReason::TokensUnconsumed, rem[0].1),
+                        (error_reason, SourceLocation::first().offset(offset))
+                    );
                 }
             }
-            Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
+            Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
+                assert_eq!(
+                    (err.1, err.0[0].1),
+                    (error_reason, SourceLocation::first().offset(offset))
+                );
+            }
+            Err(nom::Err::Incomplete(_)) => panic!("Unexpected end of stream"),
         }
     }
 }

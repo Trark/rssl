@@ -343,161 +343,158 @@ pub fn statement_block<'t>(
 #[test]
 fn test_statement() {
     use test_support::*;
-    let statement_str = parse_from_str::<Statement>();
+    let statement = ParserTester::new(Statement::parse);
 
     // Empty statement
-    assert_eq!(statement_str(";"), Statement::Empty);
+    statement.check(";", Statement::Empty);
 
     // Expression statements
-    assert_eq!(
-        statement_str("func();"),
-        Statement::Expression(Expression::Call("func".as_bvar(0), vec![], vec![]).loc(0))
+    statement.check(
+        "func();",
+        Statement::Expression(Expression::Call("func".as_bvar(0), vec![], vec![]).loc(0)),
     );
-    assert_eq!(
-        statement_str(" func ( ) ; "),
-        Statement::Expression(Expression::Call("func".as_bvar(1), vec![], vec![]).loc(1))
+    statement.check(
+        " func ( ) ; ",
+        Statement::Expression(Expression::Call("func".as_bvar(1), vec![], vec![]).loc(1)),
     );
 
     // For loop init statement
-    let init_statement_str = parse_from_str::<InitStatement>();
-    let vardef_str = parse_from_str::<VarDef>();
+    let init_statement = ParserTester::new(InitStatement::parse);
+    let vardef = ParserTester::new(VarDef::parse);
 
-    assert_eq!(
-        init_statement_str("x"),
-        InitStatement::Expression("x".as_var(0))
+    init_statement.check("x", InitStatement::Expression("x".as_var(0)));
+    vardef.check("uint x", VarDef::one("x", Type::uint().into()));
+    init_statement.check(
+        "uint x",
+        InitStatement::Declaration(VarDef::one("x", Type::uint().into())),
     );
-    assert_eq!(vardef_str("uint x"), VarDef::one("x", Type::uint().into()));
-    assert_eq!(
-        init_statement_str("uint x"),
-        InitStatement::Declaration(VarDef::one("x", Type::uint().into()))
-    );
-    assert_eq!(
-        init_statement_str("uint x = y"),
+    init_statement.check(
+        "uint x = y",
         InitStatement::Declaration(VarDef::one_with_expr(
             "x",
             Type::uint().into(),
-            "y".as_var(9)
-        ))
+            "y".as_var(9),
+        )),
     );
 
     // Variable declarations
-    assert_eq!(
-        statement_str("uint x = y;"),
+    statement.check(
+        "uint x = y;",
         Statement::Var(VarDef::one_with_expr(
             "x",
             Type::uint().into(),
-            "y".as_var(9)
-        ))
+            "y".as_var(9),
+        )),
     );
-    assert_eq!(
-        statement_str("float x[3];"),
+    statement.check(
+        "float x[3];",
         Statement::Var(VarDef {
             local_type: Type::from_layout(TypeLayout::float()).into(),
             defs: vec![LocalVariableName {
                 name: "x".to_string(),
                 bind: VariableBind::Array(Some(Expression::Literal(Literal::UntypedInt(3)).loc(8))),
                 init: None,
-            }]
-        })
+            }],
+        }),
     );
 
     // Blocks
-    assert_eq!(
-        statement_str("{one();two();}"),
+    statement.check(
+        "{one();two();}",
         Statement::Block(vec![
             Statement::Expression(Expression::Call("one".as_bvar(1), vec![], vec![]).loc(1)),
             Statement::Expression(Expression::Call("two".as_bvar(7), vec![], vec![]).loc(7)),
-        ])
+        ]),
     );
-    assert_eq!(
-        statement_str(" { one(); two(); } "),
+    statement.check(
+        " { one(); two(); } ",
         Statement::Block(vec![
             Statement::Expression(Expression::Call("one".as_bvar(3), vec![], vec![]).loc(3)),
             Statement::Expression(Expression::Call("two".as_bvar(10), vec![], vec![]).loc(10)),
-        ])
+        ]),
     );
 
     // If statement
-    assert_eq!(
-        statement_str("if(a)func();"),
+    statement.check(
+        "if(a)func();",
         Statement::If(
             "a".as_var(3),
             Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(5), vec![], vec![]).loc(5)
-            ))
-        )
+                Expression::Call("func".as_bvar(5), vec![], vec![]).loc(5),
+            )),
+        ),
     );
-    assert_eq!(
-        statement_str("if (a) func(); "),
+    statement.check(
+        "if (a) func(); ",
         Statement::If(
             "a".as_var(4),
             Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(7), vec![], vec![]).loc(7)
-            ))
-        )
+                Expression::Call("func".as_bvar(7), vec![], vec![]).loc(7),
+            )),
+        ),
     );
-    assert_eq!(
-        statement_str("if (a)\n{\n\tone();\n\ttwo();\n}"),
+    statement.check(
+        "if (a)\n{\n\tone();\n\ttwo();\n}",
         Statement::If(
             "a".as_var(4),
             Box::new(Statement::Block(vec![
                 Statement::Expression(Expression::Call("one".as_bvar(10), vec![], vec![]).loc(10)),
                 Statement::Expression(Expression::Call("two".as_bvar(18), vec![], vec![]).loc(18)),
-            ]))
-        )
+            ])),
+        ),
     );
 
     // If-else statement
-    assert_eq!(
-        statement_str("if (a) one(); else two();"),
+    statement.check(
+        "if (a) one(); else two();",
         Statement::IfElse(
             "a".as_var(4),
             Box::new(Statement::Expression(
-                Expression::Call("one".as_bvar(7), vec![], vec![]).loc(7)
+                Expression::Call("one".as_bvar(7), vec![], vec![]).loc(7),
             )),
             Box::new(Statement::Expression(
-                Expression::Call("two".as_bvar(19), vec![], vec![]).loc(19)
-            ))
-        )
+                Expression::Call("two".as_bvar(19), vec![], vec![]).loc(19),
+            )),
+        ),
     );
 
     // While loops
-    assert_eq!(
-        statement_str("while (a)\n{\n\tone();\n\ttwo();\n}"),
+    statement.check(
+        "while (a)\n{\n\tone();\n\ttwo();\n}",
         Statement::While(
             "a".as_var(7),
             Box::new(Statement::Block(vec![
                 Statement::Expression(Expression::Call("one".as_bvar(13), vec![], vec![]).loc(13)),
                 Statement::Expression(Expression::Call("two".as_bvar(21), vec![], vec![]).loc(21)),
-            ]))
-        )
+            ])),
+        ),
     );
 
     // For loops
-    assert_eq!(
-        statement_str("for(a;b;c)func();"),
+    statement.check(
+        "for(a;b;c)func();",
         Statement::For(
             InitStatement::Expression("a".as_var(4)),
             "b".as_var(6),
             "c".as_var(8),
             Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(10), vec![], vec![]).loc(10)
-            ))
-        )
+                Expression::Call("func".as_bvar(10), vec![], vec![]).loc(10),
+            )),
+        ),
     );
-    assert_eq!(
-        statement_str("for (uint i = 0; i; i++) { func(); }"),
+    statement.check(
+        "for (uint i = 0; i; i++) { func(); }",
         Statement::For(
             InitStatement::Declaration(VarDef::one_with_expr(
                 "i",
                 Type::uint().into(),
-                Expression::Literal(Literal::UntypedInt(0)).loc(14)
+                Expression::Literal(Literal::UntypedInt(0)).loc(14),
             )),
             "i".as_var(17),
             Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
             Box::new(Statement::Block(vec![Statement::Expression(
-                Expression::Call("func".as_bvar(27), vec![], vec![]).loc(27)
-            )]))
-        )
+                Expression::Call("func".as_bvar(27), vec![], vec![]).loc(27),
+            )])),
+        ),
     );
 }

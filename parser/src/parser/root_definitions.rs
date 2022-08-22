@@ -49,12 +49,10 @@ pub fn rootdefinition_with_semicolon<'t>(
 }
 
 #[test]
-fn test_rootdefinition() {
+fn test_struct() {
     use test_support::*;
-    let rootdefinition_str = parse_from_str::<RootDefinition>();
-    let rootdefinition_str_with_symbols = parse_from_str_with_symbols::<RootDefinition>();
-
-    let structdefinition_str = parse_from_str::<StructDefinition>();
+    let rootdefinition = ParserTester::new(RootDefinition::parse);
+    let structdefinition = ParserTester::new(StructDefinition::parse);
 
     let test_struct_str = "struct MyStruct { uint a; float b; };";
     let test_struct_ast = StructDefinition {
@@ -76,13 +74,15 @@ fn test_rootdefinition() {
             },
         ],
     };
-    assert_eq!(structdefinition_str(test_struct_str), test_struct_ast);
-    assert_eq!(
-        rootdefinition_str(test_struct_str),
-        RootDefinition::Struct(test_struct_ast)
-    );
+    structdefinition.check(test_struct_str, test_struct_ast.clone());
+    rootdefinition.check(test_struct_str, RootDefinition::Struct(test_struct_ast));
+}
 
-    let functiondefinition_str = parse_from_str::<FunctionDefinition>();
+#[test]
+fn test_function() {
+    use test_support::*;
+    let rootdefinition = ParserTester::new(RootDefinition::parse);
+    let functiondefinition = ParserTester::new(FunctionDefinition::parse);
 
     let test_func_str = "float func(float x) : SV_Depth { }";
     let test_func_ast = FunctionDefinition {
@@ -99,18 +99,15 @@ fn test_rootdefinition() {
         body: vec![],
         attributes: vec![],
     };
-    assert_eq!(functiondefinition_str(test_func_str), test_func_ast);
-    assert_eq!(
-        rootdefinition_str(test_func_str),
-        RootDefinition::Function(test_func_ast)
-    );
+    functiondefinition.check(test_func_str, test_func_ast.clone());
+    rootdefinition.check(test_func_str, RootDefinition::Function(test_func_ast));
     let numthreads = FunctionAttribute::NumThreads(
         Expression::Literal(Literal::UntypedInt(16)).loc(12),
         Expression::Literal(Literal::UntypedInt(16)).loc(16),
         Expression::Literal(Literal::UntypedInt(1)).loc(20),
     );
-    assert_eq!(
-        rootdefinition_str("[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }"),
+    rootdefinition.check(
+        "[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }",
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string(),
             returntype: Type::void().into(),
@@ -123,32 +120,21 @@ fn test_rootdefinition() {
                 Expression::BinaryOperation(
                     BinOp::LessThan,
                     "x".as_bvar(49),
-                    Expression::Literal(Literal::UntypedInt(0)).bloc(53)
+                    Expression::Literal(Literal::UntypedInt(0)).bloc(53),
                 )
                 .loc(49),
                 Box::new(Statement::Block(vec![Statement::Return(None)])),
             )],
             attributes: vec![numthreads],
-        })
+        }),
     );
+}
 
-    let constantvariable_str = parse_from_str::<ConstantVariable>();
-
-    let test_cbuffervar_str = "float4x4 wvp;";
-    let test_cbuffervar_ast = ConstantVariable {
-        ty: Type::float4x4(),
-        defs: vec![ConstantVariableName {
-            name: "wvp".to_string(),
-            bind: VariableBind::Normal,
-            offset: None,
-        }],
-    };
-    assert_eq!(
-        constantvariable_str(test_cbuffervar_str),
-        test_cbuffervar_ast
-    );
-
-    let cbuffer_str = parse_from_str::<ConstantBuffer>();
+#[test]
+fn test_constant_buffer() {
+    use test_support::*;
+    let rootdefinition = ParserTester::new(RootDefinition::parse);
+    let cbuffer = ParserTester::new(ConstantBuffer::parse);
 
     let test_cbuffer1_str = "cbuffer globals { float4x4 wvp; }";
     let test_cbuffer1_ast = ConstantBuffer {
@@ -163,14 +149,11 @@ fn test_rootdefinition() {
             }],
         }],
     };
-    assert_eq!(cbuffer_str(test_cbuffer1_str), test_cbuffer1_ast);
-    assert_eq!(
-        rootdefinition_str(test_cbuffer1_str),
-        RootDefinition::ConstantBuffer(test_cbuffer1_ast)
+    cbuffer.check(test_cbuffer1_str, test_cbuffer1_ast.clone());
+    rootdefinition.check(
+        test_cbuffer1_str,
+        RootDefinition::ConstantBuffer(test_cbuffer1_ast),
     );
-
-    let cbuffer_register_str = parse_from_str::<ConstantSlot>();
-    assert_eq!(cbuffer_register_str(" : register(b12) "), ConstantSlot(12));
 
     let test_cbuffer2_str = "cbuffer globals : register(b12) { float4x4 wvp; float x, y[2]; }";
     let test_cbuffer2_ast_wvp = ConstantVariable {
@@ -200,14 +183,18 @@ fn test_rootdefinition() {
         slot: Some(ConstantSlot(12)),
         members: vec![test_cbuffer2_ast_wvp, test_cbuffer2_ast_xy],
     };
-    assert_eq!(cbuffer_str(test_cbuffer2_str), test_cbuffer2_ast);
-    assert_eq!(
-        rootdefinition_str(test_cbuffer2_str),
-        RootDefinition::ConstantBuffer(test_cbuffer2_ast)
+    cbuffer.check(test_cbuffer2_str, test_cbuffer2_ast.clone());
+    rootdefinition.check(
+        test_cbuffer2_str,
+        RootDefinition::ConstantBuffer(test_cbuffer2_ast),
     );
+}
 
-    let globalvariable_str = parse_from_str::<GlobalVariable>();
-    let globalvariable_str_with_symbols = parse_from_str_with_symbols::<GlobalVariable>();
+#[test]
+fn test_global_variable() {
+    use test_support::*;
+    let rootdefinition = ParserTester::new(RootDefinition::parse);
+    let globalvariable = ParserTester::new(GlobalVariable::parse);
 
     let test_buffersrv_str = "Buffer g_myBuffer : register(t1);";
     let test_buffersrv_ast = GlobalVariable {
@@ -223,10 +210,10 @@ fn test_rootdefinition() {
             init: None,
         }],
     };
-    assert_eq!(globalvariable_str(test_buffersrv_str), test_buffersrv_ast);
-    assert_eq!(
-        rootdefinition_str(test_buffersrv_str),
-        RootDefinition::GlobalVariable(test_buffersrv_ast)
+    globalvariable.check(test_buffersrv_str, test_buffersrv_ast.clone());
+    rootdefinition.check(
+        test_buffersrv_str,
+        RootDefinition::GlobalVariable(test_buffersrv_ast),
     );
 
     let test_buffersrv2_str = "Buffer<uint4> g_myBuffer : register(t1);";
@@ -243,10 +230,10 @@ fn test_rootdefinition() {
             init: None,
         }],
     };
-    assert_eq!(globalvariable_str(test_buffersrv2_str), test_buffersrv2_ast);
-    assert_eq!(
-        rootdefinition_str(test_buffersrv2_str),
-        RootDefinition::GlobalVariable(test_buffersrv2_ast)
+    globalvariable.check(test_buffersrv2_str, test_buffersrv2_ast.clone());
+    rootdefinition.check(
+        test_buffersrv2_str,
+        RootDefinition::GlobalVariable(test_buffersrv2_ast),
     );
 
     let test_buffersrv3_str = "Buffer<vector<int, 4>> g_myBuffer : register(t1);";
@@ -263,10 +250,10 @@ fn test_rootdefinition() {
             init: None,
         }],
     };
-    assert_eq!(globalvariable_str(test_buffersrv3_str), test_buffersrv3_ast);
-    assert_eq!(
-        rootdefinition_str(test_buffersrv3_str),
-        RootDefinition::GlobalVariable(test_buffersrv3_ast)
+    globalvariable.check(test_buffersrv3_str, test_buffersrv3_ast.clone());
+    rootdefinition.check(
+        test_buffersrv3_str,
+        RootDefinition::GlobalVariable(test_buffersrv3_ast),
     );
 
     let test_buffersrv4_str = "StructuredBuffer<CustomType> g_myBuffer : register(t1);";
@@ -288,13 +275,15 @@ fn test_rootdefinition() {
         map.insert("CustomType".to_string(), SymbolType::Struct);
         map
     });
-    assert_eq!(
-        globalvariable_str_with_symbols(test_buffersrv4_str, &test_buffersrv4_symbols),
-        test_buffersrv4_ast
+    globalvariable.check_symbolic(
+        test_buffersrv4_str,
+        &test_buffersrv4_symbols,
+        test_buffersrv4_ast.clone(),
     );
-    assert_eq!(
-        rootdefinition_str_with_symbols(test_buffersrv4_str, &test_buffersrv4_symbols),
-        RootDefinition::GlobalVariable(test_buffersrv4_ast)
+    rootdefinition.check_symbolic(
+        test_buffersrv4_str,
+        &test_buffersrv4_symbols,
+        RootDefinition::GlobalVariable(test_buffersrv4_ast),
     );
 
     let test_static_const_str = "static const int c_numElements = 4;";
@@ -319,13 +308,10 @@ fn test_rootdefinition() {
             )),
         }],
     };
-    assert_eq!(
-        globalvariable_str(test_static_const_str),
-        test_static_const_ast
-    );
-    assert_eq!(
-        rootdefinition_str(test_static_const_str),
-        RootDefinition::GlobalVariable(test_static_const_ast)
+    globalvariable.check(test_static_const_str, test_static_const_ast.clone());
+    rootdefinition.check(
+        test_static_const_str,
+        RootDefinition::GlobalVariable(test_static_const_ast),
     );
 
     let test_const_arr_str = "static const int data[4] = { 0, 1, 2, 3 };";
@@ -355,10 +341,10 @@ fn test_rootdefinition() {
         ),
         defs: vec![test_const_arr_ast_gvn],
     };
-    assert_eq!(globalvariable_str(test_const_arr_str), test_const_arr_ast);
-    assert_eq!(
-        rootdefinition_str(test_const_arr_str),
-        RootDefinition::GlobalVariable(test_const_arr_ast)
+    globalvariable.check(test_const_arr_str, test_const_arr_ast.clone());
+    rootdefinition.check(
+        test_const_arr_str,
+        RootDefinition::GlobalVariable(test_const_arr_ast),
     );
 
     let test_groupshared_str = "groupshared float4 local_data[32];";
@@ -372,12 +358,9 @@ fn test_rootdefinition() {
         global_type: GlobalType(Type::floatn(4), GlobalStorage::GroupShared, None),
         defs: vec![test_groupshared_ast_gvn],
     };
-    assert_eq!(
-        globalvariable_str(test_groupshared_str),
-        test_groupshared_ast
-    );
-    assert_eq!(
-        rootdefinition_str(test_groupshared_str),
-        RootDefinition::GlobalVariable(test_groupshared_ast)
+    globalvariable.check(test_groupshared_str, test_groupshared_ast.clone());
+    rootdefinition.check(
+        test_groupshared_str,
+        RootDefinition::GlobalVariable(test_groupshared_ast),
     );
 }
