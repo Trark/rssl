@@ -2,17 +2,19 @@ use super::*;
 
 // Parse scalar type as part of a string
 fn parse_scalartype_str(input: &[u8]) -> nom::IResult<&[u8], ScalarType> {
-    use nom::bytes::complete::tag;
-    use nom::combinator::map;
-    nom::branch::alt((
-        map(tag("bool"), |_| ScalarType::Bool),
-        map(tag("int"), |_| ScalarType::Int),
-        map(tag("uint"), |_| ScalarType::UInt),
-        map(tag("dword"), |_| ScalarType::UInt),
-        map(tag("half"), |_| ScalarType::Half),
-        map(tag("float"), |_| ScalarType::Float),
-        map(tag("double"), |_| ScalarType::Double),
-    ))(input)
+    match input {
+        [b'b', b'o', b'o', b'l', rest @ ..] => Ok((rest, ScalarType::Bool)),
+        [b'i', b'n', b't', rest @ ..] => Ok((rest, ScalarType::Int)),
+        [b'u', b'i', b'n', b't', rest @ ..] => Ok((rest, ScalarType::UInt)),
+        [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Ok((rest, ScalarType::UInt)),
+        [b'h', b'a', b'l', b'f', rest @ ..] => Ok((rest, ScalarType::Half)),
+        [b'f', b'l', b'o', b'a', b't', rest @ ..] => Ok((rest, ScalarType::Float)),
+        [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Ok((rest, ScalarType::Double)),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
+    }
 }
 
 // Parse data type as part of a string
