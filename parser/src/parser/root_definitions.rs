@@ -9,39 +9,34 @@ fn parse_root_definition<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, RootDefinition> {
-    let err = match parse_struct_definition(input, st) {
-        Ok((rest, structdef)) => return Ok((rest, RootDefinition::Struct(structdef))),
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-        Err(e) => e,
+    let res = match parse_struct_definition(input, st) {
+        Ok((rest, structdef)) => Ok((rest, RootDefinition::Struct(structdef))),
+        Err(err) => Err(err),
     };
 
-    let err = match parse_enum_definition(input, st) {
-        Ok((rest, enumdef)) => return Ok((rest, RootDefinition::Enum(enumdef))),
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-        Err(e) => get_most_relevant_error(err, e),
-    };
+    let res = res.select(match parse_enum_definition(input, st) {
+        Ok((rest, enumdef)) => Ok((rest, RootDefinition::Enum(enumdef))),
+        Err(err) => Err(err),
+    });
 
-    let err = match parse_constant_buffer(input, st) {
-        Ok((rest, cbuffer)) => return Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-        Err(e) => get_most_relevant_error(err, e),
-    };
+    let res = res.select(match parse_constant_buffer(input, st) {
+        Ok((rest, cbuffer)) => Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
+        Err(err) => Err(err),
+    });
 
-    let err = match parse_global_variable(input, st) {
+    let res = res.select(match parse_global_variable(input, st) {
         Ok((rest, globalvariable)) => {
             return Ok((rest, RootDefinition::GlobalVariable(globalvariable)))
         }
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-        Err(e) => get_most_relevant_error(err, e),
-    };
+        Err(err) => Err(err),
+    });
 
-    let err = match parse_function_definition(input, st) {
+    let res = res.select(match parse_function_definition(input, st) {
         Ok((rest, funcdef)) => return Ok((rest, RootDefinition::Function(funcdef))),
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-        Err(e) => get_most_relevant_error(err, e),
-    };
+        Err(err) => Err(err),
+    });
 
-    Err(err)
+    res
 }
 
 /// Parse a root definition which may have many semicolons after it

@@ -21,18 +21,7 @@ pub fn parse_initializer<'t>(
     }
 
     fn init_any<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Initializer> {
-        if let Ok((input, expr)) = init_expr(input, st) {
-            return Ok((input, expr));
-        }
-
-        if let Ok((input, expr)) = init_aggregate(input, st) {
-            return Ok((input, expr));
-        }
-
-        Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::ErrorKind(nom::error::ErrorKind::Alt),
-        )))
+        init_expr(input, st).select(init_aggregate(input, st))
     }
 
     if input.is_empty() {
@@ -167,19 +156,19 @@ fn parse_init_statement<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, InitStatement> {
-    let res = nom::branch::alt((
-        nom::combinator::map(contextual(parse_vardef, st), |vd| {
-            InitStatement::Declaration(vd)
-        }),
-        nom::combinator::map(contextual(parse_expression, st), |e| {
-            InitStatement::Expression(e)
-        }),
-    ))(input);
-    match res {
-        Ok((rest, res)) => Ok((rest, res)),
-        Err(nom::Err::Incomplete(needed)) => Err(nom::Err::Incomplete(needed)),
-        Err(_) => Ok((input, InitStatement::Empty)),
-    }
+    let res_expr = match parse_expression(input, st) {
+        Ok((input, vd)) => Ok((input, InitStatement::Expression(vd))),
+        Err(err) => Err(err),
+    };
+
+    let res_vardef = match parse_vardef(input, st) {
+        Ok((input, vd)) => Ok((input, InitStatement::Declaration(vd))),
+        Err(err) => Err(err),
+    };
+
+    let res_empty = Ok((input, InitStatement::Empty));
+
+    res_expr.select(res_vardef).select(res_empty)
 }
 
 /// Parse an attribute that is attached to a statement
@@ -282,11 +271,7 @@ fn parse_statement<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, Statement::Var(var)))
             }
-            let err = match variable_def(input, st) {
-                Ok((rest, statement)) => return Ok((rest, statement)),
-                Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-                Err(e) => e,
-            };
+
             // Try parsing an expression statement
             fn expr_statement<'t>(
                 input: &'t [LexToken],
@@ -296,13 +281,8 @@ fn parse_statement<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, Statement::Expression(expression_statement)))
             }
-            let err = match expr_statement(input, st) {
-                Ok((rest, statement)) => return Ok((rest, statement)),
-                Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-                Err(e) => get_most_relevant_error(err, e),
-            };
-            // Return the most likely error
-            Err(err)
+
+            variable_def(input, st).select(expr_statement(input, st))
         }
     }
 }
@@ -391,6 +371,11 @@ fn test_statement() {
                 init: None,
             }],
         }),
+    );
+    statement.expect_fail(
+        "half g = func(4 * sizeof(uint^7));",
+        ParseErrorReason::WrongToken,
+        29,
     );
 
     // Blocks
@@ -491,5 +476,15 @@ fn test_statement() {
                 Expression::Call("func".as_bvar(27), vec![], vec![]).loc(27),
             )])),
         ),
+    );
+    statement.expect_fail(
+        "for(int a = 0|^; a < 10; a++) func(a);",
+        ParseErrorReason::WrongToken,
+        14,
+    );
+    statement.expect_fail(
+        "for(int a = 0; a < 10 |^; a++) func(a);",
+        ParseErrorReason::WrongToken,
+        23,
     );
 }

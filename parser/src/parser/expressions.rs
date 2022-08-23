@@ -44,27 +44,19 @@ fn expr_in_paren<'t>(
 /// Try to parse one of the base components of an expression
 fn expr_leaf<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
     // Try to parse an expression nested in parenthesis
-    let err = match expr_in_paren(input, st) {
-        Ok(res) => return Ok(res),
-        Err(err) => err,
-    };
+    let res = expr_in_paren(input, st);
 
     // Try to parse a variable identifier
-    let err = match parse_variable_name(input) {
-        Ok((input, name)) => {
-            return Ok((
-                input,
-                Located::new(Expression::Variable(name.node), name.location),
-            ));
-        }
-        Err(e) => get_most_relevant_error(err, e),
-    };
+    let res = res.select(match parse_variable_name(input) {
+        Ok((input, name)) => Ok((
+            input,
+            Located::new(Expression::Variable(name.node), name.location),
+        )),
+        Err(err) => Err(err),
+    });
 
     // Try to parse a literal
-    match expr_literal(input) {
-        Ok(res) => Ok(res),
-        Err(e) => Err(get_most_relevant_error(err, e)),
-    }
+    res.select(expr_literal(input))
 }
 
 /// Parse a list of template arguments
@@ -138,10 +130,23 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
         let (input, start) = parse_token(Token::LeftParen)(input)?;
 
-        let (input, args) = nom::multi::separated_list0(
-            parse_token(Token::Comma),
-            contextual(parse_expression_no_seq, st),
-        )(input)?;
+        let mut input = input;
+        let mut args = Vec::new();
+        if parse_token(Token::RightParen)(input).is_err() {
+            loop {
+                let (rest, arg) = parse_expression_no_seq(input, st)?;
+
+                args.push(arg);
+                input = rest;
+
+                match parse_token(Token::Comma)(input) {
+                    Ok((rest, _)) => {
+                        input = rest;
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
 
         let (input, _) = parse_token(Token::RightParen)(input)?;
 
@@ -169,16 +174,17 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         input: &'t [LexToken],
         st: &SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
-        nom::branch::alt((
-            expr_p1_increment,
-            expr_p1_decrement,
-            |input| expr_p1_call(input, st),
-            expr_p1_member,
-            |input| expr_p1_subscript(input, st),
-        ))(input)
+        expr_p1_increment(input)
+            .select(expr_p1_decrement(input))
+            .select(expr_p1_call(input, st))
+            .select(expr_p1_member(input))
+            .select(expr_p1_subscript(input, st))
     }
 
-    fn cons<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+    fn constructor<'t>(
+        input: &'t [LexToken],
+        st: &SymbolTable,
+    ) -> ParseResult<'t, Located<Expression>> {
         let loc = if !input.is_empty() {
             input[0].1
         } else {
@@ -197,46 +203,63 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         ))
     }
 
-    let input = match cons(input, st) {
-        Ok((rest, rem)) => return Ok((rest, rem)),
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-        Err(_) => input,
-    };
+    fn right_side_ops<'t>(
+        input: &'t [LexToken],
+        st: &SymbolTable,
+    ) -> ParseResult<'t, Located<Expression>> {
+        let (input, left) = expr_leaf(input, st)?;
 
-    let (input, left) = expr_leaf(input, st)?;
-    let (input, rights) = nom::multi::many0(|input| expr_p1_right(input, st))(input)?;
-
-    let expr = {
-        let loc = left.location;
-        let mut final_expression = left;
-        for val in rights.iter() {
-            final_expression = Located::new(
-                match val.node.clone() {
-                    Precedence1Postfix::Increment => Expression::UnaryOperation(
-                        UnaryOp::PostfixIncrement,
-                        Box::new(final_expression),
-                    ),
-                    Precedence1Postfix::Decrement => Expression::UnaryOperation(
-                        UnaryOp::PostfixDecrement,
-                        Box::new(final_expression),
-                    ),
-                    Precedence1Postfix::Call(template_args, args) => {
-                        Expression::Call(Box::new(final_expression), template_args, args)
-                    }
-                    Precedence1Postfix::ArraySubscript(expr) => {
-                        Expression::ArraySubscript(Box::new(final_expression), Box::new(expr))
-                    }
-                    Precedence1Postfix::Member(name) => {
-                        Expression::Member(Box::new(final_expression), name)
-                    }
-                },
-                loc,
-            )
+        // Parse as many operations as we can
+        // If we partially parsed something then fail
+        let mut input = input;
+        let mut rights = Vec::new();
+        loop {
+            match expr_p1_right(input, st) {
+                Ok((rest, right)) => {
+                    input = rest;
+                    rights.push(right);
+                }
+                Err(nom::Err::Error(ParseErrorContext(rest, _))) if rest == input => {
+                    break;
+                }
+                Err(err) => return Err(err),
+            }
         }
-        final_expression
-    };
 
-    Ok((input, expr))
+        let expr = {
+            let loc = left.location;
+            let mut final_expression = left;
+            for val in rights.iter() {
+                final_expression = Located::new(
+                    match val.node.clone() {
+                        Precedence1Postfix::Increment => Expression::UnaryOperation(
+                            UnaryOp::PostfixIncrement,
+                            Box::new(final_expression),
+                        ),
+                        Precedence1Postfix::Decrement => Expression::UnaryOperation(
+                            UnaryOp::PostfixDecrement,
+                            Box::new(final_expression),
+                        ),
+                        Precedence1Postfix::Call(template_args, args) => {
+                            Expression::Call(Box::new(final_expression), template_args, args)
+                        }
+                        Precedence1Postfix::ArraySubscript(expr) => {
+                            Expression::ArraySubscript(Box::new(final_expression), Box::new(expr))
+                        }
+                        Precedence1Postfix::Member(name) => {
+                            Expression::Member(Box::new(final_expression), name)
+                        }
+                    },
+                    loc,
+                )
+            }
+            final_expression
+        };
+
+        Ok((input, expr))
+    }
+
+    constructor(input, st).select(right_side_ops(input, st))
 }
 
 fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
@@ -276,14 +299,12 @@ fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
         Ok((input, Located::new(UnaryOp::BitwiseNot, start.to_loc())))
     }
 
-    nom::branch::alt((
-        unaryop_increment,
-        unaryop_decrement,
-        unaryop_add,
-        unaryop_subtract,
-        unaryop_logical_not,
-        unaryop_bitwise_not,
-    ))(input)
+    unaryop_increment(input)
+        .select(unaryop_decrement(input))
+        .select(unaryop_add(input))
+        .select(unaryop_subtract(input))
+        .select(unaryop_logical_not(input))
+        .select(unaryop_bitwise_not(input))
 }
 
 fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
@@ -327,12 +348,10 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
     }
 
-    nom::branch::alt((
-        |input| expr_p2_unaryop(input, st),
-        |input| expr_p2_cast(input, st),
-        |input| expr_p2_sizeof(input, st),
-        |input| expr_p1(input, st),
-    ))(input)
+    expr_p2_unaryop(input, st)
+        .select(expr_p2_cast(input, st))
+        .select(expr_p2_sizeof(input, st))
+        .select(expr_p1(input, st))
 }
 
 /// Combine binary operations
@@ -1131,6 +1150,18 @@ fn test_expression() {
             .loc(19)],
         )
         .loc(0),
+    );
+
+    expr.expect_fail("func(4 * sizeof(uint|2))", ParseErrorReason::WrongToken, 20);
+    expr.expect_fail(
+        "func(7, 4 * sizeof(uint|2))",
+        ParseErrorReason::WrongToken,
+        23,
+    );
+    expr.expect_fail(
+        "func(4 * sizeof(uint)))",
+        ParseErrorReason::TokensUnconsumed,
+        22,
     );
 
     expr.check(

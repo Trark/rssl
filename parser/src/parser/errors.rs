@@ -89,6 +89,18 @@ pub enum ParseErrorReason {
 /// Result type for internal parse functions
 pub type ParseResult<'t, T> = nom::IResult<&'t [LexToken], T, ParseErrorContext<'t>>;
 
+pub trait ParseResultExt {
+    /// Choose between two results based on the longest amount they parsed
+    /// Favors self over next
+    fn select(self, next: Self) -> Self;
+}
+
+impl<'t, T> ParseResultExt for ParseResult<'t, T> {
+    fn select(self, next: Self) -> Self {
+        get_most_relevant_result(self, next)
+    }
+}
+
 /// Internal error type for propagating error information
 #[derive(PartialEq, Debug, Clone)]
 pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub ParseErrorReason);
@@ -111,21 +123,23 @@ impl<'a> nom::error::ParseError<&'a [LexToken]> for ParseErrorContext<'a> {
     }
 }
 
-/// Find the error with the longest tokens used
-pub fn get_most_relevant_error<'a: 'c, 'b: 'c, 'c>(
-    lhs: nom::Err<ParseErrorContext<'a>>,
-    rhs: nom::Err<ParseErrorContext<'b>>,
-) -> nom::Err<ParseErrorContext<'c>> {
-    let lhs_remaining = match lhs {
-        nom::Err::Incomplete(_) => 0,
-        nom::Err::Error(ParseErrorContext(rest, _)) => rest.len(),
-        nom::Err::Failure(ParseErrorContext(rest, _)) => rest.len(),
-    };
-    let rhs_remaining = match rhs {
-        nom::Err::Incomplete(_) => 0,
-        nom::Err::Error(ParseErrorContext(rest, _)) => rest.len(),
-        nom::Err::Failure(ParseErrorContext(rest, _)) => rest.len(),
-    };
+/// Get the significance value for a result
+fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
+    match result {
+        Ok((rest, _)) => rest.len(),
+        Err(nom::Err::Incomplete(_)) => 0,
+        Err(nom::Err::Error(ParseErrorContext(rest, _))) => rest.len(),
+        Err(nom::Err::Failure(ParseErrorContext(rest, _))) => rest.len(),
+    }
+}
+
+/// Find the result with the longest tokens used
+fn get_most_relevant_result<'a: 'c, 'b: 'c, 'c, T>(
+    lhs: ParseResult<'a, T>,
+    rhs: ParseResult<'b, T>,
+) -> ParseResult<'c, T> {
+    let lhs_remaining = get_result_significance(&lhs);
+    let rhs_remaining = get_result_significance(&rhs);
     if rhs_remaining < lhs_remaining {
         rhs
     } else {

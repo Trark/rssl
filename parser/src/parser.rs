@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 /// Failure cases
 mod errors;
-pub use errors::ParseError;
-use errors::{get_most_relevant_error, ParseErrorContext, ParseErrorReason, ParseResult};
+pub use errors::{ParseError, ParseResultExt};
+use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 
 /// Class of a type name
 enum SymbolType {
