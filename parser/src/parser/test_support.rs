@@ -108,6 +108,31 @@ impl<
         }
     }
 
+    /// Check that a list of tokens parses into the given value
+    #[track_caller]
+    pub fn check_from_tokens(&self, input: &[LexToken], used_tokens: usize, value: T) {
+        self.check_symbolic_from_tokens(input, used_tokens, &SymbolTable::empty(), value);
+    }
+
+    /// Check that a list of tokens string parses into the given value - in the scope of a given symbol table
+    #[track_caller]
+    pub fn check_symbolic_from_tokens(
+        &self,
+        input: &[LexToken],
+        used_tokens: usize,
+        symbols: &SymbolTable,
+        value: T,
+    ) {
+        match (self.0)(input, symbols) {
+            Ok((rem, exp)) if rem == &input[used_tokens..] => {
+                assert_eq!(exp, value);
+            }
+            Ok((rem, _)) => panic!("{:?}", ParseError::from_tokens_remaining(rem)),
+
+            Err(err) => panic!("{:?}", ParseError::from(err)),
+        }
+    }
+
     /// Check that parsing will fail for the given string
     #[track_caller]
     pub fn expect_fail(&self, input: &str, error_reason: ParseErrorReason, offset: u32) {

@@ -151,6 +151,14 @@ fn parse_vardef<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, 
     Ok((input, defs))
 }
 
+#[test]
+fn test_vardef() {
+    use test_support::*;
+    let vardef = ParserTester::new(parse_vardef);
+
+    vardef.check("uint x", VarDef::one("x", Type::uint().into()));
+}
+
 /// Parse the init statement for a for loop
 fn parse_init_statement<'t>(
     input: &'t [LexToken],
@@ -169,6 +177,26 @@ fn parse_init_statement<'t>(
     let res_empty = Ok((input, InitStatement::Empty));
 
     res_expr.select(res_vardef).select(res_empty)
+}
+
+#[test]
+fn test_init_statement() {
+    use test_support::*;
+    let init_statement = ParserTester::new(parse_init_statement);
+
+    init_statement.check("x", InitStatement::Expression("x".as_var(0)));
+    init_statement.check(
+        "uint x",
+        InitStatement::Declaration(VarDef::one("x", Type::uint().into())),
+    );
+    init_statement.check(
+        "uint x = y",
+        InitStatement::Declaration(VarDef::one_with_expr(
+            "x",
+            Type::uint().into(),
+            "y".as_var(9),
+        )),
+    );
 }
 
 /// Parse an attribute that is attached to a statement
@@ -316,14 +344,21 @@ pub fn statement_block<'t>(
 }
 
 #[test]
-fn test_statement() {
+fn test_empty_statement() {
     use test_support::*;
     let statement = ParserTester::new(parse_statement);
 
-    // Empty statement
     statement.check(";", Statement::Empty);
 
-    // Expression statements
+    // This parser should only parse a single empty statement
+    statement.expect_fail(";;", ParseErrorReason::TokensUnconsumed, 1);
+}
+
+#[test]
+fn test_expression_statement() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
     statement.check(
         "func();",
         Statement::Expression(Expression::Call("func".as_bvar(0), vec![], vec![]).loc(0)),
@@ -332,27 +367,13 @@ fn test_statement() {
         " func ( ) ; ",
         Statement::Expression(Expression::Call("func".as_bvar(1), vec![], vec![]).loc(1)),
     );
+}
 
-    // For loop init statement
-    let init_statement = ParserTester::new(parse_init_statement);
-    let vardef = ParserTester::new(parse_vardef);
+#[test]
+fn test_local_variables() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
 
-    init_statement.check("x", InitStatement::Expression("x".as_var(0)));
-    vardef.check("uint x", VarDef::one("x", Type::uint().into()));
-    init_statement.check(
-        "uint x",
-        InitStatement::Declaration(VarDef::one("x", Type::uint().into())),
-    );
-    init_statement.check(
-        "uint x = y",
-        InitStatement::Declaration(VarDef::one_with_expr(
-            "x",
-            Type::uint().into(),
-            "y".as_var(9),
-        )),
-    );
-
-    // Variable declarations
     statement.check(
         "uint x = y;",
         Statement::Var(VarDef::one_with_expr(
@@ -377,8 +398,13 @@ fn test_statement() {
         ParseErrorReason::WrongToken,
         29,
     );
+}
 
-    // Blocks
+#[test]
+fn test_statement_blocks() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
     statement.check(
         "{one();two();}",
         Statement::Block(vec![
@@ -393,8 +419,13 @@ fn test_statement() {
             Statement::Expression(Expression::Call("two".as_bvar(10), vec![], vec![]).loc(10)),
         ]),
     );
+}
 
-    // If statement
+#[test]
+fn test_if() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
     statement.check(
         "if(a)func();",
         Statement::If(
@@ -437,8 +468,13 @@ fn test_statement() {
             )),
         ),
     );
+}
 
-    // While loops
+#[test]
+fn test_while() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
     statement.check(
         "while (a)\n{\n\tone();\n\ttwo();\n}",
         Statement::While(
@@ -449,8 +485,13 @@ fn test_statement() {
             ])),
         ),
     );
+}
 
-    // For loops
+#[test]
+fn test_for() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
     statement.check(
         "for(a;b;c)func();",
         Statement::For(

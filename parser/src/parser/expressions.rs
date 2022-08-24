@@ -685,138 +685,30 @@ pub fn parse_expression_no_seq<'t>(
 }
 
 #[test]
-fn test_expression() {
+fn test_expression_leafs() {
     use test_support::*;
-
-    fn expr(input: &[LexToken]) -> ParseResult<Located<Expression>> {
-        let no_symbols = SymbolTable::empty();
-        parse_expression(input, &no_symbols)
-    }
-
-    assert_eq!(
-        expr(
-            &[
-                Token::Id(Identifier("a".to_string())).loc(0),
-                Token::Asterix.loc(1),
-                Token::Id(Identifier("b".to_string())).loc(2),
-                Token::Eof.loc(3)
-            ][..]
-        ),
-        Ok((
-            &[Token::Eof.loc(3)][..],
-            Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).loc(0)
-        ))
-    );
-
-    let a_id = Identifier("a".to_string());
-    let b_id = Identifier("b".to_string());
-    let c_id = Identifier("c".to_string());
-    let d_id = Identifier("d".to_string());
-    let e_id = Identifier("e".to_string());
-    let f_id = Identifier("f".to_string());
-    let g_id = Identifier("g".to_string());
-
-    // Test `a + b + c` is `((a + b) + c)`
-    let add_chain_tokens = &[
-        Token::Id(a_id.clone()).loc(0),
-        Token::Plus.noloc(),
-        Token::Id(b_id.clone()).loc(1),
-        Token::Plus.noloc(),
-        Token::Id(c_id.clone()).loc(2),
-        Token::Semicolon.noloc(),
-    ];
-    let add_chain_expr = expr(add_chain_tokens);
-    assert_eq!(
-        add_chain_expr,
-        Ok((
-            &[Token::Semicolon.noloc()][..],
-            Expression::BinaryOperation(
-                BinOp::Add,
-                Expression::BinaryOperation(
-                    BinOp::Add,
-                    Expression::Variable(a_id.0.clone()).bloc(0),
-                    Expression::Variable(b_id.0.clone()).bloc(1),
-                )
-                .bloc(0),
-                Expression::Variable(c_id.0.clone()).bloc(2),
-            )
-            .loc(0),
-        ))
-    );
-
-    // Test `a, b, c` is `((a, b), c)`
-    let comma_chain_tokens = &[
-        Token::Id(a_id.clone()).loc(0),
-        Token::Comma.noloc(),
-        Token::Id(b_id.clone()).loc(1),
-        Token::Comma.noloc(),
-        Token::Id(c_id.clone()).loc(2),
-        Token::Semicolon.noloc(),
-    ];
-    let comma_chain_expr = expr(comma_chain_tokens);
-    assert_eq!(
-        comma_chain_expr,
-        Ok((
-            &[Token::Semicolon.noloc()][..],
-            Expression::BinaryOperation(
-                BinOp::Sequence,
-                Expression::BinaryOperation(
-                    BinOp::Sequence,
-                    Expression::Variable(a_id.0.clone()).bloc(0),
-                    Expression::Variable(b_id.0.clone()).bloc(1),
-                )
-                .bloc(0),
-                Expression::Variable(c_id.0.clone()).bloc(2),
-            )
-            .loc(0)
-        ))
-    );
-
-    // Test `a ? b ? c : d : e ? f : g` is `a ? (b ? c : d) : (e ? f : g)`
-    let nested_ternary_tokens = &[
-        Token::Id(a_id.clone()).loc(0),
-        Token::QuestionMark.noloc(),
-        Token::Id(b_id.clone()).loc(1),
-        Token::QuestionMark.noloc(),
-        Token::Id(c_id.clone()).loc(2),
-        Token::Colon.noloc(),
-        Token::Id(d_id.clone()).loc(3),
-        Token::Colon.noloc(),
-        Token::Id(e_id.clone()).loc(4),
-        Token::QuestionMark.noloc(),
-        Token::Id(f_id.clone()).loc(5),
-        Token::Colon.noloc(),
-        Token::Id(g_id.clone()).loc(6),
-        Token::Semicolon.noloc(),
-    ];
-    let comma_chain_expr = expr(nested_ternary_tokens);
-    assert_eq!(
-        comma_chain_expr,
-        Ok((
-            &[Token::Semicolon.noloc()][..],
-            Expression::TernaryConditional(
-                Expression::Variable(a_id.0).bloc(0),
-                Expression::TernaryConditional(
-                    Expression::Variable(b_id.0).bloc(1),
-                    Expression::Variable(c_id.0).bloc(2),
-                    Expression::Variable(d_id.0).bloc(3),
-                )
-                .bloc(1),
-                Expression::TernaryConditional(
-                    Expression::Variable(e_id.0).bloc(4),
-                    Expression::Variable(f_id.0).bloc(5),
-                    Expression::Variable(g_id.0).bloc(6),
-                )
-                .bloc(4),
-            )
-            .loc(0)
-        ))
-    );
-
     let expr = ParserTester::new(parse_expression);
 
     expr.check("a", "a".as_var(0));
     expr.check("4", Expression::Literal(Literal::UntypedInt(4)).loc(0));
+}
+
+#[test]
+fn test_binary_op_single() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    expr.check_from_tokens(
+        &[
+            Token::Id(Identifier("a".to_string())).loc(0),
+            Token::Asterix.loc(1),
+            Token::Id(Identifier("b".to_string())).loc(2),
+            Token::Eof.loc(3),
+        ],
+        3,
+        Expression::BinaryOperation(BinOp::Multiply, "a".as_bvar(0), "b".as_bvar(2)).loc(0),
+    );
+
     expr.check(
         "a+b",
         Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(2)).loc(0),
@@ -829,6 +721,65 @@ fn test_expression() {
         "a + b",
         Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
     );
+
+    expr.check(
+        "a << b",
+        Expression::BinaryOperation(BinOp::LeftShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a >> b",
+        Expression::BinaryOperation(BinOp::RightShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a < b",
+        Expression::BinaryOperation(BinOp::LessThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a <= b",
+        Expression::BinaryOperation(BinOp::LessEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a > b",
+        Expression::BinaryOperation(BinOp::GreaterThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a >= b",
+        Expression::BinaryOperation(BinOp::GreaterEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a == b",
+        Expression::BinaryOperation(BinOp::Equality, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a != b",
+        Expression::BinaryOperation(BinOp::Inequality, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a & b",
+        Expression::BinaryOperation(BinOp::BitwiseAnd, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a | b",
+        Expression::BinaryOperation(BinOp::BitwiseOr, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a ^ b",
+        Expression::BinaryOperation(BinOp::BitwiseXor, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
+    );
+    expr.check(
+        "a && b",
+        Expression::BinaryOperation(BinOp::BooleanAnd, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+    expr.check(
+        "a || b",
+        Expression::BinaryOperation(BinOp::BooleanOr, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
+    );
+}
+
+#[test]
+fn test_binary_op_multi() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
 
     expr.check(
         "a-b+c",
@@ -912,9 +863,103 @@ fn test_expression() {
         .loc(0),
     );
 
+    // Test `a + b + c` is `((a + b) + c)`
+    expr.check_from_tokens(
+        &[
+            Token::Id(Identifier("a".to_string())).loc(0),
+            Token::Plus.noloc(),
+            Token::Id(Identifier("b".to_string())).loc(1),
+            Token::Plus.noloc(),
+            Token::Id(Identifier("c".to_string())).loc(2),
+            Token::Semicolon.noloc(),
+        ],
+        5,
+        Expression::BinaryOperation(
+            BinOp::Add,
+            Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(1)).bloc(0),
+            "c".as_bvar(2),
+        )
+        .loc(0),
+    );
+}
+
+#[test]
+fn test_invalid_op_symbols() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    //compile_error!("refactor this");
+
+    expr.expect_fail("a < < b", ParseErrorReason::WrongToken, 4);
+    expr.expect_fail("a > > b", ParseErrorReason::WrongToken, 4);
+    expr.expect_fail("a < = b", ParseErrorReason::WrongToken, 4);
+    expr.expect_fail("a > = b", ParseErrorReason::WrongToken, 4);
+    // These pass with a sub expression - needs investigation
+    expr.expect_fail("a = = b", ParseErrorReason::TokensUnconsumed, 2);
+    expr.expect_fail("a ! = b", ParseErrorReason::TokensUnconsumed, 2);
+}
+
+#[test]
+fn test_unary_op() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    expr.check(
+        "a++",
+        Expression::UnaryOperation(UnaryOp::PostfixIncrement, "a".as_bvar(0)).loc(0),
+    );
+    expr.check(
+        "a--",
+        Expression::UnaryOperation(UnaryOp::PostfixDecrement, "a".as_bvar(0)).loc(0),
+    );
+    expr.check(
+        "++a",
+        Expression::UnaryOperation(UnaryOp::PrefixIncrement, "a".as_bvar(2)).loc(0),
+    );
+    expr.check(
+        "--a",
+        Expression::UnaryOperation(UnaryOp::PrefixDecrement, "a".as_bvar(2)).loc(0),
+    );
+    expr.check(
+        "+a",
+        Expression::UnaryOperation(UnaryOp::Plus, "a".as_bvar(1)).loc(0),
+    );
+    expr.check(
+        "-a",
+        Expression::UnaryOperation(UnaryOp::Minus, "a".as_bvar(1)).loc(0),
+    );
+    expr.check(
+        "!a",
+        Expression::UnaryOperation(UnaryOp::LogicalNot, "a".as_bvar(1)).loc(0),
+    );
+    expr.check(
+        "~a",
+        Expression::UnaryOperation(UnaryOp::BitwiseNot, "a".as_bvar(1)).loc(0),
+    );
+}
+
+#[test]
+fn test_cast() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    expr.check(
+        "(float) b",
+        Expression::Cast(Type::float().loc(1), "b".as_bvar(8)).loc(0),
+    );
+
     expr.check(
         "(float3) x",
         Expression::Cast(Type::floatn(3).loc(1), "x".as_bvar(9)).loc(0),
+    );
+
+    expr.check(
+        "float2(b)",
+        Expression::NumericConstructor(
+            DataLayout::Vector(ScalarType::Float, 2),
+            vec!["b".as_var(7)],
+        )
+        .loc(0),
     );
 
     let ambiguous_sum_or_cast = "(a) + (b)";
@@ -956,100 +1001,12 @@ fn test_expression() {
         cons.loc(0)
     };
     expr.check(fake_cons, fake_cons_out);
+}
 
-    expr.check(
-        "a++",
-        Expression::UnaryOperation(UnaryOp::PostfixIncrement, "a".as_bvar(0)).loc(0),
-    );
-    expr.check(
-        "a--",
-        Expression::UnaryOperation(UnaryOp::PostfixDecrement, "a".as_bvar(0)).loc(0),
-    );
-    expr.check(
-        "++a",
-        Expression::UnaryOperation(UnaryOp::PrefixIncrement, "a".as_bvar(2)).loc(0),
-    );
-    expr.check(
-        "--a",
-        Expression::UnaryOperation(UnaryOp::PrefixDecrement, "a".as_bvar(2)).loc(0),
-    );
-    expr.check(
-        "+a",
-        Expression::UnaryOperation(UnaryOp::Plus, "a".as_bvar(1)).loc(0),
-    );
-    expr.check(
-        "-a",
-        Expression::UnaryOperation(UnaryOp::Minus, "a".as_bvar(1)).loc(0),
-    );
-    expr.check(
-        "!a",
-        Expression::UnaryOperation(UnaryOp::LogicalNot, "a".as_bvar(1)).loc(0),
-    );
-    expr.check(
-        "~a",
-        Expression::UnaryOperation(UnaryOp::BitwiseNot, "a".as_bvar(1)).loc(0),
-    );
-
-    expr.check(
-        "a << b",
-        Expression::BinaryOperation(BinOp::LeftShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a >> b",
-        Expression::BinaryOperation(BinOp::RightShift, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a < b",
-        Expression::BinaryOperation(BinOp::LessThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
-    );
-    expr.check(
-        "a <= b",
-        Expression::BinaryOperation(BinOp::LessEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a > b",
-        Expression::BinaryOperation(BinOp::GreaterThan, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
-    );
-    expr.check(
-        "a >= b",
-        Expression::BinaryOperation(BinOp::GreaterEqual, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a == b",
-        Expression::BinaryOperation(BinOp::Equality, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a != b",
-        Expression::BinaryOperation(BinOp::Inequality, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a & b",
-        Expression::BinaryOperation(BinOp::BitwiseAnd, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
-    );
-    expr.check(
-        "a | b",
-        Expression::BinaryOperation(BinOp::BitwiseOr, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
-    );
-    expr.check(
-        "a ^ b",
-        Expression::BinaryOperation(BinOp::BitwiseXor, "a".as_bvar(0), "b".as_bvar(4)).loc(0),
-    );
-    expr.check(
-        "a && b",
-        Expression::BinaryOperation(BinOp::BooleanAnd, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-    expr.check(
-        "a || b",
-        Expression::BinaryOperation(BinOp::BooleanOr, "a".as_bvar(0), "b".as_bvar(5)).loc(0),
-    );
-
-    expr.expect_fail("a < < b", ParseErrorReason::WrongToken, 4);
-    expr.expect_fail("a > > b", ParseErrorReason::WrongToken, 4);
-    expr.expect_fail("a < = b", ParseErrorReason::WrongToken, 4);
-    expr.expect_fail("a > = b", ParseErrorReason::WrongToken, 4);
-    // These pass with a sub expression - needs investigation
-    expr.expect_fail("a = = b", ParseErrorReason::TokensUnconsumed, 2);
-    expr.expect_fail("a ! = b", ParseErrorReason::TokensUnconsumed, 2);
+#[test]
+fn test_array_index() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
 
     expr.check(
         "a[b]",
@@ -1081,11 +1038,23 @@ fn test_expression() {
         )
         .loc(1),
     );
+}
+
+#[test]
+fn test_sizeof() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
 
     expr.check(
         " sizeof ( float4 ) ",
         Expression::SizeOf(Type::floatn(4).loc(10)).loc(1),
     );
+}
+
+#[test]
+fn test_method_call() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
 
     expr.check(
         "array.Load",
@@ -1151,32 +1120,12 @@ fn test_expression() {
         )
         .loc(0),
     );
+}
 
-    expr.expect_fail("func(4 * sizeof(uint|2))", ParseErrorReason::WrongToken, 20);
-    expr.expect_fail(
-        "func(7, 4 * sizeof(uint|2))",
-        ParseErrorReason::WrongToken,
-        23,
-    );
-    expr.expect_fail(
-        "func(4 * sizeof(uint)))",
-        ParseErrorReason::TokensUnconsumed,
-        22,
-    );
-
-    expr.check(
-        "(float) b",
-        Expression::Cast(Type::float().loc(1), "b".as_bvar(8)).loc(0),
-    );
-
-    expr.check(
-        "float2(b)",
-        Expression::NumericConstructor(
-            DataLayout::Vector(ScalarType::Float, 2),
-            vec!["b".as_var(7)],
-        )
-        .loc(0),
-    );
+#[test]
+fn test_assignment() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
 
     expr.check(
         "a = b",
@@ -1191,6 +1140,12 @@ fn test_expression() {
         )
         .loc(0),
     );
+}
+
+#[test]
+fn test_assignment_with_operators() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
 
     expr.check(
         "a += b",
@@ -1202,26 +1157,63 @@ fn test_expression() {
         Expression::BinaryOperation(BinOp::DifferenceAssignment, "a".as_bvar(0), "b".as_bvar(5))
             .loc(0),
     );
+
     expr.check(
         "a *= b",
         Expression::BinaryOperation(BinOp::ProductAssignment, "a".as_bvar(0), "b".as_bvar(5))
             .loc(0),
     );
+
     expr.check(
         "a /= b",
         Expression::BinaryOperation(BinOp::QuotientAssignment, "a".as_bvar(0), "b".as_bvar(5))
             .loc(0),
     );
+
     expr.check(
         "a %= b",
         Expression::BinaryOperation(BinOp::RemainderAssignment, "a".as_bvar(0), "b".as_bvar(5))
             .loc(0),
     );
+}
 
+#[test]
+fn test_sequence_order() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    // Test `a, b, c` is `((a, b), c)`
+    expr.check_from_tokens(
+        &[
+            Token::Id(Identifier("a".to_string())).loc(0),
+            Token::Comma.noloc(),
+            Token::Id(Identifier("b".to_string())).loc(1),
+            Token::Comma.noloc(),
+            Token::Id(Identifier("c".to_string())).loc(2),
+            Token::Semicolon.noloc(),
+        ],
+        5,
+        Expression::BinaryOperation(
+            BinOp::Sequence,
+            Expression::BinaryOperation(BinOp::Sequence, "a".as_bvar(0), "b".as_bvar(1)).bloc(0),
+            "c".as_bvar(2),
+        )
+        .loc(0),
+    );
+}
+
+#[test]
+fn test_ternary() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    // Check basic form
     expr.check(
         "a ? b : c",
         Expression::TernaryConditional("a".as_bvar(0), "b".as_bvar(4), "c".as_bvar(8)).loc(0),
     );
+
+    // Test this is `a ? (b ? c : d) : e`
     expr.check(
         "a ? b ? c : d : e",
         Expression::TernaryConditional(
@@ -1231,6 +1223,8 @@ fn test_expression() {
         )
         .loc(0),
     );
+
+    // Test this is `a ? b : (c ? d : e)`
     expr.check(
         "a ? b : c ? d : e",
         Expression::TernaryConditional(
@@ -1241,6 +1235,8 @@ fn test_expression() {
         )
         .loc(0),
     );
+
+    // Test this is `a ? (b ? c : d) : (e ? f : g)`
     expr.check(
         "a ? b ? c : d : e ? f : g",
         Expression::TernaryConditional(
@@ -1250,5 +1246,50 @@ fn test_expression() {
                 .bloc(16),
         )
         .loc(0),
+    );
+
+    // Test `a ? b ? c : d : e ? f : g` from tokens is `a ? (b ? c : d) : (e ? f : g)`
+    expr.check_from_tokens(
+        &[
+            Token::Id(Identifier("a".to_string())).loc(0),
+            Token::QuestionMark.noloc(),
+            Token::Id(Identifier("b".to_string())).loc(1),
+            Token::QuestionMark.noloc(),
+            Token::Id(Identifier("c".to_string())).loc(2),
+            Token::Colon.noloc(),
+            Token::Id(Identifier("d".to_string())).loc(3),
+            Token::Colon.noloc(),
+            Token::Id(Identifier("e".to_string())).loc(4),
+            Token::QuestionMark.noloc(),
+            Token::Id(Identifier("f".to_string())).loc(5),
+            Token::Colon.noloc(),
+            Token::Id(Identifier("g".to_string())).loc(6),
+            Token::Semicolon.noloc(),
+        ],
+        13,
+        Expression::TernaryConditional(
+            "a".as_bvar(0),
+            Expression::TernaryConditional("b".as_bvar(1), "c".as_bvar(2), "d".as_bvar(3)).bloc(1),
+            Expression::TernaryConditional("e".as_bvar(4), "f".as_bvar(5), "g".as_bvar(6)).bloc(4),
+        )
+        .loc(0),
+    );
+}
+
+#[test]
+fn test_expression_fail_locations() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    expr.expect_fail("func(4 * sizeof(uint|2))", ParseErrorReason::WrongToken, 20);
+    expr.expect_fail(
+        "func(7, 4 * sizeof(uint|2))",
+        ParseErrorReason::WrongToken,
+        23,
+    );
+    expr.expect_fail(
+        "func(4 * sizeof(uint)))",
+        ParseErrorReason::TokensUnconsumed,
+        22,
     );
 }
