@@ -46,7 +46,7 @@ pub enum RowOrder {
 }
 
 /// Storage type for global variables
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum GlobalStorage {
     // Input from outside the shader (default)
     Extern,
@@ -70,7 +70,7 @@ pub enum LocalStorage {
 }
 
 /// Binding type for parameters
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum InputModifier {
     /// Function input
     In,
@@ -81,7 +81,7 @@ pub enum InputModifier {
 }
 
 /// Modifier applied to a variable interpolated between stages
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum InterpolationModifier {
     NoInterpolation,
     Linear,
@@ -219,6 +219,38 @@ impl std::fmt::Debug for DataLayout {
             DataLayout::Scalar(st) => write!(f, "{:?}", st),
             DataLayout::Vector(st, x) => write!(f, "{:?}{}", st, x),
             DataLayout::Matrix(st, x, y) => write!(f, "{:?}{}x{}", st, x, y),
+        }
+    }
+}
+
+impl std::fmt::Debug for GlobalStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GlobalStorage::Extern => write!(f, "extern"),
+            GlobalStorage::Static => write!(f, "static"),
+            GlobalStorage::GroupShared => write!(f, "groupshared"),
+        }
+    }
+}
+
+impl std::fmt::Debug for InputModifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            InputModifier::In => write!(f, "in"),
+            InputModifier::Out => write!(f, "out"),
+            InputModifier::InOut => write!(f, "inout"),
+        }
+    }
+}
+
+impl std::fmt::Debug for InterpolationModifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            InterpolationModifier::NoInterpolation => write!(f, "nointerpolation"),
+            InterpolationModifier::Linear => write!(f, "linear"),
+            InterpolationModifier::Centroid => write!(f, "centroid"),
+            InterpolationModifier::NoPerspective => write!(f, "noperspective"),
+            InterpolationModifier::Sample => write!(f, "sample"),
         }
     }
 }
