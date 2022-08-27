@@ -107,6 +107,14 @@ pub enum Semantic {
     User(String),
 }
 
+impl DataType {
+    pub const fn as_const(self) -> DataType {
+        let DataType(layout, mut modifier) = self;
+        modifier.is_const = true;
+        DataType(layout, modifier)
+    }
+}
+
 impl DataLayout {
     /// Construct a data layout from a scalar type part and the dimension part
     pub const fn new(scalar: ScalarType, dim: NumericDimension) -> DataLayout {
@@ -152,7 +160,7 @@ impl TypeModifier {
         !self.is_const && self.row_order == RowOrder::Column && !self.precise && !self.volatile
     }
 
-    /// Test if we are const and no other modifiers
+    /// Create a modifier which is const
     pub fn const_only() -> TypeModifier {
         TypeModifier {
             is_const: true,
