@@ -43,6 +43,7 @@ fn check_structs() {
     check_types("struct S {}; void main() { S value; }");
     check_fail("struct S {}; void main() { S value = 0; }");
     check_types("struct S1 {}; struct S2 {}; S1 g1; S2 g2;");
+    check_fail("struct S {}; struct S {};");
 }
 
 #[test]

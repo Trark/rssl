@@ -164,24 +164,15 @@ fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
     loop {
         let last_def = parse_root_definition_with_semicolon(rest, &symbol_table);
         if let Ok((remaining, root)) = last_def {
+            // Remember symbol names that may be used in type contexts later
+            // If there are duplicate symbols then overwrite for now
+            // We expect duplicates to be dealt with later during type checking
             match root {
                 RootDefinition::Struct(ref sd) => {
-                    match symbol_table.0.insert(sd.name.clone(), SymbolType::Struct) {
-                        Some(_) => {
-                            let reason = ParseErrorReason::DuplicateStructSymbol;
-                            return Err(nom::Err::Error(ParseErrorContext(input, reason)));
-                        }
-                        None => {}
-                    }
+                    symbol_table.0.insert(sd.name.clone(), SymbolType::Struct);
                 }
                 RootDefinition::Enum(ref ed) => {
-                    match symbol_table.0.insert(ed.name.clone(), SymbolType::Enum) {
-                        Some(_) => {
-                            let reason = ParseErrorReason::DuplicateEnumSymbol;
-                            return Err(nom::Err::Error(ParseErrorContext(input, reason)));
-                        }
-                        None => {}
-                    }
+                    symbol_table.0.insert(ed.name.clone(), SymbolType::Enum);
                 }
                 _ => {}
             }
