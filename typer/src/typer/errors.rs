@@ -59,6 +59,21 @@ pub enum TyperError {
     LvalueRequired,
     ArrayDimensionsMustBeConstantExpression(ast::Expression),
     ArrayDimensionNotSpecified,
+
+    /// Failed to find member of a constant buffer
+    ConstantDoesNotExist(ir::ConstantBufferId, String),
+
+    /// Failed to find member of a struct
+    StructMemberDoesNotExist(ir::StructId, String),
+
+    /// Swizzle is not allowed on the type
+    InvalidTypeForSwizzle(ir::TypeLayout),
+
+    /// Attempted to use member access on a non-composite type
+    MemberNodeMustBeUsedOnStruct(ir::TypeLayout, String),
+
+    /// Attempted to index into a non-indexable type
+    ArrayIndexMustBeUsedOnArrayType(ir::TypeLayout),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -221,6 +236,21 @@ impl std::fmt::Display for TyperError {
                 write!(f, "array dimensions must be constant")
             }
             TyperError::ArrayDimensionNotSpecified => write!(f, "array not given any dimensions"),
+            TyperError::ConstantDoesNotExist(_, name) => {
+                write!(f, "Constant buffer does not contain member '{}'", name)
+            }
+            TyperError::StructMemberDoesNotExist(_, name) => {
+                write!(f, "Struct does not contain member '{}'", name)
+            }
+            TyperError::InvalidTypeForSwizzle(_) => {
+                write!(f, "Invalid use of swizzle operation")
+            }
+            TyperError::MemberNodeMustBeUsedOnStruct(_, name) => {
+                write!(f, "Non-aggregate type can not contain member '{}'", name)
+            }
+            TyperError::ArrayIndexMustBeUsedOnArrayType(_) => {
+                write!(f, "Non-indexable type can not be indexed")
+            }
         }
     }
 }

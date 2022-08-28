@@ -11,16 +11,14 @@ use super::types::parse_type;
 /// Type check a list of ast statements into ir statements
 pub fn parse_statement_list(
     ast: &[ast::Statement],
-    context: ScopeContext,
-) -> TyperResult<(Vec<ir::Statement>, ScopeContext)> {
-    let mut context = context;
+    context: &mut Context,
+) -> TyperResult<Vec<ir::Statement>> {
     let mut body_ir = vec![];
     for statement_ast in ast {
-        let (mut statement_ir_vec, next_context) = parse_statement(statement_ast, context)?;
+        let mut statement_ir_vec = parse_statement(statement_ast, context)?;
         body_ir.append(&mut statement_ir_vec);
-        context = next_context;
     }
-    Ok((body_ir, context))
+    Ok(body_ir)
 }
 
 /// Parse the statement inside a block caused by an statement (if, for, while, etc),
@@ -39,109 +37,108 @@ pub fn parse_statement_list(
 /// block_context is consumed and turned into a declarations list because all uses
 /// of this execute it on the inner statement as the last operation in parsing a
 /// loop
-fn parse_scopeblock(
-    ast: &ast::Statement,
-    block_context: ScopeContext,
-) -> TyperResult<ir::ScopeBlock> {
+fn parse_scopeblock(ast: &ast::Statement, context: &mut Context) -> TyperResult<ir::ScopeBlock> {
     match *ast {
         ast::Statement::Block(ref statement_vec) => {
-            let (statements, block_context) = parse_statement_list(statement_vec, block_context)?;
-            Ok(ir::ScopeBlock(statements, block_context.destruct()))
+            let statements = parse_statement_list(statement_vec, context)?;
+            Ok(ir::ScopeBlock(statements, context.pop_scope_with_locals()))
         }
         _ => {
-            let (ir_statements, block_context) = parse_statement(ast, block_context)?;
-            Ok(ir::ScopeBlock(ir_statements, block_context.destruct()))
+            let ir_statements = parse_statement(ast, context)?;
+            Ok(ir::ScopeBlock(
+                ir_statements,
+                context.pop_scope_with_locals(),
+            ))
         }
     }
 }
 
 /// Process a single statement
-fn parse_statement(
-    ast: &ast::Statement,
-    context: ScopeContext,
-) -> TyperResult<(Vec<ir::Statement>, ScopeContext)> {
+fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<Vec<ir::Statement>> {
     match ast {
-        ast::Statement::Empty => Ok((vec![], context)),
+        ast::Statement::Empty => Ok(vec![]),
         ast::Statement::Expression(ref expr) => {
-            let (expr_ir, _) = parse_expr(expr, &context)?;
-            Ok((vec![ir::Statement::Expression(expr_ir)], context))
+            let (expr_ir, _) = parse_expr(expr, context)?;
+            Ok(vec![ir::Statement::Expression(expr_ir)])
         }
         ast::Statement::Var(ref vd) => {
-            let (vd_ir, context) = parse_vardef(vd, context)?;
+            let vd_ir = parse_vardef(vd, context)?;
             let vars = vd_ir
                 .into_iter()
                 .map(ir::Statement::Var)
                 .collect::<Vec<_>>();
-            Ok((vars, context))
+            Ok(vars)
         }
         ast::Statement::Block(ref statement_vec) => {
-            let scoped_context = ScopeContext::from_scope(&context);
-            let (statements, scoped_context) = parse_statement_list(statement_vec, scoped_context)?;
-            let decls = scoped_context.destruct();
-            Ok((
-                vec![ir::Statement::Block(ir::ScopeBlock(statements, decls))],
-                context,
-            ))
+            context.push_scope();
+            let statements = parse_statement_list(statement_vec, context)?;
+            let decls = context.pop_scope_with_locals();
+            Ok(vec![ir::Statement::Block(ir::ScopeBlock(
+                statements, decls,
+            ))])
         }
         ast::Statement::If(ref cond, ref statement) => {
-            let scoped_context = ScopeContext::from_scope(&context);
-            let cond_ir = parse_expr(cond, &scoped_context)?.0;
-            let scope_block = parse_scopeblock(statement, scoped_context)?;
-            Ok((vec![ir::Statement::If(cond_ir, scope_block)], context))
+            context.push_scope();
+            let cond_ir = parse_expr(cond, context)?.0;
+            let scope_block = parse_scopeblock(statement, context)?;
+            Ok(vec![ir::Statement::If(cond_ir, scope_block)])
         }
         ast::Statement::IfElse(ref cond, ref true_statement, ref false_statement) => {
-            let cond_ir = parse_expr(cond, &context)?.0;
-            let scoped_context = ScopeContext::from_scope(&context);
-            let scope_block = parse_scopeblock(true_statement, scoped_context)?;
-            let scoped_context = ScopeContext::from_scope(&context);
-            let else_block = parse_scopeblock(false_statement, scoped_context)?;
-            Ok((
-                vec![ir::Statement::IfElse(cond_ir, scope_block, else_block)],
-                context,
-            ))
+            context.push_scope();
+            let cond_ir = parse_expr(cond, context)?.0;
+            let scope_block = parse_scopeblock(true_statement, context)?;
+            context.push_scope();
+            let else_block = parse_scopeblock(false_statement, context)?;
+            Ok(vec![ir::Statement::IfElse(
+                cond_ir,
+                scope_block,
+                else_block,
+            )])
         }
         ast::Statement::For(ref init, ref cond, ref iter, ref statement) => {
-            let scoped_context = ScopeContext::from_scope(&context);
-            let (init_ir, scoped_context) = parse_for_init(init, scoped_context)?;
-            let cond_ir = parse_expr(cond, &scoped_context)?.0;
-            let iter_ir = parse_expr(iter, &scoped_context)?.0;
-            let scope_block = parse_scopeblock(statement, scoped_context)?;
-            Ok((
-                vec![ir::Statement::For(init_ir, cond_ir, iter_ir, scope_block)],
-                context,
-            ))
+            context.push_scope();
+            let init_ir = parse_for_init(init, context)?;
+            let cond_ir = parse_expr(cond, context)?.0;
+            let iter_ir = parse_expr(iter, context)?.0;
+            let scope_block = parse_scopeblock(statement, context)?;
+            Ok(vec![ir::Statement::For(
+                init_ir,
+                cond_ir,
+                iter_ir,
+                scope_block,
+            )])
         }
         ast::Statement::While(ref cond, ref statement) => {
-            let scoped_context = ScopeContext::from_scope(&context);
-            let cond_ir = parse_expr(cond, &scoped_context)?.0;
-            let scope_block = parse_scopeblock(statement, scoped_context)?;
-            Ok((vec![ir::Statement::While(cond_ir, scope_block)], context))
+            context.push_scope();
+            let cond_ir = parse_expr(cond, context)?.0;
+            let scope_block = parse_scopeblock(statement, context)?;
+            Ok(vec![ir::Statement::While(cond_ir, scope_block)])
         }
-        ast::Statement::Break => Ok((vec![ir::Statement::Break], context)),
-        ast::Statement::Continue => Ok((vec![ir::Statement::Continue], context)),
+        ast::Statement::Break => Ok(vec![ir::Statement::Break]),
+        ast::Statement::Continue => Ok(vec![ir::Statement::Continue]),
         ast::Statement::Return(Some(ref expr)) => {
-            let (expr_ir, expr_ty) = parse_expr(expr, &context)?;
-            match ImplicitConversion::find(&expr_ty, &context.get_return_type().to_rvalue()) {
-                Ok(rhs_cast) => Ok((
-                    vec![ir::Statement::Return(Some(rhs_cast.apply(expr_ir)))],
-                    context,
-                )),
+            let (expr_ir, expr_ty) = parse_expr(expr, context)?;
+            match ImplicitConversion::find(&expr_ty, &context.get_current_return_type().to_rvalue())
+            {
+                Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(rhs_cast.apply(expr_ir)))]),
                 Err(()) => Err(TyperError::WrongTypeInReturnStatement),
             }
         }
-        ast::Statement::Return(None) => Ok((vec![ir::Statement::Return(None)], context)),
+        ast::Statement::Return(None) => {
+            if context.get_current_return_type().is_void() {
+                Ok(Vec::from([ir::Statement::Return(None)]))
+            } else {
+                Err(TyperError::WrongTypeInReturnStatement)
+            }
+        }
     }
 }
 
 /// Process a variable definition
-fn parse_vardef(
-    ast: &ast::VarDef,
-    context: ScopeContext,
-) -> TyperResult<(Vec<ir::VarDef>, ScopeContext)> {
-    let base_type = parse_localtype(&ast.local_type, &context)?;
+fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir::VarDef>> {
+    let base_type = parse_localtype(&ast.local_type, context)?;
 
     // Build multiple output VarDefs for each variable inside the source VarDef
-    let mut context = context;
     let mut vardefs = vec![];
     for local_variable in &ast.defs {
         // Get variable name
@@ -154,7 +151,7 @@ fn parse_vardef(
         let lv_type = ir::LocalType(lv_tyl, ls, interp);
 
         // Parse the initializer
-        let var_init = parse_initializer_opt(&local_variable.init, &(lv_type.0).0, &context)?;
+        let var_init = parse_initializer_opt(&local_variable.init, &(lv_type.0).0, context)?;
 
         // Register the variable
         let var_id = context.insert_variable(var_name.clone(), lv_type.0.clone())?;
@@ -167,15 +164,12 @@ fn parse_vardef(
         });
     }
 
-    Ok((vardefs, context))
+    Ok(vardefs)
 }
 
 /// Convert a type for a local variable
-fn parse_localtype(
-    local_type: &ast::LocalType,
-    struct_finder: &dyn StructIdFinder,
-) -> TyperResult<ir::LocalType> {
-    let ty = parse_type(&local_type.0, struct_finder)?;
+fn parse_localtype(local_type: &ast::LocalType, context: &Context) -> TyperResult<ir::LocalType> {
+    let ty = parse_type(&local_type.0, context)?;
     Ok(ir::LocalType(
         ty,
         local_type.1.clone(),
@@ -244,7 +238,7 @@ fn evaluate_constexpr_int(expr: &ast::Expression) -> Result<u64, ()> {
 pub fn parse_initializer_opt(
     init_opt: &Option<ast::Initializer>,
     tyl: &ir::TypeLayout,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<Option<ir::Initializer>> {
     Ok(match *init_opt {
         Some(ref init) => Some(parse_initializer(init, tyl, context)?),
@@ -256,7 +250,7 @@ pub fn parse_initializer_opt(
 fn parse_initializer(
     init: &ast::Initializer,
     tyl: &ir::TypeLayout,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<ir::Initializer> {
     Ok(match *init {
         ast::Initializer::Expression(ref expr) => {
@@ -277,7 +271,7 @@ fn parse_initializer(
             fn build_elements(
                 ety: &ExpressionType,
                 inits: &[ast::Initializer],
-                context: &dyn ExpressionContext,
+                context: &Context,
             ) -> TyperResult<Vec<ir::Initializer>> {
                 let mut elements = Vec::with_capacity(inits.len());
                 for init in inits {
@@ -324,19 +318,16 @@ fn parse_initializer(
 }
 
 /// Process a for loop init expression
-fn parse_for_init(
-    ast: &ast::InitStatement,
-    context: ScopeContext,
-) -> TyperResult<(ir::ForInit, ScopeContext)> {
+fn parse_for_init(ast: &ast::InitStatement, context: &mut Context) -> TyperResult<ir::ForInit> {
     match *ast {
-        ast::InitStatement::Empty => Ok((ir::ForInit::Empty, context)),
+        ast::InitStatement::Empty => Ok(ir::ForInit::Empty),
         ast::InitStatement::Expression(ref expr) => {
-            let expr_ir = parse_expr(expr, &context)?.0;
-            Ok((ir::ForInit::Expression(expr_ir), context))
+            let expr_ir = parse_expr(expr, context)?.0;
+            Ok(ir::ForInit::Expression(expr_ir))
         }
         ast::InitStatement::Declaration(ref vd) => {
-            let (vd_ir, context) = parse_vardef(vd, context)?;
-            Ok((ir::ForInit::Definitions(vd_ir), context))
+            let vd_ir = parse_vardef(vd, context)?;
+            Ok(ir::ForInit::Definitions(vd_ir))
         }
     }
 }

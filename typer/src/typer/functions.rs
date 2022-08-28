@@ -16,19 +16,16 @@ pub struct FunctionOverload(pub FunctionName, pub ir::Type, pub Vec<ir::ParamTyp
 
 pub fn parse_rootdefinition_function(
     fd: &ast::FunctionDefinition,
-    mut context: GlobalContext,
-) -> TyperResult<(ir::RootDefinition, GlobalContext)> {
-    let return_type = parse_returntype(&fd.returntype, &context)?;
-    // Set the return type of the current function (for return statement parsing)
-    assert_eq!(context.current_return_type, None);
-    context.current_return_type = Some(return_type.return_type.clone());
-
-    let mut scoped_context = ScopeContext::from_global(&context);
+    context: &mut Context,
+) -> TyperResult<ir::RootDefinition> {
+    let return_type = parse_returntype(&fd.returntype, context)?;
+    // We save the return type of the current function for return statement parsing
+    context.push_function_scope(return_type.return_type.clone());
     let func_params = {
         let mut vec = vec![];
         for param in &fd.params {
-            let var_type = parse_paramtype(&param.param_type, &context)?;
-            let var_id = scoped_context.insert_variable(param.name.clone(), var_type.0.clone())?;
+            let var_type = parse_paramtype(&param.param_type, context)?;
+            let var_id = context.insert_variable(param.name.clone(), var_type.0.clone())?;
             vec.push(ir::FunctionParam {
                 id: var_id,
                 param_type: var_type,
@@ -36,12 +33,8 @@ pub fn parse_rootdefinition_function(
         }
         vec
     };
-    let (body_ir, scoped_context) = parse_statement_list(&fd.body, scoped_context)?;
-    let decls = scoped_context.destruct();
-
-    // Unset the return type for the current function
-    assert!(context.current_return_type != None);
-    context.current_return_type = None;
+    let body_ir = parse_statement_list(&fd.body, context)?;
+    let decls = context.pop_scope_with_locals();
 
     let fd_ir = ir::FunctionDefinition {
         id: context.make_function_id(),
@@ -56,22 +49,19 @@ pub fn parse_rootdefinition_function(
         fd_ir.params.iter().map(|p| p.param_type.clone()).collect(),
     );
     context.insert_function(fd.name.clone(), func_type)?;
-    Ok((ir::RootDefinition::Function(fd_ir), context))
+    Ok(ir::RootDefinition::Function(fd_ir))
 }
 
 fn parse_returntype(
     return_type: &ast::FunctionReturn,
-    struct_finder: &dyn StructIdFinder,
+    context: &Context,
 ) -> TyperResult<ir::FunctionReturn> {
-    let ty = parse_type(&return_type.return_type, struct_finder)?;
+    let ty = parse_type(&return_type.return_type, context)?;
     Ok(ir::FunctionReturn { return_type: ty })
 }
 
-fn parse_paramtype(
-    param_type: &ast::ParamType,
-    struct_finder: &dyn StructIdFinder,
-) -> TyperResult<ir::ParamType> {
-    let ty = parse_type(&param_type.0, struct_finder)?;
+fn parse_paramtype(param_type: &ast::ParamType, context: &Context) -> TyperResult<ir::ParamType> {
+    let ty = parse_type(&param_type.0, context)?;
     Ok(ir::ParamType(
         ty,
         param_type.1.clone(),

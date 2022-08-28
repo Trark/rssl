@@ -38,7 +38,7 @@ impl ToErrorType for TypedExpression {
     }
 }
 
-fn parse_variable(name: &str, context: &dyn ExpressionContext) -> TyperResult<TypedExpression> {
+fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression> {
     Ok(match context.find_variable(name)? {
         VariableExpression::Local(var, ty) => {
             TypedExpression::Value(ir::Expression::Variable(var), ty.to_lvalue())
@@ -263,7 +263,7 @@ fn parse_literal(ast: &ast::Literal) -> TypedExpression {
 fn parse_expr_unaryop(
     op: &ast::UnaryOp,
     expr: &ast::Expression,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<TypedExpression> {
     match parse_expr_internal(expr, context)? {
         TypedExpression::Value(expr_ir, expr_ty) => {
@@ -617,7 +617,7 @@ fn parse_expr_binop(
     op: &ast::BinOp,
     lhs: &ast::Expression,
     rhs: &ast::Expression,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<TypedExpression> {
     let lhs_texp = parse_expr_internal(lhs, context)?;
     let rhs_texp = parse_expr_internal(rhs, context)?;
@@ -807,7 +807,7 @@ fn parse_expr_ternary(
     cond: &ast::Expression,
     lhs: &ast::Expression,
     rhs: &ast::Expression,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<TypedExpression> {
     // Generate sub expressions
     let (cond, cond_ety) = parse_expr_value_only(cond, context)?;
@@ -911,10 +911,7 @@ fn get_swizzle_vt(swizzle: &Vec<ir::SwizzleSlot>, mut vt: ir::ValueType) -> ir::
     vt
 }
 
-fn parse_expr_unchecked(
-    ast: &ast::Expression,
-    context: &dyn ExpressionContext,
-) -> TyperResult<TypedExpression> {
+fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult<TypedExpression> {
     match *ast {
         ast::Expression::Literal(ref lit) => Ok(parse_literal(lit)),
         ast::Expression::Variable(ref s) => parse_variable(s, context),
@@ -980,7 +977,7 @@ fn parse_expr_unchecked(
                 }
                 _ => Err(TyperError::ArrayIndexingNonArrayType),
             }?;
-            let ety = match get_expression_type(&node, context.as_type_context()) {
+            let ety = match get_expression_type(&node, context) {
                 Ok(ety) => ety,
                 Err(err) => panic!("internal error: type unknown ({:?}", err),
             };
@@ -1001,11 +998,11 @@ fn parse_expr_unchecked(
                 | ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
                     ir::StructuredLayout::Struct(id),
                     _,
-                ))) => match context.find_struct_member(&id, member) {
+                ))) => match context.get_type_of_struct_member(&id, member) {
                     Ok(ty) => {
                         let composite = Box::new(composite_ir);
                         let member = ir::Expression::Member(composite, member.clone());
-                        Ok(TypedExpression::Value(member, ty.to_lvalue()))
+                        Ok(TypedExpression::Value(member, ty))
                     }
                     Err(err) => Err(err),
                 },
@@ -1155,7 +1152,7 @@ fn parse_expr_unchecked(
             let expr_pt = expr_texp.to_error_type();
             match expr_texp {
                 TypedExpression::Value(expr_ir, _) => {
-                    let ir_type = parse_type(ty, context.as_struct_id_finder())?;
+                    let ir_type = parse_type(ty, context)?;
                     Ok(TypedExpression::Value(
                         ir::Expression::Cast(ir_type.clone(), Box::new(expr_ir)),
                         ir_type.to_rvalue(),
@@ -1168,7 +1165,7 @@ fn parse_expr_unchecked(
             }
         }
         ast::Expression::SizeOf(ref ty) => {
-            let ir_type = parse_type(ty, context.as_struct_id_finder())?;
+            let ir_type = parse_type(ty, context)?;
             Ok(TypedExpression::Value(
                 ir::Expression::SizeOf(ir_type),
                 ir::Type::uint().to_rvalue(),
@@ -1179,15 +1176,12 @@ fn parse_expr_unchecked(
 
 /// Parse an expression internally within the expression parser
 /// This allows intermediate values for processing function overloads
-fn parse_expr_internal(
-    expr: &ast::Expression,
-    context: &dyn ExpressionContext,
-) -> TyperResult<TypedExpression> {
+fn parse_expr_internal(expr: &ast::Expression, context: &Context) -> TyperResult<TypedExpression> {
     let texp = parse_expr_unchecked(expr, context)?;
     match texp {
         #[cfg(debug_assertions)]
         TypedExpression::Value(ref expr, ref ty_expected) => {
-            let ty_res = get_expression_type(expr, context.as_type_context());
+            let ty_res = get_expression_type(expr, context);
             let ty = ty_res.expect("type unknown");
             assert!(
                 ty == *ty_expected,
@@ -1205,7 +1199,7 @@ fn parse_expr_internal(
 /// Parse an expression that is not within another expression
 fn parse_expr_value_only(
     expr: &ast::Expression,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<(ir::Expression, ExpressionType)> {
     let expr_ir = parse_expr_internal(expr, context)?;
     match expr_ir {
@@ -1218,14 +1212,14 @@ fn parse_expr_value_only(
 /// Parse an expression
 pub fn parse_expr(
     expr: &ast::Expression,
-    context: &dyn ExpressionContext,
+    context: &Context,
 ) -> TyperResult<(ir::Expression, ExpressionType)> {
     // Type errors should error out here
     let (expr_ir, expr_ety) = parse_expr_value_only(expr, context)?;
 
     // Ensure the returned type is the same as the type we can query
     {
-        let ety_res = get_expression_type(&expr_ir, context.as_type_context());
+        let ety_res = get_expression_type(&expr_ir, context);
         let ety = ety_res.expect("type unknown");
         assert!(
             ety == expr_ety,
@@ -1255,12 +1249,17 @@ fn get_literal_type(literal: &ir::Literal) -> ExpressionType {
 }
 
 /// Find the type of an expression
-fn get_expression_type(expression: &ir::Expression, context: &dyn TypeContext) -> FindTypeResult {
+fn get_expression_type(
+    expression: &ir::Expression,
+    context: &Context,
+) -> TyperResult<ExpressionType> {
     match *expression {
         ir::Expression::Literal(ref lit) => Ok(get_literal_type(lit)),
-        ir::Expression::Variable(ref var_ref) => context.get_local(var_ref),
-        ir::Expression::Global(ref id) => context.get_global(id),
-        ir::Expression::ConstantVariable(ref id, ref name) => context.get_constant(id, name),
+        ir::Expression::Variable(ref var_ref) => context.get_type_of_variable(var_ref),
+        ir::Expression::Global(ref id) => context.get_type_of_global(id),
+        ir::Expression::ConstantVariable(ref id, ref name) => {
+            context.get_type_of_constant(id, name)
+        }
         ir::Expression::TernaryConditional(_, ref expr_left, ref expr_right) => {
             // Ensure the layouts of each side are the same
             // Value types + modifiers can be different
@@ -1283,7 +1282,7 @@ fn get_expression_type(expression: &ir::Expression, context: &dyn TypeContext) -
                         ir::TypeLayout::Vector(scalar, swizzle.len() as u32)
                     }
                 }
-                _ => return Err(FindTypeError::InvalidTypeForSwizzle(vec_tyl)),
+                _ => return Err(TyperError::InvalidTypeForSwizzle(vec_tyl)),
             };
             Ok(ExpressionType(ir::Type(tyl, vec_mod), vt))
         }
@@ -1312,7 +1311,7 @@ fn get_expression_type(expression: &ir::Expression, context: &dyn TypeContext) -
                 ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(data_type)) => {
                     ir::Type::from_data(data_type).to_lvalue()
                 }
-                tyl => return Err(FindTypeError::ArrayIndexMustBeUsedOnArrayType(tyl)),
+                tyl => return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(tyl)),
             })
         }
         ir::Expression::Member(ref expr, ref name) => {
@@ -1323,16 +1322,11 @@ fn get_expression_type(expression: &ir::Expression, context: &dyn TypeContext) -
                     ir::StructuredLayout::Struct(id),
                     _,
                 ))) => id,
-                tyl => {
-                    return Err(FindTypeError::MemberNodeMustBeUsedOnStruct(
-                        tyl,
-                        name.clone(),
-                    ))
-                }
+                tyl => return Err(TyperError::MemberNodeMustBeUsedOnStruct(tyl, name.clone())),
             };
-            context.get_struct_member(&id, name)
+            context.get_type_of_struct_member(&id, name)
         }
-        ir::Expression::Call(ref id, _) => context.get_function_return(id),
+        ir::Expression::Call(ref id, _) => context.get_type_of_function_return(id),
         ir::Expression::NumericConstructor(dtyl, _) => {
             Ok(ir::Type::from_layout(ir::TypeLayout::from_data(dtyl)).to_rvalue())
         }

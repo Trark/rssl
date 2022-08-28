@@ -14,6 +14,22 @@ fn reject_invalid_initialisers() {
 }
 
 #[test]
+fn check_statements() {
+    check_types("void f() { 7; }");
+    check_types("int f() { int x = 5; int y = 3; int z = x + y; return z; }");
+    check_types("int f() { { int x; } { int x; } }");
+}
+
+#[test]
+fn check_return() {
+    check_types("void f() { return; }");
+    check_types("float f() { return 0.0; }");
+    check_fail("float f() { return; }");
+
+    // Currently no checking against missing return
+}
+
+#[test]
 fn check_function_calls() {
     check_types("void subroutine() {} void main() { subroutine(); }");
     check_fail("void main() { subroutine(); }");
@@ -26,6 +42,7 @@ fn check_structs() {
     check_fail("struct S {}; S value = 0;");
     check_types("struct S {}; void main() { S value; }");
     check_fail("struct S {}; void main() { S value = 0; }");
+    check_types("struct S1 {}; struct S2 {}; S1 g1; S2 g2;");
 }
 
 #[test]
@@ -52,4 +69,11 @@ fn check_buffer_index() {
 fn check_swizzle() {
     check_types("void sub(out float4 v) {} void main() { float4 t; sub(t.wzyx); }");
     check_fail("void sub(out float4 v) {} void main() { float4 t; sub(t.wwww); }");
+}
+
+#[test]
+fn check_cbuffer() {
+    check_types(
+        "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",
+    );
 }

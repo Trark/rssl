@@ -9,9 +9,9 @@ use rssl_ir as ir;
 
 pub fn parse_rootdefinition_globalvariable(
     gv: &ast::GlobalVariable,
-    mut context: GlobalContext,
-) -> TyperResult<(Vec<ir::RootDefinition>, GlobalContext)> {
-    let var_type = parse_globaltype(&gv.global_type, &context)?;
+    context: &mut Context,
+) -> TyperResult<Vec<ir::RootDefinition>> {
+    let var_type = parse_globaltype(&gv.global_type, context)?;
 
     let mut defs = vec![];
 
@@ -27,7 +27,7 @@ pub fn parse_rootdefinition_globalvariable(
         let input_type = gv_type.0.clone();
         let var_id = context.insert_global(var_name.clone(), input_type.clone())?;
 
-        let var_init = parse_initializer_opt(&def.init, &input_type.0, &context)?;
+        let var_init = parse_initializer_opt(&def.init, &input_type.0, context)?;
         let gv_ir = ir::GlobalVariable {
             id: var_id,
             global_type: gv_type,
@@ -37,14 +37,14 @@ pub fn parse_rootdefinition_globalvariable(
         defs.push(ir::RootDefinition::GlobalVariable(gv_ir));
     }
 
-    Ok((defs, context))
+    Ok(defs)
 }
 
 fn parse_globaltype(
     global_type: &ast::GlobalType,
-    struct_finder: &dyn StructIdFinder,
+    context: &Context,
 ) -> TyperResult<ir::GlobalType> {
-    let ty = parse_type(&global_type.0, struct_finder)?;
+    let ty = parse_type(&global_type.0, context)?;
     Ok(ir::GlobalType(
         ty,
         global_type.1.clone(),
@@ -54,13 +54,13 @@ fn parse_globaltype(
 
 pub fn parse_rootdefinition_constantbuffer(
     cb: &ast::ConstantBuffer,
-    mut context: GlobalContext,
-) -> TyperResult<(ir::RootDefinition, GlobalContext)> {
+    context: &mut Context,
+) -> TyperResult<ir::RootDefinition> {
     let cb_name = cb.name.clone();
     let mut members = vec![];
     let mut members_map = HashMap::new();
     for member in &cb.members {
-        let base_type = parse_type(&member.ty, &context)?;
+        let base_type = parse_type(&member.ty, context)?;
         for def in &member.defs {
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
@@ -78,5 +78,5 @@ pub fn parse_rootdefinition_constantbuffer(
         None => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name.clone())),
     };
     let cb_ir = ir::ConstantBuffer { id, members };
-    Ok((ir::RootDefinition::ConstantBuffer(cb_ir), context))
+    Ok(ir::RootDefinition::ConstantBuffer(cb_ir))
 }
