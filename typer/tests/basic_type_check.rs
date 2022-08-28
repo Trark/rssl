@@ -77,3 +77,11 @@ fn check_cbuffer() {
         "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",
     );
 }
+
+#[test]
+fn check_cast() {
+    check_types("ByteAddressBuffer buf; void f() { uint x = buf.Load(0); }");
+    check_types("ByteAddressBuffer buf; void f() { uint x = (uint)buf.Load(0); }");
+    check_types("ByteAddressBuffer buf; void f() { uint x = (uint)buf.Load<uint>(0); }");
+    check_types("struct S {}; ByteAddressBuffer buf; void f() { S x = (S)buf.Load<S>(0); }");
+}

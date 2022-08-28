@@ -799,7 +799,7 @@ fn parse_expr_binop(
                 Err(()) => err_bad_type,
             }
         }
-        ast::BinOp::Sequence => Err(TyperError::ExpressionSequenceOperatorNotImplemented),
+        ast::BinOp::Sequence => panic!("operator ',' not implemented"),
     }
 }
 

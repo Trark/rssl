@@ -81,6 +81,11 @@ impl Context {
         }
     }
 
+    /// Returns if we are currently at the root scope
+    pub fn is_at_root(&self) -> bool {
+        self.current_scope == 0
+    }
+
     /// Add a new scope
     pub fn push_scope(&mut self) {
         self.scopes.push(ScopeData {
@@ -132,15 +137,9 @@ impl Context {
 
     /// Get the return type of the current function
     pub fn get_current_return_type(&self) -> ir::Type {
-        let mut scope_index = self.current_scope;
-        loop {
-            if let Some(ref ret) = self.scopes[scope_index].function_return_type {
-                return ret.clone();
-            }
-            scope_index = self.scopes[scope_index].parent_scope;
-            if scope_index == usize::MAX {
-                panic!("Not inside function")
-            }
+        match self.search_scopes(|s| s.function_return_type.clone()) {
+            Some(ret) => ret,
+            None => panic!("Not inside function"),
         }
     }
 
@@ -163,19 +162,12 @@ impl Context {
 
     /// Find the id for a given struct name
     pub fn find_struct_id(&self, name: &str) -> TyperResult<ir::StructId> {
-        let mut scope_index = self.current_scope;
-        loop {
-            if let Some(id) = self.scopes[scope_index].find_struct_id(name) {
-                return Ok(id);
-            }
-            scope_index = self.scopes[scope_index].parent_scope;
-            if scope_index == usize::MAX {
-                break;
-            }
+        match self.search_scopes(|s| s.struct_ids.get(name).copied()) {
+            Some(id) => Ok(id),
+            None => Err(TyperError::UnknownType(ErrorType::Untyped(
+                ast::Type::custom(name),
+            ))),
         }
-        Err(TyperError::UnknownType(ErrorType::Untyped(
-            ast::Type::custom(name),
-        )))
     }
 
     /// Find the type of a variable
@@ -190,17 +182,10 @@ impl Context {
 
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: &ir::GlobalId) -> TyperResult<ExpressionType> {
-        let mut scope_index = self.current_scope;
-        loop {
-            if let Some(ty) = self.scopes[scope_index].get_type_of_global(id) {
-                return Ok(ty);
-            }
-            scope_index = self.scopes[scope_index].parent_scope;
-            if scope_index == usize::MAX {
-                break;
-            }
+        match self.search_scopes(|s| s.get_type_of_global(id)) {
+            Some(ty) => Ok(ty),
+            None => panic!("Invalid global variable id: {:?}", id),
         }
-        panic!("Invalid global variable id: {:?}", id)
     }
 
     /// Find the type of a constant buffer member
@@ -209,17 +194,10 @@ impl Context {
         id: &ir::ConstantBufferId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
-        let mut scope_index = self.current_scope;
-        loop {
-            if let Some(res) = self.scopes[scope_index].get_type_of_constant(id, name) {
-                return res;
-            }
-            scope_index = self.scopes[scope_index].parent_scope;
-            if scope_index == usize::MAX {
-                break;
-            }
+        match self.search_scopes(|s| s.get_type_of_constant(id, name)) {
+            Some(res) => res,
+            None => panic!("Invalid constant buffer id: {:?}", id),
         }
-        panic!("Invalid constant buffer id: {:?}", id)
     }
 
     /// Find the type of a struct member
@@ -228,32 +206,38 @@ impl Context {
         id: &ir::StructId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
-        let mut scope_index = self.current_scope;
-        loop {
-            if let Some(res) = self.scopes[scope_index].get_type_of_struct_member(id, name) {
-                return res;
-            }
-            scope_index = self.scopes[scope_index].parent_scope;
-            if scope_index == usize::MAX {
-                break;
-            }
+        match self.search_scopes(|s| s.get_type_of_struct_member(id, name)) {
+            Some(res) => res,
+            None => panic!("Invalid struct id: {:?}", id),
         }
-        panic!("Invalid struct id: {:?}", id)
     }
 
     /// Find the return type of a function
     pub fn get_type_of_function_return(&self, id: &ir::FunctionId) -> TyperResult<ExpressionType> {
-        let mut scope_index = self.current_scope;
-        loop {
-            if let Some(ty) = self.scopes[scope_index].get_type_of_function_return(id) {
-                return Ok(ty);
-            }
-            scope_index = self.scopes[scope_index].parent_scope;
-            if scope_index == usize::MAX {
-                break;
-            }
+        match self.search_scopes(|s| s.get_type_of_function_return(id)) {
+            Some(ty) => Ok(ty),
+            None => panic!("Invalid function id: {:?}", id),
         }
-        panic!("Invalid function id: {:?}", id)
+    }
+
+    /// Get the name from a function id
+    pub fn get_function_name(&self, id: &ir::FunctionId) -> Option<&str> {
+        self.search_scopes(|s| s.function_names.get(id).map(|s| s.as_str()))
+    }
+
+    /// Get the name from a struct id
+    pub fn get_struct_name(&self, id: &ir::StructId) -> Option<&str> {
+        self.search_scopes(|s| s.struct_names.get(id).map(|s| s.as_str()))
+    }
+
+    /// Get the name from a constant buffer id
+    pub fn get_cbuffer_name(&self, id: &ir::ConstantBufferId) -> Option<&str> {
+        self.search_scopes(|s| s.cbuffer_names.get(id).map(|s| s.as_str()))
+    }
+
+    /// Get the name from a global variable id
+    pub fn get_global_name(&self, id: &ir::GlobalId) -> Option<&str> {
+        self.search_scopes(|s| s.global_names.get(id).map(|s| s.as_str()))
     }
 
     /// Register a local variable
@@ -312,69 +296,22 @@ impl Context {
         self.scopes[self.current_scope].insert_cbuffer(id, name, members)
     }
 
-    /// Make a name map from a set of root definitions
-    pub fn gather_global_names(
-        &self,
-        root_definitions: &[ir::RootDefinition],
-    ) -> ir::GlobalDeclarations {
-        // We currently only expect these in the root so we only need to go to the first scope
-        // This match would be best elsewhere with context exposing just the name finding
-
-        assert_eq!(self.current_scope, 0);
-
-        let mut decls = ir::GlobalDeclarations {
-            functions: HashMap::new(),
-            globals: HashMap::new(),
-            structs: HashMap::new(),
-            constants: HashMap::new(),
-        };
-
-        for def in root_definitions {
-            match def {
-                ir::RootDefinition::Struct(ref sd) => {
-                    match self.scopes[0].struct_names.get(&sd.id) {
-                        Some(name) => {
-                            decls.structs.insert(sd.id, name.clone());
-                        }
-                        None => {
-                            panic!("struct name does not exist");
-                        }
-                    }
-                }
-                ir::RootDefinition::ConstantBuffer(ref cb) => {
-                    match self.scopes[0].cbuffer_names.get(&cb.id) {
-                        Some(name) => {
-                            decls.constants.insert(cb.id, name.clone());
-                        }
-                        None => {
-                            panic!("constant buffer name does not exist");
-                        }
-                    }
-                }
-                ir::RootDefinition::GlobalVariable(ref gv) => {
-                    match self.scopes[0].global_names.get(&gv.id) {
-                        Some(name) => {
-                            decls.globals.insert(gv.id, name.clone());
-                        }
-                        None => {
-                            panic!("global variable name does not exist");
-                        }
-                    }
-                }
-                ir::RootDefinition::Function(ref func) => {
-                    match self.scopes[0].function_names.get(&func.id) {
-                        Some(name) => {
-                            decls.functions.insert(func.id, name.clone());
-                        }
-                        None => {
-                            panic!("function name does not exist");
-                        }
-                    }
-                }
+    /// Walk up scopes and attempt to find something
+    fn search_scopes<'a, Output: 'a>(
+        &'a self,
+        search: impl Fn(&'a ScopeData) -> Option<Output>,
+    ) -> Option<Output> {
+        let mut scope_index = self.current_scope;
+        loop {
+            if let Some(s) = search(&self.scopes[scope_index]) {
+                return Some(s);
+            }
+            scope_index = self.scopes[scope_index].parent_scope;
+            if scope_index == usize::MAX {
+                break;
             }
         }
-
-        decls
+        None
     }
 }
 
@@ -405,10 +342,6 @@ impl ScopeData {
         }
 
         None
-    }
-
-    fn find_struct_id(&self, name: &str) -> Option<ir::StructId> {
-        self.struct_ids.get(name).copied()
     }
 
     fn get_type_of_variable(&self, var_ref: &ir::VariableRef) -> TyperResult<ExpressionType> {
@@ -705,4 +638,10 @@ fn get_intrinsics() -> HashMap<String, UnresolvedFunction> {
         }
     }
     strmap
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Context::new()
+    }
 }

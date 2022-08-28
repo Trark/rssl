@@ -189,7 +189,7 @@ fn test_typeparse() {
     };
 
     let static_global_result = rssl_typer::type_check(&static_global_test);
-    let static_global_expected = Ok(ir::Module {
+    let static_global_expected = ir::Module {
         global_declarations: ir::GlobalDeclarations {
             functions: HashMap::from([(ir::FunctionId(0), "CSMAIN".to_string())]),
             globals: {
@@ -236,6 +236,9 @@ fn test_typeparse() {
                 attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
             }),
         ],
-    });
-    assert_eq!(static_global_result, static_global_expected);
+    };
+    match static_global_result {
+        Ok(actual) => assert_eq!(actual, static_global_expected),
+        Err(err) => panic!("Failed to type check: {:?}", err),
+    }
 }

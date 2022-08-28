@@ -118,17 +118,24 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
         ast::Statement::Continue => Ok(vec![ir::Statement::Continue]),
         ast::Statement::Return(Some(ref expr)) => {
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
-            match ImplicitConversion::find(&expr_ty, &context.get_current_return_type().to_rvalue())
-            {
+            let expected_ety = context.get_current_return_type().to_rvalue();
+            match ImplicitConversion::find(&expr_ty, &expected_ety) {
                 Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(rhs_cast.apply(expr_ir)))]),
-                Err(()) => Err(TyperError::WrongTypeInReturnStatement),
+                Err(()) => Err(TyperError::WrongTypeInReturnStatement(
+                    expr_ty.0,
+                    expected_ety.0,
+                )),
             }
         }
         ast::Statement::Return(None) => {
-            if context.get_current_return_type().is_void() {
+            let expected_type = context.get_current_return_type();
+            if expected_type.is_void() {
                 Ok(Vec::from([ir::Statement::Return(None)]))
             } else {
-                Err(TyperError::WrongTypeInReturnStatement)
+                Err(TyperError::WrongTypeInReturnStatement(
+                    ir::Type::void(),
+                    expected_type,
+                ))
             }
         }
     }
