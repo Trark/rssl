@@ -12,7 +12,7 @@ fn parse_from_str(source: &str) -> (rssl_ast::Module, SourceManager) {
     // Preprocess the text
     let preprocessed_text = rssl_preprocess::preprocess_fragment(
         &modified_string,
-        FileName("parser_test.hlsl".to_string()),
+        FileName("type_test.rssl".to_string()),
         &mut source_manager,
     )
     .expect("preprocess failed");

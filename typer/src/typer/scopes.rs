@@ -4,6 +4,7 @@ use crate::typer::functions::{FunctionName, FunctionOverload};
 use ir::{ExpressionType, Intrinsic, ToExpressionType};
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::{Located, SourceLocation};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -26,7 +27,7 @@ struct ScopeData {
     variables: VariableBlock,
 
     functions: HashMap<String, UnresolvedFunction>,
-    function_names: HashMap<ir::FunctionId, String>,
+    function_names: HashMap<ir::FunctionId, Located<String>>,
 
     struct_ids: HashMap<String, ir::StructId>,
     struct_names: HashMap<ir::StructId, String>,
@@ -225,6 +226,12 @@ impl Context {
         self.search_scopes(|s| s.function_names.get(id).map(|s| s.as_str()))
     }
 
+    /// Get the source location from a function id
+    pub fn get_function_location(&self, id: &ir::FunctionId) -> SourceLocation {
+        self.search_scopes(|s| s.function_names.get(id).map(|s| s.location))
+            .unwrap_or(SourceLocation::UNKNOWN)
+    }
+
     /// Get the name from a struct id
     pub fn get_struct_name(&self, id: &ir::StructId) -> Option<&str> {
         self.search_scopes(|s| s.struct_names.get(id).map(|s| s.as_str()))
@@ -261,7 +268,7 @@ impl Context {
     /// Register a function overload
     pub fn insert_function(
         &mut self,
-        name: String,
+        name: Located<String>,
         function_type: FunctionOverload,
     ) -> TyperResult<()> {
         self.scopes[self.current_scope].insert_function(name, function_type)
@@ -412,16 +419,16 @@ impl ScopeData {
 
     fn insert_function(
         &mut self,
-        name: String,
+        name: Located<String>,
         function_type: FunctionOverload,
     ) -> TyperResult<()> {
         // Error if a variable of the same name already exists
-        match self.find_variable(&name, 0) {
+        match self.find_variable(&name.node, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
-                    name,
+                    name.node,
                     ty.to_error_type(),
                     ErrorType::Unknown,
                 ));
@@ -430,9 +437,9 @@ impl ScopeData {
         };
 
         fn insert_function_name(
-            function_names: &mut HashMap<ir::FunctionId, String>,
+            function_names: &mut HashMap<ir::FunctionId, Located<String>>,
             function_type: FunctionOverload,
-            name: String,
+            name: Located<String>,
         ) {
             match function_type.0 {
                 FunctionName::User(id) => match function_names.entry(id) {
@@ -448,13 +455,13 @@ impl ScopeData {
         }
 
         // Try to add the function
-        match self.functions.entry(name.clone()) {
+        match self.functions.entry(name.node.clone()) {
             Entry::Occupied(mut occupied) => {
                 // Fail if the overload already exists
                 for &FunctionOverload(_, _, ref args) in &occupied.get().1 {
                     if *args == function_type.2 {
                         return Err(TyperError::ValueAlreadyDefined(
-                            name,
+                            name.node,
                             ErrorType::Unknown,
                             ErrorType::Unknown,
                         ));
@@ -472,7 +479,7 @@ impl ScopeData {
                     function_type.clone(),
                     name.clone(),
                 );
-                vacant.insert(UnresolvedFunction(name, vec![function_type]));
+                vacant.insert(UnresolvedFunction(name.node, vec![function_type]));
                 Ok(())
             }
         }

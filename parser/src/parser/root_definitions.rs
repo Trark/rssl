@@ -87,7 +87,7 @@ fn test_function() {
 
     let test_func_str = "float func(float x) : SV_Depth { }";
     let test_func_ast = FunctionDefinition {
-        name: "func".to_string(),
+        name: "func".to_string().loc(6),
         returntype: FunctionReturn {
             return_type: Type::float(),
             semantic: Some(Semantic::Depth),
@@ -110,7 +110,7 @@ fn test_function() {
     rootdefinition.check(
         "[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }",
         RootDefinition::Function(FunctionDefinition {
-            name: "func".to_string(),
+            name: "func".to_string().loc(29),
             returntype: Type::void().into(),
             params: vec![FunctionParam {
                 name: "x".to_string(),

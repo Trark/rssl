@@ -10,6 +10,7 @@ use rssl_ir as ir;
 use rssl_ir::ExpressionType;
 use rssl_ir::Intrinsic;
 use rssl_ir::ToExpressionType;
+use rssl_text::SourceLocation;
 
 #[derive(PartialEq, Debug, Clone)]
 struct UnresolvedMethod(String, ir::Type, Vec<FunctionOverload>, ir::Expression);
@@ -56,6 +57,7 @@ fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression>
 fn find_function_type(
     overloads: &Vec<FunctionOverload>,
     param_types: &[ExpressionType],
+    call_location: SourceLocation,
 ) -> TyperResult<(FunctionOverload, Vec<ImplicitConversion>)> {
     use crate::casting::VectorRank;
     fn find_overload_casts(
@@ -164,6 +166,7 @@ fn find_function_type(
     Err(TyperError::FunctionArgumentTypeMismatch(
         overloads.clone(),
         param_types.to_vec(),
+        call_location,
     ))
 }
 
@@ -180,10 +183,11 @@ fn write_function(
     unresolved: UnresolvedFunction,
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
+    call_location: SourceLocation,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
     let (FunctionOverload(name, return_type_ty, _), casts) =
-        find_function_type(&unresolved.1, param_types)?;
+        find_function_type(&unresolved.1, param_types, call_location)?;
     // Apply implicit casts
     let param_values = apply_casts(casts, param_values);
     let return_type = return_type_ty.to_rvalue();
@@ -204,10 +208,11 @@ fn write_method(
     unresolved: UnresolvedMethod,
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
+    call_location: SourceLocation,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
     let (FunctionOverload(name, return_type_ty, _), casts) =
-        find_function_type(&unresolved.2, param_types)?;
+        find_function_type(&unresolved.2, param_types, call_location)?;
     // Apply implicit casts
     let mut param_values = apply_casts(casts, param_values);
     // Add struct as implied first argument
@@ -1101,10 +1106,10 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
             }
             match func_texp {
                 TypedExpression::Function(unresolved) => {
-                    write_function(unresolved, &params_types, params_ir)
+                    write_function(unresolved, &params_types, params_ir, func.location)
                 }
                 TypedExpression::Method(unresolved) => {
-                    write_method(unresolved, &params_types, params_ir)
+                    write_method(unresolved, &params_types, params_ir, func.location)
                 }
                 _ => Err(TyperError::CallOnNonFunction),
             }

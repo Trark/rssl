@@ -43,7 +43,7 @@ fn test_typeparse() {
                 }],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
-                name: "myFunc".to_string(),
+                name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![ast::FunctionParam {
                     name: "x".to_string(),
@@ -54,7 +54,7 @@ fn test_typeparse() {
                 attributes: vec![],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
-                name: "myFunc".to_string(),
+                name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![ast::FunctionParam {
                     name: "x".to_string(),
@@ -65,7 +65,7 @@ fn test_typeparse() {
                 attributes: vec![],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
-                name: "outFunc".to_string(),
+                name: Located::none("outFunc".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![ast::FunctionParam {
                     name: "x".to_string(),
@@ -88,7 +88,7 @@ fn test_typeparse() {
                 attributes: vec![],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
-                name: "CSMAIN".to_string(),
+                name: Located::none("CSMAIN".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![],
                 body: vec![
@@ -177,7 +177,7 @@ fn test_typeparse() {
                 }],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
-                name: "CSMAIN".to_string(),
+                name: Located::none("CSMAIN".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![],
                 body: vec![ast::Statement::Expression(Located::none(

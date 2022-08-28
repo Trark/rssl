@@ -1,8 +1,8 @@
-use crate::typer::functions::FunctionOverload;
-use crate::typer::scopes::Context;
+use super::functions::FunctionName;
+use super::functions::FunctionOverload;
+use super::scopes::Context;
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_ir::ExpressionType;
 use rssl_text::*;
 
 #[derive(Debug, Clone)]
@@ -29,7 +29,11 @@ pub enum TyperError {
     CallOnNonFunction,
 
     FunctionPassedToAnotherFunction(ErrorType, ErrorType),
-    FunctionArgumentTypeMismatch(Vec<FunctionOverload>, Vec<ExpressionType>),
+    FunctionArgumentTypeMismatch(
+        Vec<FunctionOverload>,
+        Vec<ir::ExpressionType>,
+        SourceLocation,
+    ),
     NumericConstructorWrongArgumentCount,
 
     UnaryOperationWrongTypes(ast::UnaryOp, ErrorType),
@@ -115,13 +119,13 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 
         // Shared error message printing logic
         let mut write_message = |write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
-                                 loc_opt: Option<SourceLocation>,
+                                 loc: SourceLocation,
                                  sev: Severity| {
             let sev_str = match sev {
                 Severity::Error => "error",
                 Severity::Note => "note",
             };
-            if let Some(loc) = loc_opt {
+            if loc != SourceLocation::UNKNOWN {
                 // Get file location info
                 let file_location = source_manager.get_file_location(loc);
 
@@ -131,7 +135,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 writeln!(f)?;
 
                 // Print source that caused the error
-                source_manager.write_source_for_error(f, loc_opt)
+                source_manager.write_source_for_error(f, Some(loc))
             } else {
                 // Print basic failure reason
                 write!(f, "{}: ", sev_str)?;
@@ -143,59 +147,65 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
         match err {
             TyperError::ValueAlreadyDefined(_, _, _) => write_message(
                 &|f| write!(f, "identifier already defined"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::StructAlreadyDefined(_) => write_message(
                 &|f| write!(f, "struct aready defined"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::ConstantBufferAlreadyDefined(_) => write_message(
                 &|f| write!(f, "cbuffer aready defined"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::UnknownIdentifier(name) => write_message(
                 &|f| write!(f, "'{}' was not declared in this scope", name),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::UnknownType(_) => {
-                write_message(&|f| write!(f, "unknown type name"), None, Severity::Error)
-            }
+            TyperError::UnknownType(_) => write_message(
+                &|f| write!(f, "unknown type name"),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
             TyperError::TypeDoesNotHaveMembers(_) => write_message(
                 &|f| write!(f, "unknown member (type has no members)"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::UnknownTypeMember(_, _) => {
-                write_message(&|f| write!(f, "unknown member"), None, Severity::Error)
-            }
-            TyperError::InvalidSwizzle(_, _) => {
-                write_message(&|f| write!(f, "invalid swizzle"), None, Severity::Error)
-            }
+            TyperError::UnknownTypeMember(_, _) => write_message(
+                &|f| write!(f, "unknown member"),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            TyperError::InvalidSwizzle(_, _) => write_message(
+                &|f| write!(f, "invalid swizzle"),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
             TyperError::ArrayIndexingNonArrayType => write_message(
                 &|f| write!(f, "array index applied to non-array type"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::ArraySubscriptIndexNotInteger => write_message(
                 &|f| write!(f, "array subscripts must be integers"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::CallOnNonFunction => write_message(
                 &|f| write!(f, "function call applied to non-function type"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::FunctionPassedToAnotherFunction(_, _) => write_message(
                 &|f| write!(f, "functions can not be passed to other functions"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::FunctionArgumentTypeMismatch(overloads, types) => {
+            TyperError::FunctionArgumentTypeMismatch(overloads, types, call_location) => {
                 let func_name = get_function_name(&overloads[0].0, context);
                 write_message(
                     &|f| {
@@ -208,10 +218,11 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         }
                         write!(f, ")")
                     },
-                    None,
+                    *call_location,
                     Severity::Error,
                 )?;
                 for overload in overloads {
+                    let location = get_function_location(&overload.0, context);
                     write_message(
                         &|f| {
                             write!(
@@ -227,7 +238,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                             }
                             write!(f, ")")
                         },
-                        None,
+                        location,
                         Severity::Note,
                     )?;
                 }
@@ -235,37 +246,39 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
             }
             TyperError::NumericConstructorWrongArgumentCount => write_message(
                 &|f| write!(f, "wrong number of arguments to constructor"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::UnaryOperationWrongTypes(_, _) => write_message(
                 &|f| write!(f, "operation does not support the given types"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::BinaryOperationWrongTypes(_, _, _) => write_message(
                 &|f| write!(f, "operation does not support the given types"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::BinaryOperationNonNumericType => write_message(
                 &|f| write!(f, "non-numeric type in binary operation"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::TernaryConditionRequiresBoolean(_) => write_message(
                 &|f| write!(f, "ternary condition must be boolean"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::TernaryArmsMustHaveSameType(_, _) => write_message(
                 &|f| write!(f, "ternary arms must have the same type"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::InvalidCast(_, _) => {
-                write_message(&|f| write!(f, "invalid cast"), None, Severity::Error)
-            }
+            TyperError::InvalidCast(_, _) => write_message(
+                &|f| write!(f, "invalid cast"),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
             TyperError::InitializerExpressionWrongType(actual, expected, loc) => write_message(
                 &|f| {
                     write!(
@@ -275,22 +288,22 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         get_type_string(actual, context),
                     )
                 },
-                Some(*loc),
+                *loc,
                 Severity::Error,
             ),
             TyperError::InitializerAggregateDoesNotMatchType => write_message(
                 &|f| write!(f, "initializer does not match type"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::InitializerAggregateWrongDimension => write_message(
                 &|f| write!(f, "initializer has incorrect number of elements"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::WrongTypeInConstructor => write_message(
                 &|f| write!(f, "wrong type in numeric constructor"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::WrongTypeInReturnStatement(actual, expected) => write_message(
@@ -301,55 +314,57 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         expected, actual
                     )
                 },
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::FunctionNotCalled => {
-                write_message(&|f| write!(f, "function not called"), None, Severity::Error)
-            }
+            TyperError::FunctionNotCalled => write_message(
+                &|f| write!(f, "function not called"),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
             TyperError::MutableRequired => write_message(
                 &|f| write!(f, "non-const is required in this context"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::LvalueRequired => write_message(
                 &|f| write!(f, "lvalue is required in this context"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::ArrayDimensionsMustBeConstantExpression(_) => write_message(
                 &|f| write!(f, "array dimensions must be constant"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::ArrayDimensionNotSpecified => write_message(
                 &|f| write!(f, "array not given any dimensions"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::ConstantDoesNotExist(_, name) => write_message(
                 &|f| write!(f, "constant buffer does not contain member '{}'", name),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::StructMemberDoesNotExist(_, name) => write_message(
                 &|f| write!(f, "struct does not contain member '{}'", name),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::InvalidTypeForSwizzle(_) => write_message(
                 &|f| write!(f, "invalid use of swizzle operation"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::MemberNodeMustBeUsedOnStruct(_, name) => write_message(
                 &|f| write!(f, "non-aggregate type can not contain member '{}'", name),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             TyperError::ArrayIndexMustBeUsedOnArrayType(_) => write_message(
                 &|f| write!(f, "non-indexable type can not be indexed"),
-                None,
+                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
         }
@@ -357,14 +372,21 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 }
 
 /// Get a string name from a function name for error display
-fn get_function_name(name: &crate::typer::functions::FunctionName, context: &Context) -> String {
-    use crate::typer::functions::FunctionName;
+fn get_function_name(name: &FunctionName, context: &Context) -> String {
     match name {
         FunctionName::User(id) => match context.get_function_name(id) {
             Some(s) => s.to_string(),
             None => format!("<{:?}>", id),
         },
         FunctionName::Intrinsic(_) => "<unnamed intrinsic>".to_string(),
+    }
+}
+
+/// Get the location of a function
+fn get_function_location(name: &FunctionName, context: &Context) -> SourceLocation {
+    match name {
+        FunctionName::User(id) => context.get_function_location(id),
+        FunctionName::Intrinsic(_) => SourceLocation::UNKNOWN,
     }
 }
 

@@ -6,7 +6,7 @@ use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionDefinition {
-    pub name: String,
+    pub name: Located<String>,
     pub returntype: FunctionReturn,
     pub params: Vec<FunctionParam>,
     pub body: Vec<Statement>,

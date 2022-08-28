@@ -203,7 +203,7 @@ pub fn parse_function_definition<'t>(
     })(input)?;
     let (input, body) = statement_block(input, st)?;
     let def = FunctionDefinition {
-        name: func_name.to_node(),
+        name: func_name,
         returntype: FunctionReturn {
             return_type: ret,
             semantic: return_semantic,
