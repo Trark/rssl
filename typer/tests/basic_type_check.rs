@@ -44,6 +44,31 @@ fn check_structs() {
     check_fail("struct S {}; void main() { S value = 0; }");
     check_types("struct S1 {}; struct S2 {}; S1 g1; S2 g2;");
     check_fail("struct S {}; struct S {};");
+
+    // Declaring a struct with the same name as a variable is allowed
+    check_types("struct S {}; int S;");
+    check_types("int S; struct S {};");
+}
+
+#[test]
+fn check_cbuffer() {
+    check_types(
+        "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",
+    );
+
+    // Declaring the same block twice should fail
+    check_fail("cbuffer MyConstants { float c1; } cbuffer MyConstants { float c1; }");
+
+    // Declaring a block with the same name as a struct or variable is allowed
+    check_types("cbuffer S {} struct S {};");
+    check_types("struct S {}; cbuffer S {}");
+    check_types("cbuffer S {} int S;");
+    check_types("int S; cbuffer S {}");
+}
+
+#[test]
+fn check_variable_scope() {
+    check_fail("int a; int a;");
 }
 
 #[test]
@@ -70,13 +95,6 @@ fn check_buffer_index() {
 fn check_swizzle() {
     check_types("void sub(out float4 v) {} void main() { float4 t; sub(t.wzyx); }");
     check_fail("void sub(out float4 v) {} void main() { float4 t; sub(t.wwww); }");
-}
-
-#[test]
-fn check_cbuffer() {
-    check_types(
-        "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",
-    );
 }
 
 #[test]

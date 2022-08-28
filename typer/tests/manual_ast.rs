@@ -15,7 +15,7 @@ fn test_typeparse() {
                 )))
                 .into(),
                 defs: vec![ast::GlobalVariableName {
-                    name: "g_myOutBuffer".to_string(),
+                    name: Located::none("g_myOutBuffer".to_string()),
                     bind: ast::VariableBind::Normal,
                     slot: Some(ast::GlobalSlot::ReadSlot(0)),
                     init: None,
@@ -34,7 +34,7 @@ fn test_typeparse() {
                     None,
                 ),
                 defs: vec![ast::GlobalVariableName {
-                    name: "g_myFour".to_string(),
+                    name: Located::none("g_myFour".to_string()),
                     bind: ast::VariableBind::Normal,
                     slot: None,
                     init: Some(ast::Initializer::Expression(Located::none(
@@ -168,7 +168,7 @@ fn test_typeparse() {
                     None,
                 ),
                 defs: vec![ast::GlobalVariableName {
-                    name: "g_myFour".to_string(),
+                    name: Located::none("g_myFour".to_string()),
                     bind: ast::VariableBind::Normal,
                     slot: None,
                     init: Some(ast::Initializer::Expression(Located::none(

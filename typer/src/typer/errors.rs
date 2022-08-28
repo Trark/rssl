@@ -12,9 +12,9 @@ pub type TyperResult<T> = Result<T, TyperError>;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
-    ValueAlreadyDefined(String, ErrorType, ErrorType),
-    StructAlreadyDefined(String),
-    ConstantBufferAlreadyDefined(String),
+    ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
+    StructAlreadyDefined(Located<String>, ir::StructId),
+    ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
 
     UnknownIdentifier(String),
     UnknownType(ErrorType),
@@ -145,21 +145,35 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
         };
 
         match err {
-            TyperError::ValueAlreadyDefined(_, _, _) => write_message(
-                &|f| write!(f, "identifier already defined"),
-                SourceLocation::UNKNOWN,
+            TyperError::ValueAlreadyDefined(name, _, _) => write_message(
+                &|f| write!(f, "redefinition of '{}'", name.node),
+                name.location,
                 Severity::Error,
             ),
-            TyperError::StructAlreadyDefined(_) => write_message(
-                &|f| write!(f, "struct aready defined"),
-                SourceLocation::UNKNOWN,
-                Severity::Error,
-            ),
-            TyperError::ConstantBufferAlreadyDefined(_) => write_message(
-                &|f| write!(f, "cbuffer aready defined"),
-                SourceLocation::UNKNOWN,
-                Severity::Error,
-            ),
+            TyperError::StructAlreadyDefined(name, previous_id) => {
+                write_message(
+                    &|f| write!(f, "redefinition of '{}'", name.node),
+                    name.location,
+                    Severity::Error,
+                )?;
+                write_message(
+                    &|f| write!(f, "previous definition is here"),
+                    context.get_struct_location(previous_id),
+                    Severity::Note,
+                )
+            }
+            TyperError::ConstantBufferAlreadyDefined(name, previous_id) => {
+                write_message(
+                    &|f| write!(f, "redefinition of '{}'", name.node),
+                    name.location,
+                    Severity::Error,
+                )?;
+                write_message(
+                    &|f| write!(f, "previous definition is here"),
+                    context.get_cbuffer_location(previous_id),
+                    Severity::Note,
+                )
+            }
             TyperError::UnknownIdentifier(name) => write_message(
                 &|f| write!(f, "'{}' was not declared in this scope", name),
                 SourceLocation::UNKNOWN,

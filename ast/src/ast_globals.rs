@@ -1,6 +1,7 @@
 use crate::ast_statements::{Initializer, VariableBind};
 use crate::ast_types::Type;
 use crate::primitive_types::*;
+use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariable {
@@ -18,7 +19,7 @@ pub struct GlobalType(
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariableName {
-    pub name: String,
+    pub name: Located<String>,
     pub bind: VariableBind,
     pub slot: Option<GlobalSlot>,
     pub init: Option<Initializer>,
@@ -34,7 +35,7 @@ pub enum GlobalSlot {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstantBuffer {
-    pub name: String,
+    pub name: Located<String>,
     pub slot: Option<ConstantSlot>,
     pub members: Vec<ConstantVariable>,
 }

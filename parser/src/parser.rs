@@ -169,10 +169,14 @@ fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
             // We expect duplicates to be dealt with later during type checking
             match root {
                 RootDefinition::Struct(ref sd) => {
-                    symbol_table.0.insert(sd.name.clone(), SymbolType::Struct);
+                    symbol_table
+                        .0
+                        .insert(sd.name.node.clone(), SymbolType::Struct);
                 }
                 RootDefinition::Enum(ref ed) => {
-                    symbol_table.0.insert(ed.name.clone(), SymbolType::Enum);
+                    symbol_table
+                        .0
+                        .insert(ed.name.node.clone(), SymbolType::Enum);
                 }
                 _ => {}
             }

@@ -30,15 +30,15 @@ struct ScopeData {
     function_names: HashMap<ir::FunctionId, Located<String>>,
 
     struct_ids: HashMap<String, ir::StructId>,
-    struct_names: HashMap<ir::StructId, String>,
+    struct_names: HashMap<ir::StructId, Located<String>>,
     struct_definitions: HashMap<ir::StructId, HashMap<String, ir::Type>>,
 
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
-    cbuffer_names: HashMap<ir::ConstantBufferId, String>,
+    cbuffer_names: HashMap<ir::ConstantBufferId, Located<String>>,
     cbuffer_definitions: HashMap<ir::ConstantBufferId, HashMap<String, ir::Type>>,
 
     globals: HashMap<String, (ir::Type, ir::GlobalId)>,
-    global_names: HashMap<ir::GlobalId, String>,
+    global_names: HashMap<ir::GlobalId, Located<String>>,
 
     function_return_type: Option<ir::Type>,
 }
@@ -226,12 +226,6 @@ impl Context {
         self.search_scopes(|s| s.function_names.get(id).map(|s| s.as_str()))
     }
 
-    /// Get the source location from a function id
-    pub fn get_function_location(&self, id: &ir::FunctionId) -> SourceLocation {
-        self.search_scopes(|s| s.function_names.get(id).map(|s| s.location))
-            .unwrap_or(SourceLocation::UNKNOWN)
-    }
-
     /// Get the name from a struct id
     pub fn get_struct_name(&self, id: &ir::StructId) -> Option<&str> {
         self.search_scopes(|s| s.struct_names.get(id).map(|s| s.as_str()))
@@ -245,6 +239,24 @@ impl Context {
     /// Get the name from a global variable id
     pub fn get_global_name(&self, id: &ir::GlobalId) -> Option<&str> {
         self.search_scopes(|s| s.global_names.get(id).map(|s| s.as_str()))
+    }
+
+    /// Get the source location from a function id
+    pub fn get_function_location(&self, id: &ir::FunctionId) -> SourceLocation {
+        self.search_scopes(|s| s.function_names.get(id).map(|s| s.location))
+            .unwrap_or(SourceLocation::UNKNOWN)
+    }
+
+    /// Get the source location from a struct id
+    pub fn get_struct_location(&self, id: &ir::StructId) -> SourceLocation {
+        self.search_scopes(|s| s.struct_names.get(id).map(|s| s.location))
+            .unwrap_or(SourceLocation::UNKNOWN)
+    }
+
+    /// Get the source location from a constant buffer id
+    pub fn get_cbuffer_location(&self, id: &ir::ConstantBufferId) -> SourceLocation {
+        self.search_scopes(|s| s.cbuffer_names.get(id).map(|s| s.location))
+            .unwrap_or(SourceLocation::UNKNOWN)
     }
 
     /// Register a local variable
@@ -275,7 +287,11 @@ impl Context {
     }
 
     /// Register a new global variable
-    pub fn insert_global(&mut self, name: String, typename: ir::Type) -> TyperResult<ir::GlobalId> {
+    pub fn insert_global(
+        &mut self,
+        name: Located<String>,
+        typename: ir::Type,
+    ) -> TyperResult<ir::GlobalId> {
         let id = self.next_free_global_id;
         self.next_free_global_id = ir::GlobalId(self.next_free_global_id.0 + 1);
         self.scopes[self.current_scope].insert_global(id, name, typename)
@@ -284,9 +300,9 @@ impl Context {
     /// Register a new struct type
     pub fn insert_struct(
         &mut self,
-        name: &str,
+        name: Located<String>,
         members: HashMap<String, ir::Type>,
-    ) -> Option<ir::StructId> {
+    ) -> Result<ir::StructId, ir::StructId> {
         let id = self.next_free_struct_id;
         self.next_free_struct_id = ir::StructId(self.next_free_struct_id.0 + 1);
         self.scopes[self.current_scope].insert_struct(id, name, members)
@@ -295,9 +311,9 @@ impl Context {
     /// Register a new constant buffer
     pub fn insert_cbuffer(
         &mut self,
-        name: &str,
+        name: Located<String>,
         members: HashMap<String, ir::Type>,
-    ) -> Option<ir::ConstantBufferId> {
+    ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
         let id = self.next_free_cbuffer_id;
         self.next_free_cbuffer_id = ir::ConstantBufferId(self.next_free_cbuffer_id.0 + 1);
         self.scopes[self.current_scope].insert_cbuffer(id, name, members)
@@ -428,7 +444,7 @@ impl ScopeData {
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
-                    name.node,
+                    name,
                     ty.to_error_type(),
                     ErrorType::Unknown,
                 ));
@@ -461,7 +477,7 @@ impl ScopeData {
                 for &FunctionOverload(_, _, ref args) in &occupied.get().1 {
                     if *args == function_type.2 {
                         return Err(TyperError::ValueAlreadyDefined(
-                            name.node,
+                            name,
                             ErrorType::Unknown,
                             ErrorType::Unknown,
                         ));
@@ -488,7 +504,7 @@ impl ScopeData {
     fn insert_global(
         &mut self,
         id: ir::GlobalId,
-        name: String,
+        name: Located<String>,
         typename: ir::Type,
     ) -> TyperResult<ir::GlobalId> {
         match self.find_variable(&name, 0) {
@@ -503,7 +519,7 @@ impl ScopeData {
             }
             _ => {}
         };
-        match self.globals.entry(name.clone()) {
+        match self.globals.entry(name.node.clone()) {
             Entry::Occupied(_) => unreachable!("global variable inserted multiple times"),
             Entry::Vacant(vacant) => {
                 vacant.insert((typename, id));
@@ -519,42 +535,42 @@ impl ScopeData {
     fn insert_struct(
         &mut self,
         id: ir::StructId,
-        name: &str,
+        name: Located<String>,
         members: HashMap<String, ir::Type>,
-    ) -> Option<ir::StructId> {
-        match (
-            self.struct_ids.entry(name.to_string()),
-            self.struct_names.entry(id),
-            self.struct_definitions.entry(id),
-        ) {
-            (Entry::Vacant(id_entry), Entry::Vacant(name_entry), Entry::Vacant(def_entry)) => {
-                id_entry.insert(id);
-                name_entry.insert(name.to_string());
-                def_entry.insert(members);
-                Some(id)
+    ) -> Result<ir::StructId, ir::StructId> {
+        match self.struct_ids.entry(name.to_string()) {
+            Entry::Vacant(id_v) => {
+                id_v.insert(id);
+                if self.struct_names.insert(id, name).is_some() {
+                    panic!("struct id inserted multiple times");
+                }
+                if self.struct_definitions.insert(id, members).is_some() {
+                    panic!("struct id inserted multiple times");
+                }
+                Ok(id)
             }
-            _ => None,
+            Entry::Occupied(id_o) => Err(*id_o.get()),
         }
     }
 
     fn insert_cbuffer(
         &mut self,
         id: ir::ConstantBufferId,
-        name: &str,
+        name: Located<String>,
         members: HashMap<String, ir::Type>,
-    ) -> Option<ir::ConstantBufferId> {
-        match (
-            self.cbuffer_ids.entry(name.to_string()),
-            self.cbuffer_names.entry(id),
-            self.cbuffer_definitions.entry(id),
-        ) {
-            (Entry::Vacant(id_entry), Entry::Vacant(name_entry), Entry::Vacant(def_entry)) => {
-                id_entry.insert(id);
-                name_entry.insert(name.to_string());
-                def_entry.insert(members);
-                Some(id)
+    ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
+        match self.cbuffer_ids.entry(name.to_string()) {
+            Entry::Vacant(id_v) => {
+                id_v.insert(id);
+                if self.cbuffer_names.insert(id, name).is_some() {
+                    panic!("struct id inserted multiple times");
+                }
+                if self.cbuffer_definitions.insert(id, members).is_some() {
+                    panic!("struct id inserted multiple times");
+                }
+                Ok(id)
             }
-            _ => None,
+            Entry::Occupied(id_o) => Err(*id_o.get()),
         }
     }
 }
@@ -576,14 +592,14 @@ impl VariableBlock {
     fn insert_variable(&mut self, name: String, typename: ir::Type) -> TyperResult<ir::VariableId> {
         if let Some(&(ref ty, _)) = self.variables.get(&name) {
             return Err(TyperError::ValueAlreadyDefined(
-                name,
+                Located::none(name),
                 ty.to_error_type(),
                 typename.to_error_type(),
             ));
         };
         match self.variables.entry(name.clone()) {
             Entry::Occupied(occupied) => Err(TyperError::ValueAlreadyDefined(
-                name,
+                Located::none(name),
                 occupied.get().0.to_error_type(),
                 typename.to_error_type(),
             )),

@@ -57,7 +57,7 @@ fn test_struct() {
 
     let test_struct_str = "struct MyStruct { uint a; float b; };";
     let test_struct_ast = StructDefinition {
-        name: "MyStruct".to_string(),
+        name: "MyStruct".to_string().loc(7),
         members: vec![
             StructMember {
                 ty: Type::uint(),
@@ -139,7 +139,7 @@ fn test_constant_buffer() {
 
     let test_cbuffer1_str = "cbuffer globals { float4x4 wvp; }";
     let test_cbuffer1_ast = ConstantBuffer {
-        name: "globals".to_string(),
+        name: "globals".to_string().loc(8),
         slot: None,
         members: vec![ConstantVariable {
             ty: Type::float4x4(),
@@ -180,7 +180,7 @@ fn test_constant_buffer() {
         defs: vec![test_cbuffer2_ast_xy_m1, test_cbuffer2_ast_xy_m2],
     };
     let test_cbuffer2_ast = ConstantBuffer {
-        name: "globals".to_string(),
+        name: "globals".to_string().loc(8),
         slot: Some(ConstantSlot(12)),
         members: vec![test_cbuffer2_ast_wvp, test_cbuffer2_ast_xy],
     };
@@ -205,7 +205,7 @@ fn test_global_variable() {
         )))
         .into(),
         defs: vec![GlobalVariableName {
-            name: "g_myBuffer".to_string(),
+            name: "g_myBuffer".to_string().loc(7),
             bind: VariableBind::Normal,
             slot: Some(GlobalSlot::ReadSlot(1)),
             init: None,
@@ -225,7 +225,7 @@ fn test_global_variable() {
         )))
         .into(),
         defs: vec![GlobalVariableName {
-            name: "g_myBuffer".to_string(),
+            name: "g_myBuffer".to_string().loc(14),
             bind: VariableBind::Normal,
             slot: Some(GlobalSlot::ReadSlot(1)),
             init: None,
@@ -245,7 +245,7 @@ fn test_global_variable() {
         )))
         .into(),
         defs: vec![GlobalVariableName {
-            name: "g_myBuffer".to_string(),
+            name: "g_myBuffer".to_string().loc(23),
             bind: VariableBind::Normal,
             slot: Some(GlobalSlot::ReadSlot(1)),
             init: None,
@@ -265,7 +265,7 @@ fn test_global_variable() {
         )))
         .into(),
         defs: vec![GlobalVariableName {
-            name: "g_myBuffer".to_string(),
+            name: "g_myBuffer".to_string().loc(29),
             bind: VariableBind::Normal,
             slot: Some(GlobalSlot::ReadSlot(1)),
             init: None,
@@ -301,7 +301,7 @@ fn test_global_variable() {
             None,
         ),
         defs: vec![GlobalVariableName {
-            name: "c_numElements".to_string(),
+            name: "c_numElements".to_string().loc(17),
             bind: VariableBind::Normal,
             slot: None,
             init: Some(Initializer::Expression(
@@ -323,7 +323,7 @@ fn test_global_variable() {
         Initializer::Expression(Expression::Literal(Literal::UntypedInt(3)).loc(38)),
     ];
     let test_const_arr_ast_gvn = GlobalVariableName {
-        name: "data".to_string(),
+        name: "data".to_string().loc(17),
         bind: VariableBind::Array(Some(Expression::Literal(Literal::UntypedInt(4)).loc(22))),
         slot: None,
         init: Some(Initializer::Aggregate(test_const_arr_ast_lits)),
@@ -350,7 +350,7 @@ fn test_global_variable() {
 
     let test_groupshared_str = "groupshared float4 local_data[32];";
     let test_groupshared_ast_gvn = GlobalVariableName {
-        name: "local_data".to_string(),
+        name: "local_data".to_string().loc(19),
         bind: VariableBind::Array(Some(Expression::Literal(Literal::UntypedInt(32)).loc(30))),
         slot: None,
         init: None,

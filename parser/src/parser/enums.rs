@@ -40,10 +40,7 @@ pub fn parse_enum_definition<'t>(
     };
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
-    let sd = EnumDefinition {
-        name: name.to_node(),
-        values,
-    };
+    let sd = EnumDefinition { name, values };
     Ok((input, sd))
 }
 
@@ -55,7 +52,7 @@ fn test_enum_definition() {
     enum_definition.check(
         "enum TestEnum {};",
         EnumDefinition {
-            name: "TestEnum".to_string(),
+            name: "TestEnum".to_string().loc(5),
             values: Vec::new(),
         },
     );
@@ -63,7 +60,7 @@ fn test_enum_definition() {
     enum_definition.check(
         "enum TestEnum { X, Y, Z, };",
         EnumDefinition {
-            name: "TestEnum".to_string(),
+            name: "TestEnum".to_string().loc(5),
             values: vec![
                 EnumValue {
                     name: "X".to_string(),
@@ -84,7 +81,7 @@ fn test_enum_definition() {
     enum_definition.check(
         "enum TestEnum { X, Y, Z };",
         EnumDefinition {
-            name: "TestEnum".to_string(),
+            name: "TestEnum".to_string().loc(5),
             values: vec![
                 EnumValue {
                     name: "X".to_string(),
@@ -105,7 +102,7 @@ fn test_enum_definition() {
     enum_definition.check(
         "enum TestEnum { X = 0, Y, Z = 3, };",
         EnumDefinition {
-            name: "TestEnum".to_string(),
+            name: "TestEnum".to_string().loc(5),
             values: vec![
                 EnumValue {
                     name: "X".to_string(),

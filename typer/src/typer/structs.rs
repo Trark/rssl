@@ -23,11 +23,11 @@ pub fn parse_rootdefinition_struct(
         }
     }
     let name = &sd.name;
-    match context.insert_struct(name, member_map) {
-        Some(id) => {
+    match context.insert_struct(name.clone(), member_map) {
+        Ok(id) => {
             let struct_def = ir::StructDefinition { id, members };
             Ok(ir::RootDefinition::Struct(struct_def))
         }
-        None => Err(TyperError::StructAlreadyDefined(name.clone())),
+        Err(id) => Err(TyperError::StructAlreadyDefined(name.clone(), id)),
     }
 }

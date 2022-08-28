@@ -41,14 +41,11 @@ pub fn parse_struct_definition<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, StructDefinition> {
     let (input, _) = parse_token(Token::Struct)(input)?;
-    let (input, structname) = parse_variable_name(input)?;
+    let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
     let (input, members) = nom::multi::many0(contextual(parse_struct_member, st))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
-    let sd = StructDefinition {
-        name: structname.to_node(),
-        members,
-    };
+    let sd = StructDefinition { name, members };
     Ok((input, sd))
 }

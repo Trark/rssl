@@ -73,9 +73,9 @@ pub fn parse_rootdefinition_constantbuffer(
             });
         }
     }
-    let id = match context.insert_cbuffer(&cb_name, members_map) {
-        Some(id) => id,
-        None => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name.clone())),
+    let id = match context.insert_cbuffer(cb_name.clone(), members_map) {
+        Ok(id) => id,
+        Err(id) => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name, id)),
     };
     let cb_ir = ir::ConstantBuffer { id, members };
     Ok(ir::RootDefinition::ConstantBuffer(cb_ir))

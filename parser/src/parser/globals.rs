@@ -107,7 +107,7 @@ pub fn parse_constant_buffer<'t>(
         parse_token(Token::RightBrace),
     )(input)?;
     let cb = ConstantBuffer {
-        name: name.to_node(),
+        name,
         slot,
         members,
     };
@@ -140,7 +140,7 @@ fn parse_global_variable_name<'t>(
     let (input, slot) = nom::combinator::opt(parse_global_slot)(input)?;
     let (input, init) = parse_initializer(input, st)?;
     let v = GlobalVariableName {
-        name: name.to_node(),
+        name,
         bind: match array_dim {
             Some(ref expr) => VariableBind::Array(expr.clone()),
             None => VariableBind::Normal,
