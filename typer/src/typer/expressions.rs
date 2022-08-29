@@ -1031,16 +1031,24 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                     }
                     Err(err) => Err(err),
                 },
-                ir::TypeLayout::Scalar(_) => {
-                    if member == "x" || member == "r" {
-                        let composite_ty = ir::Type(composite_tyl, composite_mod);
-                        let ty = ExpressionType(composite_ty, vt);
-                        // Just emit the composite expression and drop the member / swizzle
-                        return Ok(TypedExpression::Value(composite_ir, ty));
+                ir::TypeLayout::Scalar(scalar) => {
+                    let mut swizzle_slots = Vec::with_capacity(member.len());
+                    for c in member.chars() {
+                        swizzle_slots.push(match c {
+                            'x' | 'r' => ir::SwizzleSlot::X,
+                            // Assume we were not trying to swizzle and accidentally accessed a member of a scalar
+                            _ => return Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
+                        });
                     }
-
-                    // Scalars don't really have members, so return a sensible error message
-                    Err(TyperError::TypeDoesNotHaveMembers(composite_pt))
+                    let vt = get_swizzle_vt(&swizzle_slots, vt);
+                    let ty = if swizzle_slots.len() == 1 {
+                        ir::TypeLayout::Scalar(scalar)
+                    } else {
+                        ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
+                    };
+                    let ety = ExpressionType(ir::Type(ty, composite_mod), vt);
+                    let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
+                    Ok(TypedExpression::Value(node, ety))
                 }
                 ir::TypeLayout::Vector(scalar, x) => {
                     let mut swizzle_slots = Vec::with_capacity(member.len());
@@ -1299,7 +1307,7 @@ fn get_expression_type(
                 get_expression_type(vec, context)?;
             let vt = get_swizzle_vt(swizzle, vec_vt);
             let tyl = match vec_tyl {
-                ir::TypeLayout::Vector(scalar, _) => {
+                ir::TypeLayout::Scalar(scalar) | ir::TypeLayout::Vector(scalar, _) => {
                     if swizzle.len() == 1 {
                         ir::TypeLayout::Scalar(scalar)
                     } else {

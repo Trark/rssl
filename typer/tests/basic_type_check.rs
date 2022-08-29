@@ -117,6 +117,9 @@ fn check_buffer_index() {
 fn check_swizzle() {
     check_types("void sub(out float4 v) {} void main() { float4 t; sub(t.wzyx); }");
     check_fail("void sub(out float4 v) {} void main() { float4 t; sub(t.wwww); }");
+
+    check_types("void sub(float4 v) {} void main() { float t; sub(t.xxxx); }");
+    check_fail("void sub(float4 v) {} void main() { float t; sub(t.yyyy); }");
 }
 
 #[test]
