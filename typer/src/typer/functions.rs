@@ -36,19 +36,18 @@ pub fn parse_rootdefinition_function(
     let body_ir = parse_statement_list(&fd.body, context)?;
     let decls = context.pop_scope_with_locals();
 
+    let id = {
+        let return_type = return_type.return_type.clone();
+        let param_types = func_params.iter().map(|p| p.param_type.clone()).collect();
+        context.insert_function(fd.name.clone(), return_type, param_types)?
+    };
     let fd_ir = ir::FunctionDefinition {
-        id: context.make_function_id(),
+        id,
         returntype: return_type,
         params: func_params,
         scope_block: ir::ScopeBlock(body_ir, decls),
         attributes: fd.attributes.clone(),
     };
-    let func_type = FunctionOverload(
-        FunctionName::User(fd_ir.id),
-        fd_ir.returntype.return_type.clone(),
-        fd_ir.params.iter().map(|p| p.param_type.clone()).collect(),
-    );
-    context.insert_function(fd.name.clone(), func_type)?;
     Ok(ir::RootDefinition::Function(fd_ir))
 }
 

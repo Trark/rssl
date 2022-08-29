@@ -31,9 +31,30 @@ fn check_return() {
 
 #[test]
 fn check_function_calls() {
+    // Check calling a simple function works
     check_types("void subroutine() {} void main() { subroutine(); }");
+
+    // Check calling an unknown function fails
     check_fail("void main() { subroutine(); }");
+
+    // Check we can call multiple functions and they can have parameters
     check_types("void f1() {} void f2(float x) {} void main() { f1(); f2(0); }");
+
+    // Check overloads pick the right overload
+    check_types("void f(int4 x) {} void f(int3 x) {} void main() { f(int4(0, 0, 0, 0)); }");
+    check_types("void f(int4 x) {} void f(int3 x) {} void main() { f(int3(0, 0, 0)); }");
+
+    // Check that no overloads are valid
+    check_fail("void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }");
+
+    // Check that we fail if multiple overloads are valid
+    // TODO: This currently prints an error indicating none were valid
+    check_fail("void f(int2 x) {} void f(int3 x) {} void main() { f(int4(0, 0, 0, 0)); }");
+}
+
+#[test]
+fn check_intrinsic_calls() {
+    check_types("void main() { GroupMemoryBarrierWithGroupSync(); }");
 }
 
 #[test]

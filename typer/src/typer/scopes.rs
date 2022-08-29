@@ -1,4 +1,5 @@
 use super::errors::{ToErrorType, TyperError, TyperResult};
+use super::expressions::{UnresolvedFunction, VariableExpression};
 use crate::typer::errors::ErrorType;
 use crate::typer::functions::{FunctionName, FunctionOverload};
 use ir::{ExpressionType, Intrinsic, ToExpressionType};
@@ -14,10 +15,34 @@ pub struct Context {
     scopes: Vec<ScopeData>,
     current_scope: usize,
 
-    next_free_function_id: ir::FunctionId,
-    next_free_struct_id: ir::StructId,
-    next_free_cbuffer_id: ir::ConstantBufferId,
-    next_free_global_id: ir::GlobalId,
+    function_data: Vec<FunctionData>,
+    struct_data: Vec<StructData>,
+    cbuffer_data: Vec<ConstantBufferData>,
+    global_data: Vec<GlobalData>,
+}
+
+#[derive(Debug, Clone)]
+struct FunctionData {
+    name: Located<String>,
+    overload: FunctionOverload,
+}
+
+#[derive(Debug, Clone)]
+struct StructData {
+    name: Located<String>,
+    members: HashMap<String, ir::Type>,
+}
+
+#[derive(Debug, Clone)]
+struct ConstantBufferData {
+    name: Located<String>,
+    members: HashMap<String, ir::Type>,
+}
+
+#[derive(Debug, Clone)]
+struct GlobalData {
+    name: Located<String>,
+    ty: ir::Type,
 }
 
 #[derive(Debug, Clone)]
@@ -26,60 +51,39 @@ struct ScopeData {
 
     variables: VariableBlock,
 
-    functions: HashMap<String, UnresolvedFunction>,
-    function_names: HashMap<ir::FunctionId, Located<String>>,
-
+    function_ids: HashMap<String, Vec<ir::FunctionId>>,
     struct_ids: HashMap<String, ir::StructId>,
-    struct_names: HashMap<ir::StructId, Located<String>>,
-    struct_definitions: HashMap<ir::StructId, HashMap<String, ir::Type>>,
-
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
-    cbuffer_names: HashMap<ir::ConstantBufferId, Located<String>>,
-    cbuffer_definitions: HashMap<ir::ConstantBufferId, HashMap<String, ir::Type>>,
-
-    globals: HashMap<String, (ir::Type, ir::GlobalId)>,
-    global_names: HashMap<ir::GlobalId, Located<String>>,
+    global_ids: HashMap<String, ir::GlobalId>,
 
     function_return_type: Option<ir::Type>,
 }
 
-/// Result of a variable query
-pub enum VariableExpression {
-    Local(ir::VariableRef, ir::Type),
-    Global(ir::GlobalId, ir::Type),
-    Constant(ir::ConstantBufferId, String, ir::Type),
-    Function(UnresolvedFunction),
-}
-
-/// Set of overloaded functions
-#[derive(PartialEq, Debug, Clone)]
-pub struct UnresolvedFunction(pub String, pub Vec<FunctionOverload>);
-
 impl Context {
     /// Create a new instance to store type and variable context
     pub fn new() -> Self {
-        Context {
+        let mut context = Context {
             scopes: Vec::from([ScopeData {
                 parent_scope: usize::MAX,
                 variables: VariableBlock::new(),
-                functions: get_intrinsics(),
-                function_names: HashMap::new(),
+                function_ids: HashMap::new(),
                 struct_ids: HashMap::new(),
-                struct_names: HashMap::new(),
-                struct_definitions: HashMap::new(),
                 cbuffer_ids: HashMap::new(),
-                cbuffer_names: HashMap::new(),
-                cbuffer_definitions: HashMap::new(),
-                globals: HashMap::new(),
-                global_names: HashMap::new(),
+                global_ids: HashMap::new(),
                 function_return_type: None,
             }]),
             current_scope: 0,
-            next_free_function_id: ir::FunctionId(0),
-            next_free_struct_id: ir::StructId(0),
-            next_free_cbuffer_id: ir::ConstantBufferId(0),
-            next_free_global_id: ir::GlobalId(0),
+            function_data: Vec::new(),
+            struct_data: Vec::new(),
+            cbuffer_data: Vec::new(),
+            global_data: Vec::new(),
+        };
+        for (name, overload) in get_intrinsics() {
+            context
+                .insert_intrinsic(Located::none(name.clone()), overload)
+                .expect("Failed to add intrinsic");
         }
+        context
     }
 
     /// Returns if we are currently at the root scope
@@ -92,16 +96,10 @@ impl Context {
         self.scopes.push(ScopeData {
             parent_scope: self.current_scope,
             variables: VariableBlock::new(),
-            functions: HashMap::new(),
-            function_names: HashMap::new(),
+            function_ids: HashMap::new(),
             struct_ids: HashMap::new(),
-            struct_names: HashMap::new(),
-            struct_definitions: HashMap::new(),
             cbuffer_ids: HashMap::new(),
-            cbuffer_names: HashMap::new(),
-            cbuffer_definitions: HashMap::new(),
-            globals: HashMap::new(),
-            global_names: HashMap::new(),
+            global_ids: HashMap::new(),
             function_return_type: None,
         });
         self.current_scope = self.scopes.len() - 1;
@@ -149,7 +147,9 @@ impl Context {
         let mut scope_index = self.current_scope;
         let mut scopes_up = 0;
         loop {
-            if let Some(ve) = self.scopes[scope_index].find_variable(name, scopes_up) {
+            if let Some(ve) =
+                self.find_variable_in_scope(&self.scopes[scope_index], name, scopes_up)
+            {
                 return Ok(ve);
             }
             scope_index = self.scopes[scope_index].parent_scope;
@@ -178,15 +178,15 @@ impl Context {
             scope_index = self.scopes[scope_index].parent_scope;
             assert_ne!(scope_index, usize::MAX);
         }
-        self.scopes[scope_index].get_type_of_variable(var_ref)
+        self.scopes[scope_index]
+            .variables
+            .get_type_of_variable(var_ref)
     }
 
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: &ir::GlobalId) -> TyperResult<ExpressionType> {
-        match self.search_scopes(|s| s.get_type_of_global(id)) {
-            Some(ty) => Ok(ty),
-            None => panic!("Invalid global variable id: {:?}", id),
-        }
+        assert!(id.0 < self.global_data.len() as u32);
+        Ok(self.global_data[id.0 as usize].ty.clone().to_lvalue())
     }
 
     /// Find the type of a constant buffer member
@@ -195,9 +195,10 @@ impl Context {
         id: &ir::ConstantBufferId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
-        match self.search_scopes(|s| s.get_type_of_constant(id, name)) {
-            Some(res) => res,
-            None => panic!("Invalid constant buffer id: {:?}", id),
+        assert!(id.0 < self.cbuffer_data.len() as u32);
+        match self.cbuffer_data[id.0 as usize].members.get(name) {
+            Some(ty) => Ok(ty.to_lvalue()),
+            None => Err(TyperError::ConstantDoesNotExist(*id, name.to_string())),
         }
     }
 
@@ -207,56 +208,63 @@ impl Context {
         id: &ir::StructId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
-        match self.search_scopes(|s| s.get_type_of_struct_member(id, name)) {
-            Some(res) => res,
-            None => panic!("Invalid struct id: {:?}", id),
+        assert!(id.0 < self.struct_data.len() as u32);
+        match self.struct_data[id.0 as usize].members.get(name) {
+            Some(ty) => Ok(ty.to_lvalue()),
+            None => Err(TyperError::StructMemberDoesNotExist(*id, name.to_string())),
         }
     }
 
     /// Find the return type of a function
     pub fn get_type_of_function_return(&self, id: &ir::FunctionId) -> TyperResult<ExpressionType> {
-        match self.search_scopes(|s| s.get_type_of_function_return(id)) {
-            Some(ty) => Ok(ty),
-            None => panic!("Invalid function id: {:?}", id),
-        }
+        assert!(id.0 < self.function_data.len() as u32);
+        Ok(self.function_data[id.0 as usize]
+            .overload
+            .1
+            .clone()
+            .to_rvalue())
     }
 
     /// Get the name from a function id
-    pub fn get_function_name(&self, id: &ir::FunctionId) -> Option<&str> {
-        self.search_scopes(|s| s.function_names.get(id).map(|s| s.as_str()))
+    pub fn get_function_name(&self, id: &ir::FunctionId) -> &str {
+        assert!(id.0 < self.function_data.len() as u32);
+        &self.function_data[id.0 as usize].name.node
     }
 
     /// Get the name from a struct id
-    pub fn get_struct_name(&self, id: &ir::StructId) -> Option<&str> {
-        self.search_scopes(|s| s.struct_names.get(id).map(|s| s.as_str()))
+    pub fn get_struct_name(&self, id: &ir::StructId) -> &str {
+        assert!(id.0 < self.struct_data.len() as u32);
+        &self.struct_data[id.0 as usize].name.node
     }
 
     /// Get the name from a constant buffer id
-    pub fn get_cbuffer_name(&self, id: &ir::ConstantBufferId) -> Option<&str> {
-        self.search_scopes(|s| s.cbuffer_names.get(id).map(|s| s.as_str()))
+    pub fn get_cbuffer_name(&self, id: &ir::ConstantBufferId) -> &str {
+        assert!(id.0 < self.cbuffer_data.len() as u32);
+        &self.cbuffer_data[id.0 as usize].name.node
     }
 
     /// Get the name from a global variable id
-    pub fn get_global_name(&self, id: &ir::GlobalId) -> Option<&str> {
-        self.search_scopes(|s| s.global_names.get(id).map(|s| s.as_str()))
+    pub fn get_global_name(&self, id: &ir::GlobalId) -> &str {
+        assert!(id.0 < self.global_data.len() as u32);
+        &self.global_data[id.0 as usize].name.node
     }
 
     /// Get the source location from a function id
     pub fn get_function_location(&self, id: &ir::FunctionId) -> SourceLocation {
-        self.search_scopes(|s| s.function_names.get(id).map(|s| s.location))
-            .unwrap_or(SourceLocation::UNKNOWN)
+        assert!(id.0 < self.function_data.len() as u32);
+        self.function_data[id.0 as usize].name.location
     }
 
     /// Get the source location from a struct id
     pub fn get_struct_location(&self, id: &ir::StructId) -> SourceLocation {
-        self.search_scopes(|s| s.struct_names.get(id).map(|s| s.location))
-            .unwrap_or(SourceLocation::UNKNOWN)
+        assert!(id.0 < self.struct_data.len() as u32);
+        self.struct_data[id.0 as usize].name.location
     }
 
     /// Get the source location from a constant buffer id
     pub fn get_cbuffer_location(&self, id: &ir::ConstantBufferId) -> SourceLocation {
-        self.search_scopes(|s| s.cbuffer_names.get(id).map(|s| s.location))
-            .unwrap_or(SourceLocation::UNKNOWN)
+        assert!(id.0 < self.cbuffer_data.len() as u32);
+        self.cbuffer_data[id.0 as usize].name.location
     }
 
     /// Register a local variable
@@ -270,31 +278,69 @@ impl Context {
             .insert_variable(name, typename)
     }
 
-    /// Get a function id to setup overload
-    pub fn make_function_id(&mut self) -> ir::FunctionId {
-        let value = self.next_free_function_id;
-        self.next_free_function_id = ir::FunctionId(self.next_free_function_id.0 + 1);
-        value
-    }
-
     /// Register a function overload
     pub fn insert_function(
         &mut self,
         name: Located<String>,
-        function_type: FunctionOverload,
-    ) -> TyperResult<()> {
-        self.scopes[self.current_scope].insert_function(name, function_type)
+        return_type: ir::Type,
+        param_types: Vec<ir::ParamType>,
+    ) -> TyperResult<ir::FunctionId> {
+        let id = ir::FunctionId(self.function_data.len() as u32);
+        self.function_data.push(FunctionData {
+            name,
+            overload: FunctionOverload(FunctionName::User(id), return_type, param_types),
+        });
+        self.insert_function_in_scope(self.current_scope as usize, id)?;
+        Ok(id)
+    }
+
+    /// Register an intrinsic
+    fn insert_intrinsic(
+        &mut self,
+        name: Located<String>,
+        overload: FunctionOverload,
+    ) -> TyperResult<ir::FunctionId> {
+        let id = ir::FunctionId(self.function_data.len() as u32);
+        self.function_data.push(FunctionData { name, overload });
+        self.insert_function_in_scope(self.current_scope as usize, id)?;
+        Ok(id)
     }
 
     /// Register a new global variable
     pub fn insert_global(
         &mut self,
         name: Located<String>,
-        typename: ir::Type,
+        ty: ir::Type,
     ) -> TyperResult<ir::GlobalId> {
-        let id = self.next_free_global_id;
-        self.next_free_global_id = ir::GlobalId(self.next_free_global_id.0 + 1);
-        self.scopes[self.current_scope].insert_global(id, name, typename)
+        let data = GlobalData { name, ty };
+        let id = ir::GlobalId(self.global_data.len() as u32);
+        self.global_data.push(data);
+
+        let scope = &self.scopes[self.current_scope];
+        let data = self.global_data.last().unwrap();
+
+        match self.find_variable_in_scope(scope, &data.name, 0) {
+            Some(VariableExpression::Local(_, ref ty))
+            | Some(VariableExpression::Global(_, ref ty))
+            | Some(VariableExpression::Constant(_, _, ref ty)) => {
+                return Err(TyperError::ValueAlreadyDefined(
+                    data.name.clone(),
+                    ty.to_error_type(),
+                    data.ty.to_error_type(),
+                ));
+            }
+            _ => {}
+        };
+        match self.scopes[self.current_scope]
+            .global_ids
+            .entry(data.name.node.clone())
+        {
+            Entry::Occupied(_) => unreachable!("global variable inserted multiple times"),
+            Entry::Vacant(vacant) => {
+                vacant.insert(id);
+                Ok(id)
+            }
+        }
     }
 
     /// Register a new struct type
@@ -303,9 +349,20 @@ impl Context {
         name: Located<String>,
         members: HashMap<String, ir::Type>,
     ) -> Result<ir::StructId, ir::StructId> {
-        let id = self.next_free_struct_id;
-        self.next_free_struct_id = ir::StructId(self.next_free_struct_id.0 + 1);
-        self.scopes[self.current_scope].insert_struct(id, name, members)
+        let data = StructData { name, members };
+        let id = ir::StructId(self.struct_data.len() as u32);
+        self.struct_data.push(data);
+        let data = self.struct_data.last().unwrap();
+        match self.scopes[self.current_scope]
+            .struct_ids
+            .entry(data.name.to_string())
+        {
+            Entry::Vacant(id_v) => {
+                id_v.insert(id);
+                Ok(id)
+            }
+            Entry::Occupied(id_o) => Err(*id_o.get()),
+        }
     }
 
     /// Register a new constant buffer
@@ -314,9 +371,20 @@ impl Context {
         name: Located<String>,
         members: HashMap<String, ir::Type>,
     ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
-        let id = self.next_free_cbuffer_id;
-        self.next_free_cbuffer_id = ir::ConstantBufferId(self.next_free_cbuffer_id.0 + 1);
-        self.scopes[self.current_scope].insert_cbuffer(id, name, members)
+        let data = ConstantBufferData { name, members };
+        let id = ir::ConstantBufferId(self.cbuffer_data.len() as u32);
+        self.cbuffer_data.push(data);
+        let data = self.cbuffer_data.last().unwrap();
+        match self.scopes[self.current_scope]
+            .cbuffer_ids
+            .entry(data.name.to_string())
+        {
+            Entry::Vacant(id_v) => {
+                id_v.insert(id);
+                Ok(id)
+            }
+            Entry::Occupied(id_o) => Err(*id_o.get()),
+        }
     }
 
     /// Walk up scopes and attempt to find something
@@ -336,20 +404,29 @@ impl Context {
         }
         None
     }
-}
 
-impl ScopeData {
-    fn find_variable(&self, name: &str, scopes_up: u32) -> Option<VariableExpression> {
-        if let Some(ve) = self.variables.find_variable(name, scopes_up) {
+    fn find_variable_in_scope(
+        &self,
+        scope: &ScopeData,
+        name: &str,
+        scopes_up: u32,
+    ) -> Option<VariableExpression> {
+        if let Some(ve) = scope.variables.find_variable(name, scopes_up) {
             return Some(ve);
         }
 
-        if let Some(tys) = self.functions.get(name) {
-            return Some(VariableExpression::Function(tys.clone()));
+        if let Some(ids) = scope.function_ids.get(name) {
+            let mut overloads = Vec::with_capacity(ids.len());
+            for id in ids {
+                overloads.push(self.function_data[id.0 as usize].overload.clone());
+            }
+            return Some(VariableExpression::Function(UnresolvedFunction {
+                overloads,
+            }));
         }
 
-        for (id, members) in &self.cbuffer_definitions {
-            for (member_name, ty) in members {
+        for id in scope.cbuffer_ids.values() {
+            for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
                 if member_name == name {
                     return Some(VariableExpression::Constant(
                         *id,
@@ -360,91 +437,30 @@ impl ScopeData {
             }
         }
 
-        if let Some(&(ref ty, ref id)) = self.globals.get(name) {
-            return Some(VariableExpression::Global(*id, ty.clone()));
+        if let Some(id) = scope.global_ids.get(name) {
+            return Some(VariableExpression::Global(
+                *id,
+                self.global_data[id.0 as usize].ty.clone(),
+            ));
         }
 
         None
     }
 
-    fn get_type_of_variable(&self, var_ref: &ir::VariableRef) -> TyperResult<ExpressionType> {
-        let &ir::VariableRef(ref id, _) = var_ref;
-        for &(ref var_ty, ref var_id) in self.variables.variables.values() {
-            if id == var_id {
-                return Ok(var_ty.to_lvalue());
-            }
-        }
-        panic!("Invalid local variable id: {:?}", var_ref);
-    }
-
-    fn get_type_of_global(&self, id: &ir::GlobalId) -> Option<ExpressionType> {
-        for &(ref global_ty, ref global_id) in self.globals.values() {
-            if id == global_id {
-                return Some(global_ty.to_lvalue());
-            }
-        }
-        None
-    }
-
-    fn get_type_of_constant(
-        &self,
-        id: &ir::ConstantBufferId,
-        name: &str,
-    ) -> Option<TyperResult<ExpressionType>> {
-        match self.cbuffer_definitions.get(id) {
-            Some(cm) => match cm.get(name) {
-                Some(ty) => Some(Ok(ty.to_lvalue())),
-                None => Some(Err(TyperError::ConstantDoesNotExist(*id, name.to_string()))),
-            },
-            None => None,
-        }
-    }
-
-    fn get_type_of_struct_member(
-        &self,
-        id: &ir::StructId,
-        name: &str,
-    ) -> Option<TyperResult<ExpressionType>> {
-        match self.struct_definitions.get(id) {
-            Some(cm) => match cm.get(name) {
-                Some(ty) => Some(Ok(ty.to_lvalue())),
-                None => Some(Err(TyperError::StructMemberDoesNotExist(
-                    *id,
-                    name.to_string(),
-                ))),
-            },
-            None => None,
-        }
-    }
-
-    fn get_type_of_function_return(&self, id: &ir::FunctionId) -> Option<ExpressionType> {
-        for unresolved in self.functions.values() {
-            for overload in &unresolved.1 {
-                match overload.0 {
-                    FunctionName::Intrinsic(_) => {}
-                    FunctionName::User(ref func_id) => {
-                        if func_id == id {
-                            return Some(overload.1.clone().to_rvalue());
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn insert_function(
+    fn insert_function_in_scope(
         &mut self,
-        name: Located<String>,
-        function_type: FunctionOverload,
+        scope_index: usize,
+        id: ir::FunctionId,
     ) -> TyperResult<()> {
+        let data = &self.function_data[id.0 as usize];
+
         // Error if a variable of the same name already exists
-        match self.find_variable(&name.node, 0) {
+        match self.find_variable_in_scope(&self.scopes[scope_index], &data.name.node, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
-                    name,
+                    data.name.clone(),
                     ty.to_error_type(),
                     ErrorType::Unknown,
                 ));
@@ -452,126 +468,32 @@ impl ScopeData {
             _ => {}
         };
 
-        fn insert_function_name(
-            function_names: &mut HashMap<ir::FunctionId, Located<String>>,
-            function_type: FunctionOverload,
-            name: Located<String>,
-        ) {
-            match function_type.0 {
-                FunctionName::User(id) => match function_names.entry(id) {
-                    Entry::Occupied(_) => {
-                        panic!("function id named twice");
-                    }
-                    Entry::Vacant(vacant) => {
-                        vacant.insert(name);
-                    }
-                },
-                FunctionName::Intrinsic(_) => {}
-            }
-        }
-
         // Try to add the function
-        match self.functions.entry(name.node.clone()) {
+        match self.scopes[scope_index]
+            .function_ids
+            .entry(data.name.node.clone())
+        {
             Entry::Occupied(mut occupied) => {
                 // Fail if the overload already exists
-                for &FunctionOverload(_, _, ref args) in &occupied.get().1 {
-                    if *args == function_type.2 {
+                for existing_id in occupied.get() {
+                    if self.function_data[existing_id.0 as usize].overload.2 == data.overload.2 {
                         return Err(TyperError::ValueAlreadyDefined(
-                            name,
+                            data.name.clone(),
                             ErrorType::Unknown,
                             ErrorType::Unknown,
                         ));
                     }
                 }
                 // Insert a new overload
-                insert_function_name(&mut self.function_names, function_type.clone(), name);
-                occupied.get_mut().1.push(function_type);
-                Ok(())
+                occupied.get_mut().push(id);
             }
             Entry::Vacant(vacant) => {
                 // Insert a new function with one overload
-                insert_function_name(
-                    &mut self.function_names,
-                    function_type.clone(),
-                    name.clone(),
-                );
-                vacant.insert(UnresolvedFunction(name.node, vec![function_type]));
-                Ok(())
+                vacant.insert(Vec::from([id]));
             }
-        }
-    }
-
-    fn insert_global(
-        &mut self,
-        id: ir::GlobalId,
-        name: Located<String>,
-        typename: ir::Type,
-    ) -> TyperResult<ir::GlobalId> {
-        match self.find_variable(&name, 0) {
-            Some(VariableExpression::Local(_, ref ty))
-            | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::Constant(_, _, ref ty)) => {
-                return Err(TyperError::ValueAlreadyDefined(
-                    name,
-                    ty.to_error_type(),
-                    typename.to_error_type(),
-                ));
-            }
-            _ => {}
         };
-        match self.globals.entry(name.node.clone()) {
-            Entry::Occupied(_) => unreachable!("global variable inserted multiple times"),
-            Entry::Vacant(vacant) => {
-                vacant.insert((typename, id));
-                match self.global_names.insert(id, name) {
-                    Some(_) => panic!("global variable named multiple times"),
-                    None => {}
-                };
-                Ok(id)
-            }
-        }
-    }
 
-    fn insert_struct(
-        &mut self,
-        id: ir::StructId,
-        name: Located<String>,
-        members: HashMap<String, ir::Type>,
-    ) -> Result<ir::StructId, ir::StructId> {
-        match self.struct_ids.entry(name.to_string()) {
-            Entry::Vacant(id_v) => {
-                id_v.insert(id);
-                if self.struct_names.insert(id, name).is_some() {
-                    panic!("struct id inserted multiple times");
-                }
-                if self.struct_definitions.insert(id, members).is_some() {
-                    panic!("struct id inserted multiple times");
-                }
-                Ok(id)
-            }
-            Entry::Occupied(id_o) => Err(*id_o.get()),
-        }
-    }
-
-    fn insert_cbuffer(
-        &mut self,
-        id: ir::ConstantBufferId,
-        name: Located<String>,
-        members: HashMap<String, ir::Type>,
-    ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
-        match self.cbuffer_ids.entry(name.to_string()) {
-            Entry::Vacant(id_v) => {
-                id_v.insert(id);
-                if self.cbuffer_names.insert(id, name).is_some() {
-                    panic!("struct id inserted multiple times");
-                }
-                if self.cbuffer_definitions.insert(id, members).is_some() {
-                    panic!("struct id inserted multiple times");
-                }
-                Ok(id)
-            }
-            Entry::Occupied(id_o) => Err(*id_o.get()),
-        }
+        Ok(())
     }
 }
 
@@ -626,6 +548,16 @@ impl VariableBlock {
         }
     }
 
+    fn get_type_of_variable(&self, var_ref: &ir::VariableRef) -> TyperResult<ExpressionType> {
+        let &ir::VariableRef(ref id, _) = var_ref;
+        for &(ref var_ty, ref var_id) in self.variables.values() {
+            if id == var_id {
+                return Ok(var_ty.to_lvalue());
+            }
+        }
+        panic!("Invalid local variable id: {:?}", var_ref);
+    }
+
     fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::Type)> {
         self.variables
             .iter()
@@ -637,11 +569,11 @@ impl VariableBlock {
 }
 
 /// Create a map of all the intrinsic functions we need to parse
-fn get_intrinsics() -> HashMap<String, UnresolvedFunction> {
+fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
     use crate::intrinsics::*;
     let funcs = get_intrinsics();
 
-    let mut strmap: HashMap<String, UnresolvedFunction> = HashMap::new();
+    let mut overloads = Vec::with_capacity(funcs.len());
     for &(ref name, params, ref factory) in funcs {
         let return_type = match *factory {
             IntrinsicFactory::Intrinsic0(ref i) => i.get_return_type(),
@@ -654,17 +586,9 @@ fn get_intrinsics() -> HashMap<String, UnresolvedFunction> {
             return_type.0,
             params.to_vec(),
         );
-        match strmap.entry(name.to_string()) {
-            Entry::Occupied(mut occupied) => {
-                let &mut UnresolvedFunction(_, ref mut overloads) = occupied.get_mut();
-                overloads.push(overload);
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(UnresolvedFunction(name.to_string(), vec![overload]));
-            }
-        }
+        overloads.push((name.to_string(), overload));
     }
-    strmap
+    overloads
 }
 
 impl Default for Context {

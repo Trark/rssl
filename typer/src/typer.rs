@@ -87,38 +87,26 @@ fn gather_global_names(
 
     for def in root_definitions {
         match def {
-            ir::RootDefinition::Struct(ref sd) => match context.get_struct_name(&sd.id) {
-                Some(name) => {
-                    decls.structs.insert(sd.id, name.to_string());
-                }
-                None => {
-                    panic!("struct name does not exist");
-                }
-            },
-            ir::RootDefinition::ConstantBuffer(ref cb) => match context.get_cbuffer_name(&cb.id) {
-                Some(name) => {
-                    decls.constants.insert(cb.id, name.to_string());
-                }
-                None => {
-                    panic!("constant buffer name does not exist");
-                }
-            },
-            ir::RootDefinition::GlobalVariable(ref gv) => match context.get_global_name(&gv.id) {
-                Some(name) => {
-                    decls.globals.insert(gv.id, name.to_string());
-                }
-                None => {
-                    panic!("global variable name does not exist");
-                }
-            },
-            ir::RootDefinition::Function(ref func) => match context.get_function_name(&func.id) {
-                Some(name) => {
-                    decls.functions.insert(func.id, name.to_string());
-                }
-                None => {
-                    panic!("function name does not exist");
-                }
-            },
+            ir::RootDefinition::Struct(ref sd) => {
+                decls
+                    .structs
+                    .insert(sd.id, context.get_struct_name(&sd.id).to_string());
+            }
+            ir::RootDefinition::ConstantBuffer(ref cb) => {
+                decls
+                    .constants
+                    .insert(cb.id, context.get_cbuffer_name(&cb.id).to_string());
+            }
+            ir::RootDefinition::GlobalVariable(ref gv) => {
+                decls
+                    .globals
+                    .insert(gv.id, context.get_global_name(&gv.id).to_string());
+            }
+            ir::RootDefinition::Function(ref func) => {
+                decls
+                    .functions
+                    .insert(func.id, context.get_function_name(&func.id).to_string());
+            }
         }
     }
 

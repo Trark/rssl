@@ -2,6 +2,8 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use std::collections::HashMap;
 
+const BASE_FUNCTION_ID: u32 = 166;
+
 #[test]
 fn test_typeparse() {
     use rssl_text::Located;
@@ -205,7 +207,7 @@ fn test_typeparse() {
     let static_global_result = rssl_typer::type_check(&static_global_test);
     let static_global_expected = ir::Module {
         global_declarations: ir::GlobalDeclarations {
-            functions: HashMap::from([(ir::FunctionId(0), "CSMAIN".to_string())]),
+            functions: HashMap::from([(ir::FunctionId(BASE_FUNCTION_ID), "CSMAIN".to_string())]),
             globals: {
                 let mut map = HashMap::new();
                 map.insert(ir::GlobalId(0), "g_myFour".to_string());
@@ -234,7 +236,7 @@ fn test_typeparse() {
                 ))),
             }),
             ir::RootDefinition::Function(ir::FunctionDefinition {
-                id: ir::FunctionId(0),
+                id: ir::FunctionId(BASE_FUNCTION_ID),
                 returntype: ir::FunctionReturn {
                     return_type: ir::Type::void().into(),
                 },

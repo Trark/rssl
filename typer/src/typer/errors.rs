@@ -77,8 +77,8 @@ pub enum TyperError {
 pub enum ErrorType {
     Untyped(ast::Type),
     Value(ir::Type),
-    Function(String, Vec<FunctionOverload>),
-    Method(String, ir::Type, Vec<FunctionOverload>),
+    Function(Vec<FunctionOverload>),
+    Method(ir::Type, Vec<FunctionOverload>),
     Unknown,
 }
 
@@ -388,10 +388,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 /// Get a string name from a function name for error display
 fn get_function_name(name: &FunctionName, context: &Context) -> String {
     match name {
-        FunctionName::User(id) => match context.get_function_name(id) {
-            Some(s) => s.to_string(),
-            None => format!("<{:?}>", id),
-        },
+        FunctionName::User(id) => context.get_function_name(id).to_string(),
         FunctionName::Intrinsic(_) => "<unnamed intrinsic>".to_string(),
     }
 }
@@ -423,8 +420,5 @@ fn get_type_layout_string(tyl: &ir::TypeLayout, context: &Context) -> String {
 
 /// Get a string name from a struct name for error display
 fn get_struct_name(id: &ir::StructId, context: &Context) -> String {
-    match context.get_struct_name(id) {
-        Some(s) => s.to_string(),
-        None => format!("struct<{:?}>", id),
-    }
+    context.get_struct_name(id).to_string()
 }

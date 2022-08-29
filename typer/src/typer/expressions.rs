@@ -12,16 +12,34 @@ use rssl_ir::Intrinsic;
 use rssl_ir::ToExpressionType;
 use rssl_text::SourceLocation;
 
+/// Result of a variable query
+pub enum VariableExpression {
+    Local(ir::VariableRef, ir::Type),
+    Global(ir::GlobalId, ir::Type),
+    Constant(ir::ConstantBufferId, String, ir::Type),
+    Function(UnresolvedFunction),
+}
+
+/// Set of overloaded functions
 #[derive(PartialEq, Debug, Clone)]
-struct UnresolvedMethod(String, ir::Type, Vec<FunctionOverload>, ir::Expression);
+pub struct UnresolvedFunction {
+    pub overloads: Vec<FunctionOverload>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+struct UnresolvedMethod {
+    object_type: ir::Type,
+    overloads: Vec<FunctionOverload>,
+    object_value: ir::Expression,
+}
 
 #[derive(PartialEq, Debug, Clone)]
 enum TypedExpression {
     // Expression + Type
     Value(ir::Expression, ExpressionType),
-    // Name of function + overloads
+    // Set of function overloads
     Function(UnresolvedFunction),
-    // Name of function + overloads + object
+    // Set of method overloads + object
     Method(UnresolvedMethod),
 }
 
@@ -29,12 +47,14 @@ impl ToErrorType for TypedExpression {
     fn to_error_type(&self) -> ErrorType {
         match *self {
             TypedExpression::Value(_, ref ety) => ety.to_error_type(),
-            TypedExpression::Function(UnresolvedFunction(ref name, ref overloads)) => {
-                ErrorType::Function(name.clone(), overloads.clone())
+            TypedExpression::Function(UnresolvedFunction { ref overloads }) => {
+                ErrorType::Function(overloads.clone())
             }
-            TypedExpression::Method(UnresolvedMethod(ref name, ref ct, ref overloads, _)) => {
-                ErrorType::Method(name.clone(), ct.clone(), overloads.clone())
-            }
+            TypedExpression::Method(UnresolvedMethod {
+                ref object_type,
+                ref overloads,
+                ..
+            }) => ErrorType::Method(object_type.clone(), overloads.clone()),
         }
     }
 }
@@ -187,7 +207,7 @@ fn write_function(
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
     let (FunctionOverload(name, return_type_ty, _), casts) =
-        find_function_type(&unresolved.1, param_types, call_location)?;
+        find_function_type(&unresolved.overloads, param_types, call_location)?;
     // Apply implicit casts
     let param_values = apply_casts(casts, param_values);
     let return_type = return_type_ty.to_rvalue();
@@ -212,11 +232,11 @@ fn write_method(
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
     let (FunctionOverload(name, return_type_ty, _), casts) =
-        find_function_type(&unresolved.2, param_types, call_location)?;
+        find_function_type(&unresolved.overloads, param_types, call_location)?;
     // Apply implicit casts
     let mut param_values = apply_casts(casts, param_values);
     // Add struct as implied first argument
-    param_values.insert(0, unresolved.3);
+    param_values.insert(0, unresolved.object_value);
     let return_type = return_type_ty.to_rvalue();
 
     match name {
@@ -1055,7 +1075,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 }
                 ir::TypeLayout::Object(ref object_type) => {
                     match intrinsics::get_method(object_type, member) {
-                        Ok(intrinsics::MethodDefinition(object_type, name, method_overloads)) => {
+                        Ok(intrinsics::MethodDefinition(object_type, _, method_overloads)) => {
                             let overloads = method_overloads
                                 .iter()
                                 .map(|&(ref param_types, ref factory)| {
@@ -1072,12 +1092,11 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                                     )
                                 })
                                 .collect::<Vec<_>>();
-                            Ok(TypedExpression::Method(UnresolvedMethod(
-                                name,
-                                ir::Type::from_object(object_type),
+                            Ok(TypedExpression::Method(UnresolvedMethod {
+                                object_type: ir::Type::from_object(object_type),
                                 overloads,
-                                composite_ir,
-                            )))
+                                object_value: composite_ir,
+                            }))
                         }
                         Err(()) => Err(TyperError::UnknownTypeMember(composite_pt, member.clone())),
                     }
