@@ -51,3 +51,16 @@ pub fn check_fail(source: &str) {
         Err(_) => {}
     }
 }
+
+#[track_caller]
+pub fn check_fail_message(source: &str, expected_message: &str) {
+    let (tree, source_manager) = parse_from_str(source);
+
+    match rssl_typer::type_check(&tree) {
+        Ok(_) => panic!("Expected type check to fail: {}", source),
+        Err(err) => {
+            let error_print = err.display(&source_manager).to_string();
+            assert_eq!(error_print, expected_message);
+        }
+    }
+}

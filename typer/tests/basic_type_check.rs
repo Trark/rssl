@@ -47,6 +47,21 @@ fn check_function_calls() {
     // Check that no overloads are valid
     check_fail("void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }");
 
+    // And ensure that gives a certain pretty error
+    check_fail_message(
+        "void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }",
+        "type_test.rssl:1:51: error: no matching function for call to f(int2)
+void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
+                                                  ^
+type_test.rssl:1:6: note: candidate function not viable: void f(in int4)
+void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
+     ^
+type_test.rssl:1:24: note: candidate function not viable: void f(in int3)
+void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
+                       ^
+",
+    );
+
     // Check that we fail if multiple overloads are valid
     // TODO: This currently prints an error indicating none were valid
     check_fail("void f(int2 x) {} void f(int3 x) {} void main() { f(int4(0, 0, 0, 0)); }");
