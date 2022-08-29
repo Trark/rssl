@@ -45,6 +45,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
+                template_args: None,
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::Type::uint().into(),
@@ -56,6 +57,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
+                template_args: None,
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::Type::float().into(),
@@ -67,6 +69,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("outFunc".to_string()),
                 returntype: ast::Type::void().into(),
+                template_args: None,
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::ParamType(ast::Type::float(), ast::InputModifier::Out, None),
@@ -90,6 +93,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("CSMAIN".to_string()),
                 returntype: ast::Type::void().into(),
+                template_args: None,
                 params: vec![],
                 body: vec![
                     ast::Statement::Empty,
@@ -188,6 +192,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("CSMAIN".to_string()),
                 returntype: ast::Type::void().into(),
+                template_args: None,
                 params: vec![],
                 body: vec![ast::Statement::Expression(Located::none(
                     ast::Expression::Variable("g_myFour".to_string()),

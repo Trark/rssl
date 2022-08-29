@@ -187,6 +187,26 @@ pub fn parse_function_definition<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, FunctionDefinition> {
+    // Not clear on ordering of template args and attributes
+    // Attributes are used on entry points which can not be template functions
+    let (input, template_args) = parse_template_args(input)?;
+
+    // If we have template arguments then add those as types into the symbol table
+    // The scope management will need reworking later to handle more complex cases
+    let local_symbols = template_args.as_ref().map(|args| {
+        SymbolTable({
+            let mut map = st.0.clone();
+            for arg in &args.0 {
+                map.insert(arg.node.clone(), SymbolType::TemplateType);
+            }
+            map
+        })
+    });
+    let st = match local_symbols {
+        Some(ref st) => st,
+        None => st,
+    };
+
     let (input, attributes) = nom::multi::many0(contextual(parse_function_attribute, st))(input)?;
     let (input, ret) = parse_type(input, st)?;
     let (input, func_name) = parse_variable_name(input)?;
@@ -208,9 +228,35 @@ pub fn parse_function_definition<'t>(
             return_type: ret,
             semantic: return_semantic,
         },
+        template_args,
         params,
         body,
         attributes,
     };
     Ok((input, def))
+}
+
+#[test]
+fn test_template_function() {
+    use test_support::*;
+    let functiondefinition = ParserTester::new(parse_function_definition);
+
+    functiondefinition.check(
+        "template<typename T> void f(T arg) {}",
+        FunctionDefinition {
+            name: "f".to_string().loc(26),
+            returntype: FunctionReturn {
+                return_type: Type::void(),
+                semantic: None,
+            },
+            template_args: Some(TemplateArgList(Vec::from(["T".to_string().loc(18)]))),
+            params: vec![FunctionParam {
+                name: "arg".to_string().loc(30),
+                param_type: Type::custom("T").into(),
+                semantic: None,
+            }],
+            body: vec![],
+            attributes: vec![],
+        },
+    );
 }

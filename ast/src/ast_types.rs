@@ -1,4 +1,5 @@
 use crate::primitive_types::*;
+use rssl_text::Located;
 
 #[derive(PartialEq, Clone)]
 pub struct Type(pub TypeLayout, pub TypeModifier);
@@ -67,6 +68,10 @@ pub enum ObjectType {
     InputPatch,
     OutputPatch,
 }
+
+/// Template arguments
+#[derive(PartialEq, Debug, Clone)]
+pub struct TemplateArgList(pub Vec<Located<String>>);
 
 impl From<DataType> for Type {
     fn from(ty: DataType) -> Type {

@@ -770,6 +770,8 @@ declare_keyword!(reserved_word_extern, "extern");
 declare_keyword!(reserved_word_static, "static");
 declare_keyword!(reserved_word_groupshared, "groupshared");
 declare_keyword!(reserved_word_sizeof, "sizeof");
+declare_keyword!(reserved_word_template, "template");
+declare_keyword!(reserved_word_typename, "typename");
 
 // Unused reserved words
 declare_keyword!(reserved_word_auto, "auto");
@@ -796,11 +798,9 @@ declare_keyword!(reserved_word_reinterpret_cast, "reinterpret_cast");
 declare_keyword!(reserved_word_short, "short");
 declare_keyword!(reserved_word_signed, "signed");
 declare_keyword!(reserved_word_static_cast, "static_cast");
-declare_keyword!(reserved_word_template, "template");
 declare_keyword!(reserved_word_this, "this");
 declare_keyword!(reserved_word_throw, "throw");
 declare_keyword!(reserved_word_try, "try");
-declare_keyword!(reserved_word_typename, "typename");
 declare_keyword!(reserved_word_union, "union");
 declare_keyword!(reserved_word_unsigned, "unsigned");
 declare_keyword!(reserved_word_using, "using");
@@ -1280,6 +1280,8 @@ fn token_no_whitespace_words(input: &[u8]) -> IResult<&[u8], Token> {
         map(reserved_word_static, |_| Token::Static),
         map(reserved_word_groupshared, |_| Token::GroupShared),
         map(reserved_word_sizeof, |_| Token::SizeOf),
+        map(reserved_word_template, |_| Token::Template),
+        map(reserved_word_typename, |_| Token::Typename),
     ))(input)
 }
 

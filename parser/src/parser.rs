@@ -9,12 +9,15 @@ pub use errors::{ParseError, ParseResultExt};
 use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 
 /// Class of a type name
+#[derive(Clone, Debug)]
 enum SymbolType {
     Struct,
     Enum,
+    TemplateType,
 }
 
 /// Stores current context of active symbols while parsing
+#[derive(Debug)]
 pub struct SymbolTable(HashMap<String, SymbolType>);
 
 impl SymbolTable {
@@ -117,7 +120,7 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 
 // Implement parsing for type names
 mod types;
-use types::{parse_data_layout, parse_type};
+use types::{parse_data_layout, parse_template_args, parse_type};
 
 fn parse_arraydim<'t>(
     input: &'t [LexToken],

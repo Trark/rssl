@@ -114,6 +114,9 @@ pub enum Token {
 
     SizeOf,
 
+    Template,
+    Typename,
+
     Auto,
     Case,
     Catch,
@@ -137,11 +140,9 @@ pub enum Token {
     Short,
     Signed,
     StaticCast,
-    Template,
     This,
     Throw,
     Try,
-    Typename,
     Union,
     Unsigned,
     Using,

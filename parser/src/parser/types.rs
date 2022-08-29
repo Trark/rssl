@@ -226,6 +226,7 @@ fn parse_structured_layout<'t>(
         Ok((input, Identifier(name))) => match st.0.get(name) {
             Some(&SymbolType::Struct) => Ok((input, StructuredLayout::Custom(name.clone()))),
             Some(&SymbolType::Enum) => Ok((input, StructuredLayout::Custom(name.clone()))),
+            Some(&SymbolType::TemplateType) => Ok((input, StructuredLayout::Custom(name.clone()))),
             _ => Err(nom::Err::Error(ParseErrorContext(
                 input,
                 ParseErrorReason::SymbolIsNotAStructuredType,
@@ -494,4 +495,33 @@ pub fn parse_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t
         ..TypeModifier::default()
     };
     Ok((input, Type(tl, tm)))
+}
+
+/// Parse a list of template arguments or no template arguments
+pub fn parse_template_args(input: &[LexToken]) -> ParseResult<Option<TemplateArgList>> {
+    let input = match parse_token(Token::Template)(input) {
+        Ok((input, _)) => input,
+        Err(_) => return Ok((input, None)),
+    };
+
+    let (mut input, _) = match_left_angle_bracket(input)?;
+
+    // Require at least one template argument
+    // No specialisation supported
+    let mut args = Vec::new();
+    loop {
+        let (after_typename, _) = parse_token(Token::Typename)(input)?;
+        let (after_type, name) = match_identifier(after_typename)?;
+        args.push(Located::new(name.0.clone(), after_typename[0].1));
+        input = after_type;
+
+        match parse_token(Token::Comma)(input) {
+            Ok((rest, _)) => input = rest,
+            Err(_) => break,
+        }
+    }
+
+    let (input, _) = match_right_angle_bracket(input)?;
+
+    Ok((input, Some(TemplateArgList(args))))
 }

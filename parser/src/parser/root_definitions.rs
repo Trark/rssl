@@ -92,16 +92,18 @@ fn test_function() {
             return_type: Type::float(),
             semantic: Some(Semantic::Depth),
         },
+        template_args: None,
         params: vec![FunctionParam {
             name: "x".to_string().loc(17),
             param_type: Type::float().into(),
             semantic: None,
         }],
-        body: vec![],
-        attributes: vec![],
+        body: Vec::new(),
+        attributes: Vec::new(),
     };
     functiondefinition.check(test_func_str, test_func_ast.clone());
     rootdefinition.check(test_func_str, RootDefinition::Function(test_func_ast));
+
     let numthreads = FunctionAttribute::NumThreads(
         Expression::Literal(Literal::UntypedInt(16)).loc(12),
         Expression::Literal(Literal::UntypedInt(16)).loc(16),
@@ -112,6 +114,7 @@ fn test_function() {
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string().loc(29),
             returntype: Type::void().into(),
+            template_args: None,
             params: vec![FunctionParam {
                 name: "x".to_string().loc(40),
                 param_type: Type::float().into(),
