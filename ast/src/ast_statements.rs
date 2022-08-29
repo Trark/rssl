@@ -46,7 +46,7 @@ pub struct LocalType(
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct LocalVariableName {
-    pub name: String,
+    pub name: Located<String>,
     pub bind: VariableBind,
     pub init: Option<Initializer>,
 }
@@ -73,21 +73,25 @@ impl From<Type> for LocalType {
 }
 
 impl VarDef {
-    pub fn one(name: &str, local_type: LocalType) -> VarDef {
+    pub fn one(name: Located<String>, local_type: LocalType) -> VarDef {
         VarDef {
             local_type,
             defs: vec![LocalVariableName {
-                name: name.to_string(),
+                name,
                 bind: VariableBind::Normal,
                 init: None,
             }],
         }
     }
-    pub fn one_with_expr(name: &str, local_type: LocalType, expr: Located<Expression>) -> VarDef {
+    pub fn one_with_expr(
+        name: Located<String>,
+        local_type: LocalType,
+        expr: Located<Expression>,
+    ) -> VarDef {
         VarDef {
             local_type,
             defs: vec![LocalVariableName {
-                name: name.to_string(),
+                name,
                 bind: VariableBind::Normal,
                 init: Some(Initializer::Expression(expr)),
             }],

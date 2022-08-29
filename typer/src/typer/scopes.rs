@@ -262,7 +262,7 @@ impl Context {
     /// Register a local variable
     pub fn insert_variable(
         &mut self,
-        name: String,
+        name: Located<String>,
         typename: ir::Type,
     ) -> TyperResult<ir::VariableId> {
         self.scopes[self.current_scope]
@@ -589,17 +589,21 @@ impl VariableBlock {
         }
     }
 
-    fn insert_variable(&mut self, name: String, typename: ir::Type) -> TyperResult<ir::VariableId> {
-        if let Some(&(ref ty, _)) = self.variables.get(&name) {
+    fn insert_variable(
+        &mut self,
+        name: Located<String>,
+        typename: ir::Type,
+    ) -> TyperResult<ir::VariableId> {
+        if let Some(&(ref ty, _)) = self.variables.get(&name.node) {
             return Err(TyperError::ValueAlreadyDefined(
-                Located::none(name),
+                name,
                 ty.to_error_type(),
                 typename.to_error_type(),
             ));
         };
-        match self.variables.entry(name.clone()) {
+        match self.variables.entry(name.node.clone()) {
             Entry::Occupied(occupied) => Err(TyperError::ValueAlreadyDefined(
-                Located::none(name),
+                name,
                 occupied.get().0.to_error_type(),
                 typename.to_error_type(),
             )),

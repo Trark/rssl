@@ -21,7 +21,7 @@ pub struct FunctionReturn {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionParam {
-    pub name: String,
+    pub name: Located<String>,
     pub param_type: ParamType,
     pub semantic: Option<Semantic>,
 }

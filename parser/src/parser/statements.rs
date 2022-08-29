@@ -135,7 +135,7 @@ fn parse_vardef<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, 
         let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
         let (input, init) = parse_initializer(input, st)?;
         let v = LocalVariableName {
-            name: varname.to_node(),
+            name: varname,
             bind: match array_dim {
                 Some(ref expr) => VariableBind::Array(expr.clone()),
                 None => VariableBind::Normal,
@@ -156,7 +156,10 @@ fn test_vardef() {
     use test_support::*;
     let vardef = ParserTester::new(parse_vardef);
 
-    vardef.check("uint x", VarDef::one("x", Type::uint().into()));
+    vardef.check(
+        "uint x",
+        VarDef::one("x".to_string().loc(5), Type::uint().into()),
+    );
 }
 
 /// Parse the init statement for a for loop
@@ -187,12 +190,12 @@ fn test_init_statement() {
     init_statement.check("x", InitStatement::Expression("x".as_var(0)));
     init_statement.check(
         "uint x",
-        InitStatement::Declaration(VarDef::one("x", Type::uint().into())),
+        InitStatement::Declaration(VarDef::one("x".to_string().loc(5), Type::uint().into())),
     );
     init_statement.check(
         "uint x = y",
         InitStatement::Declaration(VarDef::one_with_expr(
-            "x",
+            "x".to_string().loc(5),
             Type::uint().into(),
             "y".as_var(9),
         )),
@@ -377,7 +380,7 @@ fn test_local_variables() {
     statement.check(
         "uint x = y;",
         Statement::Var(VarDef::one_with_expr(
-            "x",
+            "x".to_string().loc(5),
             Type::uint().into(),
             "y".as_var(9),
         )),
@@ -387,7 +390,7 @@ fn test_local_variables() {
         Statement::Var(VarDef {
             local_type: Type::from_layout(TypeLayout::float()).into(),
             defs: vec![LocalVariableName {
-                name: "x".to_string(),
+                name: "x".to_string().loc(6),
                 bind: VariableBind::Array(Some(Expression::Literal(Literal::UntypedInt(3)).loc(8))),
                 init: None,
             }],
@@ -507,7 +510,7 @@ fn test_for() {
         "for (uint i = 0; i; i++) { func(); }",
         Statement::For(
             InitStatement::Declaration(VarDef::one_with_expr(
-                "i",
+                "i".to_string().loc(10),
                 Type::uint().into(),
                 Expression::Literal(Literal::UntypedInt(0)).loc(14),
             )),

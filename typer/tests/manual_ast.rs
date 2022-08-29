@@ -46,7 +46,7 @@ fn test_typeparse() {
                 name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![ast::FunctionParam {
-                    name: "x".to_string(),
+                    name: Located::none("x".to_string()),
                     param_type: ast::Type::uint().into(),
                     semantic: None,
                 }],
@@ -57,7 +57,7 @@ fn test_typeparse() {
                 name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![ast::FunctionParam {
-                    name: "x".to_string(),
+                    name: Located::none("x".to_string()),
                     param_type: ast::Type::float().into(),
                     semantic: None,
                 }],
@@ -68,13 +68,13 @@ fn test_typeparse() {
                 name: Located::none("outFunc".to_string()),
                 returntype: ast::Type::void().into(),
                 params: vec![ast::FunctionParam {
-                    name: "x".to_string(),
+                    name: Located::none("x".to_string()),
                     param_type: ast::ParamType(ast::Type::float(), ast::InputModifier::Out, None),
                     semantic: None,
                 }],
                 body: vec![
                     ast::Statement::Var(ast::VarDef::one(
-                        "local_static",
+                        Located::none("local_static".to_string()),
                         ast::LocalType(ast::Type::uint(), ast::LocalStorage::Static, None),
                     )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
@@ -93,8 +93,14 @@ fn test_typeparse() {
                 params: vec![],
                 body: vec![
                     ast::Statement::Empty,
-                    ast::Statement::Var(ast::VarDef::one("a", ast::Type::uint().into())),
-                    ast::Statement::Var(ast::VarDef::one("b", ast::Type::uint().into())),
+                    ast::Statement::Var(ast::VarDef::one(
+                        Located::none("a".to_string()),
+                        ast::Type::uint().into(),
+                    )),
+                    ast::Statement::Var(ast::VarDef::one(
+                        Located::none("b".to_string()),
+                        ast::Type::uint().into(),
+                    )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,
                         Box::new(Located::none(ast::Expression::Variable("a".to_string()))),
@@ -125,11 +131,14 @@ fn test_typeparse() {
                         vec![],
                         vec![Located::none(ast::Expression::Variable("b".to_string()))],
                     ))),
-                    ast::Statement::Var(ast::VarDef::one("testOut", ast::Type::float().into())),
+                    ast::Statement::Var(ast::VarDef::one(
+                        Located::none("testOut".to_string()),
+                        ast::Type::float().into(),
+                    )),
                     ast::Statement::Var(ast::VarDef {
                         local_type: ast::Type::from_layout(ast::TypeLayout::float()).into(),
                         defs: vec![ast::LocalVariableName {
-                            name: "x".to_string(),
+                            name: Located::none("x".to_string()),
                             bind: ast::VariableBind::Array(Some(Located::none(
                                 ast::Expression::Literal(ast::Literal::UntypedInt(3)),
                             ))),

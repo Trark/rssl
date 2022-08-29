@@ -93,7 +93,7 @@ fn test_function() {
             semantic: Some(Semantic::Depth),
         },
         params: vec![FunctionParam {
-            name: "x".to_string(),
+            name: "x".to_string().loc(17),
             param_type: Type::float().into(),
             semantic: None,
         }],
@@ -113,7 +113,7 @@ fn test_function() {
             name: "func".to_string().loc(29),
             returntype: Type::void().into(),
             params: vec![FunctionParam {
-                name: "x".to_string(),
+                name: "x".to_string().loc(40),
                 param_type: Type::float().into(),
                 semantic: None,
             }],

@@ -120,7 +120,7 @@ fn parse_function_param<'t>(
     };
 
     let param = FunctionParam {
-        name: param.to_node(),
+        name: param,
         param_type: ty,
         semantic,
     };
@@ -135,7 +135,7 @@ fn test_function_param() {
     function_param.check(
         "float x",
         FunctionParam {
-            name: "x".to_string(),
+            name: "x".to_string().loc(6),
             param_type: Type::float().into(),
             semantic: None,
         },
@@ -143,7 +143,7 @@ fn test_function_param() {
     function_param.check(
         "in float x",
         FunctionParam {
-            name: "x".to_string(),
+            name: "x".to_string().loc(9),
             param_type: ParamType(Type::float(), InputModifier::In, None),
             semantic: None,
         },
@@ -151,7 +151,7 @@ fn test_function_param() {
     function_param.check(
         "out float x",
         FunctionParam {
-            name: "x".to_string(),
+            name: "x".to_string().loc(10),
             param_type: ParamType(Type::float(), InputModifier::Out, None),
             semantic: None,
         },
@@ -159,7 +159,7 @@ fn test_function_param() {
     function_param.check(
         "inout float x",
         FunctionParam {
-            name: "x".to_string(),
+            name: "x".to_string().loc(12),
             param_type: ParamType(Type::float(), InputModifier::InOut, None),
             semantic: None,
         },
@@ -167,7 +167,7 @@ fn test_function_param() {
     function_param.check(
         "in uint vertex_id : SV_VertexID",
         FunctionParam {
-            name: "vertex_id".to_string(),
+            name: "vertex_id".to_string().loc(8),
             param_type: ParamType(Type::uint(), InputModifier::In, None),
             semantic: Some(Semantic::VertexId),
         },
@@ -175,7 +175,7 @@ fn test_function_param() {
     function_param.check(
         "in float2 uv : TEXCOORD",
         FunctionParam {
-            name: "uv".to_string(),
+            name: "uv".to_string().loc(10),
             param_type: ParamType(Type::floatn(2), InputModifier::In, None),
             semantic: Some(Semantic::User("TEXCOORD".to_string())),
         },

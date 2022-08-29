@@ -69,6 +69,7 @@ fn check_cbuffer() {
 #[test]
 fn check_variable_scope() {
     check_fail("int a; int a;");
+    check_fail("void f() { int a; int a; }");
 }
 
 #[test]
