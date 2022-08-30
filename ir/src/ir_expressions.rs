@@ -11,8 +11,7 @@ pub enum Expression {
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
     Call(FunctionId, Vec<Expression>),
-    /// Constructors for builtin numeric types, such as `float2(1.0, 0.0)`
-    NumericConstructor(DataLayout, Vec<ConstructorSlot>),
+    Constructor(TypeLayout, Vec<ConstructorSlot>),
     Cast(Type, Box<Expression>),
     SizeOf(Type),
     Intrinsic0(Intrinsic0),

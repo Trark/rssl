@@ -199,7 +199,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((
             input,
-            Located::new(Expression::NumericConstructor(dtyl, list), loc),
+            Located::new(Expression::Constructor(dtyl, list), loc),
         ))
     }
 
@@ -955,8 +955,8 @@ fn test_cast() {
 
     expr.check(
         "float2(b)",
-        Expression::NumericConstructor(
-            DataLayout::Vector(ScalarType::Float, 2),
+        Expression::Constructor(
+            TypeLayout::Vector(ScalarType::Float, 2),
             vec!["b".as_var(7)],
         )
         .loc(0),
@@ -982,8 +982,8 @@ fn test_cast() {
     let numeric_cons_out = {
         let x = "x".as_var(7);
         let y = "y".as_var(10);
-        let ty = DataLayout::Vector(ScalarType::Float, 2);
-        let cons = Expression::NumericConstructor(ty, vec![x, y]);
+        let ty = TypeLayout::Vector(ScalarType::Float, 2);
+        let cons = Expression::Constructor(ty, vec![x, y]);
         cons.loc(0)
     };
     expr.check(numeric_cons, numeric_cons_out);

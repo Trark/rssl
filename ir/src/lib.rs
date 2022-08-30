@@ -9,9 +9,8 @@ mod ir_types;
 mod ir_variables;
 
 pub use rssl_ast::{
-    DataLayout, DataType, FunctionAttribute, GlobalStorage, InputModifier, InterpolationModifier,
-    Literal, LocalStorage, NumericDimension, PackOffset, PackSubOffset, RowOrder, ScalarType,
-    TypeModifier,
+    FunctionAttribute, GlobalStorage, InputModifier, InterpolationModifier, Literal, LocalStorage,
+    NumericDimension, PackOffset, PackSubOffset, RowOrder, ScalarType, TypeModifier,
 };
 
 pub use intrinsics::*;

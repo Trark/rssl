@@ -17,18 +17,6 @@ pub enum NumericDimension {
     Matrix(u32, u32),
 }
 
-/// A type that can be used in data buffers (Buffer / RWBuffer / etc)
-#[derive(PartialEq, Copy, Clone)]
-pub struct DataType(pub DataLayout, pub TypeModifier);
-
-/// The memory layout of a DataType
-#[derive(PartialEq, Copy, Clone)]
-pub enum DataLayout {
-    Scalar(ScalarType),
-    Vector(ScalarType, u32),
-    Matrix(ScalarType, u32, u32),
-}
-
 /// Modifiers that can apply to any type
 #[derive(PartialEq, Copy, Clone)]
 pub struct TypeModifier {
@@ -107,43 +95,6 @@ pub enum Semantic {
     User(String),
 }
 
-impl DataType {
-    pub const fn as_const(self) -> DataType {
-        let DataType(layout, mut modifier) = self;
-        modifier.is_const = true;
-        DataType(layout, modifier)
-    }
-}
-
-impl DataLayout {
-    /// Construct a data layout from a scalar type part and the dimension part
-    pub const fn new(scalar: ScalarType, dim: NumericDimension) -> DataLayout {
-        match dim {
-            NumericDimension::Scalar => DataLayout::Scalar(scalar),
-            NumericDimension::Vector(x) => DataLayout::Vector(scalar, x),
-            NumericDimension::Matrix(x, y) => DataLayout::Matrix(scalar, x, y),
-        }
-    }
-
-    /// Extract scalar type part
-    pub const fn to_scalar(&self) -> ScalarType {
-        match *self {
-            DataLayout::Scalar(scalar)
-            | DataLayout::Vector(scalar, _)
-            | DataLayout::Matrix(scalar, _, _) => scalar,
-        }
-    }
-
-    /// Replace scalar type part with another type
-    pub const fn transform_scalar(self, to_scalar: ScalarType) -> DataLayout {
-        match self {
-            DataLayout::Scalar(_) => DataLayout::Scalar(to_scalar),
-            DataLayout::Vector(_, x) => DataLayout::Vector(to_scalar, x),
-            DataLayout::Matrix(_, x, y) => DataLayout::Matrix(to_scalar, x, y),
-        }
-    }
-}
-
 impl TypeModifier {
     /// Create the default type modifier set
     pub const fn new() -> TypeModifier {
@@ -211,22 +162,6 @@ impl std::fmt::Debug for ScalarType {
             ScalarType::Half => write!(f, "half"),
             ScalarType::Float => write!(f, "float"),
             ScalarType::Double => write!(f, "double"),
-        }
-    }
-}
-
-impl std::fmt::Debug for DataType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}{:?}", self.1, self.0)
-    }
-}
-
-impl std::fmt::Debug for DataLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            DataLayout::Scalar(st) => write!(f, "{:?}", st),
-            DataLayout::Vector(st, x) => write!(f, "{:?}{}", st, x),
-            DataLayout::Matrix(st, x, y) => write!(f, "{:?}{}x{}", st, x, y),
         }
     }
 }

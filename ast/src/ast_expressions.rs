@@ -1,5 +1,5 @@
 use crate::ast_types::Type;
-use crate::primitive_types::DataLayout;
+use crate::ast_types::TypeLayout;
 use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -23,7 +23,7 @@ pub enum Expression {
         /// Arguments
         Vec<Located<Expression>>,
     ),
-    NumericConstructor(DataLayout, Vec<Located<Expression>>),
+    Constructor(TypeLayout, Vec<Located<Expression>>),
     Cast(Located<Type>, Box<Located<Expression>>),
     SizeOf(Located<Type>),
 }

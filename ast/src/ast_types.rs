@@ -17,23 +17,6 @@ pub enum TypeLayout {
 #[derive(PartialEq, Debug, Clone)]
 pub struct TemplateParamList(pub Vec<Located<String>>);
 
-impl From<DataType> for Type {
-    fn from(ty: DataType) -> Type {
-        let DataType(layout, modifier) = ty;
-        Type(layout.into(), modifier)
-    }
-}
-
-impl From<DataLayout> for TypeLayout {
-    fn from(data: DataLayout) -> TypeLayout {
-        match data {
-            DataLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
-            DataLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
-            DataLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-        }
-    }
-}
-
 impl Type {
     pub const fn void() -> Type {
         Type::from_layout(TypeLayout::Void)

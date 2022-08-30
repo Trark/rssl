@@ -1,7 +1,7 @@
 use super::errors::*;
 use super::functions::{FunctionName, FunctionOverload};
 use super::scopes::*;
-use super::types::parse_type;
+use super::types::{parse_type, parse_typelayout};
 use crate::casting::{ConversionPriority, ImplicitConversion};
 use crate::intrinsics;
 use crate::intrinsics::IntrinsicFactory;
@@ -1141,8 +1141,13 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 _ => Err(TyperError::CallOnNonFunction),
             }
         }
-        ast::Expression::NumericConstructor(datalayout, ref params) => {
-            let target_scalar = datalayout.to_scalar();
+        ast::Expression::Constructor(ref ast_layout, ref params) => {
+            let target_scalar = match ast_layout {
+                ast::TypeLayout::Scalar(st)
+                | ast::TypeLayout::Vector(st, _)
+                | ast::TypeLayout::Matrix(st, _, _) => *st,
+                _ => return Err(TyperError::ConstructorWrongArgumentCount),
+            };
             let mut slots: Vec<ir::ConstructorSlot> = vec![];
             let mut total_arity = 0;
             for param in params {
@@ -1169,14 +1174,15 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 let expr = cast.apply(expr_base);
                 slots.push(ir::ConstructorSlot { arity, expr });
             }
-            let type_layout = ir::TypeLayout::from_data(datalayout);
+            let type_layout =
+                parse_typelayout(ast_layout, context).expect("Data layouts should never fail");
             let expected_layout = type_layout.get_num_elements();
-            let ty = ir::Type::from_layout(type_layout).to_rvalue();
+            let ty = ir::Type::from_layout(type_layout.clone()).to_rvalue();
             if total_arity == expected_layout {
-                let cons = ir::Expression::NumericConstructor(datalayout, slots);
+                let cons = ir::Expression::Constructor(type_layout, slots);
                 Ok(TypedExpression::Value(cons, ty))
             } else {
-                Err(TyperError::NumericConstructorWrongArgumentCount)
+                Err(TyperError::ConstructorWrongArgumentCount)
             }
         }
         ast::Expression::Cast(ref ty, ref expr) => {
@@ -1359,8 +1365,8 @@ fn get_expression_type(
             context.get_type_of_struct_member(&id, name)
         }
         ir::Expression::Call(ref id, _) => context.get_type_of_function_return(id),
-        ir::Expression::NumericConstructor(dtyl, _) => {
-            Ok(ir::Type::from_layout(ir::TypeLayout::from_data(dtyl)).to_rvalue())
+        ir::Expression::Constructor(ref tyl, _) => {
+            Ok(ir::Type::from_layout(tyl.clone()).to_rvalue())
         }
         ir::Expression::Cast(ref ty, _) => Ok(ty.to_rvalue()),
         ir::Expression::SizeOf(_) => Ok(ir::Type::uint().to_rvalue()),

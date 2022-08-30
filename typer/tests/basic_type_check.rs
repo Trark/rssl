@@ -169,6 +169,18 @@ fn check_swizzle() {
 }
 
 #[test]
+fn check_constructors() {
+    check_types("int x = int(7);");
+    check_types("int x = (int)(7);");
+
+    //  Fails as we expect a single argument
+    check_fail("int x = int(7, 6);");
+
+    // "int x = (int)(7, 6);" is valid but is actually a comma expression
+    // This currently fails as the comma expression is not implemented
+}
+
+#[test]
 fn check_cast() {
     check_types("ByteAddressBuffer buf; void f() { uint x = buf.Load(0); }");
     check_types("ByteAddressBuffer buf; void f() { uint x = (uint)buf.Load(0); }");

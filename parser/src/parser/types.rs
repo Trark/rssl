@@ -18,7 +18,7 @@ fn parse_scalartype_str(input: &[u8]) -> nom::IResult<&[u8], ScalarType> {
 }
 
 // Parse data type as part of a string
-fn parse_datalayout_str(typename: &str) -> Option<DataLayout> {
+fn parse_datalayout_str(typename: &str) -> Option<TypeLayout> {
     fn digit(input: &[u8]) -> nom::IResult<&[u8], u32> {
         // Handle end of stream
         if input.is_empty() {
@@ -47,15 +47,15 @@ fn parse_datalayout_str(typename: &str) -> Option<DataLayout> {
         Ok((&input[1..], n))
     }
 
-    fn parse_str(input: &[u8]) -> nom::IResult<&[u8], DataLayout> {
+    fn parse_str(input: &[u8]) -> nom::IResult<&[u8], TypeLayout> {
         let (rest, ty) = parse_scalartype_str(input)?;
         if rest.is_empty() {
-            return Ok((&[], DataLayout::Scalar(ty)));
+            return Ok((&[], TypeLayout::Scalar(ty)));
         }
 
         let (rest, x) = digit(rest)?;
         if rest.is_empty() {
-            return Ok((&[], DataLayout::Vector(ty, x)));
+            return Ok((&[], TypeLayout::Vector(ty, x)));
         }
 
         let rest = match rest.first() {
@@ -70,7 +70,7 @@ fn parse_datalayout_str(typename: &str) -> Option<DataLayout> {
 
         let (rest, y) = digit(rest)?;
         if rest.is_empty() {
-            return Ok((&[], DataLayout::Matrix(ty, x, y)));
+            return Ok((&[], TypeLayout::Matrix(ty, x, y)));
         }
 
         Err(nom::Err::Error(nom::error::Error::new(
@@ -92,15 +92,15 @@ fn parse_datalayout_str(typename: &str) -> Option<DataLayout> {
 fn test_parse_datalayout_str() {
     assert_eq!(
         parse_datalayout_str("float"),
-        Some(DataLayout::Scalar(ScalarType::Float))
+        Some(TypeLayout::Scalar(ScalarType::Float))
     );
     assert_eq!(
         parse_datalayout_str("uint3"),
-        Some(DataLayout::Vector(ScalarType::UInt, 3))
+        Some(TypeLayout::Vector(ScalarType::UInt, 3))
     );
     assert_eq!(
         parse_datalayout_str("bool2x3"),
-        Some(DataLayout::Matrix(ScalarType::Bool, 2, 3))
+        Some(TypeLayout::Matrix(ScalarType::Bool, 2, 3))
     );
 
     assert_eq!(parse_datalayout_str(""), None);
@@ -109,7 +109,7 @@ fn test_parse_datalayout_str() {
 }
 
 /// Parse a type layout for a basic data type
-pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<DataLayout> {
+pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<TypeLayout> {
     // Parse a vector dimension as a token
     fn parse_digit(input: &[LexToken]) -> ParseResult<u32> {
         if input.is_empty() {
@@ -169,7 +169,7 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<DataLayout> {
                     let (input, _) = parse_token(Token::Comma)(input)?;
                     let (input, x) = parse_digit(input)?;
                     let (input, _) = match_right_angle_bracket(input)?;
-                    Ok((input, DataLayout::Vector(scalar, x)))
+                    Ok((input, TypeLayout::Vector(scalar, x)))
                 }
                 "matrix" => {
                     let (input, _) = match_left_angle_bracket(&input[1..])?;
@@ -179,7 +179,7 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<DataLayout> {
                     let (input, _) = parse_token(Token::Comma)(input)?;
                     let (input, y) = parse_digit(input)?;
                     let (input, _) = match_right_angle_bracket(input)?;
-                    Ok((input, DataLayout::Matrix(scalar, x, y)))
+                    Ok((input, TypeLayout::Matrix(scalar, x, y)))
                 }
                 _ => match parse_datalayout_str(&name[..]) {
                     Some(ty) => Ok((&input[1..], ty)),
@@ -236,12 +236,7 @@ fn parse_type_layout<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult
     }
 
     // Attempt to parse a primitive structured type
-    if let Ok((input, ty)) = parse_data_layout(input) {
-        let tl = match ty {
-            DataLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
-            DataLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
-            DataLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-        };
+    if let Ok((input, tl)) = parse_data_layout(input) {
         return Ok((input, tl));
     }
 

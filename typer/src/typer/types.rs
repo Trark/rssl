@@ -10,7 +10,7 @@ pub fn parse_type(ty: &ast::Type, context: &Context) -> TyperResult<ir::Type> {
 }
 
 /// Attempt to get an ir type layout from an ast type layout
-fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::TypeLayout> {
+pub fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::TypeLayout> {
     Ok(match *ty {
         ast::TypeLayout::Void => ir::TypeLayout::Void,
         ast::TypeLayout::Scalar(scalar) => ir::TypeLayout::Scalar(scalar),
