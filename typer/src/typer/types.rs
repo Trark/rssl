@@ -16,7 +16,7 @@ fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::
         ast::TypeLayout::Scalar(scalar) => ir::TypeLayout::Scalar(scalar),
         ast::TypeLayout::Vector(scalar, x) => ir::TypeLayout::Vector(scalar, x),
         ast::TypeLayout::Matrix(scalar, x, y) => ir::TypeLayout::Matrix(scalar, x, y),
-        ast::TypeLayout::Custom(ref name) => ir::TypeLayout::Struct(context.find_struct_id(name)?),
+        ast::TypeLayout::Custom(ref name) => context.find_type_id(name)?,
         ast::TypeLayout::SamplerState => ir::TypeLayout::SamplerState,
         ast::TypeLayout::Object(ref object_type) => {
             ir::TypeLayout::Object(parse_objecttype(object_type, context)?)
@@ -45,9 +45,10 @@ fn parse_structuredlayout(
         ast::StructuredLayout::Scalar(scalar) => ir::StructuredLayout::Scalar(scalar),
         ast::StructuredLayout::Vector(scalar, x) => ir::StructuredLayout::Vector(scalar, x),
         ast::StructuredLayout::Matrix(scalar, x, y) => ir::StructuredLayout::Matrix(scalar, x, y),
-        ast::StructuredLayout::Custom(ref name) => {
-            ir::StructuredLayout::Struct(context.find_struct_id(name)?)
-        }
+        ast::StructuredLayout::Custom(ref name) => match context.find_type_id(name)? {
+            ir::TypeLayout::Struct(id) => ir::StructuredLayout::Struct(id),
+            _ => unimplemented!(),
+        },
     })
 }
 

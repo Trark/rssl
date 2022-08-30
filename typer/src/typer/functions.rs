@@ -18,9 +18,17 @@ pub fn parse_rootdefinition_function(
     fd: &ast::FunctionDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
+    context.push_scope();
+    if let Some(ref template_args) = fd.template_args {
+        for template_arg in &template_args.0 {
+            context.insert_template_type(template_arg.clone())?;
+        }
+    }
+
     let return_type = parse_returntype(&fd.returntype, context)?;
     // We save the return type of the current function for return statement parsing
-    context.push_function_scope(return_type.return_type.clone());
+    context.set_function_return_type(return_type.return_type.clone());
+
     let func_params = {
         let mut vec = vec![];
         for param in &fd.params {
@@ -33,14 +41,19 @@ pub fn parse_rootdefinition_function(
         }
         vec
     };
+
+    // Parse the function
     let body_ir = parse_statement_list(&fd.body, context)?;
     let decls = context.pop_scope_with_locals();
 
+    // Register the function signature
+    // TODO: Recursive calls? Needs to move register earlier
     let id = {
         let return_type = return_type.return_type.clone();
         let param_types = func_params.iter().map(|p| p.param_type.clone()).collect();
         context.insert_function(fd.name.clone(), return_type, param_types)?
     };
+
     let fd_ir = ir::FunctionDefinition {
         id,
         returntype: return_type,

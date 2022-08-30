@@ -14,6 +14,7 @@ pub enum TypeLayout {
     SamplerState,
     Object(ObjectType),
     Array(Box<TypeLayout>, u64),
+    TemplateParam(TemplateTypeId),
 }
 
 /// A type that can be used in structured buffers
@@ -33,6 +34,10 @@ pub enum StructuredLayout {
 /// Id to a user defined struct
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct StructId(pub u32);
+
+/// Id to a template type argument
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct TemplateTypeId(pub u32);
 
 #[derive(PartialEq, Clone)]
 pub enum ObjectType {
@@ -319,6 +324,7 @@ impl std::fmt::Debug for TypeLayout {
             TypeLayout::SamplerState => write!(f, "SamplerState"),
             TypeLayout::Object(ref ot) => write!(f, "{:?}", ot),
             TypeLayout::Array(ref ty, ref len) => write!(f, "{:?}[{}]", ty, len),
+            TypeLayout::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
         }
     }
 }

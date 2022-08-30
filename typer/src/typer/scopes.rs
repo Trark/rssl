@@ -55,6 +55,7 @@ struct ScopeData {
     struct_ids: HashMap<String, ir::StructId>,
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
+    template_args: HashMap<String, ir::TemplateTypeId>,
 
     function_return_type: Option<ir::Type>,
 }
@@ -70,6 +71,7 @@ impl Context {
                 struct_ids: HashMap::new(),
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
+                template_args: HashMap::new(),
                 function_return_type: None,
             }]),
             current_scope: 0,
@@ -100,6 +102,7 @@ impl Context {
             struct_ids: HashMap::new(),
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
+            template_args: HashMap::new(),
             function_return_type: None,
         });
         self.current_scope = self.scopes.len() - 1;
@@ -115,9 +118,9 @@ impl Context {
         assert_ne!(self.current_scope, usize::MAX);
     }
 
-    /// Add a new scope for a function
-    pub fn push_function_scope(&mut self, return_type: ir::Type) {
-        self.push_scope();
+    /// Set the scope as a function scope with the given return type
+    pub fn set_function_return_type(&mut self, return_type: ir::Type) {
+        assert_eq!(self.scopes[self.current_scope].function_return_type, None);
         self.scopes[self.current_scope].function_return_type = Some(return_type);
     }
 
@@ -161,9 +164,17 @@ impl Context {
         Err(TyperError::UnknownIdentifier(name.to_string()))
     }
 
-    /// Find the id for a given struct name
-    pub fn find_struct_id(&self, name: &str) -> TyperResult<ir::StructId> {
-        match self.search_scopes(|s| s.struct_ids.get(name).copied()) {
+    /// Find the id for a given type name
+    pub fn find_type_id(&self, name: &str) -> TyperResult<ir::TypeLayout> {
+        match self.search_scopes(|s| {
+            if let Some(id) = s.struct_ids.get(name) {
+                return Some(ir::TypeLayout::Struct(*id));
+            }
+            if let Some(id) = s.template_args.get(name) {
+                return Some(ir::TypeLayout::TemplateParam(*id));
+            }
+            None
+        }) {
             Some(id) => Ok(id),
             None => Err(TyperError::UnknownType(ErrorType::Untyped(
                 ast::Type::custom(name),
@@ -384,6 +395,25 @@ impl Context {
                 Ok(id)
             }
             Entry::Occupied(id_o) => Err(*id_o.get()),
+        }
+    }
+
+    /// Register a new template type parameter
+    pub fn insert_template_type(
+        &mut self,
+        name: Located<String>,
+    ) -> TyperResult<ir::TemplateTypeId> {
+        let current_arg_count = self.scopes[self.current_scope].template_args.len();
+        match self.scopes[self.current_scope]
+            .template_args
+            .entry(name.to_string())
+        {
+            Entry::Vacant(id_v) => {
+                let id = ir::TemplateTypeId(current_arg_count as u32);
+                id_v.insert(id);
+                Ok(id)
+            }
+            Entry::Occupied(id_o) => Err(TyperError::TemplateTypeAlreadyDefined(name, *id_o.get())),
         }
     }
 

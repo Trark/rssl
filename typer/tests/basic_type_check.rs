@@ -68,6 +68,13 @@ void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
 }
 
 #[test]
+fn check_function_templates() {
+    check_types("template<typename T> void f() {}");
+    check_types("template<typename T> void f(T v) {}");
+    check_types("template<typename T> T f(T v) { return v; }");
+}
+
+#[test]
 fn check_intrinsic_calls() {
     check_types("void main() { GroupMemoryBarrierWithGroupSync(); }");
 }

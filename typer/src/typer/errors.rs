@@ -15,6 +15,7 @@ pub enum TyperError {
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
     StructAlreadyDefined(Located<String>, ir::StructId),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
+    TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
     UnknownIdentifier(String),
     UnknownType(ErrorType),
@@ -171,6 +172,24 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 write_message(
                     &|f| write!(f, "previous definition is here"),
                     context.get_cbuffer_location(previous_id),
+                    Severity::Note,
+                )
+            }
+            TyperError::TemplateTypeAlreadyDefined(name, previous_id) => {
+                write_message(
+                    &|f| write!(f, "redefinition of '{}'", name.node),
+                    name.location,
+                    Severity::Error,
+                )?;
+                write_message(
+                    &|f| {
+                        write!(
+                            f,
+                            "previous definition was with template type with index {}",
+                            previous_id.0
+                        )
+                    },
+                    SourceLocation::UNKNOWN,
                     Severity::Note,
                 )
             }
