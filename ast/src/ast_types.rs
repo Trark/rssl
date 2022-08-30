@@ -13,19 +13,6 @@ pub enum TypeLayout {
     Custom(String, Vec<Located<Type>>),
 }
 
-/// A type that can be used in structured buffers
-/// These are the both struct defined types, the format data types
-#[derive(PartialEq, Debug, Clone)]
-pub struct StructuredType(pub StructuredLayout, pub TypeModifier);
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum StructuredLayout {
-    Scalar(ScalarType),
-    Vector(ScalarType, u32),
-    Matrix(ScalarType, u32, u32),
-    Custom(String), // Struct + User defined types
-}
-
 /// Template parameters
 #[derive(PartialEq, Debug, Clone)]
 pub struct TemplateParamList(pub Vec<Located<String>>);
@@ -37,30 +24,12 @@ impl From<DataType> for Type {
     }
 }
 
-impl From<StructuredType> for Type {
-    fn from(ty: StructuredType) -> Type {
-        let StructuredType(layout, modifier) = ty;
-        Type(layout.into(), modifier)
-    }
-}
-
 impl From<DataLayout> for TypeLayout {
     fn from(data: DataLayout) -> TypeLayout {
         match data {
             DataLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
             DataLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
             DataLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-        }
-    }
-}
-
-impl From<StructuredLayout> for TypeLayout {
-    fn from(structured: StructuredLayout) -> TypeLayout {
-        match structured {
-            StructuredLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
-            StructuredLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
-            StructuredLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-            StructuredLayout::Custom(name) => TypeLayout::Custom(name, Vec::new()),
         }
     }
 }

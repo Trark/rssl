@@ -197,36 +197,6 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<DataLayout> {
     }
 }
 
-/// Parse a type layout for a structured type
-fn parse_structured_layout<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, StructuredLayout> {
-    // Attempt to parse a primitive structured type
-    if let Ok((input, ty)) = parse_data_layout(input) {
-        let sl = match ty {
-            DataLayout::Scalar(scalar) => StructuredLayout::Scalar(scalar),
-            DataLayout::Vector(scalar, x) => StructuredLayout::Vector(scalar, x),
-            DataLayout::Matrix(scalar, x, y) => StructuredLayout::Matrix(scalar, x, y),
-        };
-        return Ok((input, sl));
-    }
-
-    // Attempt to parse a custom type
-    match match_identifier(input) {
-        Ok((input, Identifier(name))) => match st.0.get(name) {
-            Some(&SymbolType::Struct) => Ok((input, StructuredLayout::Custom(name.clone()))),
-            Some(&SymbolType::Enum) => Ok((input, StructuredLayout::Custom(name.clone()))),
-            Some(&SymbolType::TemplateType) => Ok((input, StructuredLayout::Custom(name.clone()))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::SymbolIsNotAStructuredType,
-            ))),
-        },
-        Err(err) => Err(err),
-    }
-}
-
 /// Parse the void type
 fn parse_voidtype(input: &[LexToken]) -> ParseResult<TypeLayout> {
     if input.is_empty() {
@@ -265,8 +235,29 @@ fn parse_type_layout<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult
         }
     }
 
-    match parse_structured_layout(input, st) {
-        Ok((input, sl)) => Ok((input, TypeLayout::from(sl))),
+    // Attempt to parse a primitive structured type
+    if let Ok((input, ty)) = parse_data_layout(input) {
+        let tl = match ty {
+            DataLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
+            DataLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
+            DataLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
+        };
+        return Ok((input, tl));
+    }
+
+    // Attempt to parse a custom type
+    match match_identifier(input) {
+        Ok((input, Identifier(name))) => match st.0.get(name) {
+            Some(&SymbolType::Struct) => Ok((input, TypeLayout::Custom(name.clone(), Vec::new()))),
+            Some(&SymbolType::Enum) => Ok((input, TypeLayout::Custom(name.clone(), Vec::new()))),
+            Some(&SymbolType::TemplateType) => {
+                Ok((input, TypeLayout::Custom(name.clone(), Vec::new())))
+            }
+            _ => Err(nom::Err::Error(ParseErrorContext(
+                input,
+                ParseErrorReason::SymbolIsNotAStructuredType,
+            ))),
+        },
         Err(err) => Err(err),
     }
 }
