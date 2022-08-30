@@ -9,10 +9,11 @@ pub use errors::{ParseError, ParseResultExt};
 use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 
 /// Class of a type name
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 enum SymbolType {
     Struct,
     Enum,
+    Object,
     TemplateType,
 }
 
@@ -21,8 +22,57 @@ enum SymbolType {
 pub struct SymbolTable(HashMap<String, SymbolType>);
 
 impl SymbolTable {
-    fn empty() -> SymbolTable {
-        SymbolTable(HashMap::new())
+    #[cfg(test)]
+    fn from(initial_symbols: &[(&str, SymbolType)]) -> SymbolTable {
+        let mut table = SymbolTable::default();
+        for (name, symbol_type) in initial_symbols {
+            table.0.insert(name.to_string(), *symbol_type);
+        }
+        table
+    }
+}
+
+impl Default for SymbolTable {
+    fn default() -> Self {
+        let mut table = SymbolTable(HashMap::new());
+        // Register built in struct or primitive types
+        let struct_types = ["vector", "matrix"];
+        for struct_type in struct_types {
+            table.0.insert(struct_type.to_string(), SymbolType::Struct);
+        }
+        // Register built in object types
+        let object_types = [
+            "Buffer",
+            "RWBuffer",
+            "ByteAddressBuffer",
+            "RWByteAddressBuffer",
+            "StructuredBuffer",
+            "RWStructuredBuffer",
+            "AppendStructuredBuffer",
+            "ConsumeStructuredBuffer",
+            "Texture1D",
+            "Texture1DArray",
+            "Texture2D",
+            "Texture2DArray",
+            "Texture2DMS",
+            "Texture2DMSArray",
+            "Texture3D",
+            "TextureCube",
+            "TextureCubeArray",
+            "RWTexture1D",
+            "RWTexture1DArray",
+            "RWTexture2D",
+            "RWTexture2DArray",
+            "RWTexture3D",
+            "ConstantBuffer",
+            "InputPatch",
+            "OutputPatch",
+            "SamplerState",
+        ];
+        for object_type in object_types {
+            table.0.insert(object_type.to_string(), SymbolType::Object);
+        }
+        table
     }
 }
 
@@ -120,7 +170,7 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 
 // Implement parsing for type names
 mod types;
-use types::{parse_data_layout, parse_template_args, parse_type};
+use types::{parse_data_layout, parse_template_params, parse_type};
 
 fn parse_arraydim<'t>(
     input: &'t [LexToken],
@@ -163,7 +213,7 @@ use root_definitions::parse_root_definition_with_semicolon;
 fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
     let mut roots = Vec::new();
     let mut rest = input;
-    let mut symbol_table = SymbolTable::empty();
+    let mut symbol_table = SymbolTable::default();
     loop {
         let last_def = parse_root_definition_with_semicolon(rest, &symbol_table);
         if let Ok((remaining, root)) = last_def {

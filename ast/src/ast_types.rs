@@ -10,9 +10,7 @@ pub enum TypeLayout {
     Scalar(ScalarType),
     Vector(ScalarType, u32),
     Matrix(ScalarType, u32, u32),
-    Custom(String),
-    SamplerState,
-    Object(ObjectType),
+    Custom(String, Vec<Located<Type>>),
 }
 
 /// A type that can be used in structured buffers
@@ -28,50 +26,9 @@ pub enum StructuredLayout {
     Custom(String), // Struct + User defined types
 }
 
-/// Hlsl Object Types
+/// Template parameters
 #[derive(PartialEq, Debug, Clone)]
-pub enum ObjectType {
-    // Data buffers
-    Buffer(DataType),
-    RWBuffer(DataType),
-
-    // Raw buffers
-    ByteAddressBuffer,
-    RWByteAddressBuffer,
-
-    // Structured buffers
-    StructuredBuffer(StructuredType),
-    RWStructuredBuffer(StructuredType),
-    AppendStructuredBuffer(StructuredType),
-    ConsumeStructuredBuffer(StructuredType),
-
-    // Textures
-    Texture1D(DataType),
-    Texture1DArray(DataType),
-    Texture2D(DataType),
-    Texture2DArray(DataType),
-    Texture2DMS(DataType),
-    Texture2DMSArray(DataType),
-    Texture3D(DataType),
-    TextureCube(DataType),
-    TextureCubeArray(DataType),
-    RWTexture1D(DataType),
-    RWTexture1DArray(DataType),
-    RWTexture2D(DataType),
-    RWTexture2DArray(DataType),
-    RWTexture3D(DataType),
-
-    // Constant buffers
-    ConstantBuffer(StructuredType),
-
-    // Tesselation patches
-    InputPatch,
-    OutputPatch,
-}
-
-/// Template arguments
-#[derive(PartialEq, Debug, Clone)]
-pub struct TemplateArgList(pub Vec<Located<String>>);
+pub struct TemplateParamList(pub Vec<Located<String>>);
 
 impl From<DataType> for Type {
     fn from(ty: DataType) -> Type {
@@ -103,7 +60,7 @@ impl From<StructuredLayout> for TypeLayout {
             StructuredLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
             StructuredLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
             StructuredLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-            StructuredLayout::Custom(name) => TypeLayout::Custom(name),
+            StructuredLayout::Custom(name) => TypeLayout::Custom(name, Vec::new()),
         }
     }
 }
@@ -117,9 +74,6 @@ impl Type {
     }
     pub const fn from_scalar(scalar: ScalarType) -> Type {
         Type::from_layout(TypeLayout::from_scalar(scalar))
-    }
-    pub const fn from_object(object: ObjectType) -> Type {
-        Type::from_layout(TypeLayout::from_object(object))
     }
 
     pub const fn uint() -> Type {
@@ -155,9 +109,6 @@ impl TypeLayout {
     pub const fn from_vector(scalar: ScalarType, x: u32) -> TypeLayout {
         TypeLayout::Vector(scalar, x)
     }
-    pub const fn from_object(object: ObjectType) -> TypeLayout {
-        TypeLayout::Object(object)
-    }
 
     pub const fn uint() -> TypeLayout {
         TypeLayout::from_scalar(ScalarType::UInt)
@@ -181,7 +132,7 @@ impl TypeLayout {
         TypeLayout::Matrix(ScalarType::Float, 4, 4)
     }
     pub fn custom(name: &str) -> TypeLayout {
-        TypeLayout::Custom(name.to_string())
+        TypeLayout::Custom(name.to_string(), Vec::new())
     }
 }
 
@@ -198,9 +149,18 @@ impl std::fmt::Debug for TypeLayout {
             TypeLayout::Scalar(st) => write!(f, "{:?}", st),
             TypeLayout::Vector(st, x) => write!(f, "{:?}{}", st, x),
             TypeLayout::Matrix(st, x, y) => write!(f, "{:?}{}x{}", st, x, y),
-            TypeLayout::Custom(s) => write!(f, "{}", s),
-            TypeLayout::SamplerState => write!(f, "SamplerState"),
-            TypeLayout::Object(ot) => write!(f, "{:?}", ot),
+            TypeLayout::Custom(s, args) => {
+                write!(f, "{}", s)?;
+                if let Some((last, non_last)) = args.split_last() {
+                    write!(f, "<")?;
+                    for arg in non_last {
+                        write!(f, "{:?}, ", arg)?;
+                    }
+                    write!(f, "{:?}", last)?;
+                    write!(f, ">")?;
+                }
+                Ok(())
+            }
         }
     }
 }

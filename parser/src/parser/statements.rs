@@ -40,7 +40,7 @@ pub fn parse_initializer<'t>(
 #[test]
 fn test_initializer() {
     fn initializer<'t>(input: &'t [LexToken]) -> ParseResult<'t, Option<Initializer>> {
-        let st = SymbolTable::empty();
+        let st = SymbolTable::default();
         parse_initializer(input, &st)
     }
 
@@ -215,7 +215,7 @@ fn statement_attribute<'t>(input: &'t [LexToken], _: &SymbolTable) -> ParseResul
 
 #[test]
 fn test_statement_attribute() {
-    let st = SymbolTable::empty();
+    let st = SymbolTable::default();
     let fastopt = &[
         LexToken::with_no_loc(Token::LeftSquareBracket),
         LexToken::with_no_loc(Token::Id(Identifier("fastopt".to_string()))),

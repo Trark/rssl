@@ -60,7 +60,7 @@ fn expr_leaf<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loc
 }
 
 /// Parse a list of template arguments
-fn parse_template_args_opt<'t>(
+fn parse_template_args_req<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, Vec<Located<Type>>> {
@@ -74,11 +74,11 @@ fn parse_template_args_opt<'t>(
 }
 
 /// Parse a list of template arguments or no arguments
-fn parse_template_args<'t>(
+pub fn parse_template_args<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
 ) -> ParseResult<'t, Vec<Located<Type>>> {
-    match parse_template_args_opt(input, st) {
+    match parse_template_args_req(input, st) {
         Ok(ok) => Ok(ok),
         Err(_) => Ok((input, Vec::new())),
     }
@@ -967,11 +967,7 @@ fn test_cast() {
         ambiguous_sum_or_cast,
         Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6)).loc(0),
     );
-    let st_a_is_type = SymbolTable({
-        let mut map = HashMap::new();
-        map.insert("a".to_string(), SymbolType::Struct);
-        map
-    });
+    let st_a_is_type = SymbolTable::from(&[("a", SymbolType::Struct)]);
     expr.check_symbolic(
         ambiguous_sum_or_cast,
         &st_a_is_type,

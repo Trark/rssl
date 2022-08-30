@@ -19,9 +19,9 @@ pub fn parse_rootdefinition_function(
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
     context.push_scope();
-    if let Some(ref template_args) = fd.template_args {
-        for template_arg in &template_args.0 {
-            context.insert_template_type(template_arg.clone())?;
+    if let Some(ref template_params) = fd.template_params {
+        for template_param in &template_params.0 {
+            context.insert_template_type(template_param.clone())?;
         }
     }
 

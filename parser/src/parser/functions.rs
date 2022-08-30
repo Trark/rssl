@@ -189,11 +189,11 @@ pub fn parse_function_definition<'t>(
 ) -> ParseResult<'t, FunctionDefinition> {
     // Not clear on ordering of template args and attributes
     // Attributes are used on entry points which can not be template functions
-    let (input, template_args) = parse_template_args(input)?;
+    let (input, template_params) = parse_template_params(input)?;
 
     // If we have template arguments then add those as types into the symbol table
     // The scope management will need reworking later to handle more complex cases
-    let local_symbols = template_args.as_ref().map(|args| {
+    let local_symbols = template_params.as_ref().map(|args| {
         SymbolTable({
             let mut map = st.0.clone();
             for arg in &args.0 {
@@ -228,7 +228,7 @@ pub fn parse_function_definition<'t>(
             return_type: ret,
             semantic: return_semantic,
         },
-        template_args,
+        template_params,
         params,
         body,
         attributes,
@@ -249,7 +249,7 @@ fn test_template_function() {
                 return_type: Type::void(),
                 semantic: None,
             },
-            template_args: Some(TemplateArgList(Vec::from(["T".to_string().loc(18)]))),
+            template_params: Some(TemplateParamList(Vec::from(["T".to_string().loc(18)]))),
             params: vec![FunctionParam {
                 name: "arg".to_string().loc(30),
                 param_type: Type::custom("T").into(),

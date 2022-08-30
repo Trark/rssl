@@ -92,7 +92,7 @@ fn test_function() {
             return_type: Type::float(),
             semantic: Some(Semantic::Depth),
         },
-        template_args: None,
+        template_params: None,
         params: vec![FunctionParam {
             name: "x".to_string().loc(17),
             param_type: Type::float().into(),
@@ -114,7 +114,7 @@ fn test_function() {
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string().loc(29),
             returntype: Type::void().into(),
-            template_args: None,
+            template_params: None,
             params: vec![FunctionParam {
                 name: "x".to_string().loc(40),
                 param_type: Type::float().into(),
@@ -202,11 +202,7 @@ fn test_global_variable() {
 
     let test_buffersrv_str = "Buffer g_myBuffer : register(t1);";
     let test_buffersrv_ast = GlobalVariable {
-        global_type: Type::from_object(ObjectType::Buffer(DataType(
-            DataLayout::Vector(ScalarType::Float, 4),
-            TypeModifier::default(),
-        )))
-        .into(),
+        global_type: Type::from_layout(TypeLayout::custom("Buffer")).into(),
         defs: vec![GlobalVariableName {
             name: "g_myBuffer".to_string().loc(7),
             bind: VariableBind::Normal,
@@ -222,10 +218,10 @@ fn test_global_variable() {
 
     let test_buffersrv2_str = "Buffer<uint4> g_myBuffer : register(t1);";
     let test_buffersrv2_ast = GlobalVariable {
-        global_type: Type::from_object(ObjectType::Buffer(DataType(
-            DataLayout::Vector(ScalarType::UInt, 4),
-            TypeModifier::default(),
-        )))
+        global_type: Type::from_layout(TypeLayout::Custom(
+            "Buffer".to_string(),
+            Vec::from([Type::from_layout(TypeLayout::from_vector(ScalarType::UInt, 4)).loc(7)]),
+        ))
         .into(),
         defs: vec![GlobalVariableName {
             name: "g_myBuffer".to_string().loc(14),
@@ -242,10 +238,10 @@ fn test_global_variable() {
 
     let test_buffersrv3_str = "Buffer<vector<int, 4>> g_myBuffer : register(t1);";
     let test_buffersrv3_ast = GlobalVariable {
-        global_type: Type::from_object(ObjectType::Buffer(DataType(
-            DataLayout::Vector(ScalarType::Int, 4),
-            TypeModifier::default(),
-        )))
+        global_type: Type::from_layout(TypeLayout::Custom(
+            "Buffer".to_string(),
+            Vec::from([Type::from_layout(TypeLayout::from_vector(ScalarType::Int, 4)).loc(7)]),
+        ))
         .into(),
         defs: vec![GlobalVariableName {
             name: "g_myBuffer".to_string().loc(23),
@@ -262,10 +258,10 @@ fn test_global_variable() {
 
     let test_buffersrv4_str = "StructuredBuffer<CustomType> g_myBuffer : register(t1);";
     let test_buffersrv4_ast = GlobalVariable {
-        global_type: Type::from_object(ObjectType::StructuredBuffer(StructuredType(
-            StructuredLayout::Custom("CustomType".to_string()),
-            TypeModifier::default(),
-        )))
+        global_type: Type::from_layout(TypeLayout::Custom(
+            "StructuredBuffer".to_string(),
+            Vec::from([Type::from_layout(TypeLayout::custom("CustomType")).loc(17)]),
+        ))
         .into(),
         defs: vec![GlobalVariableName {
             name: "g_myBuffer".to_string().loc(29),
@@ -274,11 +270,7 @@ fn test_global_variable() {
             init: None,
         }],
     };
-    let test_buffersrv4_symbols = SymbolTable({
-        let mut map = HashMap::new();
-        map.insert("CustomType".to_string(), SymbolType::Struct);
-        map
-    });
+    let test_buffersrv4_symbols = SymbolTable::from(&[("CustomType", SymbolType::Struct)]);
     globalvariable.check_symbolic(
         test_buffersrv4_str,
         &test_buffersrv4_symbols,

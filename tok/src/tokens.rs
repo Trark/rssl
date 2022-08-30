@@ -96,7 +96,6 @@ pub enum Token {
 
     Struct,
     Enum,
-    SamplerState,
     ConstantBuffer,
     Register(RegisterSlot),
     PackOffset(OffsetSlot),

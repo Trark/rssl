@@ -11,11 +11,7 @@ fn test_typeparse() {
     let module = ast::Module {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
-                global_type: ast::Type::from_object(ast::ObjectType::RWBuffer(ast::DataType(
-                    ast::DataLayout::Scalar(ast::ScalarType::Int),
-                    ast::TypeModifier::default(),
-                )))
-                .into(),
+                global_type: ast::Type::from_layout(ast::TypeLayout::custom("RWBuffer")).into(),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myOutBuffer".to_string()),
                     bind: ast::VariableBind::Normal,
@@ -47,7 +43,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
-                template_args: None,
+                template_params: None,
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::Type::uint().into(),
@@ -59,7 +55,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("myFunc".to_string()),
                 returntype: ast::Type::void().into(),
-                template_args: None,
+                template_params: None,
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::Type::float().into(),
@@ -71,7 +67,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("outFunc".to_string()),
                 returntype: ast::Type::void().into(),
-                template_args: None,
+                template_params: None,
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::ParamType(ast::Type::float(), ast::InputModifier::Out, None),
@@ -95,7 +91,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("CSMAIN".to_string()),
                 returntype: ast::Type::void().into(),
-                template_args: None,
+                template_params: None,
                 params: vec![],
                 body: vec![
                     ast::Statement::Empty,
@@ -194,7 +190,7 @@ fn test_typeparse() {
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("CSMAIN".to_string()),
                 returntype: ast::Type::void().into(),
-                template_args: None,
+                template_params: None,
                 params: vec![],
                 body: vec![ast::Statement::Expression(Located::none(
                     ast::Expression::Variable("g_myFour".to_string()),

@@ -1,6 +1,6 @@
 use crate::ast_expressions::*;
 use crate::ast_statements::Statement;
-use crate::ast_types::{TemplateArgList, Type};
+use crate::ast_types::{TemplateParamList, Type};
 use crate::primitive_types::*;
 use rssl_text::Located;
 
@@ -8,7 +8,7 @@ use rssl_text::Located;
 pub struct FunctionDefinition {
     pub name: Located<String>,
     pub returntype: FunctionReturn,
-    pub template_args: Option<TemplateArgList>,
+    pub template_params: Option<TemplateParamList>,
     pub params: Vec<FunctionParam>,
     pub body: Vec<Statement>,
     pub attributes: Vec<FunctionAttribute>,

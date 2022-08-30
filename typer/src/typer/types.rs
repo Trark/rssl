@@ -16,79 +16,85 @@ fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::
         ast::TypeLayout::Scalar(scalar) => ir::TypeLayout::Scalar(scalar),
         ast::TypeLayout::Vector(scalar, x) => ir::TypeLayout::Vector(scalar, x),
         ast::TypeLayout::Matrix(scalar, x, y) => ir::TypeLayout::Matrix(scalar, x, y),
-        ast::TypeLayout::Custom(ref name) => context.find_type_id(name)?,
-        ast::TypeLayout::SamplerState => ir::TypeLayout::SamplerState,
-        ast::TypeLayout::Object(ref object_type) => {
-            ir::TypeLayout::Object(parse_objecttype(object_type, context)?)
+        ast::TypeLayout::Custom(ref name, ref args) => {
+            let mut ir_args = Vec::with_capacity(args.len());
+            for arg in args {
+                ir_args.push(parse_type(arg, context)?);
+            }
+
+            // Special case all the object types for now
+            if let Some(object_type) = parse_object_type(name, &ir_args) {
+                return Ok(object_type);
+            }
+
+            // No support for template args on generic types
+            if !args.is_empty() {
+                unimplemented!("Template args not implemented for {}", name)
+            }
+
+            context.find_type_id(name)?
         }
     })
 }
 
-/// Attempt to get an ir structured type from an ast structured type
-fn parse_structuredtype(
-    ty: &ast::StructuredType,
-    context: &Context,
-) -> TyperResult<ir::StructuredType> {
-    let &ast::StructuredType(ref tyl, modifier) = ty;
-    Ok(ir::StructuredType(
-        parse_structuredlayout(tyl, context)?,
-        modifier,
-    ))
-}
-
-/// Attempt to get an ir structured type layout from an ast structured type layout
-fn parse_structuredlayout(
-    ty: &ast::StructuredLayout,
-    context: &Context,
-) -> TyperResult<ir::StructuredLayout> {
-    Ok(match *ty {
-        ast::StructuredLayout::Scalar(scalar) => ir::StructuredLayout::Scalar(scalar),
-        ast::StructuredLayout::Vector(scalar, x) => ir::StructuredLayout::Vector(scalar, x),
-        ast::StructuredLayout::Matrix(scalar, x, y) => ir::StructuredLayout::Matrix(scalar, x, y),
-        ast::StructuredLayout::Custom(ref name) => match context.find_type_id(name)? {
-            ir::TypeLayout::Struct(id) => ir::StructuredLayout::Struct(id),
-            _ => unimplemented!(),
-        },
-    })
-}
-
-/// Attempt to get an ir object type from an ast object type
-fn parse_objecttype(ty: &ast::ObjectType, context: &Context) -> TyperResult<ir::ObjectType> {
-    Ok(match *ty {
-        ast::ObjectType::Buffer(data_type) => ir::ObjectType::Buffer(data_type),
-        ast::ObjectType::RWBuffer(data_type) => ir::ObjectType::RWBuffer(data_type),
-        ast::ObjectType::ByteAddressBuffer => ir::ObjectType::ByteAddressBuffer,
-        ast::ObjectType::RWByteAddressBuffer => ir::ObjectType::RWByteAddressBuffer,
-        ast::ObjectType::StructuredBuffer(ref structured_type) => {
-            ir::ObjectType::StructuredBuffer(parse_structuredtype(structured_type, context)?)
+/// Attempt to turn an ast type into one of the built in object types
+fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeLayout> {
+    let get_data_type = |args: &[ir::Type]| match args {
+        [ir::Type(ir::TypeLayout::Scalar(st), modifier)] => {
+            Some(ir::DataType(ir::DataLayout::Scalar(*st), *modifier))
         }
-        ast::ObjectType::RWStructuredBuffer(ref structured_type) => {
-            ir::ObjectType::RWStructuredBuffer(parse_structuredtype(structured_type, context)?)
+        [ir::Type(ir::TypeLayout::Vector(st, x), modifier)] => {
+            Some(ir::DataType(ir::DataLayout::Vector(*st, *x), *modifier))
         }
-        ast::ObjectType::AppendStructuredBuffer(ref structured_type) => {
-            ir::ObjectType::AppendStructuredBuffer(parse_structuredtype(structured_type, context)?)
+        [] => Some(ir::DataType(
+            ir::DataLayout::Vector(ir::ScalarType::Float, 4),
+            ir::TypeModifier::default(),
+        )),
+        _ => None,
+    };
+    let get_structured_type = |args: &[ir::Type]| match args {
+        [ir::Type(ir::TypeLayout::Scalar(st), modifier)] => Some(ir::StructuredType(
+            ir::StructuredLayout::Scalar(*st),
+            *modifier,
+        )),
+        [ir::Type(ir::TypeLayout::Vector(st, x), modifier)] => Some(ir::StructuredType(
+            ir::StructuredLayout::Vector(*st, *x),
+            *modifier,
+        )),
+        [ir::Type(ir::TypeLayout::Struct(id), modifier)] => Some(ir::StructuredType(
+            ir::StructuredLayout::Struct(*id),
+            *modifier,
+        )),
+        _ => None,
+    };
+    match name {
+        "Buffer" => Some(ir::TypeLayout::Object(ir::ObjectType::Buffer(
+            get_data_type(template_args)?,
+        ))),
+        "RWBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWBuffer(
+            get_data_type(template_args)?,
+        ))),
+        "ByteAddressBuffer" if template_args.is_empty() => {
+            Some(ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer))
         }
-        ast::ObjectType::ConsumeStructuredBuffer(ref structured_type) => {
-            ir::ObjectType::ConsumeStructuredBuffer(parse_structuredtype(structured_type, context)?)
+        "RWByteAddressBuffer" if template_args.is_empty() => {
+            Some(ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer))
         }
-        ast::ObjectType::Texture1D(data_type) => ir::ObjectType::Texture1D(data_type),
-        ast::ObjectType::Texture1DArray(data_type) => ir::ObjectType::Texture1DArray(data_type),
-        ast::ObjectType::Texture2D(data_type) => ir::ObjectType::Texture2D(data_type),
-        ast::ObjectType::Texture2DArray(data_type) => ir::ObjectType::Texture2DArray(data_type),
-        ast::ObjectType::Texture2DMS(data_type) => ir::ObjectType::Texture2DMS(data_type),
-        ast::ObjectType::Texture2DMSArray(data_type) => ir::ObjectType::Texture2DMSArray(data_type),
-        ast::ObjectType::Texture3D(data_type) => ir::ObjectType::Texture3D(data_type),
-        ast::ObjectType::TextureCube(data_type) => ir::ObjectType::TextureCube(data_type),
-        ast::ObjectType::TextureCubeArray(data_type) => ir::ObjectType::TextureCubeArray(data_type),
-        ast::ObjectType::RWTexture1D(data_type) => ir::ObjectType::RWTexture1D(data_type),
-        ast::ObjectType::RWTexture1DArray(data_type) => ir::ObjectType::RWTexture1DArray(data_type),
-        ast::ObjectType::RWTexture2D(data_type) => ir::ObjectType::RWTexture2D(data_type),
-        ast::ObjectType::RWTexture2DArray(data_type) => ir::ObjectType::RWTexture2DArray(data_type),
-        ast::ObjectType::RWTexture3D(data_type) => ir::ObjectType::RWTexture3D(data_type),
-        ast::ObjectType::ConstantBuffer(ref structured_type) => {
-            ir::ObjectType::ConstantBuffer(parse_structuredtype(structured_type, context)?)
-        }
-        ast::ObjectType::InputPatch => ir::ObjectType::InputPatch,
-        ast::ObjectType::OutputPatch => ir::ObjectType::OutputPatch,
-    })
+        "Texture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::Texture2D(
+            get_data_type(template_args)?,
+        ))),
+        "RWTexture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(
+            get_data_type(template_args)?,
+        ))),
+        "ConstantBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(
+            get_structured_type(template_args)?,
+        ))),
+        "StructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(
+            get_structured_type(template_args)?,
+        ))),
+        "RWStructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(
+            get_structured_type(template_args)?,
+        ))),
+        _ => None,
+    }
 }

@@ -197,15 +197,6 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<DataLayout> {
     }
 }
 
-/// Parse a type for a basic data type
-fn parse_data_type(input: &[LexToken]) -> ParseResult<DataType> {
-    // Todo: Modifiers
-    match parse_data_layout(input) {
-        Ok((rest, layout)) => Ok((rest, DataType(layout, Default::default()))),
-        Err(err) => Err(err),
-    }
-}
-
 /// Parse a type layout for a structured type
 fn parse_structured_layout<'t>(
     input: &'t [LexToken],
@@ -236,206 +227,6 @@ fn parse_structured_layout<'t>(
     }
 }
 
-/// Parse a type for a structured type
-fn parse_structured_type<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, StructuredType> {
-    // Todo: Modifiers
-    match parse_structured_layout(input, st) {
-        Ok((rest, layout)) => Ok((rest, StructuredType(layout, Default::default()))),
-        Err(err) => Err(err),
-    }
-}
-
-/// Parse an object type
-fn parse_object_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, ObjectType> {
-    if input.is_empty() {
-        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
-    }
-
-    enum ParseType {
-        Buffer,
-        RWBuffer,
-
-        ByteAddressBuffer,
-        RWByteAddressBuffer,
-
-        StructuredBuffer,
-        RWStructuredBuffer,
-        AppendStructuredBuffer,
-        ConsumeStructuredBuffer,
-
-        Texture1D,
-        Texture1DArray,
-        Texture2D,
-        Texture2DArray,
-        Texture2DMS,
-        Texture2DMSArray,
-        Texture3D,
-        TextureCube,
-        TextureCubeArray,
-        RWTexture1D,
-        RWTexture1DArray,
-        RWTexture2D,
-        RWTexture2DArray,
-        RWTexture3D,
-
-        ConstantBuffer,
-
-        InputPatch,
-        OutputPatch,
-    }
-
-    let object_type = match &input[0] {
-        &LexToken(Token::Id(Identifier(ref name)), _) => match &name[..] {
-            "Buffer" => ParseType::Buffer,
-            "RWBuffer" => ParseType::RWBuffer,
-
-            "ByteAddressBuffer" => ParseType::ByteAddressBuffer,
-            "RWByteAddressBuffer" => ParseType::RWByteAddressBuffer,
-
-            "StructuredBuffer" => ParseType::StructuredBuffer,
-            "RWStructuredBuffer" => ParseType::RWStructuredBuffer,
-            "AppendStructuredBuffer" => ParseType::AppendStructuredBuffer,
-            "ConsumeStructuredBuffer" => ParseType::ConsumeStructuredBuffer,
-
-            "Texture1D" => ParseType::Texture1D,
-            "Texture1DArray" => ParseType::Texture1DArray,
-            "Texture2D" => ParseType::Texture2D,
-            "Texture2DArray" => ParseType::Texture2DArray,
-            "Texture2DMS" => ParseType::Texture2DMS,
-            "Texture2DMSArray" => ParseType::Texture2DMSArray,
-            "Texture3D" => ParseType::Texture3D,
-            "TextureCube" => ParseType::TextureCube,
-            "TextureCubeArray" => ParseType::TextureCubeArray,
-            "RWTexture1D" => ParseType::RWTexture1D,
-            "RWTexture1DArray" => ParseType::RWTexture1DArray,
-            "RWTexture2D" => ParseType::RWTexture2D,
-            "RWTexture2DArray" => ParseType::RWTexture2DArray,
-            "RWTexture3D" => ParseType::RWTexture3D,
-
-            "ConstantBuffer" => ParseType::ConstantBuffer,
-
-            "InputPatch" => ParseType::InputPatch,
-            "OutputPatch" => ParseType::OutputPatch,
-
-            _ => {
-                return Err(nom::Err::Error(ParseErrorContext(
-                    input,
-                    ParseErrorReason::UnknownType,
-                )))
-            }
-        },
-        _ => {
-            return Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::UnknownType,
-            )))
-        }
-    };
-
-    let rest = &input[1..];
-
-    match object_type {
-        ParseType::ByteAddressBuffer => Ok((rest, ObjectType::ByteAddressBuffer)),
-        ParseType::RWByteAddressBuffer => Ok((rest, ObjectType::RWByteAddressBuffer)),
-
-        ParseType::Buffer
-        | ParseType::RWBuffer
-        | ParseType::Texture1D
-        | ParseType::Texture1DArray
-        | ParseType::Texture2D
-        | ParseType::Texture2DArray
-        | ParseType::Texture2DMS
-        | ParseType::Texture2DMSArray
-        | ParseType::Texture3D
-        | ParseType::TextureCube
-        | ParseType::TextureCubeArray
-        | ParseType::RWTexture1D
-        | ParseType::RWTexture1DArray
-        | ParseType::RWTexture2D
-        | ParseType::RWTexture2DArray
-        | ParseType::RWTexture3D => {
-            let (buffer_arg, rest) = match nom::sequence::delimited(
-                match_left_angle_bracket,
-                parse_data_type,
-                match_right_angle_bracket,
-            )(rest)
-            {
-                Ok((rest, ty)) => (ty, rest),
-                Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-                Err(_) => (
-                    DataType(
-                        DataLayout::Vector(ScalarType::Float, 4),
-                        TypeModifier::default(),
-                    ),
-                    rest,
-                ),
-            };
-
-            let ty = match object_type {
-                ParseType::Buffer => ObjectType::Buffer(buffer_arg),
-                ParseType::RWBuffer => ObjectType::RWBuffer(buffer_arg),
-                ParseType::Texture1D => ObjectType::Texture1D(buffer_arg),
-                ParseType::Texture1DArray => ObjectType::Texture1DArray(buffer_arg),
-                ParseType::Texture2D => ObjectType::Texture2D(buffer_arg),
-                ParseType::Texture2DArray => ObjectType::Texture2DArray(buffer_arg),
-                ParseType::Texture2DMS => ObjectType::Texture2DMS(buffer_arg),
-                ParseType::Texture2DMSArray => ObjectType::Texture2DMSArray(buffer_arg),
-                ParseType::Texture3D => ObjectType::Texture3D(buffer_arg),
-                ParseType::TextureCube => ObjectType::TextureCube(buffer_arg),
-                ParseType::TextureCubeArray => ObjectType::TextureCubeArray(buffer_arg),
-                ParseType::RWTexture1D => ObjectType::RWTexture1D(buffer_arg),
-                ParseType::RWTexture1DArray => ObjectType::RWTexture1DArray(buffer_arg),
-                ParseType::RWTexture2D => ObjectType::RWTexture2D(buffer_arg),
-                ParseType::RWTexture2DArray => ObjectType::RWTexture2DArray(buffer_arg),
-                ParseType::RWTexture3D => ObjectType::RWTexture3D(buffer_arg),
-                _ => unreachable!(),
-            };
-            Ok((rest, ty))
-        }
-
-        ParseType::StructuredBuffer
-        | ParseType::RWStructuredBuffer
-        | ParseType::AppendStructuredBuffer
-        | ParseType::ConsumeStructuredBuffer
-        | ParseType::ConstantBuffer => {
-            let (buffer_arg, rest) = match nom::sequence::delimited(
-                match_left_angle_bracket,
-                contextual(parse_structured_type, st),
-                match_right_angle_bracket,
-            )(rest)
-            {
-                Ok((rest, ty)) => (ty, rest),
-                Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
-                Err(_) => (
-                    StructuredType(
-                        StructuredLayout::Vector(ScalarType::Float, 4),
-                        TypeModifier::default(),
-                    ),
-                    rest,
-                ),
-            };
-
-            let ty = match object_type {
-                ParseType::StructuredBuffer => ObjectType::StructuredBuffer(buffer_arg),
-                ParseType::RWStructuredBuffer => ObjectType::RWStructuredBuffer(buffer_arg),
-                ParseType::AppendStructuredBuffer => ObjectType::AppendStructuredBuffer(buffer_arg),
-                ParseType::ConsumeStructuredBuffer => {
-                    ObjectType::ConsumeStructuredBuffer(buffer_arg)
-                }
-                ParseType::ConstantBuffer => ObjectType::ConstantBuffer(buffer_arg),
-                _ => unreachable!(),
-            };
-            Ok((rest, ty))
-        }
-
-        ParseType::InputPatch => Ok((rest, ObjectType::InputPatch)),
-        ParseType::OutputPatch => Ok((rest, ObjectType::OutputPatch)),
-    }
-}
-
 /// Parse the void type
 fn parse_voidtype(input: &[LexToken]) -> ParseResult<TypeLayout> {
     if input.is_empty() {
@@ -462,16 +253,16 @@ fn parse_voidtype(input: &[LexToken]) -> ParseResult<TypeLayout> {
 
 /// Parse a type layout
 fn parse_type_layout<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, TypeLayout> {
-    if let Ok((input, ty)) = parse_object_type(input, st) {
-        return Ok((input, TypeLayout::Object(ty)));
-    }
-
     if let Ok((input, ty)) = parse_voidtype(input) {
         return Ok((input, ty));
     }
 
-    if let Ok((input, _)) = parse_token(Token::SamplerState)(input) {
-        return Ok((input, TypeLayout::SamplerState));
+    // Attempt to parse a type from the symbol table which is not structured
+    if let Ok((input, Identifier(name))) = match_identifier(input) {
+        if let Some(&SymbolType::Object) = st.0.get(name) {
+            let (input, args) = expressions::parse_template_args(input, st)?;
+            return Ok((input, TypeLayout::Custom(name.clone(), args)));
+        }
     }
 
     match parse_structured_layout(input, st) {
@@ -497,8 +288,8 @@ pub fn parse_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t
     Ok((input, Type(tl, tm)))
 }
 
-/// Parse a list of template arguments or no template arguments
-pub fn parse_template_args(input: &[LexToken]) -> ParseResult<Option<TemplateArgList>> {
+/// Parse a list of template parameters or no template parameters
+pub fn parse_template_params(input: &[LexToken]) -> ParseResult<Option<TemplateParamList>> {
     let input = match parse_token(Token::Template)(input) {
         Ok((input, _)) => input,
         Err(_) => return Ok((input, None)),
@@ -523,5 +314,5 @@ pub fn parse_template_args(input: &[LexToken]) -> ParseResult<Option<TemplateArg
 
     let (input, _) = match_right_angle_bracket(input)?;
 
-    Ok((input, Some(TemplateArgList(args))))
+    Ok((input, Some(TemplateParamList(args))))
 }

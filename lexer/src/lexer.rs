@@ -1266,7 +1266,6 @@ fn token_no_whitespace_words(input: &[u8]) -> IResult<&[u8], Token> {
         // Types
         map(reserved_word_struct, |_| Token::Struct),
         map(reserved_word_enum, |_| Token::Enum),
-        map(reserved_word_samplerstate, |_| Token::SamplerState),
         map(reserved_word_cbuffer, |_| Token::ConstantBuffer),
         register,
         // Parameter Attributes
@@ -1616,10 +1615,6 @@ fn test_token() {
     assert_eq!(
         token(&b"struct"[..]),
         Ok((&b""[..], from_end(Token::Struct, 6)))
-    );
-    assert_eq!(
-        token(&b"SamplerState"[..]),
-        Ok((&b""[..], from_end(Token::SamplerState, 12)))
     );
     assert_eq!(
         token(&b"cbuffer"[..]),

@@ -198,8 +198,8 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::UnknownType(_) => write_message(
-                &|f| write!(f, "unknown type name"),
+            TyperError::UnknownType(et) => write_message(
+                &|f| write!(f, "unknown type name: {:?}", et),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),

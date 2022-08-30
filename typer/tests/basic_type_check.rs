@@ -116,6 +116,30 @@ fn check_variable_scope() {
 }
 
 #[test]
+fn check_object_type_arguments() {
+    check_types("Buffer buf;");
+    check_types("Buffer<uint4> buf;");
+    check_types("RWBuffer buf;");
+    check_types("RWBuffer<uint4> buf;");
+
+    check_types("ByteAddressBuffer buf;");
+    check_types("RWByteAddressBuffer buf;");
+
+    check_types("StructuredBuffer<uint4> buf;");
+    check_types("struct S {}; StructuredBuffer<S> buf;");
+    check_types("RWStructuredBuffer<uint4> buf;");
+    check_types("struct S {}; RWStructuredBuffer<S> buf;");
+
+    check_types("Texture2D tex;");
+    check_types("Texture2D<uint4> tex;");
+    check_types("RWTexture2D tex;");
+    check_types("RWTexture2D<uint4> tex;");
+
+    check_types("ConstantBuffer<uint4> buf;");
+    check_types("struct S {}; ConstantBuffer<S> buf;");
+}
+
+#[test]
 fn check_texture_index() {
     check_types("RWTexture2D tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }");
     check_types(

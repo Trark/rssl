@@ -87,7 +87,7 @@ impl<
     /// Check that a source string parses into the given value
     #[track_caller]
     pub fn check(&self, input: &str, value: T) {
-        self.check_symbolic(input, &SymbolTable::empty(), value);
+        self.check_symbolic(input, &SymbolTable::default(), value);
     }
 
     /// Check that a source string parses into the given value - in the scope of a given symbol table
@@ -112,7 +112,7 @@ impl<
     /// Check that a list of tokens parses into the given value
     #[track_caller]
     pub fn check_from_tokens(&self, input: &[LexToken], used_tokens: usize, value: T) {
-        self.check_symbolic_from_tokens(input, used_tokens, &SymbolTable::empty(), value);
+        self.check_symbolic_from_tokens(input, used_tokens, &SymbolTable::default(), value);
     }
 
     /// Check that a list of tokens string parses into the given value - in the scope of a given symbol table
@@ -138,7 +138,7 @@ impl<
     #[track_caller]
     pub fn expect_fail(&self, input: &str, error_reason: ParseErrorReason, offset: u32) {
         let (tokens, _) = lex_from_str(input);
-        match (self.0)(&tokens, &SymbolTable::empty()) {
+        match (self.0)(&tokens, &SymbolTable::default()) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     panic!("{:?}", exp);

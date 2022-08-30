@@ -49,28 +49,11 @@ pub enum ObjectType {
 
     StructuredBuffer(StructuredType),
     RWStructuredBuffer(StructuredType),
-    AppendStructuredBuffer(StructuredType),
-    ConsumeStructuredBuffer(StructuredType),
 
-    Texture1D(DataType),
-    Texture1DArray(DataType),
     Texture2D(DataType),
-    Texture2DArray(DataType),
-    Texture2DMS(DataType),
-    Texture2DMSArray(DataType),
-    Texture3D(DataType),
-    TextureCube(DataType),
-    TextureCubeArray(DataType),
-    RWTexture1D(DataType),
-    RWTexture1DArray(DataType),
     RWTexture2D(DataType),
-    RWTexture2DArray(DataType),
-    RWTexture3D(DataType),
 
     ConstantBuffer(StructuredType),
-
-    InputPatch,
-    OutputPatch,
 }
 
 impl From<DataType> for Type {
@@ -356,25 +339,9 @@ impl std::fmt::Debug for ObjectType {
             RWByteAddressBuffer => write!(f, "RWByteAddressBuffer"),
             StructuredBuffer(ref st) => write!(f, "StructuredBuffer<{:?}>", st),
             RWStructuredBuffer(ref st) => write!(f, "RWStructuredBuffer<{:?}>", st),
-            AppendStructuredBuffer(ref st) => write!(f, "AppendStructuredBuffer<{:?}>", st),
-            ConsumeStructuredBuffer(ref st) => write!(f, "ConsumeStructuredBuffer<{:?}>", st),
-            Texture1D(ref dt) => write!(f, "Texture1D<{:?}>", dt),
-            Texture1DArray(ref dt) => write!(f, "Texture1DArray<{:?}>", dt),
             Texture2D(ref dt) => write!(f, "Texture2D<{:?}>", dt),
-            Texture2DArray(ref dt) => write!(f, "Texture2DArray<{:?}>", dt),
-            Texture2DMS(ref dt) => write!(f, "Texture2DMS<{:?}>", dt),
-            Texture2DMSArray(ref dt) => write!(f, "Texture2DMSArray<{:?}>", dt),
-            Texture3D(ref dt) => write!(f, "Texture3D<{:?}>", dt),
-            TextureCube(ref dt) => write!(f, "TextureCube<{:?}>", dt),
-            TextureCubeArray(ref dt) => write!(f, "TextureCubeArray<{:?}>", dt),
-            RWTexture1D(ref dt) => write!(f, "RWTexture1D<{:?}>", dt),
-            RWTexture1DArray(ref dt) => write!(f, "RWTexture1DArray<{:?}>", dt),
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{:?}>", dt),
-            RWTexture2DArray(ref dt) => write!(f, "RWTexture2DArray<{:?}>", dt),
-            RWTexture3D(ref dt) => write!(f, "RWTexture3D<{:?}>", dt),
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{:?}>", st),
-            InputPatch => write!(f, "InputPatch"),
-            OutputPatch => write!(f, "OutputPatch"),
         }
     }
 }
