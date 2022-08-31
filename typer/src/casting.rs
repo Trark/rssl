@@ -404,9 +404,10 @@ impl ImplicitConversion {
     }
 
     pub fn apply(&self, expr: Expression) -> Expression {
+        let target_type = self.get_target_type();
         match *self {
             ImplicitConversion(_, _, None, None, None) => expr,
-            _ => Expression::Cast(self.get_target_type().0, Box::new(expr)),
+            _ => Expression::Cast(target_type.0, Box::new(expr)),
         }
     }
 }

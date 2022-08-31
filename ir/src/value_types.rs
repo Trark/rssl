@@ -35,3 +35,13 @@ impl<'a> ToExpressionType for &'a Type {
         self.clone().to_rvalue()
     }
 }
+
+impl From<ParamType> for ExpressionType {
+    fn from(ty: ParamType) -> Self {
+        let vt = match ty.1 {
+            InputModifier::In => ValueType::Rvalue,
+            InputModifier::InOut | InputModifier::Out => ValueType::Lvalue,
+        };
+        ExpressionType(ty.0, vt)
+    }
+}

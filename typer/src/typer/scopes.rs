@@ -2,7 +2,7 @@ use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use crate::typer::errors::ErrorType;
 use crate::typer::functions::{FunctionName, FunctionOverload};
-use ir::{ExpressionType, Intrinsic, ToExpressionType};
+use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
@@ -604,13 +604,9 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
     let funcs = get_intrinsics();
 
     let mut overloads = Vec::with_capacity(funcs.len());
-    for &(ref name, params, ref factory) in funcs {
-        let return_type = match *factory {
-            IntrinsicFactory::Intrinsic0(ref i) => i.get_return_type(),
-            IntrinsicFactory::Intrinsic1(ref i) => i.get_return_type(),
-            IntrinsicFactory::Intrinsic2(ref i) => i.get_return_type(),
-            IntrinsicFactory::Intrinsic3(ref i) => i.get_return_type(),
-        };
+    for &(ref name, ref intrinsic, params) in funcs {
+        let factory = IntrinsicFactory::Function(intrinsic.clone(), params);
+        let return_type = factory.get_return_type();
         let overload = FunctionOverload(
             FunctionName::Intrinsic(factory.clone()),
             return_type.0,

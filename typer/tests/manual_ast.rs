@@ -2,7 +2,7 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use std::collections::HashMap;
 
-const BASE_FUNCTION_ID: u32 = 166;
+const BASE_FUNCTION_ID: u32 = 164;
 
 #[test]
 fn test_typeparse() {

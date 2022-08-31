@@ -4,11 +4,9 @@ use super::scopes::*;
 use super::types::{parse_type, parse_typelayout};
 use crate::casting::{ConversionPriority, ImplicitConversion};
 use crate::intrinsics;
-use crate::intrinsics::IntrinsicFactory;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::ExpressionType;
-use rssl_ir::Intrinsic;
 use rssl_ir::ToExpressionType;
 use rssl_text::SourceLocation;
 
@@ -86,17 +84,11 @@ fn find_function_type(
     ) -> Result<Vec<ImplicitConversion>, ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
         for (required_type, source_type) in overload.2.iter().zip(param_types.iter()) {
-            let &ir::ParamType(ref ty, ref it, ref interp) = required_type;
-
-            let ety = match *it {
-                ir::InputModifier::In => ty.to_rvalue(),
-                ir::InputModifier::Out | ir::InputModifier::InOut => ty.to_lvalue(),
-            };
-            match *interp {
+            match required_type.2 {
                 Some(_) => return Err(()),
                 None => {}
             };
-
+            let ety = required_type.clone().into();
             if let Ok(cast) = ImplicitConversion::find(source_type, &ety) {
                 overload_casts.push(cast)
             } else {
@@ -324,46 +316,22 @@ fn parse_expr_unaryop(
             let (intrinsic, eir, ety) = match *op {
                 ast::UnaryOp::PrefixIncrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (
-                        ir::Intrinsic1::PrefixIncrement(expr_ty.0.clone()),
-                        expr_ir,
-                        expr_ty,
-                    )
+                    (ir::Intrinsic::PrefixIncrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PrefixDecrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (
-                        ir::Intrinsic1::PrefixDecrement(expr_ty.0.clone()),
-                        expr_ir,
-                        expr_ty,
-                    )
+                    (ir::Intrinsic::PrefixDecrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PostfixIncrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (
-                        ir::Intrinsic1::PostfixIncrement(expr_ty.0.clone()),
-                        expr_ir,
-                        expr_ty,
-                    )
+                    (ir::Intrinsic::PostfixIncrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PostfixDecrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (
-                        ir::Intrinsic1::PostfixDecrement(expr_ty.0.clone()),
-                        expr_ir,
-                        expr_ty,
-                    )
+                    (ir::Intrinsic::PostfixDecrement, expr_ir, expr_ty)
                 }
-                ast::UnaryOp::Plus => (
-                    ir::Intrinsic1::Plus(expr_ty.0.clone()),
-                    expr_ir,
-                    expr_ty.0.to_rvalue(),
-                ),
-                ast::UnaryOp::Minus => (
-                    ir::Intrinsic1::Minus(expr_ty.0.clone()),
-                    expr_ir,
-                    expr_ty.0.to_rvalue(),
-                ),
+                ast::UnaryOp::Plus => (ir::Intrinsic::Plus, expr_ir, expr_ty.0.to_rvalue()),
+                ast::UnaryOp::Minus => (ir::Intrinsic::Minus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::LogicalNot => {
                     let ty = match expr_ty.0 {
                         ir::Type(ir::TypeLayout::Scalar(_), _) => {
@@ -382,16 +350,14 @@ fn parse_expr_unaryop(
                             ))
                         }
                     };
-                    let ety = ty.clone().to_rvalue();
-                    (ir::Intrinsic1::LogicalNot(ty), expr_ir, ety)
+                    let ety = ty.to_rvalue();
+                    (ir::Intrinsic::LogicalNot, expr_ir, ety)
                 }
                 ast::UnaryOp::BitwiseNot => match (expr_ty.0).0 {
                     ir::TypeLayout::Scalar(ir::ScalarType::Int)
-                    | ir::TypeLayout::Scalar(ir::ScalarType::UInt) => (
-                        ir::Intrinsic1::BitwiseNot(expr_ty.0.clone()),
-                        expr_ir,
-                        expr_ty.0.to_rvalue(),
-                    ),
+                    | ir::TypeLayout::Scalar(ir::ScalarType::UInt) => {
+                        (ir::Intrinsic::BitwiseNot, expr_ir, expr_ty.0.to_rvalue())
+                    }
                     _ => {
                         return Err(TyperError::UnaryOperationWrongTypes(
                             op.clone(),
@@ -401,7 +367,7 @@ fn parse_expr_unaryop(
                 },
             };
             Ok(TypedExpression::Value(
-                ir::Expression::Intrinsic1(intrinsic, Box::new(eir)),
+                ir::Expression::Intrinsic(intrinsic, Vec::from([eir])),
                 ety,
             ))
         }
@@ -409,30 +375,6 @@ fn parse_expr_unaryop(
             op.clone(),
             ErrorType::Unknown,
         )),
-    }
-}
-
-fn most_sig_type_dim(lhs: &ir::TypeLayout, rhs: &ir::TypeLayout) -> Option<ir::NumericDimension> {
-    use rssl_ir::TypeLayout::*;
-    use std::cmp::max;
-    use std::cmp::min;
-    match (lhs, rhs) {
-        (&Scalar(_), &Scalar(_)) => Some(ir::NumericDimension::Scalar),
-        (&Scalar(_), &Vector(_, ref x)) => Some(ir::NumericDimension::Vector(*x)),
-        (&Vector(_, ref x), &Scalar(_)) => Some(ir::NumericDimension::Vector(*x)),
-        (&Vector(_, ref x1), &Vector(_, ref x2)) if *x1 == 1 || *x2 == 1 => {
-            Some(ir::NumericDimension::Vector(max(*x1, *x2)))
-        }
-        (&Vector(_, ref x1), &Vector(_, ref x2)) => {
-            let x = min(*x1, *x2);
-            Some(ir::NumericDimension::Vector(x))
-        }
-        (&Matrix(_, ref x1, ref y1), &Matrix(_, ref x2, ref y2)) => {
-            let x = min(*x1, *x2);
-            let y = min(*y1, *y2);
-            Some(ir::NumericDimension::Matrix(x, y))
-        }
-        _ => None,
     }
 }
 
@@ -482,7 +424,7 @@ fn resolve_arithmetic_types(
     binop: &ast::BinOp,
     left: &ExpressionType,
     right: &ExpressionType,
-) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::Intrinsic2)> {
+) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::Intrinsic)> {
     use rssl_ir::ScalarType;
     use rssl_ir::Type;
 
@@ -491,7 +433,7 @@ fn resolve_arithmetic_types(
     }
 
     // Calculate the output type from the input type and operation
-    fn output_type(left: Type, right: Type, op: &ast::BinOp) -> ir::Intrinsic2 {
+    fn output_type(left: Type, right: Type, op: &ast::BinOp) -> ir::Intrinsic {
         // Assert input validity
         {
             let ls = left
@@ -531,38 +473,25 @@ fn resolve_arithmetic_types(
             }
         }
 
-        // Get the more important input type, that serves as the base to
-        // calculate the output type from
-        let dty = {
-            let nd = match most_sig_type_dim(&left.0, &right.0) {
-                Some(nd) => nd,
-                None => panic!("non-arithmetic numeric type in binary operation"),
-            };
-
-            let st = left.0.to_scalar().unwrap();
-            assert_eq!(st, right.0.to_scalar().unwrap());
-            ir::DataType(ir::DataLayout::new(st, nd), left.1)
-        };
-
         match *op {
-            ast::BinOp::Add => ir::Intrinsic2::Add(dty),
-            ast::BinOp::Subtract => ir::Intrinsic2::Subtract(dty),
-            ast::BinOp::Multiply => ir::Intrinsic2::Multiply(dty),
-            ast::BinOp::Divide => ir::Intrinsic2::Divide(dty),
-            ast::BinOp::Modulus => ir::Intrinsic2::Modulus(dty),
-            ast::BinOp::LeftShift => ir::Intrinsic2::LeftShift(dty),
-            ast::BinOp::RightShift => ir::Intrinsic2::RightShift(dty),
-            ast::BinOp::BitwiseAnd => ir::Intrinsic2::BitwiseAnd(dty),
-            ast::BinOp::BitwiseOr => ir::Intrinsic2::BitwiseOr(dty),
-            ast::BinOp::BitwiseXor => ir::Intrinsic2::BitwiseXor(dty),
-            ast::BinOp::LessThan => ir::Intrinsic2::LessThan(dty),
-            ast::BinOp::LessEqual => ir::Intrinsic2::LessEqual(dty),
-            ast::BinOp::GreaterThan => ir::Intrinsic2::GreaterThan(dty),
-            ast::BinOp::GreaterEqual => ir::Intrinsic2::GreaterEqual(dty),
-            ast::BinOp::Equality => ir::Intrinsic2::Equality(dty),
-            ast::BinOp::Inequality => ir::Intrinsic2::Inequality(dty),
-            ast::BinOp::BooleanAnd => ir::Intrinsic2::BooleanAnd(dty),
-            ast::BinOp::BooleanOr => ir::Intrinsic2::BooleanOr(dty),
+            ast::BinOp::Add => ir::Intrinsic::Add,
+            ast::BinOp::Subtract => ir::Intrinsic::Subtract,
+            ast::BinOp::Multiply => ir::Intrinsic::Multiply,
+            ast::BinOp::Divide => ir::Intrinsic::Divide,
+            ast::BinOp::Modulus => ir::Intrinsic::Modulus,
+            ast::BinOp::LeftShift => ir::Intrinsic::LeftShift,
+            ast::BinOp::RightShift => ir::Intrinsic::RightShift,
+            ast::BinOp::BitwiseAnd => ir::Intrinsic::BitwiseAnd,
+            ast::BinOp::BitwiseOr => ir::Intrinsic::BitwiseOr,
+            ast::BinOp::BitwiseXor => ir::Intrinsic::BitwiseXor,
+            ast::BinOp::LessThan => ir::Intrinsic::LessThan,
+            ast::BinOp::LessEqual => ir::Intrinsic::LessEqual,
+            ast::BinOp::GreaterThan => ir::Intrinsic::GreaterThan,
+            ast::BinOp::GreaterEqual => ir::Intrinsic::GreaterEqual,
+            ast::BinOp::Equality => ir::Intrinsic::Equality,
+            ast::BinOp::Inequality => ir::Intrinsic::Inequality,
+            ast::BinOp::BooleanAnd => ir::Intrinsic::BooleanAnd,
+            ast::BinOp::BooleanOr => ir::Intrinsic::BooleanOr,
             _ => panic!("unexpected binop in resolve_arithmetic_types"),
         }
     }
@@ -571,7 +500,7 @@ fn resolve_arithmetic_types(
         op: &ast::BinOp,
         left: &ExpressionType,
         right: &ExpressionType,
-    ) -> Result<(ImplicitConversion, ImplicitConversion, ir::Intrinsic2), ()> {
+    ) -> Result<(ImplicitConversion, ImplicitConversion, ir::Intrinsic), ()> {
         let &ExpressionType(ir::Type(ref left_l, ref modl), _) = left;
         let &ExpressionType(ir::Type(ref right_l, ref modr), _) = right;
         let (ltl, rtl) = match (left_l, right_l) {
@@ -691,10 +620,12 @@ fn parse_expr_binop(
             }
             let types = resolve_arithmetic_types(op, &lhs_type, &rhs_type)?;
             let (lhs_cast, rhs_cast, output_intrinsic) = types;
-            let lhs_final = Box::new(lhs_cast.apply(lhs_ir));
-            let rhs_final = Box::new(rhs_cast.apply(rhs_ir));
-            let output_type = output_intrinsic.get_return_type();
-            let node = ir::Expression::Intrinsic2(output_intrinsic, lhs_final, rhs_final);
+            let lhs_final = lhs_cast.apply(lhs_ir);
+            let rhs_final = rhs_cast.apply(rhs_ir);
+            let output_type = output_intrinsic
+                .get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
+            let node =
+                ir::Expression::Intrinsic(output_intrinsic, Vec::from([lhs_final, rhs_final]));
             Ok(TypedExpression::Value(node, output_type))
         }
         ast::BinOp::BitwiseAnd
@@ -751,20 +682,17 @@ fn parse_expr_binop(
             assert_eq!(lhs_cast.get_target_type(), rhs_cast.get_target_type());
             let lhs_final = lhs_cast.apply(lhs_ir);
             let rhs_final = rhs_cast.apply(rhs_ir);
-            let dty = match rhs_cast.get_target_type().0.into() {
-                Some(dty) => dty,
-                None => return err_bad_type,
-            };
             let i = match *op {
-                ast::BinOp::BitwiseAnd => ir::Intrinsic2::BitwiseAnd(dty),
-                ast::BinOp::BitwiseOr => ir::Intrinsic2::BitwiseOr(dty),
-                ast::BinOp::BitwiseXor => ir::Intrinsic2::BitwiseXor(dty),
-                ast::BinOp::BooleanAnd => ir::Intrinsic2::BooleanAnd(dty),
-                ast::BinOp::BooleanOr => ir::Intrinsic2::BooleanOr(dty),
+                ast::BinOp::BitwiseAnd => ir::Intrinsic::BitwiseAnd,
+                ast::BinOp::BitwiseOr => ir::Intrinsic::BitwiseOr,
+                ast::BinOp::BitwiseXor => ir::Intrinsic::BitwiseXor,
+                ast::BinOp::BooleanAnd => ir::Intrinsic::BooleanAnd,
+                ast::BinOp::BooleanOr => ir::Intrinsic::BooleanOr,
                 _ => unreachable!(),
             };
-            let output_type = i.get_return_type();
-            let node = ir::Expression::Intrinsic2(i, Box::new(lhs_final), Box::new(rhs_final));
+            let output_type =
+                i.get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
+            let node = ir::Expression::Intrinsic(i, Vec::from([lhs_final, rhs_final]));
             Ok(TypedExpression::Value(node, output_type))
         }
         ast::BinOp::Assignment
@@ -777,48 +705,23 @@ fn parse_expr_binop(
                 return Err(TyperError::MutableRequired);
             }
             let required_rtype = match lhs_type.1 {
-                ir::ValueType::Lvalue => ExpressionType(lhs_type.0, ir::ValueType::Rvalue),
+                ir::ValueType::Lvalue => ExpressionType(lhs_type.0.clone(), ir::ValueType::Rvalue),
                 _ => return Err(TyperError::LvalueRequired),
             };
             match ImplicitConversion::find(&rhs_type, &required_rtype) {
                 Ok(rhs_cast) => {
                     let rhs_final = rhs_cast.apply(rhs_ir);
-                    let ty = required_rtype.0.clone();
                     let i = match *op {
-                        ast::BinOp::Assignment => ir::Intrinsic2::Assignment(ty),
-                        ast::BinOp::SumAssignment
-                        | ast::BinOp::DifferenceAssignment
-                        | ast::BinOp::ProductAssignment
-                        | ast::BinOp::QuotientAssignment
-                        | ast::BinOp::RemainderAssignment => {
-                            // Find data type for assignment
-                            let dtyl = match ty.0.into() {
-                                Some(dtyl) => dtyl,
-                                None => return err_bad_type,
-                            };
-                            let dty = ir::DataType(dtyl, ty.1);
-                            // Make output intrinsic from source op and data type
-                            match *op {
-                                ast::BinOp::SumAssignment => ir::Intrinsic2::SumAssignment(dty),
-                                ast::BinOp::DifferenceAssignment => {
-                                    ir::Intrinsic2::DifferenceAssignment(dty)
-                                }
-                                ast::BinOp::ProductAssignment => {
-                                    ir::Intrinsic2::ProductAssignment(dty)
-                                }
-                                ast::BinOp::QuotientAssignment => {
-                                    ir::Intrinsic2::QuotientAssignment(dty)
-                                }
-                                ast::BinOp::RemainderAssignment => {
-                                    ir::Intrinsic2::RemainderAssignment(dty)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
+                        ast::BinOp::Assignment => ir::Intrinsic::Assignment,
+                        ast::BinOp::SumAssignment => ir::Intrinsic::SumAssignment,
+                        ast::BinOp::DifferenceAssignment => ir::Intrinsic::DifferenceAssignment,
+                        ast::BinOp::ProductAssignment => ir::Intrinsic::ProductAssignment,
+                        ast::BinOp::QuotientAssignment => ir::Intrinsic::QuotientAssignment,
+                        ast::BinOp::RemainderAssignment => ir::Intrinsic::RemainderAssignment,
                         _ => unreachable!(),
                     };
-                    let output_type = i.get_return_type();
-                    let node = ir::Expression::Intrinsic2(i, Box::new(lhs_ir), Box::new(rhs_final));
+                    let output_type = i.get_return_type(&[lhs_type, rhs_cast.get_target_type()]);
+                    let node = ir::Expression::Intrinsic(i, Vec::from([lhs_ir, rhs_final]));
                     Ok(TypedExpression::Value(node, output_type))
                 }
                 Err(()) => err_bad_type,
@@ -860,7 +763,7 @@ fn parse_expr_ternary(
     // Attempt to find best vector match
     // This will return None for non-numeric types
     // This may return None for some combinations of numeric layouts
-    let nd = most_sig_type_dim(&lhs_tyl, &rhs_tyl);
+    let nd = ir::TypeLayout::most_significant_dimension(&lhs_tyl, &rhs_tyl);
 
     // Transform the types
     let (lhs_target_tyl, rhs_target_tyl) = match (st, nd) {
@@ -875,7 +778,9 @@ fn parse_expr_ternary(
             (left, right)
         }
         (None, Some(_)) => {
-            panic!("internal error: most_sig_scalar failed where most_sig_type_dim succeeded")
+            panic!(
+                "internal error: most_sig_scalar failed where most_significant_dimension succeeded"
+            )
         }
         (None, None) => (lhs_tyl, rhs_tyl),
     };
@@ -1084,15 +989,12 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 ir::TypeLayout::Object(ref object_type) => {
                     match intrinsics::get_method(object_type, member) {
                         Ok(intrinsics::MethodDefinition(object_type, _, method_overloads)) => {
+                            let ty = ir::Type::from_object(object_type);
                             let overloads = method_overloads
                                 .iter()
                                 .map(|&(ref param_types, ref factory)| {
-                                    let return_type = match *factory {
-                                        IntrinsicFactory::Intrinsic0(ref i) => i.get_return_type(),
-                                        IntrinsicFactory::Intrinsic1(ref i) => i.get_return_type(),
-                                        IntrinsicFactory::Intrinsic2(ref i) => i.get_return_type(),
-                                        IntrinsicFactory::Intrinsic3(ref i) => i.get_return_type(),
-                                    };
+                                    let return_type =
+                                        factory.get_method_return_type(ty.clone().to_rvalue());
                                     FunctionOverload(
                                         FunctionName::Intrinsic(factory.clone()),
                                         return_type.0,
@@ -1101,7 +1003,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                                 })
                                 .collect::<Vec<_>>();
                             Ok(TypedExpression::Method(UnresolvedMethod {
-                                object_type: ir::Type::from_object(object_type),
+                                object_type: ty,
                                 overloads,
                                 object_value: composite_ir,
                             }))
@@ -1370,9 +1272,12 @@ fn get_expression_type(
         }
         ir::Expression::Cast(ref ty, _) => Ok(ty.to_rvalue()),
         ir::Expression::SizeOf(_) => Ok(ir::Type::uint().to_rvalue()),
-        ir::Expression::Intrinsic0(ref intrinsic) => Ok(intrinsic.get_return_type()),
-        ir::Expression::Intrinsic1(ref intrinsic, _) => Ok(intrinsic.get_return_type()),
-        ir::Expression::Intrinsic2(ref intrinsic, _, _) => Ok(intrinsic.get_return_type()),
-        ir::Expression::Intrinsic3(ref intrinsic, _, _, _) => Ok(intrinsic.get_return_type()),
+        ir::Expression::Intrinsic(ref intrinsic, ref args) => {
+            let mut arg_types = Vec::with_capacity(args.len());
+            for arg in args {
+                arg_types.push(get_expression_type(arg, context)?);
+            }
+            Ok(intrinsic.get_return_type(&arg_types))
+        }
     }
 }

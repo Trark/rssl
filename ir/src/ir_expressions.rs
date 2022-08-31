@@ -14,15 +14,7 @@ pub enum Expression {
     Constructor(TypeLayout, Vec<ConstructorSlot>),
     Cast(Type, Box<Expression>),
     SizeOf(Type),
-    Intrinsic0(Intrinsic0),
-    Intrinsic1(Intrinsic1, Box<Expression>),
-    Intrinsic2(Intrinsic2, Box<Expression>, Box<Expression>),
-    Intrinsic3(
-        Intrinsic3,
-        Box<Expression>,
-        Box<Expression>,
-        Box<Expression>,
-    ),
+    Intrinsic(Intrinsic, Vec<Expression>),
 }
 
 #[derive(PartialEq, Debug, Clone)]

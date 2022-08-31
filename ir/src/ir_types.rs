@@ -204,6 +204,20 @@ impl Type {
     pub fn is_const(&self) -> bool {
         self.1.is_const
     }
+
+    /// Get the most significant type from two data types
+    pub fn most_significant_data_type(left: &Self, right: &Self) -> Self {
+        // Get the more important input type, that serves as the base to
+        // calculate the output type from
+        let nd = match TypeLayout::most_significant_dimension(&left.0, &right.0) {
+            Some(nd) => nd,
+            None => panic!("non-arithmetic numeric type in binary operation"),
+        };
+
+        let st = left.0.to_scalar().unwrap();
+        assert_eq!(st, right.0.to_scalar().unwrap());
+        Type(TypeLayout::from_data(DataLayout::new(st, nd)), left.1)
+    }
 }
 
 impl TypeLayout {
@@ -258,6 +272,32 @@ impl TypeLayout {
             (None, None) => None,
         }
     }
+
+    /// Attempt to get the most significant dimension of two data types
+    pub fn most_significant_dimension(lhs: &Self, rhs: &Self) -> Option<NumericDimension> {
+        use std::cmp::max;
+        use std::cmp::min;
+        use TypeLayout::*;
+        match (lhs, rhs) {
+            (&Scalar(_), &Scalar(_)) => Some(NumericDimension::Scalar),
+            (&Scalar(_), &Vector(_, ref x)) => Some(NumericDimension::Vector(*x)),
+            (&Vector(_, ref x), &Scalar(_)) => Some(NumericDimension::Vector(*x)),
+            (&Vector(_, ref x1), &Vector(_, ref x2)) if *x1 == 1 || *x2 == 1 => {
+                Some(NumericDimension::Vector(max(*x1, *x2)))
+            }
+            (&Vector(_, ref x1), &Vector(_, ref x2)) => {
+                let x = min(*x1, *x2);
+                Some(NumericDimension::Vector(x))
+            }
+            (&Matrix(_, ref x1, ref y1), &Matrix(_, ref x2, ref y2)) => {
+                let x = min(*x1, *x2);
+                let y = min(*y1, *y2);
+                Some(NumericDimension::Matrix(x, y))
+            }
+            _ => None,
+        }
+    }
+
     pub const fn get_num_elements(&self) -> u32 {
         match (self.to_x(), self.to_y()) {
             (Some(x1), Some(x2)) => x1 * x2,

@@ -76,7 +76,34 @@ fn check_function_templates() {
 
 #[test]
 fn check_intrinsic_calls() {
-    check_types("void main() { GroupMemoryBarrierWithGroupSync(); }");
+    check_types("void f() { AllMemoryBarrier(); }");
+    check_types("void f() { AllMemoryBarrierWithGroupSync(); }");
+    check_types("void f() { DeviceMemoryBarrier(); }");
+    check_types("void f() { DeviceMemoryBarrierWithGroupSync(); }");
+    check_types("void f() { GroupMemoryBarrier(); }");
+    check_types("void f() { GroupMemoryBarrierWithGroupSync(); }");
+
+    check_types("void f() { all(false); }");
+    check_types("void f() { all(bool2(false, false)); }");
+    check_types("void f() { all(bool3(false, false, false)); }");
+    check_types("void f() { all(bool4(false, false, false, false)); }");
+
+    check_types("void f() { any(false); }");
+    check_types("void f() { any(bool2(false, false)); }");
+    check_types("void f() { any(bool3(false, false, false)); }");
+    check_types("void f() { any(bool4(false, false, false, false)); }");
+
+    check_types("void f() { abs(int(7)); }");
+    check_types("void f() { abs(int2(7, 7)); }");
+    check_types("void f() { abs(int3(7, 7, 7)); }");
+    check_types("void f() { abs(int4(7, 7, 7, 7)); }");
+    check_types("void f() { abs(float(7.0)); }");
+    check_types("void f() { abs(float2(7.0, 7.0)); }");
+    check_types("void f() { abs(float3(7.0, 7.0, 7.0)); }");
+    check_types("void f() { abs(float4(7.0, 7.0, 7.0, 7.0)); }");
+
+    check_types("Buffer<float4> buf; void main() { buf.Load(0); }");
+    check_types("Buffer<uint4> buf; void main() { buf.Load(0); }");
 }
 
 #[test]
