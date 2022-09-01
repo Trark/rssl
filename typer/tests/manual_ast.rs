@@ -1,13 +1,12 @@
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::Located;
 use std::collections::HashMap;
 
 const BASE_FUNCTION_ID: u32 = 164;
 
 #[test]
-fn test_typeparse() {
-    use rssl_text::Located;
-
+fn test_ast_pass() {
     let module = ast::Module {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
@@ -163,7 +162,10 @@ fn test_typeparse() {
     };
     let res = rssl_typer::type_check(&module);
     assert!(res.is_ok(), "{:?}", res);
+}
 
+#[test]
+fn test_ast_to_ir() {
     let static_global_test = ast::Module {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
@@ -192,9 +194,18 @@ fn test_typeparse() {
                 returntype: ast::Type::void().into(),
                 template_params: None,
                 params: vec![],
-                body: vec![ast::Statement::Expression(Located::none(
-                    ast::Expression::Variable("g_myFour".to_string()),
-                ))],
+                body: vec![
+                    ast::Statement::Expression(Located::none(ast::Expression::Variable(
+                        "g_myFour".to_string(),
+                    ))),
+                    ast::Statement::Expression(Located::none(ast::Expression::Call(
+                        Box::new(Located::none(ast::Expression::Variable(
+                            "GroupMemoryBarrierWithGroupSync".to_string(),
+                        ))),
+                        Vec::new(),
+                        Vec::new(),
+                    ))),
+                ],
                 attributes: vec![ast::FunctionAttribute::numthreads(8, 8, 1)],
             }),
         ],
@@ -238,9 +249,13 @@ fn test_typeparse() {
                 },
                 params: Vec::new(),
                 scope_block: ir::ScopeBlock(
-                    vec![ir::Statement::Expression(ir::Expression::Global(
-                        ir::GlobalId(0),
-                    ))],
+                    vec![
+                        ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
+                        ir::Statement::Expression(ir::Expression::Intrinsic(
+                            ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
+                            Vec::new(),
+                        )),
+                    ],
                     ir::ScopedDeclarations {
                         variables: HashMap::new(),
                     },
