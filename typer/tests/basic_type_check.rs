@@ -65,6 +65,13 @@ void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
     // Check that we fail if multiple overloads are valid
     // TODO: This currently prints an error indicating none were valid
     check_fail("void f(int2 x) {} void f(int3 x) {} void main() { f(int4(0, 0, 0, 0)); }");
+
+    // Check a function can call itself
+    check_types("void f() { f(); }");
+    // And that overload resolution works with itself
+    check_types("void f(int3 x) {} void f(int2 x) { f(int2(3, 4)); }");
+    // And that ambiguous overloads fail with itself
+    check_fail("void f(int3 x) {} void f(int2 x) { f(1); }");
 }
 
 #[test]
