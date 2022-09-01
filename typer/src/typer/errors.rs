@@ -239,7 +239,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 Severity::Error,
             ),
             TyperError::FunctionArgumentTypeMismatch(overloads, types, call_location) => {
-                let func_name = get_function_name(&overloads[0].0, context);
+                let func_name = context.get_function_or_intrinsic_name(&overloads[0].0);
                 write_message(
                     &|f| {
                         write!(f, "no matching function for call to {}(", func_name)?;
@@ -401,14 +401,6 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 Severity::Error,
             ),
         }
-    }
-}
-
-/// Get a string name from a function name for error display
-fn get_function_name(name: &FunctionName, context: &Context) -> String {
-    match name {
-        FunctionName::User(id) => context.get_function_name(id).to_string(),
-        FunctionName::Intrinsic(_) => "<unnamed intrinsic>".to_string(),
     }
 }
 

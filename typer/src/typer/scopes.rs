@@ -242,6 +242,21 @@ impl Context {
         &self.function_data[id.0 as usize].name.node
     }
 
+    /// Get the name from a function
+    pub fn get_function_or_intrinsic_name(&self, id: &FunctionName) -> &str {
+        match id {
+            FunctionName::User(id) => self.get_function_name(id),
+            FunctionName::Intrinsic(i) => {
+                for data in &self.function_data {
+                    if data.overload.0 == *id {
+                        return &data.name;
+                    }
+                }
+                panic!("Unknown intrinsic {:?}", i)
+            }
+        }
+    }
+
     /// Get the name from a struct id
     pub fn get_struct_name(&self, id: &ir::StructId) -> &str {
         assert!(id.0 < self.struct_data.len() as u32);
