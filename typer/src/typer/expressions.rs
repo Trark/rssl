@@ -236,7 +236,10 @@ fn write_method(
             factory.create_intrinsic(&param_values),
             return_type,
         )),
-        Callable::Function(_) => panic!("User defined methods should not exist"),
+        Callable::Function(id) => Ok(TypedExpression::Value(
+            ir::Expression::Call(id, param_values),
+            return_type,
+        )),
     }
 }
 
@@ -928,11 +931,18 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 | ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
                     ir::StructuredLayout::Struct(id),
                     _,
-                ))) => match context.get_type_of_struct_member(&id, member) {
-                    Ok(ty) => {
+                ))) => match context.get_struct_member_expression(&id, member) {
+                    Ok(StructMemberValue::Variable(ty)) => {
                         let composite = Box::new(composite_ir);
                         let member = ir::Expression::Member(composite, member.clone());
                         Ok(TypedExpression::Value(member, ty))
+                    }
+                    Ok(StructMemberValue::Method(overloads)) => {
+                        Ok(TypedExpression::Method(UnresolvedMethod {
+                            object_type: ir::Type(composite_tyl, composite_mod),
+                            overloads,
+                            object_value: composite_ir,
+                        }))
                     }
                     Err(err) => Err(err),
                 },

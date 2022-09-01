@@ -1,6 +1,6 @@
 /// Source file location
 /// Requires `SourceManager` to decode
-#[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Copy, Clone, Hash)]
 pub struct SourceLocation(u32);
 
 impl SourceLocation {
@@ -241,7 +241,7 @@ impl std::fmt::Display for FileLocation {
 pub struct StreamLocation(pub u32);
 
 /// Wrapper to pair a node with a source location
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct Located<T> {
     pub node: T,
     pub location: SourceLocation,

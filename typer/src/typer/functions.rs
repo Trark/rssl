@@ -14,11 +14,31 @@ pub enum Callable {
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionOverload(pub Callable, pub ir::Type, pub Vec<ir::ParamType>);
 
+/// Parse a function in a root context
 pub fn parse_rootdefinition_function(
     fd: &ast::FunctionDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
-    context.push_scope();
+    let ir_fd = parse_function(fd, context)?;
+    Ok(ir::RootDefinition::Function(ir_fd))
+}
+
+/// Describes the signature for a function
+#[derive(PartialEq, Debug, Clone)]
+pub struct FunctionSignature {
+    // TODO: Function and parameter names
+    pub return_type: ir::FunctionReturn,
+    pub param_types: Vec<ir::ParamType>,
+}
+
+/// Parse just the signature part of a function
+pub fn parse_function_signature(
+    fd: &ast::FunctionDefinition,
+    context: &mut Context,
+) -> TyperResult<(FunctionSignature, ScopeIndex)> {
+    // We being the scope now so we can use template arguments inside parameter types
+    let scope = context.push_scope();
+
     if let Some(ref template_params) = fd.template_params {
         for template_param in &template_params.0 {
             context.insert_template_type(template_param.clone())?;
@@ -26,14 +46,46 @@ pub fn parse_rootdefinition_function(
     }
 
     let return_type = parse_returntype(&fd.returntype, context)?;
+
     // We save the return type of the current function for return statement parsing
     context.set_function_return_type(return_type.return_type.clone());
 
-    let func_params = {
+    let param_types = {
         let mut vec = vec![];
         for param in &fd.params {
             let var_type = parse_paramtype(&param.param_type, context)?;
-            let var_id = context.insert_variable(param.name.clone(), var_type.0.clone())?;
+            vec.push(var_type);
+        }
+        vec
+    };
+
+    context.pop_scope();
+
+    Ok((
+        FunctionSignature {
+            return_type,
+            param_types,
+        },
+        scope,
+    ))
+}
+
+/// Parse the rest of a function after previously having parsed the signature
+pub fn parse_function_body(
+    fd: &ast::FunctionDefinition,
+    id: ir::FunctionId,
+    signature: FunctionSignature,
+    scope: ScopeIndex,
+    context: &mut Context,
+) -> TyperResult<ir::FunctionDefinition> {
+    context.revisit_scope(scope);
+
+    let return_type = signature.return_type;
+
+    let func_params = {
+        let mut vec = Vec::new();
+        for (var_type, ast_param) in signature.param_types.into_iter().zip(&fd.params) {
+            let var_id = context.insert_variable(ast_param.name.clone(), var_type.0.clone())?;
             vec.push(ir::FunctionParam {
                 id: var_id,
                 param_type: var_type,
@@ -46,14 +98,6 @@ pub fn parse_rootdefinition_function(
     let body_ir = parse_statement_list(&fd.body, context)?;
     let decls = context.pop_scope_with_locals();
 
-    // Register the function signature
-    // TODO: Recursive calls? Needs to move register earlier
-    let id = {
-        let return_type = return_type.return_type.clone();
-        let param_types = func_params.iter().map(|p| p.param_type.clone()).collect();
-        context.insert_function(fd.name.clone(), return_type, param_types)?
-    };
-
     let fd_ir = ir::FunctionDefinition {
         id,
         returntype: return_type,
@@ -61,7 +105,20 @@ pub fn parse_rootdefinition_function(
         scope_block: ir::ScopeBlock(body_ir, decls),
         attributes: fd.attributes.clone(),
     };
-    Ok(ir::RootDefinition::Function(fd_ir))
+    Ok(fd_ir)
+}
+
+fn parse_function(
+    fd: &ast::FunctionDefinition,
+    context: &mut Context,
+) -> TyperResult<ir::FunctionDefinition> {
+    let (signature, scope) = parse_function_signature(fd, context)?;
+
+    // Register the function signature
+    let id = context.register_function(fd.name.clone(), signature.clone())?;
+    context.add_function_to_current_scope(id)?;
+
+    parse_function_body(fd, id, signature, scope, context)
 }
 
 fn parse_returntype(

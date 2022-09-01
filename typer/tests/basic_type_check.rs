@@ -121,6 +121,12 @@ fn check_structs() {
 }
 
 #[test]
+fn check_struct_methods() {
+    check_types("struct S { void f() {} }; void main() { S s; s.f(); }");
+    check_fail("struct S { void f() {} }; void main() { f(); }");
+}
+
+#[test]
 fn check_cbuffer() {
     check_types(
         "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",

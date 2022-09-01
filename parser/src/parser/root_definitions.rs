@@ -59,20 +59,20 @@ fn test_struct() {
     let test_struct_ast = StructDefinition {
         name: "MyStruct".to_string().loc(7),
         members: vec![
-            StructMember {
+            StructEntry::Variable(StructMember {
                 ty: Type::uint(),
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
                     bind: VariableBind::Normal,
                 }],
-            },
-            StructMember {
+            }),
+            StructEntry::Variable(StructMember {
                 ty: Type::float(),
                 defs: vec![StructMemberName {
                     name: "b".to_string(),
                     bind: VariableBind::Normal,
                 }],
-            },
+            }),
         ],
     };
     structdefinition.check(test_struct_str, test_struct_ast.clone());

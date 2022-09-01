@@ -1,7 +1,7 @@
+use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
-use crate::typer::errors::ErrorType;
-use crate::typer::functions::{Callable, FunctionOverload};
+use super::functions::{Callable, FunctionOverload, FunctionSignature};
 use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -13,12 +13,19 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct Context {
     scopes: Vec<ScopeData>,
-    current_scope: usize,
+    current_scope: ScopeIndex,
 
     function_data: Vec<FunctionData>,
     struct_data: Vec<StructData>,
     cbuffer_data: Vec<ConstantBufferData>,
     global_data: Vec<GlobalData>,
+}
+
+pub type ScopeIndex = usize;
+
+pub enum StructMemberValue {
+    Variable(ExpressionType),
+    Method(Vec<FunctionOverload>),
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +38,7 @@ struct FunctionData {
 struct StructData {
     name: Located<String>,
     members: HashMap<String, ir::Type>,
+    methods: HashMap<String, Vec<ir::FunctionId>>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,7 +102,7 @@ impl Context {
     }
 
     /// Add a new scope
-    pub fn push_scope(&mut self) {
+    pub fn push_scope(&mut self) -> ScopeIndex {
         self.scopes.push(ScopeData {
             parent_scope: self.current_scope,
             variables: VariableBlock::new(),
@@ -106,6 +114,7 @@ impl Context {
             function_return_type: None,
         });
         self.current_scope = self.scopes.len() - 1;
+        self.current_scope
     }
 
     /// Leave the current scope
@@ -116,12 +125,6 @@ impl Context {
             .is_empty());
         self.current_scope = self.scopes[self.current_scope].parent_scope;
         assert_ne!(self.current_scope, usize::MAX);
-    }
-
-    /// Set the scope as a function scope with the given return type
-    pub fn set_function_return_type(&mut self, return_type: ir::Type) {
-        assert_eq!(self.scopes[self.current_scope].function_return_type, None);
-        self.scopes[self.current_scope].function_return_type = Some(return_type);
     }
 
     /// Leave the current scope and steal all local variable definitions out of it
@@ -135,6 +138,19 @@ impl Context {
         };
         self.pop_scope();
         locals
+    }
+
+    /// Enter a scope again
+    /// We must be in the same parent scope as before when calling this function
+    pub fn revisit_scope(&mut self, scope: ScopeIndex) {
+        assert_eq!(self.scopes[scope].parent_scope, self.current_scope);
+        self.current_scope = scope
+    }
+
+    /// Set the scope as a function scope with the given return type
+    pub fn set_function_return_type(&mut self, return_type: ir::Type) {
+        assert_eq!(self.scopes[self.current_scope].function_return_type, None);
+        self.scopes[self.current_scope].function_return_type = Some(return_type);
     }
 
     /// Get the return type of the current function
@@ -214,6 +230,7 @@ impl Context {
     }
 
     /// Find the type of a struct member
+    /// Does not support functions
     pub fn get_type_of_struct_member(
         &self,
         id: &ir::StructId,
@@ -224,6 +241,29 @@ impl Context {
             Some(ty) => Ok(ty.to_lvalue()),
             None => Err(TyperError::StructMemberDoesNotExist(*id, name.to_string())),
         }
+    }
+
+    /// Find the type of a struct member
+    pub fn get_struct_member_expression(
+        &self,
+        id: &ir::StructId,
+        name: &str,
+    ) -> TyperResult<StructMemberValue> {
+        assert!(id.0 < self.struct_data.len() as u32);
+        if let Some(ty) = self.struct_data[id.0 as usize].members.get(name) {
+            assert!(!self.struct_data[id.0 as usize].methods.contains_key(name));
+            return Ok(StructMemberValue::Variable(ty.to_lvalue()));
+        }
+
+        if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
+            let mut overloads = Vec::with_capacity(methods.len());
+            for method_id in methods {
+                overloads.push(self.function_data[method_id.0 as usize].overload.clone());
+            }
+            return Ok(StructMemberValue::Method(overloads));
+        }
+
+        Err(TyperError::StructMemberDoesNotExist(*id, name.to_string()))
     }
 
     /// Find the return type of a function
@@ -305,19 +345,26 @@ impl Context {
     }
 
     /// Register a function overload
-    pub fn insert_function(
+    pub fn register_function(
         &mut self,
         name: Located<String>,
-        return_type: ir::Type,
-        param_types: Vec<ir::ParamType>,
+        signature: FunctionSignature,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
         self.function_data.push(FunctionData {
             name,
-            overload: FunctionOverload(Callable::Function(id), return_type, param_types),
+            overload: FunctionOverload(
+                Callable::Function(id),
+                signature.return_type.return_type,
+                signature.param_types,
+            ),
         });
-        self.insert_function_in_scope(self.current_scope as usize, id)?;
         Ok(id)
+    }
+
+    /// Add a registered function to the active scope
+    pub fn add_function_to_current_scope(&mut self, id: ir::FunctionId) -> TyperResult<()> {
+        self.insert_function_in_scope(self.current_scope as usize, id)
     }
 
     /// Register an intrinsic
@@ -374,8 +421,13 @@ impl Context {
         &mut self,
         name: Located<String>,
         members: HashMap<String, ir::Type>,
+        methods: HashMap<String, Vec<ir::FunctionId>>,
     ) -> Result<ir::StructId, ir::StructId> {
-        let data = StructData { name, members };
+        let data = StructData {
+            name,
+            members,
+            methods,
+        };
         let id = ir::StructId(self.struct_data.len() as u32);
         self.struct_data.push(data);
         let data = self.struct_data.last().unwrap();
