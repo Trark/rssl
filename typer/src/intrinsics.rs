@@ -318,22 +318,68 @@ pub fn get_intrinsics() -> &'static [IntrinsicDefinition] {
     INTRINSICS
 }
 
+const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[("Load", Intrinsic::BufferLoad, &[T_INT])];
+const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[("Load", Intrinsic::RWBufferLoad, &[T_INT])];
+const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
+    &[("Load", Intrinsic::StructuredBufferLoad, &[T_INT])];
+const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
+    &[("Load", Intrinsic::RWStructuredBufferLoad, &[T_INT])];
+const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
+    ("Sample", Intrinsic::Texture2DSample, &[T_SAMPLER, T_FLOAT2]),
+    ("Load", Intrinsic::Texture2DLoad, &[T_INT]),
+];
+const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] =
+    &[("Load", Intrinsic::RWTexture2DLoad, &[T_INT])];
+const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    ("Load", Intrinsic::ByteAddressBufferLoad, &[T_UINT]),
+    ("Load2", Intrinsic::ByteAddressBufferLoad2, &[T_UINT]),
+    ("Load3", Intrinsic::ByteAddressBufferLoad3, &[T_UINT]),
+    ("Load4", Intrinsic::ByteAddressBufferLoad4, &[T_UINT]),
+];
+const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    ("Load", Intrinsic::RWByteAddressBufferLoad, &[T_UINT]),
+    ("Load2", Intrinsic::RWByteAddressBufferLoad2, &[T_UINT]),
+    ("Load3", Intrinsic::RWByteAddressBufferLoad3, &[T_UINT]),
+    ("Load4", Intrinsic::RWByteAddressBufferLoad4, &[T_UINT]),
+    (
+        "Store",
+        Intrinsic::RWByteAddressBufferStore,
+        &[T_UINT, T_UINT],
+    ),
+    (
+        "Store2",
+        Intrinsic::RWByteAddressBufferStore2,
+        &[T_UINT, T_UINT],
+    ),
+    (
+        "Store3",
+        Intrinsic::RWByteAddressBufferStore3,
+        &[T_UINT, T_UINT],
+    ),
+    (
+        "Store4",
+        Intrinsic::RWByteAddressBufferStore4,
+        &[T_UINT, T_UINT],
+    ),
+];
+
 pub struct MethodDefinition(
     pub ObjectType,
     pub String,
     pub Vec<(Vec<ParamType>, IntrinsicFactory)>,
 );
 
-#[rustfmt::skip]
 pub fn get_method(object: &ObjectType, name: &str) -> Result<MethodDefinition, ()> {
-
     type MethodT = (&'static str, Intrinsic, &'static [ParamType]);
     type FmResult = Result<MethodDefinition, ()>;
     fn find_method(object: &ObjectType, defs: &[MethodT], name: &str) -> FmResult {
         let mut methods = vec![];
         for &(method_name, ref intrinsic, param_types) in defs {
             if method_name == name {
-                methods.push((param_types.to_vec(), IntrinsicFactory::Method(intrinsic.clone(), param_types)));
+                methods.push((
+                    param_types.to_vec(),
+                    IntrinsicFactory::Method(intrinsic.clone(), param_types),
+                ));
             };
         }
         if !methods.is_empty() {
@@ -343,68 +389,17 @@ pub fn get_method(object: &ObjectType, name: &str) -> Result<MethodDefinition, (
         }
     }
 
-    use rssl_ir::Intrinsic::*;
+    let methods = match *object {
+        ObjectType::Buffer(_) => BUFFER_INTRINSICS,
+        ObjectType::RWBuffer(_) => RWBUFFER_INTRINSICS,
+        ObjectType::StructuredBuffer(_) => STRUCTUREDBUFFER_INTRINSICS,
+        ObjectType::RWStructuredBuffer(_) => RWSTRUCTUREDBUFFER_INTRINSICS,
+        ObjectType::Texture2D(_) => TEXTURE2D_INTRINSICS,
+        ObjectType::RWTexture2D(_) => RWTEXTURE2D_INTRINSICS,
+        ObjectType::ByteAddressBuffer => BYTEADDRESSBUFFER_INTRINSICS,
+        ObjectType::RWByteAddressBuffer => RWBYTEADDRESSBUFFER_INTRINSICS,
+        _ => return Err(()),
+    };
 
-    match *object {
-        ObjectType::Buffer(_) => {
-            let methods: &[MethodT] = &[
-                ("Load", BufferLoad, &[T_INT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::RWBuffer(_) => {
-            let methods: &[MethodT] = &[
-                ("Load", RWBufferLoad, &[T_INT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::StructuredBuffer(_) => {
-            let methods: &[MethodT] = &[
-                ("Load", StructuredBufferLoad, &[T_INT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::RWStructuredBuffer(_) => {
-            let methods: &[MethodT] = &[
-                ("Load", RWStructuredBufferLoad, &[T_INT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::Texture2D(_) => {
-            let methods: &[MethodT] = &[
-                ("Sample", Texture2DSample, &[T_SAMPLER, T_FLOAT2]),
-                ("Load", Texture2DLoad, &[T_INT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::RWTexture2D(_) => {
-            let methods: &[MethodT] = &[
-                ("Load", RWTexture2DLoad, &[T_INT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::ByteAddressBuffer => {
-            let methods: &[MethodT] = &[
-                ("Load", ByteAddressBufferLoad, &[T_UINT]),
-                ("Load2", ByteAddressBufferLoad2, &[T_UINT]),
-                ("Load3", ByteAddressBufferLoad3, &[T_UINT]),
-                ("Load4", ByteAddressBufferLoad4, &[T_UINT]),
-            ];
-            find_method(object, methods, name)
-        }
-        ObjectType::RWByteAddressBuffer => {
-            let methods: &[MethodT] = &[
-                ("Load", RWByteAddressBufferLoad, &[T_UINT]),
-                ("Load2", RWByteAddressBufferLoad2, &[T_UINT]),
-                ("Load3", RWByteAddressBufferLoad3, &[T_UINT]),
-                ("Load4", RWByteAddressBufferLoad4, &[T_UINT]),
-                ("Store", RWByteAddressBufferStore, &[T_UINT, T_UINT]),
-                ("Store2", RWByteAddressBufferStore2, &[T_UINT, T_UINT]),
-                ("Store3", RWByteAddressBufferStore3, &[T_UINT, T_UINT]),
-                ("Store4", RWByteAddressBufferStore4, &[T_UINT, T_UINT]),
-            ];
-            find_method(object, methods, name)
-        }
-        _ => Err(())
-    }
+    find_method(object, methods, name)
 }
