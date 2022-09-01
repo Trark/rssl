@@ -1,7 +1,7 @@
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use crate::typer::errors::ErrorType;
-use crate::typer::functions::{FunctionName, FunctionOverload};
+use crate::typer::functions::{Callable, FunctionOverload};
 use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -243,10 +243,10 @@ impl Context {
     }
 
     /// Get the name from a function
-    pub fn get_function_or_intrinsic_name(&self, id: &FunctionName) -> &str {
+    pub fn get_function_or_intrinsic_name(&self, id: &Callable) -> &str {
         match id {
-            FunctionName::User(id) => self.get_function_name(id),
-            FunctionName::Intrinsic(i) => {
+            Callable::Function(id) => self.get_function_name(id),
+            Callable::Intrinsic(i) => {
                 for data in &self.function_data {
                     if data.overload.0 == *id {
                         return &data.name;
@@ -314,7 +314,7 @@ impl Context {
         let id = ir::FunctionId(self.function_data.len() as u32);
         self.function_data.push(FunctionData {
             name,
-            overload: FunctionOverload(FunctionName::User(id), return_type, param_types),
+            overload: FunctionOverload(Callable::Function(id), return_type, param_types),
         });
         self.insert_function_in_scope(self.current_scope as usize, id)?;
         Ok(id)
@@ -623,7 +623,7 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
         let factory = IntrinsicFactory::Function(intrinsic.clone(), params);
         let return_type = factory.get_return_type();
         let overload = FunctionOverload(
-            FunctionName::Intrinsic(factory.clone()),
+            Callable::Intrinsic(factory.clone()),
             return_type.0,
             params.to_vec(),
         );

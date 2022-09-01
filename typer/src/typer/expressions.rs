@@ -1,5 +1,5 @@
 use super::errors::*;
-use super::functions::{FunctionName, FunctionOverload};
+use super::functions::{Callable, FunctionOverload};
 use super::scopes::*;
 use super::types::{parse_type, parse_typelayout};
 use crate::casting::{ConversionPriority, ImplicitConversion};
@@ -205,11 +205,11 @@ fn write_function(
     let return_type = return_type_ty.to_rvalue();
 
     match name {
-        FunctionName::Intrinsic(factory) => Ok(TypedExpression::Value(
+        Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
             factory.create_intrinsic(&param_values),
             return_type,
         )),
-        FunctionName::User(id) => Ok(TypedExpression::Value(
+        Callable::Function(id) => Ok(TypedExpression::Value(
             ir::Expression::Call(id, param_values),
             return_type,
         )),
@@ -232,11 +232,11 @@ fn write_method(
     let return_type = return_type_ty.to_rvalue();
 
     match name {
-        FunctionName::Intrinsic(factory) => Ok(TypedExpression::Value(
+        Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
             factory.create_intrinsic(&param_values),
             return_type,
         )),
-        FunctionName::User(_) => panic!("User defined methods should not exist"),
+        Callable::Function(_) => panic!("User defined methods should not exist"),
     }
 }
 
@@ -996,7 +996,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                                     let return_type =
                                         factory.get_method_return_type(ty.clone().to_rvalue());
                                     FunctionOverload(
-                                        FunctionName::Intrinsic(factory.clone()),
+                                        Callable::Intrinsic(factory.clone()),
                                         return_type.0,
                                         param_types.clone(),
                                     )

@@ -6,13 +6,13 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum FunctionName {
+pub enum Callable {
+    Function(ir::FunctionId),
     Intrinsic(crate::intrinsics::IntrinsicFactory),
-    User(ir::FunctionId),
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct FunctionOverload(pub FunctionName, pub ir::Type, pub Vec<ir::ParamType>);
+pub struct FunctionOverload(pub Callable, pub ir::Type, pub Vec<ir::ParamType>);
 
 pub fn parse_rootdefinition_function(
     fd: &ast::FunctionDefinition,

@@ -1,4 +1,4 @@
-use super::functions::FunctionName;
+use super::functions::Callable;
 use super::functions::FunctionOverload;
 use super::scopes::Context;
 use rssl_ast as ast;
@@ -405,10 +405,10 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 }
 
 /// Get the location of a function
-fn get_function_location(name: &FunctionName, context: &Context) -> SourceLocation {
+fn get_function_location(name: &Callable, context: &Context) -> SourceLocation {
     match name {
-        FunctionName::User(id) => context.get_function_location(id),
-        FunctionName::Intrinsic(_) => SourceLocation::UNKNOWN,
+        Callable::Function(id) => context.get_function_location(id),
+        Callable::Intrinsic(_) => SourceLocation::UNKNOWN,
     }
 }
 
