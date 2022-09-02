@@ -3,8 +3,14 @@ use crate::*;
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
     Literal(Literal),
+    /// Reference to a variable in a local scope
     Variable(VariableRef),
+    /// Reference to a variable in the struct that owns this expression
+    /// TODO: Non-string identifiers
+    MemberVariable(String),
+    /// Reference to a variable in a global scope
     Global(GlobalId),
+    /// Reference to a variable in a constant buffer global
     ConstantVariable(ConstantBufferId, String),
     TernaryConditional(Box<Expression>, Box<Expression>, Box<Expression>),
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),

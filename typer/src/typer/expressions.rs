@@ -13,6 +13,7 @@ use rssl_text::SourceLocation;
 /// Result of a variable query
 pub enum VariableExpression {
     Local(ir::VariableRef, ir::Type),
+    Member(String, ir::Type),
     Global(ir::GlobalId, ir::Type),
     Constant(ir::ConstantBufferId, String, ir::Type),
     Function(UnresolvedFunction),
@@ -61,6 +62,9 @@ fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression>
     Ok(match context.find_variable(name)? {
         VariableExpression::Local(var, ty) => {
             TypedExpression::Value(ir::Expression::Variable(var), ty.to_lvalue())
+        }
+        VariableExpression::Member(name, ty) => {
+            TypedExpression::Value(ir::Expression::MemberVariable(name), ty.to_lvalue())
         }
         VariableExpression::Global(id, ty) => {
             TypedExpression::Value(ir::Expression::Global(id), ty.to_lvalue())
@@ -935,7 +939,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                     Ok(StructMemberValue::Variable(ty)) => {
                         let composite = Box::new(composite_ir);
                         let member = ir::Expression::Member(composite, member.clone());
-                        Ok(TypedExpression::Value(member, ty))
+                        Ok(TypedExpression::Value(member, ty.to_lvalue()))
                     }
                     Ok(StructMemberValue::Method(overloads)) => {
                         Ok(TypedExpression::Method(UnresolvedMethod {
@@ -1211,6 +1215,10 @@ fn get_expression_type(
     match *expression {
         ir::Expression::Literal(ref lit) => Ok(get_literal_type(lit)),
         ir::Expression::Variable(ref var_ref) => context.get_type_of_variable(var_ref),
+        ir::Expression::MemberVariable(ref name) => {
+            let struct_id = context.get_current_owning_struct();
+            context.get_type_of_struct_member(&struct_id, name)
+        }
         ir::Expression::Global(ref id) => context.get_type_of_global(id),
         ir::Expression::ConstantVariable(ref id, ref name) => {
             context.get_type_of_constant(id, name)

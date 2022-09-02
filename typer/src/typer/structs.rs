@@ -13,6 +13,13 @@ pub fn parse_rootdefinition_struct(
     sd: &ast::StructDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
+    // Register the struct
+    let name = &sd.name;
+    let id = match context.begin_struct(name.clone()) {
+        Ok(id) => id,
+        Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
+    };
+
     let mut members = Vec::new();
     let mut methods_to_parse = Vec::new();
     let mut member_map = HashMap::new();
@@ -31,7 +38,7 @@ pub fn parse_rootdefinition_struct(
             }
             ast::StructEntry::Method(ast_func) => {
                 // Process the method signature
-                let (signature, scope) = parse_function_signature(ast_func, context)?;
+                let (signature, scope) = parse_function_signature(ast_func, Some(id), context)?;
 
                 // Register the method signature in the function list
                 let id = context.register_function(ast_func.name.clone(), signature.clone())?;
@@ -53,12 +60,8 @@ pub fn parse_rootdefinition_struct(
         }
     }
 
-    // Register the struct
-    let name = &sd.name;
-    let id = match context.insert_struct(name.clone(), member_map, method_map) {
-        Ok(id) => id,
-        Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
-    };
+    // Store all the symbol names on the registered struct
+    context.finish_struct(id, member_map, method_map);
 
     // Process all the methods
     let mut methods = Vec::new();

@@ -34,10 +34,15 @@ pub struct FunctionSignature {
 /// Parse just the signature part of a function
 pub fn parse_function_signature(
     fd: &ast::FunctionDefinition,
+    object_type: Option<ir::StructId>,
     context: &mut Context,
 ) -> TyperResult<(FunctionSignature, ScopeIndex)> {
     // We being the scope now so we can use template arguments inside parameter types
     let scope = context.push_scope();
+
+    if let Some(id) = object_type {
+        context.set_owning_struct(id);
+    }
 
     if let Some(ref template_params) = fd.template_params {
         for template_param in &template_params.0 {
@@ -112,7 +117,7 @@ fn parse_function(
     fd: &ast::FunctionDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::FunctionDefinition> {
-    let (signature, scope) = parse_function_signature(fd, context)?;
+    let (signature, scope) = parse_function_signature(fd, None, context)?;
 
     // Register the function signature
     let id = context.register_function(fd.name.clone(), signature.clone())?;

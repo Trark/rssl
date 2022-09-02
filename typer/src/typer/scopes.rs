@@ -24,7 +24,7 @@ pub struct Context {
 pub type ScopeIndex = usize;
 
 pub enum StructMemberValue {
-    Variable(ExpressionType),
+    Variable(ir::Type),
     Method(Vec<FunctionOverload>),
 }
 
@@ -65,6 +65,7 @@ struct ScopeData {
     global_ids: HashMap<String, ir::GlobalId>,
     template_args: HashMap<String, ir::TemplateTypeId>,
 
+    owning_struct: Option<ir::StructId>,
     function_return_type: Option<ir::Type>,
 }
 
@@ -80,6 +81,7 @@ impl Context {
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
                 template_args: HashMap::new(),
+                owning_struct: None,
                 function_return_type: None,
             }]),
             current_scope: 0,
@@ -111,6 +113,7 @@ impl Context {
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
             template_args: HashMap::new(),
+            owning_struct: None,
             function_return_type: None,
         });
         self.current_scope = self.scopes.len() - 1;
@@ -147,6 +150,20 @@ impl Context {
         self.current_scope = scope
     }
 
+    /// Set the current scope to be within the given struct
+    pub fn set_owning_struct(&mut self, id: ir::StructId) {
+        assert_eq!(self.scopes[self.current_scope].owning_struct, None);
+        self.scopes[self.current_scope].owning_struct = Some(id);
+    }
+
+    /// Get the struct we are currently scoped inside
+    pub fn get_current_owning_struct(&self) -> ir::StructId {
+        match self.search_scopes(|s| s.owning_struct) {
+            Some(ret) => ret,
+            None => panic!("Not inside struct"),
+        }
+    }
+
     /// Set the scope as a function scope with the given return type
     pub fn set_function_return_type(&mut self, return_type: ir::Type) {
         assert_eq!(self.scopes[self.current_scope].function_return_type, None);
@@ -170,6 +187,20 @@ impl Context {
                 self.find_variable_in_scope(&self.scopes[scope_index], name, scopes_up)
             {
                 return Ok(ve);
+            }
+            if let Some(id) = self.scopes[scope_index].owning_struct {
+                match self.get_struct_member_expression(&id, name) {
+                    Ok(StructMemberValue::Variable(ty)) => {
+                        return Ok(VariableExpression::Member(name.to_string(), ty));
+                    }
+                    Ok(StructMemberValue::Method(overloads)) => {
+                        // Resolve as a function as the method type / value are implicit
+                        return Ok(VariableExpression::Function(UnresolvedFunction {
+                            overloads,
+                        }));
+                    }
+                    Err(_) => {}
+                }
             }
             scope_index = self.scopes[scope_index].parent_scope;
             scopes_up += 1;
@@ -252,7 +283,7 @@ impl Context {
         assert!(id.0 < self.struct_data.len() as u32);
         if let Some(ty) = self.struct_data[id.0 as usize].members.get(name) {
             assert!(!self.struct_data[id.0 as usize].methods.contains_key(name));
-            return Ok(StructMemberValue::Variable(ty.to_lvalue()));
+            return Ok(StructMemberValue::Variable(ty.clone()));
         }
 
         if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
@@ -415,16 +446,11 @@ impl Context {
     }
 
     /// Register a new struct type
-    pub fn insert_struct(
-        &mut self,
-        name: Located<String>,
-        members: HashMap<String, ir::Type>,
-        methods: HashMap<String, Vec<ir::FunctionId>>,
-    ) -> Result<ir::StructId, ir::StructId> {
+    pub fn begin_struct(&mut self, name: Located<String>) -> Result<ir::StructId, ir::StructId> {
         let data = StructData {
             name,
-            members,
-            methods,
+            members: HashMap::new(),
+            methods: HashMap::new(),
         };
         let id = ir::StructId(self.struct_data.len() as u32);
         self.struct_data.push(data);
@@ -439,6 +465,20 @@ impl Context {
             }
             Entry::Occupied(id_o) => Err(*id_o.get()),
         }
+    }
+
+    // Finish setting up a struct type
+    pub fn finish_struct(
+        &mut self,
+        id: ir::StructId,
+        members: HashMap<String, ir::Type>,
+        methods: HashMap<String, Vec<ir::FunctionId>>,
+    ) {
+        let data = &mut self.struct_data[id.0 as usize];
+        assert!(data.members.is_empty());
+        assert!(data.methods.is_empty());
+        data.members = members;
+        data.methods = methods;
     }
 
     /// Register a new constant buffer
