@@ -1,5 +1,5 @@
 use super::errors::*;
-use super::functions::{Callable, FunctionOverload};
+use super::functions::{Callable, FunctionOverload, FunctionSignature};
 use super::scopes::*;
 use super::types::{parse_type, parse_typelayout};
 use crate::casting::{ConversionPriority, ImplicitConversion};
@@ -83,7 +83,7 @@ fn find_function_type(
         param_types: &[ExpressionType],
     ) -> Result<Vec<ImplicitConversion>, ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
-        for (required_type, source_type) in overload.2.iter().zip(param_types.iter()) {
+        for (required_type, source_type) in overload.1.param_types.iter().zip(param_types.iter()) {
             match required_type.2 {
                 Some(_) => return Err(()),
                 None => {}
@@ -100,7 +100,7 @@ fn find_function_type(
 
     let mut casts = Vec::with_capacity(overloads.len());
     for overload in overloads {
-        if param_types.len() == overload.2.len() {
+        if param_types.len() == overload.1.param_types.len() {
             if let Ok(param_casts) = find_overload_casts(overload, param_types) {
                 casts.push((overload.clone(), param_casts))
             }
@@ -198,11 +198,11 @@ fn write_function(
     call_location: SourceLocation,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
-    let (FunctionOverload(name, return_type_ty, _), casts) =
+    let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
         find_function_type(&unresolved.overloads, param_types, call_location)?;
     // Apply implicit casts
     let param_values = apply_casts(casts, param_values);
-    let return_type = return_type_ty.to_rvalue();
+    let return_type = return_type.return_type.to_rvalue();
 
     match name {
         Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
@@ -223,13 +223,13 @@ fn write_method(
     call_location: SourceLocation,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
-    let (FunctionOverload(name, return_type_ty, _), casts) =
+    let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
         find_function_type(&unresolved.overloads, param_types, call_location)?;
     // Apply implicit casts
     let mut param_values = apply_casts(casts, param_values);
     // Add struct as implied first argument
     param_values.insert(0, unresolved.object_value);
-    let return_type = return_type_ty.to_rvalue();
+    let return_type = return_type.return_type.to_rvalue();
 
     match name {
         Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
@@ -1003,12 +1003,17 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                             let overloads = method_overloads
                                 .iter()
                                 .map(|&(ref param_types, ref factory)| {
-                                    let return_type =
-                                        factory.get_method_return_type(ty.clone().to_rvalue());
+                                    let return_type = ir::FunctionReturn {
+                                        return_type: factory
+                                            .get_method_return_type(ty.clone().to_rvalue())
+                                            .0,
+                                    };
                                     FunctionOverload(
                                         Callable::Intrinsic(factory.clone()),
-                                        return_type.0,
-                                        param_types.clone(),
+                                        FunctionSignature {
+                                            return_type,
+                                            param_types: param_types.clone(),
+                                        },
                                     )
                                 })
                                 .collect::<Vec<_>>();

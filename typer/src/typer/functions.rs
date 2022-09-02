@@ -12,7 +12,7 @@ pub enum Callable {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct FunctionOverload(pub Callable, pub ir::Type, pub Vec<ir::ParamType>);
+pub struct FunctionOverload(pub Callable, pub FunctionSignature);
 
 /// Parse a function in a root context
 pub fn parse_rootdefinition_function(

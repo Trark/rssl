@@ -272,6 +272,8 @@ impl Context {
         Ok(self.function_data[id.0 as usize]
             .overload
             .1
+            .return_type
+            .return_type
             .clone()
             .to_rvalue())
     }
@@ -353,11 +355,7 @@ impl Context {
         let id = ir::FunctionId(self.function_data.len() as u32);
         self.function_data.push(FunctionData {
             name,
-            overload: FunctionOverload(
-                Callable::Function(id),
-                signature.return_type.return_type,
-                signature.param_types,
-            ),
+            overload: FunctionOverload(Callable::Function(id), signature),
         });
         Ok(id)
     }
@@ -573,7 +571,12 @@ impl Context {
             Entry::Occupied(mut occupied) => {
                 // Fail if the overload already exists
                 for existing_id in occupied.get() {
-                    if self.function_data[existing_id.0 as usize].overload.2 == data.overload.2 {
+                    if self.function_data[existing_id.0 as usize]
+                        .overload
+                        .1
+                        .param_types
+                        == data.overload.1.param_types
+                    {
                         return Err(TyperError::ValueAlreadyDefined(
                             data.name.clone(),
                             ErrorType::Unknown,
@@ -673,11 +676,16 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
     let mut overloads = Vec::with_capacity(funcs.len());
     for &(ref name, ref intrinsic, params) in funcs {
         let factory = IntrinsicFactory::Function(intrinsic.clone(), params);
-        let return_type = factory.get_return_type();
+        let return_type = ir::FunctionReturn {
+            return_type: factory.get_return_type().0,
+        };
+        let param_types = params.to_vec();
         let overload = FunctionOverload(
             Callable::Intrinsic(factory.clone()),
-            return_type.0,
-            params.to_vec(),
+            FunctionSignature {
+                return_type,
+                param_types,
+            },
         );
         overloads.push((name.to_string(), overload));
     }

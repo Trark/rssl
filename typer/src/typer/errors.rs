@@ -261,9 +261,11 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                             write!(
                                 f,
                                 "candidate function not viable: {:?} {}(",
-                                overload.1, func_name
+                                overload.1.return_type.return_type, func_name
                             )?;
-                            if let Some((last_param, not_last)) = overload.2.split_last() {
+                            if let Some((last_param, not_last)) =
+                                overload.1.param_types.split_last()
+                            {
                                 for param in not_last {
                                     write!(f, "{:?}, ", param)?;
                                 }
