@@ -54,6 +54,16 @@ pub fn parse_struct_definition<'t>(
 ) -> ParseResult<'t, StructDefinition> {
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;
+
+    // Add the struct name to the symbol table temporarily
+    // Will be added to containing scope later
+    // This needs better structure
+    let st = &SymbolTable({
+        let mut map = st.0.clone();
+        map.insert(name.node.clone(), SymbolType::Struct);
+        map
+    });
+
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
     let (input, members) = nom::multi::many0(contextual(parse_struct_entry, st))(input)?;
     let (input, _) = nom::multi::many0(parse_token(Token::Semicolon))(input)?;

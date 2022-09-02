@@ -135,6 +135,8 @@ fn check_struct_methods() {
     check_types("struct S { int x; void f() { x = x + 1; } };");
     check_types("struct S { void f() { x = x + 1; } int x; };");
     check_types("struct S { float x; bool f() { if (y) { x = x + 1; return false; } return true; } int y; };");
+    check_types("struct S { void f(S s) {} };");
+    check_types("struct S { float x; bool f(S s) { if (y || s.y) { x = x + 1; s.x = s.x + 1; return false; } return true; } int y; };");
 }
 
 #[test]
