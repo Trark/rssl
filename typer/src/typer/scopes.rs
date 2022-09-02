@@ -189,7 +189,7 @@ impl Context {
                 return Ok(ve);
             }
             if let Some(id) = self.scopes[scope_index].owning_struct {
-                match self.get_struct_member_expression(&id, name) {
+                match self.get_struct_member_expression(id, name) {
                     Ok(StructMemberValue::Variable(ty)) => {
                         return Ok(VariableExpression::Member(name.to_string(), ty));
                     }
@@ -230,7 +230,7 @@ impl Context {
     }
 
     /// Find the type of a variable
-    pub fn get_type_of_variable(&self, var_ref: &ir::VariableRef) -> TyperResult<ExpressionType> {
+    pub fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
         let mut scope_index = self.current_scope;
         for _ in 0..(var_ref.1 .0) {
             scope_index = self.scopes[scope_index].parent_scope;
@@ -242,7 +242,7 @@ impl Context {
     }
 
     /// Find the type of a global variable
-    pub fn get_type_of_global(&self, id: &ir::GlobalId) -> TyperResult<ExpressionType> {
+    pub fn get_type_of_global(&self, id: ir::GlobalId) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.global_data.len() as u32);
         Ok(self.global_data[id.0 as usize].ty.clone().to_lvalue())
     }
@@ -250,13 +250,13 @@ impl Context {
     /// Find the type of a constant buffer member
     pub fn get_type_of_constant(
         &self,
-        id: &ir::ConstantBufferId,
+        id: ir::ConstantBufferId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.cbuffer_data.len() as u32);
         match self.cbuffer_data[id.0 as usize].members.get(name) {
             Some(ty) => Ok(ty.to_lvalue()),
-            None => Err(TyperError::ConstantDoesNotExist(*id, name.to_string())),
+            None => Err(TyperError::ConstantDoesNotExist(id, name.to_string())),
         }
     }
 
@@ -264,20 +264,20 @@ impl Context {
     /// Does not support functions
     pub fn get_type_of_struct_member(
         &self,
-        id: &ir::StructId,
+        id: ir::StructId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.struct_data.len() as u32);
         match self.struct_data[id.0 as usize].members.get(name) {
             Some(ty) => Ok(ty.to_lvalue()),
-            None => Err(TyperError::StructMemberDoesNotExist(*id, name.to_string())),
+            None => Err(TyperError::StructMemberDoesNotExist(id, name.to_string())),
         }
     }
 
     /// Find the type of a struct member
     pub fn get_struct_member_expression(
         &self,
-        id: &ir::StructId,
+        id: ir::StructId,
         name: &str,
     ) -> TyperResult<StructMemberValue> {
         assert!(id.0 < self.struct_data.len() as u32);
@@ -294,11 +294,11 @@ impl Context {
             return Ok(StructMemberValue::Method(overloads));
         }
 
-        Err(TyperError::StructMemberDoesNotExist(*id, name.to_string()))
+        Err(TyperError::StructMemberDoesNotExist(id, name.to_string()))
     }
 
     /// Find the return type of a function
-    pub fn get_type_of_function_return(&self, id: &ir::FunctionId) -> TyperResult<ExpressionType> {
+    pub fn get_type_of_function_return(&self, id: ir::FunctionId) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.function_data.len() as u32);
         Ok(self.function_data[id.0 as usize]
             .overload
@@ -310,16 +310,16 @@ impl Context {
     }
 
     /// Get the name from a function id
-    pub fn get_function_name(&self, id: &ir::FunctionId) -> &str {
+    pub fn get_function_name(&self, id: ir::FunctionId) -> &str {
         assert!(id.0 < self.function_data.len() as u32);
         &self.function_data[id.0 as usize].name.node
     }
 
     /// Get the name from a function
     pub fn get_function_or_intrinsic_name(&self, id: &Callable) -> &str {
-        match id {
+        match *id {
             Callable::Function(id) => self.get_function_name(id),
-            Callable::Intrinsic(i) => {
+            Callable::Intrinsic(ref i) => {
                 for data in &self.function_data {
                     if data.overload.0 == *id {
                         return &data.name;
@@ -331,37 +331,37 @@ impl Context {
     }
 
     /// Get the name from a struct id
-    pub fn get_struct_name(&self, id: &ir::StructId) -> &str {
+    pub fn get_struct_name(&self, id: ir::StructId) -> &str {
         assert!(id.0 < self.struct_data.len() as u32);
         &self.struct_data[id.0 as usize].name.node
     }
 
     /// Get the name from a constant buffer id
-    pub fn get_cbuffer_name(&self, id: &ir::ConstantBufferId) -> &str {
+    pub fn get_cbuffer_name(&self, id: ir::ConstantBufferId) -> &str {
         assert!(id.0 < self.cbuffer_data.len() as u32);
         &self.cbuffer_data[id.0 as usize].name.node
     }
 
     /// Get the name from a global variable id
-    pub fn get_global_name(&self, id: &ir::GlobalId) -> &str {
+    pub fn get_global_name(&self, id: ir::GlobalId) -> &str {
         assert!(id.0 < self.global_data.len() as u32);
         &self.global_data[id.0 as usize].name.node
     }
 
     /// Get the source location from a function id
-    pub fn get_function_location(&self, id: &ir::FunctionId) -> SourceLocation {
+    pub fn get_function_location(&self, id: ir::FunctionId) -> SourceLocation {
         assert!(id.0 < self.function_data.len() as u32);
         self.function_data[id.0 as usize].name.location
     }
 
     /// Get the source location from a struct id
-    pub fn get_struct_location(&self, id: &ir::StructId) -> SourceLocation {
+    pub fn get_struct_location(&self, id: ir::StructId) -> SourceLocation {
         assert!(id.0 < self.struct_data.len() as u32);
         self.struct_data[id.0 as usize].name.location
     }
 
     /// Get the source location from a constant buffer id
-    pub fn get_cbuffer_location(&self, id: &ir::ConstantBufferId) -> SourceLocation {
+    pub fn get_cbuffer_location(&self, id: ir::ConstantBufferId) -> SourceLocation {
         assert!(id.0 < self.cbuffer_data.len() as u32);
         self.cbuffer_data[id.0 as usize].name.location
     }
@@ -688,8 +688,8 @@ impl VariableBlock {
         }
     }
 
-    fn get_type_of_variable(&self, var_ref: &ir::VariableRef) -> TyperResult<ExpressionType> {
-        let &ir::VariableRef(ref id, _) = var_ref;
+    fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
+        let ir::VariableRef(ref id, _) = var_ref;
         for &(ref var_ty, ref var_id) in self.variables.values() {
             if id == var_id {
                 return Ok(var_ty.to_lvalue());

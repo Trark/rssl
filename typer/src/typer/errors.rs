@@ -159,7 +159,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 )?;
                 write_message(
                     &|f| write!(f, "previous definition is here"),
-                    context.get_struct_location(previous_id),
+                    context.get_struct_location(*previous_id),
                     Severity::Note,
                 )
             }
@@ -171,7 +171,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 )?;
                 write_message(
                     &|f| write!(f, "previous definition is here"),
-                    context.get_cbuffer_location(previous_id),
+                    context.get_cbuffer_location(*previous_id),
                     Severity::Note,
                 )
             }
@@ -408,7 +408,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 
 /// Get the location of a function
 fn get_function_location(name: &Callable, context: &Context) -> SourceLocation {
-    match name {
+    match *name {
         Callable::Function(id) => context.get_function_location(id),
         Callable::Intrinsic(_) => SourceLocation::UNKNOWN,
     }
@@ -421,8 +421,8 @@ fn get_type_string(ty: &ir::Type, context: &Context) -> String {
 
 /// Get a string name from a type layout for error display
 fn get_type_layout_string(tyl: &ir::TypeLayout, context: &Context) -> String {
-    match tyl {
-        ir::TypeLayout::Struct(ref sid) => get_struct_name(sid, context),
+    match *tyl {
+        ir::TypeLayout::Struct(sid) => get_struct_name(sid, context),
         ir::TypeLayout::Object(ref ot) => format!("{:?}", ot),
         ir::TypeLayout::Array(ref ty, ref len) => {
             format!("{}[{}]", get_type_layout_string(ty, context), len)
@@ -432,6 +432,6 @@ fn get_type_layout_string(tyl: &ir::TypeLayout, context: &Context) -> String {
 }
 
 /// Get a string name from a struct name for error display
-fn get_struct_name(id: &ir::StructId, context: &Context) -> String {
+fn get_struct_name(id: ir::StructId, context: &Context) -> String {
     context.get_struct_name(id).to_string()
 }

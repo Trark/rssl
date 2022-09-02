@@ -935,7 +935,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 | ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
                     ir::StructuredLayout::Struct(id),
                     _,
-                ))) => match context.get_struct_member_expression(&id, member) {
+                ))) => match context.get_struct_member_expression(id, member) {
                     Ok(StructMemberValue::Variable(ty)) => {
                         let composite = Box::new(composite_ir);
                         let member = ir::Expression::Member(composite, member.clone());
@@ -1214,15 +1214,13 @@ fn get_expression_type(
 ) -> TyperResult<ExpressionType> {
     match *expression {
         ir::Expression::Literal(ref lit) => Ok(get_literal_type(lit)),
-        ir::Expression::Variable(ref var_ref) => context.get_type_of_variable(var_ref),
+        ir::Expression::Variable(var_ref) => context.get_type_of_variable(var_ref),
         ir::Expression::MemberVariable(ref name) => {
             let struct_id = context.get_current_owning_struct();
-            context.get_type_of_struct_member(&struct_id, name)
+            context.get_type_of_struct_member(struct_id, name)
         }
-        ir::Expression::Global(ref id) => context.get_type_of_global(id),
-        ir::Expression::ConstantVariable(ref id, ref name) => {
-            context.get_type_of_constant(id, name)
-        }
+        ir::Expression::Global(id) => context.get_type_of_global(id),
+        ir::Expression::ConstantVariable(id, ref name) => context.get_type_of_constant(id, name),
         ir::Expression::TernaryConditional(_, ref expr_left, ref expr_right) => {
             // Ensure the layouts of each side are the same
             // Value types + modifiers can be different
@@ -1287,9 +1285,9 @@ fn get_expression_type(
                 ))) => id,
                 tyl => return Err(TyperError::MemberNodeMustBeUsedOnStruct(tyl, name.clone())),
             };
-            context.get_type_of_struct_member(&id, name)
+            context.get_type_of_struct_member(id, name)
         }
-        ir::Expression::Call(ref id, _) => context.get_type_of_function_return(id),
+        ir::Expression::Call(id, _) => context.get_type_of_function_return(id),
         ir::Expression::Constructor(ref tyl, _) => {
             Ok(ir::Type::from_layout(tyl.clone()).to_rvalue())
         }

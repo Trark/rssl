@@ -87,25 +87,25 @@ fn gather_global_names(
 
     for def in root_definitions {
         match def {
-            ir::RootDefinition::Struct(ref sd) => {
+            ir::RootDefinition::Struct(sd) => {
                 decls
                     .structs
-                    .insert(sd.id, context.get_struct_name(&sd.id).to_string());
+                    .insert(sd.id, context.get_struct_name(sd.id).to_string());
             }
-            ir::RootDefinition::ConstantBuffer(ref cb) => {
+            ir::RootDefinition::ConstantBuffer(cb) => {
                 decls
                     .constants
-                    .insert(cb.id, context.get_cbuffer_name(&cb.id).to_string());
+                    .insert(cb.id, context.get_cbuffer_name(cb.id).to_string());
             }
-            ir::RootDefinition::GlobalVariable(ref gv) => {
+            ir::RootDefinition::GlobalVariable(gv) => {
                 decls
                     .globals
-                    .insert(gv.id, context.get_global_name(&gv.id).to_string());
+                    .insert(gv.id, context.get_global_name(gv.id).to_string());
             }
-            ir::RootDefinition::Function(ref func) => {
+            ir::RootDefinition::Function(func) => {
                 decls
                     .functions
-                    .insert(func.id, context.get_function_name(&func.id).to_string());
+                    .insert(func.id, context.get_function_name(func.id).to_string());
             }
         }
     }
