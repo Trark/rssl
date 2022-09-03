@@ -1,14 +1,14 @@
 use super::errors::*;
 use super::functions::{Callable, FunctionOverload, FunctionSignature};
 use super::scopes::*;
-use super::types::{parse_type, parse_typelayout};
+use super::types::{apply_template_type_substitution, parse_type, parse_typelayout};
 use crate::casting::{ConversionPriority, ImplicitConversion};
 use crate::intrinsics;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::ExpressionType;
 use rssl_ir::ToExpressionType;
-use rssl_text::SourceLocation;
+use rssl_text::{Located, SourceLocation};
 
 /// Result of a variable query
 pub enum VariableExpression {
@@ -78,16 +78,35 @@ fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression>
 
 fn find_function_type(
     overloads: &Vec<FunctionOverload>,
+    template_args: &[Located<ir::Type>],
     param_types: &[ExpressionType],
     call_location: SourceLocation,
 ) -> TyperResult<(FunctionOverload, Vec<ImplicitConversion>)> {
     use crate::casting::VectorRank;
     fn find_overload_casts(
         overload: &FunctionOverload,
+        template_args: &[Located<ir::Type>],
         param_types: &[ExpressionType],
-    ) -> Result<Vec<ImplicitConversion>, ()> {
+    ) -> Result<(ir::Type, Vec<ImplicitConversion>), ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
-        for (required_type, source_type) in overload.1.param_types.iter().zip(param_types.iter()) {
+
+        let mut signature = overload.1.clone();
+
+        // Resolve template arguments
+        // Require user to specify all arguments
+        if overload.1.template_params.0 != 0 {
+            if overload.1.template_params.0 as usize != template_args.len() {
+                // Wrong number of template arguments provided
+                return Err(());
+            }
+
+            signature = signature.apply_templates(template_args);
+        } else if !template_args.is_empty() {
+            // Template args given to non template function
+            return Err(());
+        }
+
+        for (required_type, source_type) in signature.param_types.iter().zip(param_types.iter()) {
             match required_type.2 {
                 Some(_) => return Err(()),
                 None => {}
@@ -99,14 +118,18 @@ fn find_function_type(
                 return Err(());
             }
         }
-        Ok(overload_casts)
+        Ok((signature.return_type.return_type, overload_casts))
     }
 
     let mut casts = Vec::with_capacity(overloads.len());
     for overload in overloads {
         if param_types.len() == overload.1.param_types.len() {
-            if let Ok(param_casts) = find_overload_casts(overload, param_types) {
-                casts.push((overload.clone(), param_casts))
+            if let Ok((return_type, param_casts)) =
+                find_overload_casts(overload, template_args, param_types)
+            {
+                let mut overload = overload.clone();
+                overload.1.return_type.return_type = return_type;
+                casts.push((overload, param_casts))
             }
         }
     }
@@ -197,24 +220,30 @@ fn apply_casts(casts: Vec<ImplicitConversion>, values: Vec<ir::Expression>) -> V
 
 fn write_function(
     unresolved: UnresolvedFunction,
+    template_args: &[Located<ir::Type>],
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
     let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
-        find_function_type(&unresolved.overloads, param_types, call_location)?;
+        find_function_type(
+            &unresolved.overloads,
+            template_args,
+            param_types,
+            call_location,
+        )?;
     // Apply implicit casts
     let param_values = apply_casts(casts, param_values);
     let return_type = return_type.return_type.to_rvalue();
 
     match name {
         Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
-            factory.create_intrinsic(&param_values),
+            factory.create_intrinsic(template_args, &param_values),
             return_type,
         )),
         Callable::Function(id) => Ok(TypedExpression::Value(
-            ir::Expression::Call(id, param_values),
+            ir::Expression::Call(id, template_args.to_vec(), param_values),
             return_type,
         )),
     }
@@ -222,13 +251,19 @@ fn write_function(
 
 fn write_method(
     unresolved: UnresolvedMethod,
+    template_args: &[Located<ir::Type>],
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
     let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
-        find_function_type(&unresolved.overloads, param_types, call_location)?;
+        find_function_type(
+            &unresolved.overloads,
+            template_args,
+            param_types,
+            call_location,
+        )?;
     // Apply implicit casts
     let mut param_values = apply_casts(casts, param_values);
     // Add struct as implied first argument
@@ -237,11 +272,11 @@ fn write_method(
 
     match name {
         Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
-            factory.create_intrinsic(&param_values),
+            factory.create_intrinsic(template_args, &param_values),
             return_type,
         )),
         Callable::Function(id) => Ok(TypedExpression::Value(
-            ir::Expression::Call(id, param_values),
+            ir::Expression::Call(id, template_args.to_vec(), param_values),
             return_type,
         )),
     }
@@ -374,7 +409,7 @@ fn parse_expr_unaryop(
                 },
             };
             Ok(TypedExpression::Value(
-                ir::Expression::Intrinsic(intrinsic, Vec::from([eir])),
+                ir::Expression::Intrinsic(intrinsic, Vec::new(), Vec::from([eir])),
                 ety,
             ))
         }
@@ -631,8 +666,11 @@ fn parse_expr_binop(
             let rhs_final = rhs_cast.apply(rhs_ir);
             let output_type = output_intrinsic
                 .get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
-            let node =
-                ir::Expression::Intrinsic(output_intrinsic, Vec::from([lhs_final, rhs_final]));
+            let node = ir::Expression::Intrinsic(
+                output_intrinsic,
+                Vec::new(),
+                Vec::from([lhs_final, rhs_final]),
+            );
             Ok(TypedExpression::Value(node, output_type))
         }
         ast::BinOp::BitwiseAnd
@@ -699,7 +737,7 @@ fn parse_expr_binop(
             };
             let output_type =
                 i.get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
-            let node = ir::Expression::Intrinsic(i, Vec::from([lhs_final, rhs_final]));
+            let node = ir::Expression::Intrinsic(i, Vec::new(), Vec::from([lhs_final, rhs_final]));
             Ok(TypedExpression::Value(node, output_type))
         }
         ast::BinOp::Assignment
@@ -728,7 +766,8 @@ fn parse_expr_binop(
                         _ => unreachable!(),
                     };
                     let output_type = i.get_return_type(&[lhs_type, rhs_cast.get_target_type()]);
-                    let node = ir::Expression::Intrinsic(i, Vec::from([lhs_ir, rhs_final]));
+                    let node =
+                        ir::Expression::Intrinsic(i, Vec::new(), Vec::from([lhs_ir, rhs_final]));
                     Ok(TypedExpression::Value(node, output_type))
                 }
                 Err(()) => err_bad_type,
@@ -1006,7 +1045,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                             let ty = ir::Type::from_object(object_type);
                             let overloads = method_overloads
                                 .iter()
-                                .map(|&(ref param_types, ref factory)| {
+                                .map(|&(template_types, ref param_types, ref factory)| {
                                     let return_type = ir::FunctionReturn {
                                         return_type: factory
                                             .get_method_return_type(ty.clone().to_rvalue())
@@ -1016,6 +1055,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                                         Callable::Intrinsic(factory.clone()),
                                         FunctionSignature {
                                             return_type,
+                                            template_params: template_types,
                                             param_types: param_types.clone(),
                                         },
                                     )
@@ -1034,12 +1074,21 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 _ => Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
             }
         }
-        ast::Expression::Call(ref func, _, ref params) => {
+        ast::Expression::Call(ref func, ref template_args, ref args) => {
             let func_texp = parse_expr_internal(func, context)?;
-            let mut params_ir: Vec<ir::Expression> = vec![];
-            let mut params_types: Vec<ExpressionType> = vec![];
-            for param in params {
-                let expr_texp = parse_expr_internal(param, context)?;
+
+            // Process template arguments
+            let mut template_args_ir = Vec::new();
+            for template_arg in template_args {
+                let ty = parse_type(&template_arg.node, context)?;
+                template_args_ir.push(Located::new(ty, template_arg.location));
+            }
+
+            // Process arguments
+            let mut args_ir: Vec<ir::Expression> = vec![];
+            let mut args_types: Vec<ExpressionType> = vec![];
+            for arg in args {
+                let expr_texp = parse_expr_internal(arg, context)?;
                 let (expr_ir, expr_ty) = match expr_texp {
                     TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
                     texp => {
@@ -1049,16 +1098,25 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                         ))
                     }
                 };
-                params_ir.push(expr_ir);
-                params_types.push(expr_ty);
+                args_ir.push(expr_ir);
+                args_types.push(expr_ty);
             }
+
             match func_texp {
-                TypedExpression::Function(unresolved) => {
-                    write_function(unresolved, &params_types, params_ir, func.location)
-                }
-                TypedExpression::Method(unresolved) => {
-                    write_method(unresolved, &params_types, params_ir, func.location)
-                }
+                TypedExpression::Function(unresolved) => write_function(
+                    unresolved,
+                    &template_args_ir,
+                    &args_types,
+                    args_ir,
+                    func.location,
+                ),
+                TypedExpression::Method(unresolved) => write_method(
+                    unresolved,
+                    &template_args_ir,
+                    &args_types,
+                    args_ir,
+                    func.location,
+                ),
                 _ => Err(TyperError::CallOnNonFunction),
             }
         }
@@ -1287,18 +1345,22 @@ fn get_expression_type(
             };
             context.get_type_of_struct_member(id, name)
         }
-        ir::Expression::Call(id, _) => context.get_type_of_function_return(id),
+        ir::Expression::Call(id, ref template_args, _) => {
+            context.get_type_of_function_return(id, template_args)
+        }
         ir::Expression::Constructor(ref tyl, _) => {
             Ok(ir::Type::from_layout(tyl.clone()).to_rvalue())
         }
         ir::Expression::Cast(ref ty, _) => Ok(ty.to_rvalue()),
         ir::Expression::SizeOf(_) => Ok(ir::Type::uint().to_rvalue()),
-        ir::Expression::Intrinsic(ref intrinsic, ref args) => {
+        ir::Expression::Intrinsic(ref intrinsic, ref template_args, ref args) => {
             let mut arg_types = Vec::with_capacity(args.len());
             for arg in args {
                 arg_types.push(get_expression_type(arg, context)?);
             }
-            Ok(intrinsic.get_return_type(&arg_types))
+            let mut ety = intrinsic.get_return_type(&arg_types);
+            ety.0 = apply_template_type_substitution(ety.0, template_args);
+            Ok(ety)
         }
     }
 }

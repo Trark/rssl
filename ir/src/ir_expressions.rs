@@ -1,4 +1,5 @@
 use crate::*;
+use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
@@ -16,11 +17,11 @@ pub enum Expression {
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
-    Call(FunctionId, Vec<Expression>),
+    Call(FunctionId, Vec<Located<Type>>, Vec<Expression>),
     Constructor(TypeLayout, Vec<ConstructorSlot>),
     Cast(Type, Box<Expression>),
     SizeOf(Type),
-    Intrinsic(Intrinsic, Vec<Expression>),
+    Intrinsic(Intrinsic, Vec<Located<Type>>, Vec<Expression>),
 }
 
 #[derive(PartialEq, Debug, Clone)]

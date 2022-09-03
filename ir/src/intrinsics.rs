@@ -109,6 +109,7 @@ pub enum Intrinsic {
     ByteAddressBufferLoad2,
     ByteAddressBufferLoad3,
     ByteAddressBufferLoad4,
+    ByteAddressBufferLoadT,
 
     // RWByteAddressBuffer methods
     RWByteAddressBufferLoad,
@@ -347,6 +348,10 @@ impl Intrinsic {
             ByteAddressBufferLoad4 => {
                 assert_eq!(param_types.len(), 2);
                 Type::uintn(4).to_rvalue()
+            }
+            ByteAddressBufferLoadT => {
+                assert_eq!(param_types.len(), 2);
+                Type::from_layout(TypeLayout::TemplateParam(TemplateTypeId(0))).to_rvalue()
             }
             RWByteAddressBufferLoad => {
                 assert_eq!(param_types.len(), 2);

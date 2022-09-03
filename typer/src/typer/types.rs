@@ -2,6 +2,7 @@ use super::errors::*;
 use super::scopes::*;
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::Located;
 
 /// Attempt to get an ir type from an ast type
 pub fn parse_type(ty: &ast::Type, context: &Context) -> TyperResult<ir::Type> {
@@ -96,5 +97,19 @@ fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeL
             get_structured_type(template_args)?,
         ))),
         _ => None,
+    }
+}
+
+/// Replace instances of a template type parameter in a type with a concrete type
+pub fn apply_template_type_substitution(
+    source_type: ir::Type,
+    remap: &[Located<ir::Type>],
+) -> ir::Type {
+    match source_type {
+        ir::Type(ir::TypeLayout::TemplateParam(ref p), _) => remap[p.0 as usize].node.clone(),
+        ir::Type(ir::TypeLayout::Array(_, _), _) => {
+            todo!("Arrays of templated types are not implemented")
+        }
+        t => t,
     }
 }

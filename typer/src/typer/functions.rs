@@ -1,9 +1,10 @@
 use super::errors::*;
 use super::scopes::*;
 use super::statements::parse_statement_list;
-use super::types::parse_type;
+use super::types::{apply_template_type_substitution, parse_type};
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Callable {
@@ -14,6 +15,30 @@ pub enum Callable {
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionOverload(pub Callable, pub FunctionSignature);
 
+/// Describes the signature for a function
+#[derive(PartialEq, Debug, Clone)]
+pub struct FunctionSignature {
+    // TODO: Function and parameter names
+    pub return_type: ir::FunctionReturn,
+    pub template_params: ir::TemplateParamCount,
+    pub param_types: Vec<ir::ParamType>,
+}
+
+impl FunctionSignature {
+    /// Transforms a signature with template parameters with concrete arguments
+    pub fn apply_templates(mut self, template_args: &[Located<ir::Type>]) -> Self {
+        for param_type in &mut self.param_types {
+            let ty = param_type.0.clone();
+            (*param_type).0 = apply_template_type_substitution(ty, template_args);
+        }
+
+        self.return_type.return_type =
+            apply_template_type_substitution(self.return_type.return_type, template_args);
+
+        self
+    }
+}
+
 /// Parse a function in a root context
 pub fn parse_rootdefinition_function(
     fd: &ast::FunctionDefinition,
@@ -21,14 +46,6 @@ pub fn parse_rootdefinition_function(
 ) -> TyperResult<ir::RootDefinition> {
     let ir_fd = parse_function(fd, context)?;
     Ok(ir::RootDefinition::Function(ir_fd))
-}
-
-/// Describes the signature for a function
-#[derive(PartialEq, Debug, Clone)]
-pub struct FunctionSignature {
-    // TODO: Function and parameter names
-    pub return_type: ir::FunctionReturn,
-    pub param_types: Vec<ir::ParamType>,
 }
 
 /// Parse just the signature part of a function
@@ -44,11 +61,13 @@ pub fn parse_function_signature(
         context.set_owning_struct(id);
     }
 
-    if let Some(ref template_params) = fd.template_params {
-        for template_param in &template_params.0 {
+    let mut template_param_count = 0;
+    if let Some(ref ast_template_params) = fd.template_params {
+        for template_param in &ast_template_params.0 {
             context.insert_template_type(template_param.clone())?;
+            template_param_count += 1;
         }
-    }
+    };
 
     let return_type = parse_returntype(&fd.returntype, context)?;
 
@@ -69,6 +88,7 @@ pub fn parse_function_signature(
     Ok((
         FunctionSignature {
             return_type,
+            template_params: ir::TemplateParamCount(template_param_count),
             param_types,
         },
         scope,

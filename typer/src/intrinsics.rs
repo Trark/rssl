@@ -1,4 +1,5 @@
 use rssl_ir::*;
+use rssl_text::Located;
 
 /// Creates intrinsic nodes from argument expressions
 #[derive(PartialEq, Debug, Clone)]
@@ -8,7 +9,11 @@ pub enum IntrinsicFactory {
 }
 
 impl IntrinsicFactory {
-    pub fn create_intrinsic(&self, param_values: &[Expression]) -> Expression {
+    pub fn create_intrinsic(
+        &self,
+        template_args: &[Located<Type>],
+        param_values: &[Expression],
+    ) -> Expression {
         match *self {
             IntrinsicFactory::Function(ref i, param_types) => {
                 assert_eq!(param_values.len(), param_types.len());
@@ -16,7 +21,7 @@ impl IntrinsicFactory {
                 for param_value in param_values {
                     exprs.push(param_value.clone());
                 }
-                Expression::Intrinsic(i.clone(), exprs)
+                Expression::Intrinsic(i.clone(), template_args.to_vec(), exprs)
             }
             IntrinsicFactory::Method(ref i, param_types) => {
                 assert_eq!(param_values.len(), param_types.len() + 1);
@@ -24,7 +29,7 @@ impl IntrinsicFactory {
                 for param_value in param_values {
                     exprs.push(param_value.clone());
                 }
-                Expression::Intrinsic(i.clone(), exprs)
+                Expression::Intrinsic(i.clone(), template_args.to_vec(), exprs)
             }
         }
     }
@@ -61,7 +66,8 @@ impl IntrinsicFactory {
     }
 }
 
-pub type IntrinsicDefinition = (&'static str, Intrinsic, &'static [ParamType]);
+pub type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamType]);
+pub type IntrinsicDefinition = (&'static str, Intrinsic, u32, &'static [ParamType]);
 
 const T_MOD: TypeModifier = TypeModifier {
     is_const: false,
@@ -115,7 +121,7 @@ const T_FLOAT4_OUT: ParamType = ParamType(T_FLOAT4_TY, InputModifier::Out, None)
 const T_SAMPLER: ParamType = ParamType(T_SAMPLER_TY, InputModifier::In, None);
 
 #[rustfmt::skip]
-const INTRINSICS: &[IntrinsicDefinition] = &[
+const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
     ("AllMemoryBarrier", Intrinsic::AllMemoryBarrier, &[]),
     ("AllMemoryBarrierWithGroupSync", Intrinsic::AllMemoryBarrierWithGroupSync, &[]),
     ("DeviceMemoryBarrier", Intrinsic::DeviceMemoryBarrier, &[]),
@@ -314,51 +320,62 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     ("step", Intrinsic::Step, &[T_FLOAT4, T_FLOAT4]),
 ];
 
-pub fn get_intrinsics() -> &'static [IntrinsicDefinition] {
+pub fn get_intrinsics() -> &'static [IntrinsicDefinitionNoTemplates] {
     INTRINSICS
 }
 
-const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[("Load", Intrinsic::BufferLoad, &[T_INT])];
-const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[("Load", Intrinsic::RWBufferLoad, &[T_INT])];
+const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[("Load", Intrinsic::BufferLoad, 0, &[T_INT])];
+const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] =
+    &[("Load", Intrinsic::RWBufferLoad, 0, &[T_INT])];
 const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::StructuredBufferLoad, &[T_INT])];
+    &[("Load", Intrinsic::StructuredBufferLoad, 0, &[T_INT])];
 const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::RWStructuredBufferLoad, &[T_INT])];
+    &[("Load", Intrinsic::RWStructuredBufferLoad, 0, &[T_INT])];
 const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
-    ("Sample", Intrinsic::Texture2DSample, &[T_SAMPLER, T_FLOAT2]),
-    ("Load", Intrinsic::Texture2DLoad, &[T_INT]),
+    (
+        "Sample",
+        Intrinsic::Texture2DSample,
+        0,
+        &[T_SAMPLER, T_FLOAT2],
+    ),
+    ("Load", Intrinsic::Texture2DLoad, 0, &[T_INT]),
 ];
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::RWTexture2DLoad, &[T_INT])];
+    &[("Load", Intrinsic::RWTexture2DLoad, 0, &[T_INT])];
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
-    ("Load", Intrinsic::ByteAddressBufferLoad, &[T_UINT]),
-    ("Load2", Intrinsic::ByteAddressBufferLoad2, &[T_UINT]),
-    ("Load3", Intrinsic::ByteAddressBufferLoad3, &[T_UINT]),
-    ("Load4", Intrinsic::ByteAddressBufferLoad4, &[T_UINT]),
+    ("Load", Intrinsic::ByteAddressBufferLoad, 0, &[T_UINT]),
+    ("Load2", Intrinsic::ByteAddressBufferLoad2, 0, &[T_UINT]),
+    ("Load3", Intrinsic::ByteAddressBufferLoad3, 0, &[T_UINT]),
+    ("Load4", Intrinsic::ByteAddressBufferLoad4, 0, &[T_UINT]),
+    ("Load", Intrinsic::ByteAddressBufferLoadT, 1, &[T_UINT]),
 ];
 const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
-    ("Load", Intrinsic::RWByteAddressBufferLoad, &[T_UINT]),
-    ("Load2", Intrinsic::RWByteAddressBufferLoad2, &[T_UINT]),
-    ("Load3", Intrinsic::RWByteAddressBufferLoad3, &[T_UINT]),
-    ("Load4", Intrinsic::RWByteAddressBufferLoad4, &[T_UINT]),
+    ("Load", Intrinsic::RWByteAddressBufferLoad, 0, &[T_UINT]),
+    ("Load2", Intrinsic::RWByteAddressBufferLoad2, 0, &[T_UINT]),
+    ("Load3", Intrinsic::RWByteAddressBufferLoad3, 0, &[T_UINT]),
+    ("Load4", Intrinsic::RWByteAddressBufferLoad4, 0, &[T_UINT]),
     (
         "Store",
         Intrinsic::RWByteAddressBufferStore,
+        0,
         &[T_UINT, T_UINT],
     ),
     (
         "Store2",
         Intrinsic::RWByteAddressBufferStore2,
+        0,
         &[T_UINT, T_UINT],
     ),
     (
         "Store3",
         Intrinsic::RWByteAddressBufferStore3,
+        0,
         &[T_UINT, T_UINT],
     ),
     (
         "Store4",
         Intrinsic::RWByteAddressBufferStore4,
+        0,
         &[T_UINT, T_UINT],
     ),
 ];
@@ -366,17 +383,17 @@ const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
 pub struct MethodDefinition(
     pub ObjectType,
     pub String,
-    pub Vec<(Vec<ParamType>, IntrinsicFactory)>,
+    pub Vec<(TemplateParamCount, Vec<ParamType>, IntrinsicFactory)>,
 );
 
 pub fn get_method(object: &ObjectType, name: &str) -> Result<MethodDefinition, ()> {
-    type MethodT = (&'static str, Intrinsic, &'static [ParamType]);
     type FmResult = Result<MethodDefinition, ()>;
-    fn find_method(object: &ObjectType, defs: &[MethodT], name: &str) -> FmResult {
+    fn find_method(object: &ObjectType, defs: &[IntrinsicDefinition], name: &str) -> FmResult {
         let mut methods = vec![];
-        for &(method_name, ref intrinsic, param_types) in defs {
+        for &(method_name, ref intrinsic, template_param_count, param_types) in defs {
             if method_name == name {
                 methods.push((
+                    TemplateParamCount(template_param_count),
                     param_types.to_vec(),
                     IntrinsicFactory::Method(intrinsic.clone(), param_types),
                 ));

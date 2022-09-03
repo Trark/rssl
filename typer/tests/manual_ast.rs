@@ -254,6 +254,7 @@ fn test_ast_to_ir() {
                         ir::Statement::Expression(ir::Expression::Intrinsic(
                             ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
                             Vec::new(),
+                            Vec::new(),
                         )),
                     ],
                     ir::ScopedDeclarations {

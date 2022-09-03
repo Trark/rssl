@@ -2,6 +2,7 @@ use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use super::functions::{Callable, FunctionOverload, FunctionSignature};
+use super::types::apply_template_type_substitution;
 use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -297,16 +298,28 @@ impl Context {
         Err(TyperError::StructMemberDoesNotExist(id, name.to_string()))
     }
 
-    /// Find the return type of a function
-    pub fn get_type_of_function_return(&self, id: ir::FunctionId) -> TyperResult<ExpressionType> {
+    /// Find the signature of a function
+    pub fn get_function_signature(&self, id: ir::FunctionId) -> TyperResult<&FunctionSignature> {
         assert!(id.0 < self.function_data.len() as u32);
-        Ok(self.function_data[id.0 as usize]
-            .overload
-            .1
-            .return_type
-            .return_type
-            .clone()
-            .to_rvalue())
+        Ok(&self.function_data[id.0 as usize].overload.1)
+    }
+
+    /// Find the return type of a function
+    pub fn get_type_of_function_return(
+        &self,
+        id: ir::FunctionId,
+        template_args: &[Located<ir::Type>],
+    ) -> TyperResult<ExpressionType> {
+        let signature = self.get_function_signature(id)?;
+        if template_args.is_empty() {
+            Ok(signature.return_type.return_type.clone().to_rvalue())
+        } else {
+            let return_type = apply_template_type_substitution(
+                signature.return_type.return_type.clone(),
+                template_args,
+            );
+            Ok(return_type.to_rvalue())
+        }
     }
 
     /// Get the name from a function id
@@ -724,6 +737,7 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
             Callable::Intrinsic(factory.clone()),
             FunctionSignature {
                 return_type,
+                template_params: ir::TemplateParamCount(0),
                 param_types,
             },
         );

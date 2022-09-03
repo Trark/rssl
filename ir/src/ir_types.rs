@@ -51,6 +51,10 @@ pub struct StructId(pub u32);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TemplateTypeId(pub u32);
 
+/// Number of template arguments to a template
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct TemplateParamCount(pub u32);
+
 #[derive(PartialEq, Clone)]
 pub enum ObjectType {
     Buffer(DataType),
