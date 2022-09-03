@@ -332,13 +332,13 @@ impl Context {
     pub fn get_function_or_intrinsic_name(&self, id: &Callable) -> &str {
         match *id {
             Callable::Function(id) => self.get_function_name(id),
-            Callable::Intrinsic(ref i) => {
+            Callable::Intrinsic(_) => {
                 for data in &self.function_data {
                     if data.overload.0 == *id {
                         return &data.name;
                     }
                 }
-                panic!("Unknown intrinsic {:?}", i)
+                "<unknown>"
             }
         }
     }
