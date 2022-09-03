@@ -114,6 +114,8 @@ fn check_intrinsic_calls() {
 
     check_types("Buffer<float4> buf; void main() { buf.Load(0); }");
     check_types("Buffer<uint4> buf; void main() { buf.Load(0); }");
+
+    check_types("RWByteAddressBuffer buf; void main() { uint previous; buf.InterlockedAdd(0, 1, previous); }");
 }
 
 #[test]

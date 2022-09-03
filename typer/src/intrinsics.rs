@@ -109,6 +109,7 @@ const T_UINT: ParamType = ParamType(T_UINT_TY, InputModifier::In, None);
 const T_UINT2: ParamType = ParamType(T_UINT2_TY, InputModifier::In, None);
 const T_UINT3: ParamType = ParamType(T_UINT3_TY, InputModifier::In, None);
 const T_UINT4: ParamType = ParamType(T_UINT4_TY, InputModifier::In, None);
+const T_UINT_OUT: ParamType = ParamType(T_UINT_TY, InputModifier::Out, None);
 const T_FLOAT: ParamType = ParamType(T_FLOAT_TY, InputModifier::In, None);
 const T_FLOAT1: ParamType = ParamType(T_FLOAT1_TY, InputModifier::In, None);
 const T_FLOAT2: ParamType = ParamType(T_FLOAT2_TY, InputModifier::In, None);
@@ -377,6 +378,12 @@ const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
         Intrinsic::RWByteAddressBufferStore4,
         0,
         &[T_UINT, T_UINT],
+    ),
+    (
+        "InterlockedAdd",
+        Intrinsic::RWByteAddressBufferInterlockedAdd,
+        0,
+        &[T_UINT, T_UINT, T_UINT_OUT],
     ),
 ];
 

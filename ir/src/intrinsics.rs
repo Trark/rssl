@@ -120,6 +120,7 @@ pub enum Intrinsic {
     RWByteAddressBufferStore2,
     RWByteAddressBufferStore3,
     RWByteAddressBufferStore4,
+    RWByteAddressBufferInterlockedAdd,
 
     // Texture2D methods
     Texture2DLoad,
@@ -374,6 +375,10 @@ impl Intrinsic {
             | RWByteAddressBufferStore3
             | RWByteAddressBufferStore4 => {
                 assert_eq!(param_types.len(), 3);
+                Type::void().to_rvalue()
+            }
+            RWByteAddressBufferInterlockedAdd => {
+                assert_eq!(param_types.len(), 4);
                 Type::void().to_rvalue()
             }
             Texture2DLoad => {
