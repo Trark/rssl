@@ -773,7 +773,10 @@ fn parse_expr_binop(
                 Err(()) => err_bad_type,
             }
         }
-        ast::BinOp::Sequence => panic!("operator ',' not implemented"),
+        ast::BinOp::Sequence => {
+            let node = ir::Expression::Sequence(Vec::from([lhs_ir, rhs_ir]));
+            Ok(TypedExpression::Value(node, rhs_type))
+        }
     }
 }
 
@@ -1287,6 +1290,13 @@ fn get_expression_type(
                 (get_expression_type(expr_right, context)?.0).0
             );
             let ety = get_expression_type(expr_left, context)?;
+            Ok(ety.0.to_rvalue())
+        }
+        ir::Expression::Sequence(ref chain) => {
+            let last = chain
+                .last()
+                .expect("Sequence must have at least one expression");
+            let ety = get_expression_type(last, context)?;
             Ok(ety.0.to_rvalue())
         }
         ir::Expression::Swizzle(ref vec, ref swizzle) => {

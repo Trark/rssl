@@ -239,9 +239,13 @@ fn check_constructors() {
 
     //  Fails as we expect a single argument
     check_fail("int x = int(7, 6);");
+}
 
-    // "int x = (int)(7, 6);" is valid but is actually a comma expression
-    // This currently fails as the comma expression is not implemented
+#[test]
+fn check_fake_constructor() {
+    // These are valid but are actually a casted comma expression and not a constructor
+    check_types("int x = (int)(7, 6);");
+    check_types("int2 x = (int2)(7, 6);");
 }
 
 #[test]

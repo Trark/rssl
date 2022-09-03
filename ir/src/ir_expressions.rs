@@ -14,6 +14,8 @@ pub enum Expression {
     /// Reference to a variable in a constant buffer global
     ConstantVariable(ConstantBufferId, String),
     TernaryConditional(Box<Expression>, Box<Expression>, Box<Expression>),
+    /// Chain of expressions
+    Sequence(Vec<Expression>),
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
