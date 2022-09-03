@@ -145,6 +145,19 @@ fn check_struct_methods() {
 }
 
 #[test]
+fn check_struct_method_templates() {
+    // Check a non-method template function can return the struct types we will use in the next test
+    check_types("template<typename T> T f(T t) { return t; } struct M {}; void main() { M m1; M m2 = f<M>(m1); };");
+
+    // Check a (non-templated) struct template method can have template arguments to the function
+    // Currently limited to explicitly listing the types in the call
+    check_types("struct S { template<typename T> T f(T t) { return t; } }; struct M {}; void main() { S s; M m1; M m2 = s.f<M>(m1); };");
+
+    // Check (non-templated) struct template method can access both the template type and the containing struct type
+    check_types("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
+}
+
+#[test]
 fn check_cbuffer() {
     check_types(
         "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",
