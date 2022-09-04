@@ -143,7 +143,22 @@ fn parse_function(
     let id = context.register_function(fd.name.clone(), signature.clone())?;
     context.add_function_to_current_scope(id)?;
 
-    parse_function_body(fd, id, signature, scope, context)
+    if signature.template_params.0 == 0 {
+        parse_function_body(fd, id, signature, scope, context)
+    } else {
+        Ok(ir::FunctionDefinition {
+            id,
+            returntype: signature.return_type,
+            params: Default::default(),
+            scope_block: ir::ScopeBlock(
+                Default::default(),
+                ir::ScopedDeclarations {
+                    variables: Default::default(),
+                },
+            ),
+            attributes: fd.attributes.clone(),
+        })
+    }
 }
 
 fn parse_returntype(
