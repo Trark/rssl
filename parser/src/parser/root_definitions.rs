@@ -45,7 +45,7 @@ pub fn parse_root_definition_with_semicolon<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, RootDefinition> {
     let (input, def) = parse_root_definition(input, st)?;
-    let (input, _) = nom::multi::many0(parse_token(Token::Semicolon))(input)?;
+    let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, def))
 }
 

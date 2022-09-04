@@ -194,16 +194,16 @@ pub fn parse_function_definition<'t>(
         None => st,
     };
 
-    let (input, attributes) = nom::multi::many0(contextual(parse_function_attribute, st))(input)?;
+    let (input, attributes) = parse_multiple(contextual(parse_function_attribute, st))(input)?;
     let (input, ret) = parse_type(input, st)?;
     let (input, func_name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
-    let (input, params) = nom::multi::separated_list0(
+    let (input, params) = parse_list(
         parse_token(Token::Comma),
         contextual(parse_function_param, st),
     )(input)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
-    let (input, return_semantic) = nom::combinator::opt(|input| {
+    let (input, return_semantic) = parse_optional(|input| {
         let (input, _) = parse_token(Token::Colon)(input)?;
         let (input, semantic) = parse_semantic(input)?;
         Ok((input, semantic))

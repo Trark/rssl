@@ -24,7 +24,7 @@ fn parse_constant_variable_name<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, ConstantVariableName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
+    let (input, array_dim) = parse_optional(|input| parse_arraydim(input, st))(input)?;
     let v = ConstantVariableName {
         name: name.to_node(),
         bind: match array_dim {
@@ -42,7 +42,7 @@ fn parse_constant_variable<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, ConstantVariable> {
     let (input, typename) = parse_type(input, st)?;
-    let (input, defs) = nom::multi::separated_list1(
+    let (input, defs) = parse_list_nonempty(
         parse_token(Token::Comma),
         contextual(parse_constant_variable_name, st),
     )(input)?;
@@ -94,12 +94,10 @@ pub fn parse_constant_buffer<'t>(
 ) -> ParseResult<'t, ConstantBuffer> {
     let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
     let (input, name) = parse_variable_name(input)?;
-    let (input, slot) = nom::combinator::opt(parse_constant_slot)(input)?;
-    let (input, members) = nom::sequence::delimited(
-        parse_token(Token::LeftBrace),
-        nom::multi::many0(contextual(parse_constant_variable, st)),
-        parse_token(Token::RightBrace),
-    )(input)?;
+    let (input, slot) = parse_optional(parse_constant_slot)(input)?;
+    let (input, _) = parse_token(Token::LeftBrace)(input)?;
+    let (input, members) = parse_multiple(contextual(parse_constant_variable, st))(input)?;
+    let (input, _) = parse_token(Token::RightBrace)(input)?;
     let cb = ConstantBuffer {
         name,
         slot,
@@ -127,8 +125,8 @@ fn parse_global_variable_name<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, GlobalVariableName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
-    let (input, slot) = nom::combinator::opt(parse_global_slot)(input)?;
+    let (input, array_dim) = parse_optional(|input| parse_arraydim(input, st))(input)?;
+    let (input, slot) = parse_optional(parse_global_slot)(input)?;
     let (input, init) = parse_initializer(input, st)?;
     let v = GlobalVariableName {
         name,
@@ -148,7 +146,7 @@ pub fn parse_global_variable<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, GlobalVariable> {
     let (input, typename) = parse_global_type(input, st)?;
-    let (input, defs) = nom::multi::separated_list1(
+    let (input, defs) = parse_list_nonempty(
         parse_token(Token::Comma),
         contextual(parse_global_variable_name, st),
     )(input)?;

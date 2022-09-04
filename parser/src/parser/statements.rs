@@ -13,9 +13,7 @@ pub fn parse_initializer<'t>(
     fn init_aggregate<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Initializer> {
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
         let (input, exprs) =
-            nom::multi::separated_list1(parse_token(Token::Comma), |input| init_any(input, st))(
-                input,
-            )?;
+            parse_list_nonempty(parse_token(Token::Comma), |input| init_any(input, st))(input)?;
         let (input, _) = parse_token(Token::RightBrace)(input)?;
         Ok((input, Initializer::Aggregate(exprs)))
     }
@@ -127,9 +125,9 @@ fn parse_local_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<
 /// Parse a local variable definition
 fn parse_vardef<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, VarDef> {
     let (input, typename) = parse_local_type(input, st)?;
-    let (input, defs) = nom::multi::separated_list1(parse_token(Token::Comma), |input| {
+    let (input, defs) = parse_list_nonempty(parse_token(Token::Comma), |input| {
         let (input, varname) = parse_variable_name(input)?;
-        let (input, array_dim) = nom::combinator::opt(|input| parse_arraydim(input, st))(input)?;
+        let (input, array_dim) = parse_optional(|input| parse_arraydim(input, st))(input)?;
         let (input, init) = parse_initializer(input, st)?;
         let v = LocalVariableName {
             name: varname,
@@ -224,7 +222,7 @@ fn test_statement_attribute() {
 /// Parse a single statement
 fn parse_statement<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Statement> {
     // Parse and ignore attributes before a statement
-    let input = match nom::multi::many0(|input| statement_attribute(input, st))(input) {
+    let input = match parse_multiple(|input| statement_attribute(input, st))(input) {
         Ok((rest, _)) => rest,
         Err(err) => return Err(err),
     };

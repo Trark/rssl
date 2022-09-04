@@ -27,7 +27,7 @@ fn parse_struct_member<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, StructMember> {
     let (input, typename) = parse_type(input, st)?;
-    let (input, defs) = nom::multi::separated_list1(
+    let (input, defs) = parse_list_nonempty(
         parse_token(Token::Comma),
         contextual(parse_struct_member_name, st),
     )(input)?;
@@ -43,7 +43,7 @@ fn parse_struct_entry<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResul
     let method_res =
         parse_function_definition(input, st).map(|(input, def)| (input, StructEntry::Method(def)));
     let (input, value) = variable_res.select(method_res)?;
-    let (input, _) = nom::multi::many0(parse_token(Token::Semicolon))(input)?;
+    let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, value))
 }
 
@@ -65,8 +65,8 @@ pub fn parse_struct_definition<'t>(
     });
 
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, members) = nom::multi::many0(contextual(parse_struct_entry, st))(input)?;
-    let (input, _) = nom::multi::many0(parse_token(Token::Semicolon))(input)?;
+    let (input, members) = parse_multiple(contextual(parse_struct_entry, st))(input)?;
+    let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let sd = StructDefinition { name, members };

@@ -60,7 +60,7 @@ fn parse_template_args_req<'t>(
     st: &SymbolTable,
 ) -> ParseResult<'t, Vec<Located<Type>>> {
     let (input, _) = match_left_angle_bracket(input)?;
-    let (input, type_args) = nom::multi::separated_list0(
+    let (input, type_args) = parse_list(
         parse_token(Token::Comma),
         locate(contextual(parse_type, st)),
     )(input)?;
@@ -187,7 +187,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         };
         let (input, dtyl) = parse_data_layout(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, list) = nom::multi::separated_list0(
+        let (input, list) = parse_list(
             parse_token(Token::Comma),
             contextual(parse_expression_no_seq, st),
         )(input)?;

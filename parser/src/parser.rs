@@ -102,6 +102,85 @@ fn locate<'t, 's, T>(
     }
 }
 
+/// Parse a list of elements separated with the given separator
+fn parse_list_base<'t, T, G>(
+    parse_separator: impl Fn(&'t [LexToken]) -> ParseResult<G>,
+    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+    allow_empty: bool,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    move |input: &'t [LexToken]| {
+        match parse_element(input) {
+            Ok((rest, element)) => {
+                let mut input = rest;
+                let mut values = Vec::from([element]);
+
+                while let Ok((after_sep, _)) = parse_separator(input) {
+                    match parse_element(after_sep) {
+                        Ok((rest, element)) => {
+                            values.push(element);
+                            input = rest;
+                        }
+                        // If we failed to parse the element then finish
+                        // We finish before the last separator so trailing separators are not captured
+                        Err(nom::Err::Error(ParseErrorContext(rest, _))) if rest == after_sep => {
+                            break
+                        }
+                        // If we failed to parse but made progress into parsing then fail
+                        Err(err) => return Err(err),
+                    }
+                }
+
+                Ok((input, values))
+            }
+            // If we failed to parse the first element at all then return an empty list
+            Err(nom::Err::Error(ParseErrorContext(rest, _))) if allow_empty && rest == input => {
+                Ok((input, Vec::new()))
+            }
+            // If we failed to parse the first element but made progress in parsing it then fail
+            Err(err) => Err(err),
+        }
+    }
+}
+
+/// Parse a list of zero or more elements separated with the given separator
+fn parse_list<'t, T, G>(
+    parse_separator: impl Fn(&'t [LexToken]) -> ParseResult<G>,
+    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_list_base(parse_separator, parse_element, true)
+}
+
+/// Parse a list of one or more elements separated with the given separator
+fn parse_list_nonempty<'t, T, G>(
+    parse_separator: impl Fn(&'t [LexToken]) -> ParseResult<G>,
+    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_list_base(parse_separator, parse_element, false)
+}
+
+/// Parse a list of zero or more elements with no separator
+fn parse_multiple<'t, T>(
+    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_list_base(|i| Ok((i, ())), parse_element, true)
+}
+
+/// Parse an element or nothing
+fn parse_optional<'t, T>(
+    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Option<T>> {
+    move |input: &'t [LexToken]| {
+        match parse_element(input) {
+            // If we succeeded then return the element
+            Ok((rest, element)) => Ok((rest, Some(element))),
+            // If we failed to parse the element at all then return nothing
+            Err(nom::Err::Error(ParseErrorContext(rest, _))) if rest == input => Ok((input, None)),
+            // If we failed to parse the element but made progress in parsing it then fail
+            Err(err) => Err(err),
+        }
+    }
+}
+
 /// Parse an exact token from the start of the stream
 fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<LexToken> {
     move |input: &'t [LexToken]| match input {

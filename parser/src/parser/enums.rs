@@ -25,10 +25,8 @@ pub fn parse_enum_definition<'t>(
     let (input, _) = parse_token(Token::Enum)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, values) = nom::multi::separated_list0(
-        parse_token(Token::Comma),
-        contextual(parse_enum_value, st),
-    )(input)?;
+    let (input, values) =
+        parse_list(parse_token(Token::Comma), contextual(parse_enum_value, st))(input)?;
     // Read optional trailing comma on last element
     let input = if !values.is_empty() {
         match parse_token(Token::Comma)(input) {
