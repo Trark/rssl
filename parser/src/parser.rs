@@ -85,9 +85,9 @@ fn contextual<'t, 's, T>(
 }
 
 /// Augment a parser with location information
-fn locate<'t, 's, T>(
-    parser: impl Fn(&'t [LexToken]) -> ParseResult<T> + 's,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Located<T>> + 's {
+fn locate<'t, T>(
+    parser: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<Located<T>> {
     move |input: &'t [LexToken]| match parser(input) {
         Ok((after, value)) => {
             assert_ne!(
