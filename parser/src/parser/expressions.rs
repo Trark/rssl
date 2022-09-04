@@ -214,7 +214,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
                     input = rest;
                     rights.push(right);
                 }
-                Err(nom::Err::Error(ParseErrorContext(rest, _))) if rest == input => {
+                Err(ParseErrorContext(rest, _)) if rest == input => {
                     break;
                 }
                 Err(err) => return Err(err),

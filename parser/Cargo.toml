@@ -10,7 +10,6 @@ doctest = false
 rssl-text = { path = "../text" }
 rssl-tok = { path = "../tok" }
 rssl-ast = { path = "../ast" }
-nom = "7.1.1"
 
 [dev-dependencies]
 rssl-preprocess = { path = "../preprocess" }

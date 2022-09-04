@@ -12,17 +12,13 @@ impl ParseError {
 
     /// Make an error for when there were unused tokens after parsing
     pub fn from_tokens_remaining(remaining: &[LexToken]) -> Self {
-        ParseError(ParseErrorReason::FailedToParse, Some(remaining.to_vec()))
+        ParseError(ParseErrorReason::TokensUnconsumed, Some(remaining.to_vec()))
     }
 }
 
-impl<'a> From<nom::Err<ParseErrorContext<'a>>> for ParseError {
-    fn from(internal_error: nom::Err<ParseErrorContext<'a>>) -> ParseError {
-        match internal_error {
-            nom::Err::Error(ParseErrorContext(rest, err)) => ParseError(err, Some(rest.to_vec())),
-            nom::Err::Failure(ParseErrorContext(rest, err)) => ParseError(err, Some(rest.to_vec())),
-            nom::Err::Incomplete(_) => ParseError(ParseErrorReason::UnexpectedEndOfStream, None),
-        }
+impl<'a> From<ParseErrorContext<'a>> for ParseError {
+    fn from(internal_error: ParseErrorContext<'a>) -> ParseError {
+        ParseError(internal_error.1, Some(internal_error.0.to_vec()))
     }
 }
 
@@ -72,42 +68,34 @@ impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
 /// The basic reason for a parse failure
 #[derive(PartialEq, Debug, Clone)]
 pub enum ParseErrorReason {
-    Unknown,
     UnexpectedEndOfStream,
     TokensUnconsumed,
-    FailedToParse,
     WrongToken,
     WrongSlotType,
     UnknownType,
-    DuplicateStructSymbol,
-    DuplicateEnumSymbol,
     SymbolIsNotAStructuredType,
     UnexpectedAttribute(String),
-    ErrorKind(nom::error::ErrorKind),
 }
 
 impl ParseErrorReason {
     pub fn into_result<T>(self, remaining: &[LexToken]) -> ParseResult<T> {
-        Err(nom::Err::Error(ParseErrorContext(remaining, self)))
+        Err(ParseErrorContext(remaining, self))
     }
 
     pub fn wrong_token<T>(remaining: &[LexToken]) -> ParseResult<T> {
-        Err(nom::Err::Error(ParseErrorContext(
-            remaining,
-            ParseErrorReason::WrongToken,
-        )))
+        Err(ParseErrorContext(remaining, ParseErrorReason::WrongToken))
     }
 
     pub fn end_of_stream<'t, T>() -> ParseResult<'t, T> {
-        Err(nom::Err::Error(ParseErrorContext(
+        Err(ParseErrorContext(
             &[],
             ParseErrorReason::UnexpectedEndOfStream,
-        )))
+        ))
     }
 }
 
 /// Result type for internal parse functions
-pub type ParseResult<'t, T> = nom::IResult<&'t [LexToken], T, ParseErrorContext<'t>>;
+pub type ParseResult<'t, T> = Result<(&'t [LexToken], T), ParseErrorContext<'t>>;
 
 pub trait ParseResultExt {
     /// Choose between two results based on the longest amount they parsed
@@ -125,31 +113,11 @@ impl<'t, T> ParseResultExt for ParseResult<'t, T> {
 #[derive(PartialEq, Debug, Clone)]
 pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub ParseErrorReason);
 
-impl<'a> nom::error::ParseError<&'a [LexToken]> for ParseErrorContext<'a> {
-    fn from_error_kind(input: &'a [LexToken], kind: nom::error::ErrorKind) -> Self {
-        ParseErrorContext(input, ParseErrorReason::ErrorKind(kind))
-    }
-
-    fn append(_: &[LexToken], _: nom::error::ErrorKind, other: Self) -> Self {
-        other
-    }
-
-    fn or(self, other: Self) -> Self {
-        if other.0.len() < self.0.len() {
-            other
-        } else {
-            self
-        }
-    }
-}
-
 /// Get the significance value for a result
 fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
     match result {
         Ok((rest, _)) => rest.len(),
-        Err(nom::Err::Incomplete(_)) => 0,
-        Err(nom::Err::Error(ParseErrorContext(rest, _))) => rest.len(),
-        Err(nom::Err::Failure(ParseErrorContext(rest, _))) => rest.len(),
+        Err(ParseErrorContext(rest, _)) => rest.len(),
     }
 }
 

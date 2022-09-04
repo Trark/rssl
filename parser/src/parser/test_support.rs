@@ -149,13 +149,15 @@ impl<
                     );
                 }
             }
-            Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
+            Err(ParseErrorContext(_, ParseErrorReason::UnexpectedEndOfStream)) => {
+                panic!("Unexpected end of stream")
+            }
+            Err(err) => {
                 assert_eq!(
                     (err.1, err.0[0].1),
                     (error_reason, SourceLocation::first().offset(offset))
                 );
             }
-            Err(nom::Err::Incomplete(_)) => panic!("Unexpected end of stream"),
         }
     }
 }
