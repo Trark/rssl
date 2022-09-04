@@ -13,19 +13,14 @@ fn expr_literal(input: &[LexToken]) -> ParseResult<Located<Expression>> {
                 Token::LiteralDouble(v) => Literal::Double(v),
                 Token::True => Literal::Bool(true),
                 Token::False => Literal::Bool(false),
-                _ => {
-                    return Err(nom::Err::Error(ParseErrorContext(
-                        input,
-                        ParseErrorReason::WrongToken,
-                    )))
-                }
+                _ => return ParseErrorReason::wrong_token(input),
             };
             Ok((
                 &input[1..],
                 Located::new(Expression::Literal(literal), *loc),
             ))
         }
-        None => Err(nom::Err::Incomplete(nom::Needed::new(1))),
+        None => ParseErrorReason::end_of_stream(),
     }
 }
 
@@ -188,7 +183,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         let loc = if !input.is_empty() {
             input[0].1
         } else {
-            return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+            return ParseErrorReason::end_of_stream();
         };
         let (input, dtyl) = parse_data_layout(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
@@ -409,16 +404,11 @@ fn expr_p3<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
                     Token::Asterix => BinOp::Multiply,
                     Token::ForwardSlash => BinOp::Divide,
                     Token::Percent => BinOp::Modulus,
-                    _ => {
-                        return Err(nom::Err::Error(ParseErrorContext(
-                            input,
-                            ParseErrorReason::WrongToken,
-                        )))
-                    }
+                    _ => return ParseErrorReason::wrong_token(input),
                 };
                 Ok((&input[1..], op))
             }
-            None => Err(nom::Err::Incomplete(nom::Needed::new(1))),
+            None => ParseErrorReason::end_of_stream(),
         }
     }
 
@@ -432,16 +422,11 @@ fn expr_p4<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
                 let op = match *tok {
                     Token::Plus => BinOp::Add,
                     Token::Minus => BinOp::Subtract,
-                    _ => {
-                        return Err(nom::Err::Error(ParseErrorContext(
-                            input,
-                            ParseErrorReason::WrongToken,
-                        )))
-                    }
+                    _ => return ParseErrorReason::wrong_token(input),
                 };
                 Ok((&input[1..], op))
             }
-            None => Err(nom::Err::Incomplete(nom::Needed::new(1))),
+            None => ParseErrorReason::end_of_stream(),
         }
     }
 
@@ -457,11 +442,8 @@ fn expr_p5<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
             [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(_), _), rest @ ..] => {
                 Ok((rest, BinOp::RightShift))
             }
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -479,11 +461,8 @@ fn expr_p6<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
             }
             [LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => Ok((rest, BinOp::LessThan)),
             [LexToken(Token::RightAngleBracket(_), _), rest @ ..] => Ok((rest, BinOp::GreaterThan)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -497,11 +476,8 @@ fn expr_p7<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
             [LexToken(Token::ExclamationPointEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::Inequality))
             }
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -512,11 +488,8 @@ fn expr_p8<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Ampersand, _), rest @ ..] => Ok((rest, BinOp::BitwiseAnd)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -527,11 +500,8 @@ fn expr_p9<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Hat, _), rest @ ..] => Ok((rest, BinOp::BitwiseXor)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -542,11 +512,8 @@ fn expr_p10<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::VerticalBar, _), rest @ ..] => Ok((rest, BinOp::BitwiseOr)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -557,11 +524,8 @@ fn expr_p11<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::AmpersandAmpersand, _), rest @ ..] => Ok((rest, BinOp::BooleanAnd)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -572,11 +536,8 @@ fn expr_p12<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::VerticalBarVerticalBar, _), rest @ ..] => Ok((rest, BinOp::BooleanOr)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -622,11 +583,8 @@ fn expr_p14<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
             [LexToken(Token::PercentEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::RemainderAssignment))
             }
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
@@ -657,11 +615,8 @@ fn expr_p15<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Comma, _), rest @ ..] => Ok((rest, BinOp::Sequence)),
-            [] => Err(nom::Err::Incomplete(nom::Needed::new(1))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            [] => ParseErrorReason::end_of_stream(),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 

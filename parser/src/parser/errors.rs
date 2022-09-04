@@ -86,6 +86,26 @@ pub enum ParseErrorReason {
     ErrorKind(nom::error::ErrorKind),
 }
 
+impl ParseErrorReason {
+    pub fn into_result<T>(self, remaining: &[LexToken]) -> ParseResult<T> {
+        Err(nom::Err::Error(ParseErrorContext(remaining, self)))
+    }
+
+    pub fn wrong_token<T>(remaining: &[LexToken]) -> ParseResult<T> {
+        Err(nom::Err::Error(ParseErrorContext(
+            remaining,
+            ParseErrorReason::WrongToken,
+        )))
+    }
+
+    pub fn end_of_stream<'t, T>() -> ParseResult<'t, T> {
+        Err(nom::Err::Error(ParseErrorContext(
+            &[],
+            ParseErrorReason::UnexpectedEndOfStream,
+        )))
+    }
+}
+
 /// Result type for internal parse functions
 pub type ParseResult<'t, T> = nom::IResult<&'t [LexToken], T, ParseErrorContext<'t>>;
 

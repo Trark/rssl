@@ -25,7 +25,7 @@ pub fn parse_initializer<'t>(
     }
 
     if input.is_empty() {
-        Err(nom::Err::Incomplete(nom::Needed::new(1)))
+        ParseErrorReason::end_of_stream()
     } else {
         match input[0].0 {
             Token::Equals => match init_any(&input[1..], st) {
@@ -44,10 +44,7 @@ fn test_initializer() {
         parse_initializer(input, &st)
     }
 
-    assert_eq!(
-        initializer(&[]),
-        Err(nom::Err::Incomplete(nom::Needed::new(1)))
-    );
+    assert_eq!(initializer(&[]), ParseErrorReason::end_of_stream());
 
     // Semicolon to trigger parsing to end
     let semicolon = LexToken::with_no_loc(Token::Semicolon);
@@ -232,7 +229,7 @@ fn parse_statement<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'
         Err(err) => return Err(err),
     };
     if input.is_empty() {
-        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+        return ParseErrorReason::end_of_stream();
     }
     let (head, tail) = (input[0].clone(), &input[1..]);
     match head {
@@ -244,7 +241,7 @@ fn parse_statement<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'
             let (input, inner_statement) = parse_statement(input, st)?;
             let inner_statement = Box::new(inner_statement);
             if input.is_empty() {
-                return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+                return ParseErrorReason::end_of_stream();
             }
             let (head, tail) = (input[0].clone(), &input[1..]);
             match head {
@@ -330,18 +327,17 @@ pub fn statement_block<'t>(
     };
     loop {
         let last_def = parse_statement(rest, st);
-        if let Ok((remaining, root)) = last_def {
-            statements.push(root);
-            rest = remaining;
-        } else {
-            return match parse_token(Token::RightBrace)(rest) {
-                Ok((rest, _)) => Ok((rest, statements)),
-                Err(nom::Err::Incomplete(needed)) => Err(nom::Err::Incomplete(needed)),
-                Err(_) => match last_def {
-                    Ok(_) => unreachable!(),
-                    Err(err) => Err(err),
-                },
-            };
+        match last_def {
+            Ok((remaining, root)) => {
+                statements.push(root);
+                rest = remaining;
+            }
+            Err(last_def_err) => {
+                return match parse_token(Token::RightBrace)(rest) {
+                    Ok((rest, _)) => Ok((rest, statements)),
+                    Err(_) => Err(last_def_err),
+                };
+            }
         }
     }
 }

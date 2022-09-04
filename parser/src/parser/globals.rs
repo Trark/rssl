@@ -3,7 +3,7 @@ use super::*;
 /// Parse the type for a global variable
 fn parse_global_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, GlobalType> {
     if input.is_empty() {
-        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+        return ParseErrorReason::end_of_stream();
     }
     // Interpolation modifiers unimplemented
     // Non-standard combinations of storage classes unimplemented
@@ -73,15 +73,9 @@ fn parse_constant_slot(input: &[LexToken]) -> ParseResult<ConstantSlot> {
     match input {
         [LexToken(Token::Colon, _), LexToken(Token::Register(reg), _), rest @ ..] => match *reg {
             RegisterSlot::B(slot) => Ok((rest, ConstantSlot(slot))),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongSlotType,
-            ))),
+            _ => ParseErrorReason::WrongSlotType.into_result(input),
         },
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
@@ -123,10 +117,7 @@ fn parse_global_slot(input: &[LexToken]) -> ParseResult<GlobalSlot> {
             RegisterSlot::S(slot) => Ok((rest, GlobalSlot::SamplerSlot(slot))),
             RegisterSlot::B(slot) => Ok((rest, GlobalSlot::ConstantSlot(slot))),
         },
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 

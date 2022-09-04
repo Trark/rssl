@@ -6,10 +6,7 @@ fn parse_input_modifier(input: &[LexToken]) -> ParseResult<InputModifier> {
         [LexToken(Token::In, _), rest @ ..] => Ok((rest, InputModifier::In)),
         [LexToken(Token::Out, _), rest @ ..] => Ok((rest, InputModifier::Out)),
         [LexToken(Token::InOut, _), rest @ ..] => Ok((rest, InputModifier::InOut)),
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
@@ -17,7 +14,6 @@ fn parse_input_modifier(input: &[LexToken]) -> ParseResult<InputModifier> {
 fn parse_param_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, ParamType> {
     let (input, it) = match parse_input_modifier(input) {
         Ok((input, it)) => (input, it),
-        Err(nom::Err::Incomplete(needed)) => return Err(nom::Err::Incomplete(needed)),
         Err(_) => (input, InputModifier::default()),
     };
     // Todo: interpolation modifiers
@@ -32,15 +28,9 @@ fn parse_numthreads(input: &[LexToken]) -> ParseResult<()> {
     match input.first() {
         Some(LexToken(Token::Id(Identifier(name)), _)) => match &name[..] {
             "numthreads" => Ok((&input[1..], ())),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::UnexpectedAttribute(name.clone()),
-            ))),
+            _ => ParseErrorReason::UnexpectedAttribute(name.clone()).into_result(input),
         },
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
@@ -95,10 +85,7 @@ fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
             };
             Ok((&input[1..], semantic))
         }
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 

@@ -113,22 +113,19 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<TypeLayout> {
     // Parse a vector dimension as a token
     fn parse_digit(input: &[LexToken]) -> ParseResult<u32> {
         if input.is_empty() {
-            return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+            return ParseErrorReason::end_of_stream();
         }
 
         match input[0] {
             LexToken(Token::LiteralInt(i), _) => Ok((&input[1..], i as u32)),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
     // Parse scalar type as a full token
     fn parse_scalartype(input: &[LexToken]) -> ParseResult<ScalarType> {
         if input.is_empty() {
-            return Err(nom::Err::Incomplete(nom::Needed::new(1)));
+            return ParseErrorReason::end_of_stream();
         }
 
         match input[0] {
@@ -138,28 +135,18 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<TypeLayout> {
                         if rest.is_empty() {
                             Ok((&input[1..], ty))
                         } else {
-                            Err(nom::Err::Error(ParseErrorContext(
-                                input,
-                                ParseErrorReason::UnknownType,
-                            )))
+                            ParseErrorReason::UnknownType.into_result(input)
                         }
                     }
-                    Err(nom::Err::Incomplete(rem)) => Err(nom::Err::Incomplete(rem)),
-                    Err(_) => Err(nom::Err::Error(ParseErrorContext(
-                        input,
-                        ParseErrorReason::UnknownType,
-                    ))),
+                    Err(_) => ParseErrorReason::UnknownType.into_result(input),
                 }
             }
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 
     if input.is_empty() {
-        Err(nom::Err::Incomplete(nom::Needed::new(1)))
+        ParseErrorReason::end_of_stream()
     } else {
         match &input[0] {
             &LexToken(Token::Id(Identifier(ref name)), _) => match &name[..] {
@@ -183,16 +170,10 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<TypeLayout> {
                 }
                 _ => match parse_datalayout_str(&name[..]) {
                     Some(ty) => Ok((&input[1..], ty)),
-                    None => Err(nom::Err::Error(ParseErrorContext(
-                        input,
-                        ParseErrorReason::UnknownType,
-                    ))),
+                    None => ParseErrorReason::UnknownType.into_result(input),
                 },
             },
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 }
@@ -200,23 +181,17 @@ pub fn parse_data_layout(input: &[LexToken]) -> ParseResult<TypeLayout> {
 /// Parse the void type
 fn parse_voidtype(input: &[LexToken]) -> ParseResult<TypeLayout> {
     if input.is_empty() {
-        Err(nom::Err::Incomplete(nom::Needed::new(1)))
+        ParseErrorReason::end_of_stream()
     } else {
         match &input[0] {
             &LexToken(Token::Id(Identifier(ref name)), _) => {
                 if name == "void" {
                     Ok((&input[1..], TypeLayout::Void))
                 } else {
-                    Err(nom::Err::Error(ParseErrorContext(
-                        input,
-                        ParseErrorReason::UnknownType,
-                    )))
+                    ParseErrorReason::UnknownType.into_result(input)
                 }
             }
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
+            _ => ParseErrorReason::wrong_token(input),
         }
     }
 }
@@ -248,10 +223,7 @@ fn parse_type_layout<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult
             Some(&SymbolType::TemplateType) => {
                 Ok((input, TypeLayout::Custom(name.clone(), Vec::new())))
             }
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::SymbolIsNotAStructuredType,
-            ))),
+            _ => ParseErrorReason::SymbolIsNotAStructuredType.into_result(input),
         },
         Err(err) => Err(err),
     }

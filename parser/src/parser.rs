@@ -104,17 +104,9 @@ fn locate<'t, 's, T>(
 
 /// Parse an exact token from the start of the stream
 fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<LexToken> {
-    move |input: &'t [LexToken]| {
-        if input.is_empty() {
-            return Err(nom::Err::Incomplete(nom::Needed::new(1)));
-        }
-        match input[0] {
-            LexToken(ref t, _) if *t == token => Ok((&input[1..], input[0].clone())),
-            _ => Err(nom::Err::Error(ParseErrorContext(
-                input,
-                ParseErrorReason::WrongToken,
-            ))),
-        }
+    move |input: &'t [LexToken]| match input {
+        [tok @ LexToken(ref t, _), rest @ ..] if *t == token => Ok((rest, tok.clone())),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
@@ -122,10 +114,7 @@ fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<LexTo
 fn match_identifier(input: &[LexToken]) -> ParseResult<&Identifier> {
     match input {
         [LexToken(Token::Id(ref id), _), rest @ ..] => Ok((rest, id)),
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
@@ -133,10 +122,7 @@ fn match_identifier(input: &[LexToken]) -> ParseResult<&Identifier> {
 fn match_left_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
     match input {
         [first @ LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => Ok((rest, first.clone())),
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
@@ -144,27 +130,17 @@ fn match_left_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
 fn match_right_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
     match input {
         [first @ LexToken(Token::RightAngleBracket(_), _), rest @ ..] => Ok((rest, first.clone())),
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
 /// Parsing identifier that may be a variable name
 fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
-    if input.is_empty() {
-        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
-    }
-
-    match &input[0] {
-        LexToken(Token::Id(Identifier(name)), loc) => {
-            Ok((&input[1..], Located::new(name.clone(), *loc)))
+    match input {
+        [LexToken(Token::Id(Identifier(name)), loc), rest @ ..] => {
+            Ok((rest, Located::new(name.clone(), *loc)))
         }
-        _ => Err(nom::Err::Error(ParseErrorContext(
-            input,
-            ParseErrorReason::WrongToken,
-        ))),
+        _ => ParseErrorReason::wrong_token(input),
     }
 }
 
