@@ -1,7 +1,12 @@
 use super::*;
 
+enum PrimitiveTypeError {
+    UnexpectedCharacter,
+    EndOfStream,
+}
+
 // Parse scalar type as part of a string
-fn parse_scalartype_str(input: &[u8]) -> nom::IResult<&[u8], ScalarType> {
+fn parse_scalartype_str(input: &[u8]) -> Result<(&[u8], ScalarType), PrimitiveTypeError> {
     match input {
         [b'b', b'o', b'o', b'l', rest @ ..] => Ok((rest, ScalarType::Bool)),
         [b'i', b'n', b't', rest @ ..] => Ok((rest, ScalarType::Int)),
@@ -10,22 +15,16 @@ fn parse_scalartype_str(input: &[u8]) -> nom::IResult<&[u8], ScalarType> {
         [b'h', b'a', b'l', b'f', rest @ ..] => Ok((rest, ScalarType::Half)),
         [b'f', b'l', b'o', b'a', b't', rest @ ..] => Ok((rest, ScalarType::Float)),
         [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Ok((rest, ScalarType::Double)),
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        ))),
+        _ => Err(PrimitiveTypeError::UnexpectedCharacter),
     }
 }
 
 // Parse data type as part of a string
 fn parse_datalayout_str(typename: &str) -> Option<TypeLayout> {
-    fn digit(input: &[u8]) -> nom::IResult<&[u8], u32> {
+    fn digit(input: &[u8]) -> Result<(&[u8], u32), PrimitiveTypeError> {
         // Handle end of stream
         if input.is_empty() {
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Tag,
-            )));
+            return Err(PrimitiveTypeError::EndOfStream);
         };
 
         // Match on the next character
@@ -36,10 +35,7 @@ fn parse_datalayout_str(typename: &str) -> Option<TypeLayout> {
             b'4' => 4,
             _ => {
                 // Not a digit
-                return Err(nom::Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::Tag,
-                )));
+                return Err(PrimitiveTypeError::UnexpectedCharacter);
             }
         };
 
@@ -47,7 +43,7 @@ fn parse_datalayout_str(typename: &str) -> Option<TypeLayout> {
         Ok((&input[1..], n))
     }
 
-    fn parse_str(input: &[u8]) -> nom::IResult<&[u8], TypeLayout> {
+    fn parse_str(input: &[u8]) -> Result<(&[u8], TypeLayout), PrimitiveTypeError> {
         let (rest, ty) = parse_scalartype_str(input)?;
         if rest.is_empty() {
             return Ok((&[], TypeLayout::Scalar(ty)));
@@ -60,12 +56,7 @@ fn parse_datalayout_str(typename: &str) -> Option<TypeLayout> {
 
         let rest = match rest.first() {
             Some(b'x') => &rest[1..],
-            _ => {
-                return Err(nom::Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::Tag,
-                )))
-            }
+            _ => return Err(PrimitiveTypeError::UnexpectedCharacter),
         };
 
         let (rest, y) = digit(rest)?;
@@ -73,10 +64,7 @@ fn parse_datalayout_str(typename: &str) -> Option<TypeLayout> {
             return Ok((&[], TypeLayout::Matrix(ty, x, y)));
         }
 
-        Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        )))
+        Err(PrimitiveTypeError::UnexpectedCharacter)
     }
 
     match parse_str(typename[..].as_bytes()) {
