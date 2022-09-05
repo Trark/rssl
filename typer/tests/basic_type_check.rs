@@ -266,3 +266,20 @@ fn check_cast() {
     check_types("struct S {}; ByteAddressBuffer buf; void f() { S x = (S)buf.Load<S>(0); }");
     check_types("struct S {}; ByteAddressBuffer buf; void f() { S x = buf.Load<S>(0); }");
 }
+
+#[test]
+fn check_cast_or_not() {
+    // If a or b are types changes how the expression parses
+    check_types("int a; int b; int c; void f() { (a) + (b) + (c); }");
+    check_types("struct a {}; struct b {}; int c; void f() { (a) + (b) + (c); }");
+
+    // These fail due to creating + expressions between custom types and ints
+    check_fail("struct a {}; int b; int c; void f() { (a) + (b) + (c); }");
+    check_fail("int a; struct b {}; int c; void f() { (a) + (b) + (c); }");
+
+    // Although c can never be a type in this expression
+    check_fail("int a; int b; struct c {}; void f() { (a) + (b) + (c); }");
+    check_fail("struct a {}; int b; struct c {}; void f() { (a) + (b) + (c); }");
+    check_fail("struct a {}; struct b {}; struct c {}; void f() { (a) + (b) + (c); }");
+    check_fail("int a; struct b {}; struct c {}; void f() { (a) + (b) + (c); }");
+}

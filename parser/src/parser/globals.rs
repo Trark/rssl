@@ -1,7 +1,7 @@
 use super::*;
 
 /// Parse the type for a global variable
-fn parse_global_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, GlobalType> {
+fn parse_global_type(input: &[LexToken]) -> ParseResult<GlobalType> {
     if input.is_empty() {
         return ParseErrorReason::end_of_stream();
     }
@@ -13,18 +13,15 @@ fn parse_global_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult
         LexToken(Token::Extern, _) => (&input[1..], Some(GlobalStorage::Extern)),
         _ => (input, None),
     };
-    let (input, ty) = parse_type(input, st)?;
+    let (input, ty) = parse_type(input)?;
     let gt = GlobalType(ty, gs.unwrap_or_default(), None);
     Ok((input, gt))
 }
 
 /// Parse a single named constant in a constant buffer definition
-fn parse_constant_variable_name<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, ConstantVariableName> {
+fn parse_constant_variable_name(input: &[LexToken]) -> ParseResult<ConstantVariableName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = parse_optional(|input| parse_arraydim(input, st))(input)?;
+    let (input, array_dim) = parse_optional(parse_arraydim)(input)?;
     let v = ConstantVariableName {
         name: name.to_node(),
         bind: match array_dim {
@@ -37,15 +34,10 @@ fn parse_constant_variable_name<'t>(
 }
 
 /// Parse a single line in a constant buffer definition
-fn parse_constant_variable<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, ConstantVariable> {
-    let (input, typename) = parse_type(input, st)?;
-    let (input, defs) = parse_list_nonempty(
-        parse_token(Token::Comma),
-        contextual(parse_constant_variable_name, st),
-    )(input)?;
+fn parse_constant_variable(input: &[LexToken]) -> ParseResult<ConstantVariable> {
+    let (input, typename) = parse_type(input)?;
+    let (input, defs) =
+        parse_list_nonempty(parse_token(Token::Comma), parse_constant_variable_name)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let var = ConstantVariable { ty: typename, defs };
     Ok((input, var))
@@ -83,20 +75,17 @@ fn parse_constant_slot(input: &[LexToken]) -> ParseResult<ConstantSlot> {
 fn test_constant_slot() {
     use test_support::*;
 
-    let cbuffer_register = ParserTester::new(|input, _| parse_constant_slot(input));
+    let cbuffer_register = ParserTester::new(parse_constant_slot);
     cbuffer_register.check(" : register(b12) ", ConstantSlot(12));
 }
 
 /// Parse a constant buffer definition
-pub fn parse_constant_buffer<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, ConstantBuffer> {
+pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<ConstantBuffer> {
     let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, slot) = parse_optional(parse_constant_slot)(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, members) = parse_multiple(contextual(parse_constant_variable, st))(input)?;
+    let (input, members) = parse_multiple(parse_constant_variable)(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let cb = ConstantBuffer {
         name,
@@ -120,14 +109,11 @@ fn parse_global_slot(input: &[LexToken]) -> ParseResult<GlobalSlot> {
 }
 
 /// Parse a single name in a global variable definition
-fn parse_global_variable_name<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, GlobalVariableName> {
+fn parse_global_variable_name(input: &[LexToken]) -> ParseResult<GlobalVariableName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = parse_optional(|input| parse_arraydim(input, st))(input)?;
+    let (input, array_dim) = parse_optional(parse_arraydim)(input)?;
     let (input, slot) = parse_optional(parse_global_slot)(input)?;
-    let (input, init) = parse_initializer(input, st)?;
+    let (input, init) = parse_initializer(input)?;
     let v = GlobalVariableName {
         name,
         bind: match array_dim {
@@ -141,15 +127,10 @@ fn parse_global_variable_name<'t>(
 }
 
 /// Parse a global variable definition
-pub fn parse_global_variable<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, GlobalVariable> {
-    let (input, typename) = parse_global_type(input, st)?;
-    let (input, defs) = parse_list_nonempty(
-        parse_token(Token::Comma),
-        contextual(parse_global_variable_name, st),
-    )(input)?;
+pub fn parse_global_variable(input: &[LexToken]) -> ParseResult<GlobalVariable> {
+    let (input, typename) = parse_global_type(input)?;
+    let (input, defs) =
+        parse_list_nonempty(parse_token(Token::Comma), parse_global_variable_name)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let var = GlobalVariable {
         global_type: typename,

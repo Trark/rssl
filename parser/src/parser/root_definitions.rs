@@ -5,33 +5,30 @@ use globals::{parse_constant_buffer, parse_global_variable};
 use structs::parse_struct_definition;
 
 /// Parse a root element in a shader document
-fn parse_root_definition<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, RootDefinition> {
-    let res = match parse_struct_definition(input, st) {
+fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
+    let res = match parse_struct_definition(input) {
         Ok((rest, structdef)) => Ok((rest, RootDefinition::Struct(structdef))),
         Err(err) => Err(err),
     };
 
-    let res = res.select(match parse_enum_definition(input, st) {
+    let res = res.select(match parse_enum_definition(input) {
         Ok((rest, enumdef)) => Ok((rest, RootDefinition::Enum(enumdef))),
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_constant_buffer(input, st) {
+    let res = res.select(match parse_constant_buffer(input) {
         Ok((rest, cbuffer)) => Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_global_variable(input, st) {
+    let res = res.select(match parse_global_variable(input) {
         Ok((rest, globalvariable)) => {
             return Ok((rest, RootDefinition::GlobalVariable(globalvariable)))
         }
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_function_definition(input, st) {
+    let res = res.select(match parse_function_definition(input) {
         Ok((rest, funcdef)) => return Ok((rest, RootDefinition::Function(funcdef))),
         Err(err) => Err(err),
     });
@@ -40,11 +37,8 @@ fn parse_root_definition<'t>(
 }
 
 /// Parse a root definition which may have many semicolons after it
-pub fn parse_root_definition_with_semicolon<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, RootDefinition> {
-    let (input, def) = parse_root_definition(input, st)?;
+pub fn parse_root_definition_with_semicolon(input: &[LexToken]) -> ParseResult<RootDefinition> {
+    let (input, def) = parse_root_definition(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, def))
 }
@@ -270,15 +264,9 @@ fn test_global_variable() {
             init: None,
         }],
     };
-    let test_buffersrv4_symbols = SymbolTable::from(&[("CustomType", SymbolType::Struct)]);
-    globalvariable.check_symbolic(
+    globalvariable.check(test_buffersrv4_str, test_buffersrv4_ast.clone());
+    rootdefinition.check(
         test_buffersrv4_str,
-        &test_buffersrv4_symbols,
-        test_buffersrv4_ast.clone(),
-    );
-    rootdefinition.check_symbolic(
-        test_buffersrv4_str,
-        &test_buffersrv4_symbols,
         RootDefinition::GlobalVariable(test_buffersrv4_ast),
     );
 

@@ -2,12 +2,9 @@ use super::functions::parse_function_definition;
 use super::*;
 
 /// Parse a struct member name in an entry
-fn parse_struct_member_name<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, StructMemberName> {
+fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = match parse_arraydim(input, st) {
+    let (input, array_dim) = match parse_arraydim(input) {
         Ok((input, array_dim)) => (input, Some(array_dim)),
         Err(_) => (input, None),
     };
@@ -22,50 +19,32 @@ fn parse_struct_member_name<'t>(
 }
 
 /// Parse a struct member variable - with potentially multiple members per line
-fn parse_struct_member<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, StructMember> {
-    let (input, typename) = parse_type(input, st)?;
-    let (input, defs) = parse_list_nonempty(
-        parse_token(Token::Comma),
-        contextual(parse_struct_member_name, st),
-    )(input)?;
+fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
+    let (input, typename) = parse_type(input)?;
+    let (input, defs) =
+        parse_list_nonempty(parse_token(Token::Comma), parse_struct_member_name)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let sm = StructMember { ty: typename, defs };
     Ok((input, sm))
 }
 
 /// Parse a struct member variable or method
-fn parse_struct_entry<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, StructEntry> {
+fn parse_struct_entry(input: &[LexToken]) -> ParseResult<StructEntry> {
     let variable_res =
-        parse_struct_member(input, st).map(|(input, def)| (input, StructEntry::Variable(def)));
+        parse_struct_member(input).map(|(input, def)| (input, StructEntry::Variable(def)));
     let method_res =
-        parse_function_definition(input, st).map(|(input, def)| (input, StructEntry::Method(def)));
+        parse_function_definition(input).map(|(input, def)| (input, StructEntry::Method(def)));
     let (input, value) = variable_res.select(method_res)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, value))
 }
 
 /// Parse a full struct definition
-pub fn parse_struct_definition<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, StructDefinition> {
+pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefinition> {
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;
-
-    // Add the struct name to the symbol table temporarily
-    // Will be added to containing scope later
-    // This needs better structure
-    let st = &SymbolTable({
-        let mut map = st.0.clone();
-        map.insert(name.node.clone(), SymbolType::Struct);
-        map
-    });
-
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, members) = parse_multiple(contextual(parse_struct_entry, st))(input)?;
+    let (input, members) = parse_multiple(parse_struct_entry)(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;

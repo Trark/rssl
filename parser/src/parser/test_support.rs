@@ -76,7 +76,7 @@ pub struct ParserTester<F, T>(F, std::marker::PhantomData<T>);
 
 impl<
         T: std::cmp::PartialEq + std::fmt::Debug,
-        F: for<'t> Fn(&'t [LexToken], &SymbolTable) -> ParseResult<'t, T>,
+        F: for<'t> Fn(&'t [LexToken]) -> ParseResult<'t, T>,
     > ParserTester<F, T>
 {
     /// Create a new tester object from a parse function
@@ -87,14 +87,8 @@ impl<
     /// Check that a source string parses into the given value
     #[track_caller]
     pub fn check(&self, input: &str, value: T) {
-        self.check_symbolic(input, &SymbolTable::default(), value);
-    }
-
-    /// Check that a source string parses into the given value - in the scope of a given symbol table
-    #[track_caller]
-    pub fn check_symbolic(&self, input: &str, symbols: &SymbolTable, value: T) {
         let (tokens, source_manager) = lex_from_str(input);
-        match (self.0)(&tokens, symbols) {
+        match (self.0)(&tokens) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     assert_eq!(exp, value);
@@ -112,19 +106,7 @@ impl<
     /// Check that a list of tokens parses into the given value
     #[track_caller]
     pub fn check_from_tokens(&self, input: &[LexToken], used_tokens: usize, value: T) {
-        self.check_symbolic_from_tokens(input, used_tokens, &SymbolTable::default(), value);
-    }
-
-    /// Check that a list of tokens string parses into the given value - in the scope of a given symbol table
-    #[track_caller]
-    pub fn check_symbolic_from_tokens(
-        &self,
-        input: &[LexToken],
-        used_tokens: usize,
-        symbols: &SymbolTable,
-        value: T,
-    ) {
-        match (self.0)(input, symbols) {
+        match (self.0)(input) {
             Ok((rem, exp)) if rem == &input[used_tokens..] => {
                 assert_eq!(exp, value);
             }
@@ -138,7 +120,7 @@ impl<
     #[track_caller]
     pub fn expect_fail(&self, input: &str, error_reason: ParseErrorReason, offset: u32) {
         let (tokens, _) = lex_from_str(input);
-        match (self.0)(&tokens, &SymbolTable::default()) {
+        match (self.0)(&tokens) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     panic!("{:?}", exp);

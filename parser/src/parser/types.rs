@@ -185,17 +185,12 @@ fn parse_voidtype(input: &[LexToken]) -> ParseResult<TypeLayout> {
 }
 
 /// Parse a type layout
-fn parse_type_layout<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, TypeLayout> {
+fn parse_type_layout_internal<'t>(
+    input: &'t [LexToken],
+    st: Option<&SymbolTable>,
+) -> ParseResult<'t, TypeLayout> {
     if let Ok((input, ty)) = parse_voidtype(input) {
         return Ok((input, ty));
-    }
-
-    // Attempt to parse a type from the symbol table which is not structured
-    if let Ok((input, Identifier(name))) = match_identifier(input) {
-        if let Some(&SymbolType::Object) = st.0.get(name) {
-            let (input, args) = expressions::parse_template_args(input, st)?;
-            return Ok((input, TypeLayout::Custom(name.clone(), args)));
-        }
     }
 
     // Attempt to parse a primitive structured type
@@ -205,33 +200,56 @@ fn parse_type_layout<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult
 
     // Attempt to parse a custom type
     match match_identifier(input) {
-        Ok((input, Identifier(name))) => match st.0.get(name) {
-            Some(&SymbolType::Struct) => Ok((input, TypeLayout::Custom(name.clone(), Vec::new()))),
-            Some(&SymbolType::Enum) => Ok((input, TypeLayout::Custom(name.clone(), Vec::new()))),
-            Some(&SymbolType::TemplateType) => {
-                Ok((input, TypeLayout::Custom(name.clone(), Vec::new())))
+        Ok((input, Identifier(name))) => {
+            let reject = {
+                if let Some(st) = st {
+                    st.reject_symbols.contains(name)
+                } else {
+                    false
+                }
+            };
+            if reject {
+                ParseErrorReason::SymbolIsNotAType.into_result(input)
+            } else {
+                let (input, args) = expressions::parse_template_args(input)?;
+                Ok((input, TypeLayout::Custom(name.clone(), args)))
             }
-            _ => ParseErrorReason::SymbolIsNotAStructuredType.into_result(input),
-        },
+        }
         Err(err) => Err(err),
     }
 }
 
 /// Parse a type
-pub fn parse_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Type> {
+fn parse_type_internal<'t>(
+    input: &'t [LexToken],
+    st: Option<&SymbolTable>,
+) -> ParseResult<'t, Type> {
     // Todo: modifiers that aren't const
     let (input, is_const) = match parse_token(Token::Const)(input) {
         Ok((input, _)) => (input, true),
         Err(_) => (input, false),
     };
 
-    let (input, tl) = parse_type_layout(input, st)?;
+    let (input, tl) = parse_type_layout_internal(input, st)?;
 
     let tm = TypeModifier {
         is_const,
         ..TypeModifier::default()
     };
     Ok((input, Type(tl, tm)))
+}
+
+/// Parse a type
+pub fn parse_type_with_symbols<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, Type> {
+    parse_type_internal(input, Some(st))
+}
+
+/// Parse a type
+pub fn parse_type(input: &[LexToken]) -> ParseResult<Type> {
+    parse_type_internal(input, None)
 }
 
 /// Parse a list of template parameters or no template parameters

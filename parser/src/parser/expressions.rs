@@ -1,3 +1,5 @@
+use super::errors::get_result_significance;
+use super::types::parse_type_with_symbols;
 use super::*;
 
 /// Try to parse a literal
@@ -27,17 +29,20 @@ fn expr_literal(input: &[LexToken]) -> ParseResult<Located<Expression>> {
 /// Try to parse an expression inside parenthesis
 fn expr_in_paren<'t>(
     input: &'t [LexToken],
-    st: &SymbolTable,
+    st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
     let (input, start) = parse_token(Token::LeftParen)(input)?;
-    let (input, expr) = parse_expression(input, st)?;
+    let (input, expr) = parse_expression_internal(input, st)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
 
     Ok((input, Located::new(expr.to_node(), start.to_loc())))
 }
 
 /// Try to parse one of the base components of an expression
-fn expr_leaf<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_leaf<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     // Try to parse an expression nested in parenthesis
     let res = expr_in_paren(input, st);
 
@@ -55,31 +60,25 @@ fn expr_leaf<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loc
 }
 
 /// Parse a list of template arguments
-fn parse_template_args_req<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, Vec<Located<Type>>> {
+fn parse_template_args_req(input: &[LexToken]) -> ParseResult<Vec<Located<Type>>> {
     let (input, _) = match_left_angle_bracket(input)?;
-    let (input, type_args) = parse_list(
-        parse_token(Token::Comma),
-        locate(contextual(parse_type, st)),
-    )(input)?;
+    let (input, type_args) = parse_list(parse_token(Token::Comma), locate(parse_type))(input)?;
     let (input, _) = match_right_angle_bracket(input)?;
     Ok((input, type_args))
 }
 
 /// Parse a list of template arguments or no arguments
-pub fn parse_template_args<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, Vec<Located<Type>>> {
-    match parse_template_args_req(input, st) {
+pub fn parse_template_args(input: &[LexToken]) -> ParseResult<Vec<Located<Type>>> {
+    match parse_template_args_req(input) {
         Ok(ok) => Ok(ok),
         Err(_) => Ok((input, Vec::new())),
     }
 }
 
-fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p1<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     #[derive(Clone)]
     enum Precedence1Postfix {
         Increment,
@@ -119,9 +118,9 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn expr_p1_call<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
-        let (input, template_args) = parse_template_args(input, st)?;
+        let (input, template_args) = parse_template_args(input)?;
 
         let (input, start) = parse_token(Token::LeftParen)(input)?;
 
@@ -129,7 +128,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         let mut args = Vec::new();
         if parse_token(Token::RightParen)(input).is_err() {
             loop {
-                let (rest, arg) = parse_expression_no_seq(input, st)?;
+                let (rest, arg) = parse_expression_no_seq_internal(input, st)?;
 
                 args.push(arg);
                 input = rest;
@@ -151,10 +150,10 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn expr_p1_subscript<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
         let (input, start) = parse_token(Token::LeftSquareBracket)(input)?;
-        let (input, subscript) = parse_expression_no_seq(input, st)?;
+        let (input, subscript) = parse_expression_no_seq_internal(input, st)?;
         let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
         Ok((
             input,
@@ -167,7 +166,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn expr_p1_right<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
         expr_p1_increment(input)
             .select(expr_p1_decrement(input))
@@ -178,7 +177,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn constructor<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let loc = if !input.is_empty() {
             input[0].1
@@ -187,10 +186,9 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
         };
         let (input, dtyl) = parse_data_layout(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, list) = parse_list(
-            parse_token(Token::Comma),
-            contextual(parse_expression_no_seq, st),
-        )(input)?;
+        let (input, list) = parse_list(parse_token(Token::Comma), |input| {
+            parse_expression_no_seq_internal(input, st)
+        })(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((
             input,
@@ -200,7 +198,7 @@ fn expr_p1<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn right_side_ops<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, left) = expr_leaf(input, st)?;
 
@@ -302,10 +300,13 @@ fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
         .select(unaryop_bitwise_not(input))
 }
 
-fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p2<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn expr_p2_unaryop<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, unary) = unaryop_prefix(input)?;
         let (input, expr) = expr_p2(input, st)?;
@@ -320,10 +321,13 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn expr_p2_cast<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
-        let (input, cast) = locate(contextual(parse_type, st))(input)?;
+        let (input, cast) = locate(contextual(parse_type_with_symbols, st))(input)?;
+        if let TypeLayout::Custom(name, _) = &cast.0 {
+            st.assumed_symbols.push(name.clone());
+        }
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st)?;
         Ok((
@@ -334,11 +338,11 @@ fn expr_p2<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
 
     fn expr_p2_sizeof<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::SizeOf)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, ty) = locate(contextual(parse_type, st))(input)?;
+        let (input, ty) = locate(contextual(parse_type_with_symbols, st))(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
     }
@@ -373,9 +377,9 @@ fn combine_rights(
 /// Parse multiple binary operations
 fn parse_binary_operations<'t>(
     operator_fn: impl Fn(&'t [LexToken]) -> ParseResult<'t, BinOp>,
-    expression_fn: impl Fn(&'t [LexToken], &SymbolTable) -> ParseResult<'t, Located<Expression>>,
+    expression_fn: impl Fn(&'t [LexToken], &mut SymbolTable) -> ParseResult<'t, Located<Expression>>,
     input: &'t [LexToken],
-    st: &SymbolTable,
+    st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
     let (input, left) = expression_fn(input, st)?;
 
@@ -396,7 +400,10 @@ fn parse_binary_operations<'t>(
     Ok((input, expr))
 }
 
-fn expr_p3<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p3<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input.first() {
             Some(LexToken(tok, _)) => {
@@ -415,7 +422,10 @@ fn expr_p3<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p2, input, st)
 }
 
-fn expr_p4<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p4<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input.first() {
             Some(LexToken(tok, _)) => {
@@ -433,7 +443,10 @@ fn expr_p4<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p3, input, st)
 }
 
-fn expr_p5<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p5<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => {
@@ -450,7 +463,10 @@ fn expr_p5<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p4, input, st)
 }
 
-fn expr_p6<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p6<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..] => {
@@ -469,7 +485,10 @@ fn expr_p6<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p5, input, st)
 }
 
-fn expr_p7<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p7<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::EqualsEquals, _), rest @ ..] => Ok((rest, BinOp::Equality)),
@@ -484,7 +503,10 @@ fn expr_p7<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p6, input, st)
 }
 
-fn expr_p8<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p8<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Ampersand, _), rest @ ..] => Ok((rest, BinOp::BitwiseAnd)),
@@ -496,7 +518,10 @@ fn expr_p8<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p7, input, st)
 }
 
-fn expr_p9<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p9<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Hat, _), rest @ ..] => Ok((rest, BinOp::BitwiseXor)),
@@ -508,7 +533,10 @@ fn expr_p9<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Locat
     parse_binary_operations(parse_op, expr_p8, input, st)
 }
 
-fn expr_p10<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p10<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::VerticalBar, _), rest @ ..] => Ok((rest, BinOp::BitwiseOr)),
@@ -520,7 +548,10 @@ fn expr_p10<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     parse_binary_operations(parse_op, expr_p9, input, st)
 }
 
-fn expr_p11<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p11<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::AmpersandAmpersand, _), rest @ ..] => Ok((rest, BinOp::BooleanAnd)),
@@ -532,7 +563,10 @@ fn expr_p11<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     parse_binary_operations(parse_op, expr_p10, input, st)
 }
 
-fn expr_p12<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p12<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::VerticalBarVerticalBar, _), rest @ ..] => Ok((rest, BinOp::BooleanOr)),
@@ -544,10 +578,13 @@ fn expr_p12<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     parse_binary_operations(parse_op, expr_p11, input, st)
 }
 
-fn expr_p13<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p13<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn ternary_right<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, (Located<Expression>, Located<Expression>)> {
         let (input, _) = parse_token(Token::QuestionMark)(input)?;
         let (input, left) = expr_p13(input, st)?;
@@ -570,7 +607,10 @@ fn expr_p13<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     }
 }
 
-fn expr_p14<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p14<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Equals, _), rest @ ..] => Ok((rest, BinOp::Assignment)),
@@ -590,7 +630,7 @@ fn expr_p14<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
 
     fn binary_right<'t>(
         input: &'t [LexToken],
-        st: &SymbolTable,
+        st: &mut SymbolTable,
     ) -> ParseResult<'t, (BinOp, Located<Expression>)> {
         let (input, op) = parse_op(input)?;
         let (input, rhs) = expr_p14(input, st)?;
@@ -611,7 +651,10 @@ fn expr_p14<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     }
 }
 
-fn expr_p15<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Located<Expression>> {
+fn expr_p15<'t>(
+    input: &'t [LexToken],
+    st: &mut SymbolTable,
+) -> ParseResult<'t, Located<Expression>> {
     fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
         match input {
             [LexToken(Token::Comma, _), rest @ ..] => Ok((rest, BinOp::Sequence)),
@@ -623,20 +666,184 @@ fn expr_p15<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, Loca
     parse_binary_operations(parse_op, expr_p14, input, st)
 }
 
-/// Parse an expression
-pub fn parse_expression<'t>(
+/// Variant of parse_expression to be used inside the symbol loop
+fn parse_expression_internal<'t>(
     input: &'t [LexToken],
-    st: &SymbolTable,
+    st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
     expr_p15(input, st)
 }
 
-/// Parse an expression in a context where a comma has a different meaning at the top level
-pub fn parse_expression_no_seq<'t>(
+/// Variant of parse_expression_no_seq to be used inside the symbol loop
+fn parse_expression_no_seq_internal<'t>(
     input: &'t [LexToken],
-    st: &SymbolTable,
+    st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
     expr_p14(input, st)
+}
+
+struct SymbolQueue {
+    added_symbols: Vec<String>,
+    added_symbols_expanded: Vec<Vec<String>>,
+    queue: Vec<Vec<String>>,
+}
+
+impl SymbolQueue {
+    fn add_to_queue(&mut self, s: &String) {
+        if !self.added_symbols.contains(s) {
+            self.added_symbols.push(s.clone());
+
+            // Low quality all combinations creation
+            let mut new_expanded = self.added_symbols_expanded.clone();
+            for l in &self.added_symbols_expanded {
+                let mut with_new = l.clone();
+                with_new.push(s.clone());
+                new_expanded.push(with_new.clone());
+                self.queue.push(with_new);
+            }
+            self.added_symbols_expanded = new_expanded;
+        }
+    }
+}
+
+/// Parse an expression with all possible combinations of type vs non-type symbols
+pub fn parse_expression_resolve_symbols<'t>(
+    parse_fn: impl Fn(&'t [LexToken], &mut SymbolTable) -> ParseResult<'t, Located<Expression>>,
+    input: &'t [LexToken],
+) -> ParseResult<'t, Located<Expression>> {
+    // Assume any symbol may be a type on the first pass
+    let mut st = SymbolTable {
+        reject_symbols: HashSet::new(),
+        assumed_symbols: Vec::new(),
+    };
+
+    // Run the parser
+    let first_result = parse_fn(input, &mut st);
+
+    // Early out if there were no types to be ambiguous over
+    if st.assumed_symbols.is_empty() {
+        return first_result;
+    }
+
+    // For all the seen symbols try again but assuming they are not a type
+    let mut queue = SymbolQueue {
+        added_symbols: Vec::new(),
+        added_symbols_expanded: Vec::from([Vec::new()]),
+        queue: Vec::new(),
+    };
+
+    // Start by adding the symbols seen in the first run
+    for symbol in &st.assumed_symbols {
+        queue.add_to_queue(symbol);
+    }
+
+    let mut highest_significance = get_result_significance(&first_result);
+    let mut results = Vec::from([(first_result, st.assumed_symbols, highest_significance)]);
+
+    while let Some(symbols) = queue.queue.pop() {
+        let mut st = SymbolTable {
+            reject_symbols: HashSet::new(),
+            assumed_symbols: Vec::new(),
+        };
+        for s in symbols {
+            st.reject_symbols.insert(s);
+        }
+
+        let next_result = parse_fn(input, &mut st);
+
+        // Add any symbols that only appeared in later runs
+        for s in &st.assumed_symbols {
+            queue.add_to_queue(s);
+        }
+
+        let significance = get_result_significance(&next_result);
+        highest_significance = std::cmp::min(highest_significance, significance);
+        results.push((next_result, st.assumed_symbols, significance));
+    }
+
+    // Remove parses that do not reach the end of the expression region
+    let mut results = results
+        .into_iter()
+        .filter(|(_, _, s)| *s == highest_significance)
+        .collect::<Vec<_>>();
+
+    assert!(!results.is_empty());
+
+    // If there were no successful chains then return the first as the error
+    let all_fail = results.iter().all(|(r, _, _)| r.is_err());
+    if all_fail {
+        return results.pop().unwrap().0;
+    }
+
+    // Filter to just the successful results - and remove significance values
+    let mut results = results
+        .into_iter()
+        .filter_map(|(r, t, _)| match r {
+            Ok(r) => Some((r, t)),
+            Err(_) => None,
+        })
+        .collect::<Vec<_>>();
+
+    // Order results so shorter symbol lists come first
+    results.sort_by(|(_, t1), (_, t2)| match t1.len().cmp(&t2.len()) {
+        std::cmp::Ordering::Equal => t1.cmp(t2),
+        other => other,
+    });
+
+    let mut reduced_results = Vec::<(_, _)>::with_capacity(results.len());
+    for result in results {
+        // Check for redundancy with previous expression
+        // If the expression is the same and has a more restrictive symbol requirement then discard it
+        let mut same = false;
+        for selected_result in &reduced_results {
+            if selected_result.0 == result.0 {
+                let mut symbol_not_covered = false;
+                for s in &selected_result.1 {
+                    if !result.1.contains(s) {
+                        symbol_not_covered = true;
+                    }
+                }
+                if !symbol_not_covered {
+                    same = true;
+                }
+            }
+        }
+
+        if !same {
+            reduced_results.push((result.0, result.1));
+        }
+    }
+    let mut results = reduced_results;
+
+    assert!(!results.is_empty());
+    if results.len() == 1 {
+        Ok(results.pop().unwrap().0)
+    } else {
+        let mut output_expressions = Vec::new();
+        let tokens = results[0].0 .0;
+        for next_result in results.into_iter().rev() {
+            assert_eq!(tokens, next_result.0 .0);
+            output_expressions.push(ConstrainedExpression {
+                expr: next_result.0 .1,
+                expected_type_names: next_result.1,
+            })
+        }
+
+        Ok((
+            tokens,
+            Located::none(Expression::AmbiguousParseBranch(output_expressions)),
+        ))
+    }
+}
+
+/// Parse an expression
+pub fn parse_expression(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+    parse_expression_resolve_symbols(parse_expression_internal, input)
+}
+
+/// Parse an expression in a context where a comma has a different meaning at the top level
+pub fn parse_expression_no_seq(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+    parse_expression_resolve_symbols(parse_expression_no_seq_internal, input)
 }
 
 #[test]
@@ -917,22 +1124,6 @@ fn test_cast() {
         .loc(0),
     );
 
-    let ambiguous_sum_or_cast = "(a) + (b)";
-    expr.check(
-        ambiguous_sum_or_cast,
-        Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6)).loc(0),
-    );
-    let st_a_is_type = SymbolTable::from(&[("a", SymbolType::Struct)]);
-    expr.check_symbolic(
-        ambiguous_sum_or_cast,
-        &st_a_is_type,
-        Expression::Cast(
-            Type::custom("a").loc(1),
-            Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
-        )
-        .loc(0),
-    );
-
     let numeric_cons = "float2(x, y)";
     let numeric_cons_out = {
         let x = "x".as_var(7);
@@ -952,6 +1143,90 @@ fn test_cast() {
         cons.loc(0)
     };
     expr.check(fake_cons, fake_cons_out);
+}
+
+#[test]
+fn test_ambiguous() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    let ambiguous_sum_or_cast = "(a) + (b)";
+    expr.check(
+        ambiguous_sum_or_cast,
+        Located::none(Expression::AmbiguousParseBranch(Vec::from([
+            ConstrainedExpression {
+                expr: Expression::Cast(
+                    Type::custom("a").loc(1),
+                    Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
+                )
+                .loc(0),
+                expected_type_names: Vec::from(["a".to_string()]),
+            },
+            ConstrainedExpression {
+                expr: Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6))
+                    .loc(0),
+                expected_type_names: Vec::from([]),
+            },
+        ]))),
+    );
+
+    let ambiguous_3 = "(a) + (b) + (c)";
+    expr.check(
+        ambiguous_3,
+        Located::none(Expression::AmbiguousParseBranch(Vec::from([
+            ConstrainedExpression {
+                expr: Expression::Cast(
+                    Type::custom("a").loc(1),
+                    Expression::UnaryOperation(
+                        UnaryOp::Plus,
+                        Expression::Cast(
+                            Type::custom("b").loc(7),
+                            Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar(12)).bloc(10),
+                        )
+                        .bloc(6),
+                    )
+                    .bloc(4),
+                )
+                .loc(0),
+                expected_type_names: Vec::from(["a".to_string(), "b".to_string()]),
+            },
+            ConstrainedExpression {
+                expr: Expression::BinaryOperation(
+                    BinOp::Add,
+                    "a".as_bvar(0),
+                    Expression::Cast(
+                        Type::custom("b").loc(7),
+                        Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar(12)).bloc(10),
+                    )
+                    .bloc(6),
+                )
+                .loc(0),
+                expected_type_names: Vec::from(["b".to_string()]),
+            },
+            ConstrainedExpression {
+                expr: Expression::BinaryOperation(
+                    BinOp::Add,
+                    Expression::Cast(
+                        Type::custom("a").loc(1),
+                        Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
+                    )
+                    .bloc(0),
+                    "c".as_bvar(12),
+                )
+                .loc(0),
+                expected_type_names: Vec::from(["a".to_string()]),
+            },
+            ConstrainedExpression {
+                expr: Expression::BinaryOperation(
+                    BinOp::Add,
+                    Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6)).bloc(0),
+                    "c".as_bvar(12),
+                )
+                .loc(0),
+                expected_type_names: Vec::from([]),
+            },
+        ]))),
+    );
 }
 
 #[test]

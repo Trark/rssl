@@ -26,6 +26,8 @@ pub enum Expression {
     Constructor(TypeLayout, Vec<Located<Expression>>),
     Cast(Located<Type>, Box<Located<Expression>>),
     SizeOf(Located<Type>),
+    /// Set of expressions which may be selected depending on known type names
+    AmbiguousParseBranch(Vec<ConstrainedExpression>),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -79,4 +81,14 @@ pub enum BinOp {
     QuotientAssignment,
     RemainderAssignment,
     Sequence,
+}
+
+/// Expression which can only be activated when certain symbols are types
+#[derive(PartialEq, Debug, Clone)]
+pub struct ConstrainedExpression {
+    /// The parsed expression
+    pub expr: Located<Expression>,
+
+    /// The set of type names we require for this path
+    pub expected_type_names: Vec<String>,
 }

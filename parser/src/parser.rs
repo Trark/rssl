@@ -1,79 +1,18 @@
 use rssl_ast::*;
 use rssl_text::*;
 use rssl_tok::*;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Failure cases
 mod errors;
 pub use errors::{ParseError, ParseResultExt};
 use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 
-/// Class of a type name
-#[derive(Copy, Clone, Debug)]
-enum SymbolType {
-    Struct,
-    Enum,
-    Object,
-    TemplateType,
-}
-
 /// Stores current context of active symbols while parsing
 #[derive(Debug)]
-pub struct SymbolTable(HashMap<String, SymbolType>);
-
-impl SymbolTable {
-    #[cfg(test)]
-    fn from(initial_symbols: &[(&str, SymbolType)]) -> SymbolTable {
-        let mut table = SymbolTable::default();
-        for (name, symbol_type) in initial_symbols {
-            table.0.insert(name.to_string(), *symbol_type);
-        }
-        table
-    }
-}
-
-impl Default for SymbolTable {
-    fn default() -> Self {
-        let mut table = SymbolTable(HashMap::new());
-        // Register built in struct or primitive types
-        let struct_types = ["vector", "matrix"];
-        for struct_type in struct_types {
-            table.0.insert(struct_type.to_string(), SymbolType::Struct);
-        }
-        // Register built in object types
-        let object_types = [
-            "Buffer",
-            "RWBuffer",
-            "ByteAddressBuffer",
-            "RWByteAddressBuffer",
-            "StructuredBuffer",
-            "RWStructuredBuffer",
-            "AppendStructuredBuffer",
-            "ConsumeStructuredBuffer",
-            "Texture1D",
-            "Texture1DArray",
-            "Texture2D",
-            "Texture2DArray",
-            "Texture2DMS",
-            "Texture2DMSArray",
-            "Texture3D",
-            "TextureCube",
-            "TextureCubeArray",
-            "RWTexture1D",
-            "RWTexture1DArray",
-            "RWTexture2D",
-            "RWTexture2DArray",
-            "RWTexture3D",
-            "ConstantBuffer",
-            "InputPatch",
-            "OutputPatch",
-            "SamplerState",
-        ];
-        for object_type in object_types {
-            table.0.insert(object_type.to_string(), SymbolType::Object);
-        }
-        table
-    }
+pub struct SymbolTable {
+    reject_symbols: HashSet<String>,
+    assumed_symbols: Vec<String>,
 }
 
 /// Provide symbol table to another parser
@@ -104,10 +43,10 @@ fn locate<'t, T>(
 
 /// Parse a list of elements separated with the given separator
 fn parse_list_base<'t, T, G>(
-    parse_separator: impl Fn(&'t [LexToken]) -> ParseResult<G>,
-    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
+    mut parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<G>,
+    mut parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
     allow_empty: bool,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
     move |input: &'t [LexToken]| {
         match parse_element(input) {
             Ok((rest, element)) => {
@@ -142,24 +81,24 @@ fn parse_list_base<'t, T, G>(
 
 /// Parse a list of zero or more elements separated with the given separator
 fn parse_list<'t, T, G>(
-    parse_separator: impl Fn(&'t [LexToken]) -> ParseResult<G>,
-    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<G>,
+    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
     parse_list_base(parse_separator, parse_element, true)
 }
 
 /// Parse a list of one or more elements separated with the given separator
 fn parse_list_nonempty<'t, T, G>(
-    parse_separator: impl Fn(&'t [LexToken]) -> ParseResult<G>,
-    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<G>,
+    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
     parse_list_base(parse_separator, parse_element, false)
 }
 
 /// Parse a list of zero or more elements with no separator
 fn parse_multiple<'t, T>(
-    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
     parse_list_base(|i| Ok((i, ())), parse_element, true)
 }
 
@@ -225,12 +164,9 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 mod types;
 use types::{parse_data_layout, parse_template_params, parse_type};
 
-fn parse_arraydim<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, Option<Located<Expression>>> {
+fn parse_arraydim(input: &[LexToken]) -> ParseResult<Option<Located<Expression>>> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
-    let (input, constant_expression) = match parse_expression_no_seq(input, st) {
+    let (input, constant_expression) = match parse_expression_no_seq(input) {
         Ok((rest, constant_expression)) => (rest, Some(constant_expression)),
         _ => (input, None),
     };
@@ -266,26 +202,9 @@ use root_definitions::parse_root_definition_with_semicolon;
 fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
     let mut roots = Vec::new();
     let mut rest = input;
-    let mut symbol_table = SymbolTable::default();
     loop {
-        let last_def = parse_root_definition_with_semicolon(rest, &symbol_table);
+        let last_def = parse_root_definition_with_semicolon(rest);
         if let Ok((remaining, root)) = last_def {
-            // Remember symbol names that may be used in type contexts later
-            // If there are duplicate symbols then overwrite for now
-            // We expect duplicates to be dealt with later during type checking
-            match root {
-                RootDefinition::Struct(ref sd) => {
-                    symbol_table
-                        .0
-                        .insert(sd.name.node.clone(), SymbolType::Struct);
-                }
-                RootDefinition::Enum(ref ed) => {
-                    symbol_table
-                        .0
-                        .insert(ed.name.node.clone(), SymbolType::Enum);
-                }
-                _ => {}
-            }
             roots.push(root);
             rest = remaining;
         } else {

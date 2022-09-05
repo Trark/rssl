@@ -1191,6 +1191,26 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                 ir::Type::uint().to_rvalue(),
             ))
         }
+        ast::Expression::AmbiguousParseBranch(ref constrained_exprs) => {
+            let (last, main) = constrained_exprs
+                .split_last()
+                .expect("AmbiguousParseBranch should not be empty");
+            // Try to take each path in turn if the names are types
+            for constrained_expr in main {
+                let mut valid = true;
+                for type_name in &constrained_expr.expected_type_names {
+                    if context.find_type_id(type_name).is_err() {
+                        valid = false;
+                    }
+                }
+                if valid {
+                    return parse_expr_internal(&constrained_expr.expr, context);
+                }
+            }
+            // Always fall back to last expression even if it has a type requirement
+            // We should then fail to parse and return an error with a hopefully more accurate location
+            parse_expr_internal(&last.expr, context)
+        }
     }
 }
 

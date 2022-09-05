@@ -11,13 +11,13 @@ fn parse_input_modifier(input: &[LexToken]) -> ParseResult<InputModifier> {
 }
 
 /// Parse the type of a function parameter
-fn parse_param_type<'t>(input: &'t [LexToken], st: &SymbolTable) -> ParseResult<'t, ParamType> {
+fn parse_param_type(input: &[LexToken]) -> ParseResult<ParamType> {
     let (input, it) = match parse_input_modifier(input) {
         Ok((input, it)) => (input, it),
         Err(_) => (input, InputModifier::default()),
     };
     // Todo: interpolation modifiers
-    match parse_type(input, st) {
+    match parse_type(input) {
         Ok((rest, ty)) => Ok((rest, ParamType(ty, it, None))),
         Err(err) => Err(err),
     }
@@ -35,20 +35,17 @@ fn parse_numthreads(input: &[LexToken]) -> ParseResult<()> {
 }
 
 /// Parse an attribute for a function
-fn parse_function_attribute<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, FunctionAttribute> {
+fn parse_function_attribute(input: &[LexToken]) -> ParseResult<FunctionAttribute> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
 
     // Only currently support [numthreads]
     let (input, _) = parse_numthreads(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
-    let (input, x) = parse_expression_no_seq(input, st)?;
+    let (input, x) = parse_expression_no_seq(input)?;
     let (input, _) = parse_token(Token::Comma)(input)?;
-    let (input, y) = parse_expression_no_seq(input, st)?;
+    let (input, y) = parse_expression_no_seq(input)?;
     let (input, _) = parse_token(Token::Comma)(input)?;
-    let (input, z) = parse_expression_no_seq(input, st)?;
+    let (input, z) = parse_expression_no_seq(input)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
     let attr = FunctionAttribute::NumThreads(x, y, z);
 
@@ -90,11 +87,8 @@ fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
 }
 
 /// Parse a parameter for a function
-fn parse_function_param<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, FunctionParam> {
-    let (input, ty) = parse_param_type(input, st)?;
+fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
+    let (input, ty) = parse_param_type(input)?;
     let (input, param) = parse_variable_name(input)?;
 
     // Parse semantic if present
@@ -170,45 +164,22 @@ fn test_function_param() {
 }
 
 /// Parse a function definition
-pub fn parse_function_definition<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, FunctionDefinition> {
+pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<FunctionDefinition> {
     // Not clear on ordering of template args and attributes
     // Attributes are used on entry points which can not be template functions
     let (input, template_params) = parse_template_params(input)?;
-
-    // If we have template arguments then add those as types into the symbol table
-    // The scope management will need reworking later to handle more complex cases
-    let local_symbols = template_params.as_ref().map(|args| {
-        SymbolTable({
-            let mut map = st.0.clone();
-            for arg in &args.0 {
-                map.insert(arg.node.clone(), SymbolType::TemplateType);
-            }
-            map
-        })
-    });
-    let st = match local_symbols {
-        Some(ref st) => st,
-        None => st,
-    };
-
-    let (input, attributes) = parse_multiple(contextual(parse_function_attribute, st))(input)?;
-    let (input, ret) = parse_type(input, st)?;
+    let (input, attributes) = parse_multiple(parse_function_attribute)(input)?;
+    let (input, ret) = parse_type(input)?;
     let (input, func_name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
-    let (input, params) = parse_list(
-        parse_token(Token::Comma),
-        contextual(parse_function_param, st),
-    )(input)?;
+    let (input, params) = parse_list(parse_token(Token::Comma), parse_function_param)(input)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
     let (input, return_semantic) = parse_optional(|input| {
         let (input, _) = parse_token(Token::Colon)(input)?;
         let (input, semantic) = parse_semantic(input)?;
         Ok((input, semantic))
     })(input)?;
-    let (input, body) = statement_block(input, st)?;
+    let (input, body) = statement_block(input)?;
     let def = FunctionDefinition {
         name: func_name,
         returntype: FunctionReturn {

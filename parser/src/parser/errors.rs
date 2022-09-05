@@ -73,7 +73,7 @@ pub enum ParseErrorReason {
     WrongToken,
     WrongSlotType,
     UnknownType,
-    SymbolIsNotAStructuredType,
+    SymbolIsNotAType,
     UnexpectedAttribute(String),
 }
 
@@ -114,7 +114,7 @@ impl<'t, T> ParseResultExt for ParseResult<'t, T> {
 pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub ParseErrorReason);
 
 /// Get the significance value for a result
-fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
+pub fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
     match result {
         Ok((rest, _)) => rest.len(),
         Err(ParseErrorContext(rest, _)) => rest.len(),
