@@ -1,7 +1,7 @@
 use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
-use super::functions::{Callable, FunctionOverload, FunctionSignature};
+use super::functions::{parse_function_body, Callable, FunctionOverload, FunctionSignature};
 use super::types::apply_template_type_substitution;
 use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
@@ -9,6 +9,7 @@ use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// Stores all ids for types and variables by a module
 #[derive(Debug, Clone)]
@@ -33,6 +34,9 @@ pub enum StructMemberValue {
 struct FunctionData {
     name: Located<String>,
     overload: FunctionOverload,
+    scope: ScopeIndex,
+    ast: Option<Rc<ast::FunctionDefinition>>,
+    instantiations: HashMap<Vec<ir::Type>, ir::FunctionId>,
 }
 
 #[derive(Debug, Clone)]
@@ -104,10 +108,10 @@ impl Context {
         self.current_scope == 0
     }
 
-    /// Add a new scope
-    pub fn push_scope(&mut self) -> ScopeIndex {
+    /// Make a new scope
+    fn make_scope(&mut self, parent: ScopeIndex) -> ScopeIndex {
         self.scopes.push(ScopeData {
-            parent_scope: self.current_scope,
+            parent_scope: parent,
             variables: VariableBlock::new(),
             function_ids: HashMap::new(),
             struct_ids: HashMap::new(),
@@ -117,7 +121,12 @@ impl Context {
             owning_struct: None,
             function_return_type: None,
         });
-        self.current_scope = self.scopes.len() - 1;
+        self.scopes.len() - 1
+    }
+
+    /// Add a new scope
+    pub fn push_scope(&mut self) -> ScopeIndex {
+        self.current_scope = self.make_scope(self.current_scope);
         self.current_scope
     }
 
@@ -149,6 +158,12 @@ impl Context {
     pub fn revisit_scope(&mut self, scope: ScopeIndex) {
         assert_eq!(self.scopes[scope].parent_scope, self.current_scope);
         self.current_scope = scope
+    }
+
+    /// Enter a scope again
+    /// We must be in the same parent scope as before when calling this function
+    pub fn revisit_function(&mut self, id: ir::FunctionId) {
+        self.revisit_scope(self.function_data[id.0 as usize].scope)
     }
 
     /// Set the current scope to be within the given struct
@@ -304,6 +319,16 @@ impl Context {
         Ok(&self.function_data[id.0 as usize].overload.1)
     }
 
+    /// Find the source ast of a function
+    pub fn get_function_ast(&self, id: ir::FunctionId) -> Rc<ast::FunctionDefinition> {
+        assert!(id.0 < self.function_data.len() as u32);
+        self.function_data[id.0 as usize]
+            .ast
+            .as_ref()
+            .unwrap()
+            .clone()
+    }
+
     /// Find the return type of a function
     pub fn get_type_of_function_return(
         &self,
@@ -395,11 +420,16 @@ impl Context {
         &mut self,
         name: Located<String>,
         signature: FunctionSignature,
+        scope: ScopeIndex,
+        ast: ast::FunctionDefinition,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
         self.function_data.push(FunctionData {
             name,
             overload: FunctionOverload(Callable::Function(id), signature),
+            scope,
+            ast: Some(Rc::new(ast)),
+            instantiations: HashMap::new(),
         });
         Ok(id)
     }
@@ -416,7 +446,13 @@ impl Context {
         overload: FunctionOverload,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
-        self.function_data.push(FunctionData { name, overload });
+        self.function_data.push(FunctionData {
+            name,
+            overload,
+            scope: usize::MAX,
+            ast: None,
+            instantiations: HashMap::new(),
+        });
         self.insert_function_in_scope(self.current_scope as usize, id)?;
         Ok(id)
     }
@@ -647,6 +683,90 @@ impl Context {
         };
 
         Ok(())
+    }
+
+    /// Construct or build an instantiation of a template function
+    pub fn build_function_template(
+        &mut self,
+        id: ir::FunctionId,
+        template_args: &[Located<ir::Type>],
+    ) -> TyperResult<ir::FunctionId> {
+        let data = &self.function_data[id.0 as usize];
+        let template_args_no_loc = template_args
+            .iter()
+            .map(|t| t.node.clone())
+            .collect::<Vec<_>>();
+        if let Some(id) = data.instantiations.get(&template_args_no_loc) {
+            return Ok(*id);
+        }
+
+        // Setup the scope data based on the template function scope
+        let old_scope_id = data.scope;
+        let parent_scope_id = self.scopes[old_scope_id].parent_scope;
+        let new_scope_id = self.make_scope(parent_scope_id);
+
+        // Reborrow data after mutating scopes (false requirement in this case as function array is not touched)
+        let data = &self.function_data[id.0 as usize];
+
+        // There should be no local variables on the template scope
+        assert!(self.scopes[old_scope_id].variables.variables.is_empty());
+
+        // None of these expected inside the function scope
+        assert!(self.scopes[old_scope_id].function_ids.is_empty());
+        assert!(self.scopes[old_scope_id].struct_ids.is_empty());
+        assert!(self.scopes[old_scope_id].cbuffer_ids.is_empty());
+        assert!(self.scopes[old_scope_id].global_ids.is_empty());
+
+        // scope template_args explicitly ignored as they are removed
+
+        // If we are a template method then the struct is the same
+        self.scopes[new_scope_id].owning_struct = self.scopes[old_scope_id].owning_struct;
+
+        // Function signature requires applying template substitution
+        let signature = data.overload.1.clone().apply_templates(template_args);
+
+        // Return type can be retrieved from the signature
+        self.scopes[new_scope_id].function_return_type =
+            Some(signature.return_type.return_type.clone());
+
+        // This should be the same as the template function scopes return type with templates applied
+        assert_eq!(
+            signature.return_type.return_type,
+            super::types::apply_template_type_substitution(
+                self.scopes[old_scope_id]
+                    .function_return_type
+                    .clone()
+                    .unwrap(),
+                template_args,
+            )
+        );
+
+        // Push the instantiation as a new function
+        let new_id = ir::FunctionId(self.function_data.len() as u32);
+        self.function_data.push(FunctionData {
+            name: data.name.clone(),
+            overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
+            scope: new_scope_id,
+            ast: None,
+            instantiations: HashMap::new(),
+        });
+
+        // Move active scope back to outside the template function definition
+        let caller_scope_position = self.current_scope;
+        self.current_scope = parent_scope_id;
+
+        // Parse the function body - but currently we do not store the result anywhere
+        let ast = self.get_function_ast(id);
+        parse_function_body(&ast, new_id, signature, self)?;
+
+        // Return active scope
+        assert_eq!(self.current_scope, parent_scope_id);
+        self.current_scope = caller_scope_position;
+
+        // Save the new function in the instantiations map and return
+        let data = &mut self.function_data[id.0 as usize];
+        data.instantiations.insert(template_args_no_loc, new_id);
+        Ok(new_id)
     }
 }
 

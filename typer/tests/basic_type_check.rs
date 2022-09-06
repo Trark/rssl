@@ -86,12 +86,30 @@ fn check_function_templates() {
     // We currently do not support inferring the template arguments
     check_fail("template<typename T> T f(T v) { return v; } void main() { f(0.0); }");
 
+    // We currently do not support using template parameters in template arguments
+    // TODO: Fix using template parameters in the function bodies
+    check_fail("template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }");
+
     // Check that we do not fail type checking due to function contents
     // We currently do not try to process these
     check_types("template<typename T> T f(T v) { return v + 1; }");
     // Even when we actually invoke the function
     // This does not generate a complete ir
     check_types("template<typename T> T f(T v) { return v + 1; } void main() { f<float>(0.0); }");
+
+    // Check we can declare instances of a template type inside the function body
+    // TODO: Current fails
+    check_fail("template<typename T> void f() { T t; t + 1; }; void main() { f<float>(); };");
+
+    // Check that picking a type that does not create a valid instantiation fails
+    check_fail(
+        "struct S {}; template<typename T> void f() { T t; t + 1; } void main() { f<S>(); }",
+    );
+
+    // Check structs can pass through a template function
+    check_types(
+        "struct S {}; template<typename T> T f(T t) { return t; } void main() { S s1; S s2 = f<S>(s1); }",
+    );
 }
 
 #[test]
@@ -163,8 +181,23 @@ fn check_struct_method_templates() {
     // Currently limited to explicitly listing the types in the call
     check_types("struct S { template<typename T> T f(T t) { return t; } }; struct M {}; void main() { S s; M m1; M m2 = s.f<M>(m1); };");
 
+    // Check we can have type dependent operations in an uninstantiated template
+    check_types("struct S { template<typename T> void f() { t + 1; } };");
+
+    // And do the above test but with a valid instantiation
+    check_types(
+        "struct S { template<typename T> void f(T t) { t + 1; } }; void main() { S s; s.f<float>(0.0); };",
+    );
+
+    // Check we can declare instances of template types as local variables
+    // TODO: This should pass but currently fails
+    check_fail(
+        "struct S { template<typename T> void f() { T t; t + 1; } }; void main() { S s; s.f<float>(); };",
+    );
+
     // Check (non-templated) struct template method can access both the template type and the containing struct type
-    check_types("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
+    // TODO: This should pass but currently fails due to using T in the body
+    check_fail("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
 }
 
 #[test]

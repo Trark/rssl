@@ -1,10 +1,10 @@
 use crate::*;
 
 /// The full type when paired with modifiers
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Type(pub TypeLayout, pub TypeModifier);
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum TypeLayout {
     Void,
     Scalar(ScalarType),
@@ -19,11 +19,11 @@ pub enum TypeLayout {
 
 /// A type that can be used in structured buffers
 /// These are the both all the data types and user defined structs
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct StructuredType(pub StructuredLayout, pub TypeModifier);
 
 /// Layout for StructuredType
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum StructuredLayout {
     Scalar(ScalarType),
     Vector(ScalarType, u32),
@@ -32,11 +32,11 @@ pub enum StructuredLayout {
 }
 
 /// A type that can be used in data buffers (Buffer / RWBuffer / etc)
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub struct DataType(pub DataLayout, pub TypeModifier);
 
 /// The memory layout of a DataType
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum DataLayout {
     Scalar(ScalarType),
     Vector(ScalarType, u32),
@@ -55,7 +55,7 @@ pub struct TemplateTypeId(pub u32);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TemplateParamCount(pub u32);
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum ObjectType {
     Buffer(DataType),
     RWBuffer(DataType),

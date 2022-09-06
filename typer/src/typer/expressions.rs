@@ -224,6 +224,7 @@ fn write_function(
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,
+    context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
     let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
@@ -242,10 +243,19 @@ fn write_function(
             factory.create_intrinsic(template_args, &param_values),
             return_type,
         )),
-        Callable::Function(id) => Ok(TypedExpression::Value(
-            ir::Expression::Call(id, template_args.to_vec(), param_values),
-            return_type,
-        )),
+        Callable::Function(id) => {
+            let id = if !template_args.is_empty() {
+                // Now we have to make the actual instance of that template
+                context.build_function_template(id, template_args)?
+            } else {
+                id
+            };
+            // TODO: Call will not need template args if we can encode it all in id
+            Ok(TypedExpression::Value(
+                ir::Expression::Call(id, template_args.to_vec(), param_values),
+                return_type,
+            ))
+        }
     }
 }
 
@@ -255,6 +265,7 @@ fn write_method(
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,
+    context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
     let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
@@ -275,10 +286,19 @@ fn write_method(
             factory.create_intrinsic(template_args, &param_values),
             return_type,
         )),
-        Callable::Function(id) => Ok(TypedExpression::Value(
-            ir::Expression::Call(id, template_args.to_vec(), param_values),
-            return_type,
-        )),
+        Callable::Function(id) => {
+            let id = if !template_args.is_empty() {
+                // Now we have to make the actual instance of that template
+                context.build_function_template(id, template_args)?
+            } else {
+                id
+            };
+            // TODO: Call will not need template args if we can encode it all in id
+            Ok(TypedExpression::Value(
+                ir::Expression::Call(id, template_args.to_vec(), param_values),
+                return_type,
+            ))
+        }
     }
 }
 
@@ -322,7 +342,7 @@ fn parse_literal(ast: &ast::Literal) -> TypedExpression {
 fn parse_expr_unaryop(
     op: &ast::UnaryOp,
     expr: &ast::Expression,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     match parse_expr_internal(expr, context)? {
         TypedExpression::Value(expr_ir, expr_ty) => {
@@ -613,7 +633,7 @@ fn parse_expr_binop(
     op: &ast::BinOp,
     lhs: &ast::Expression,
     rhs: &ast::Expression,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     let lhs_texp = parse_expr_internal(lhs, context)?;
     let rhs_texp = parse_expr_internal(rhs, context)?;
@@ -784,7 +804,7 @@ fn parse_expr_ternary(
     cond: &ast::Expression,
     lhs: &ast::Expression,
     rhs: &ast::Expression,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Generate sub expressions
     let (cond, cond_ety) = parse_expr_value_only(cond, context)?;
@@ -890,7 +910,10 @@ fn get_swizzle_vt(swizzle: &Vec<ir::SwizzleSlot>, mut vt: ir::ValueType) -> ir::
     vt
 }
 
-fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult<TypedExpression> {
+fn parse_expr_unchecked(
+    ast: &ast::Expression,
+    context: &mut Context,
+) -> TyperResult<TypedExpression> {
     match *ast {
         ast::Expression::Literal(ref lit) => Ok(parse_literal(lit)),
         ast::Expression::Variable(ref s) => parse_variable(s, context),
@@ -1112,6 +1135,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                     &args_types,
                     args_ir,
                     func.location,
+                    context,
                 ),
                 TypedExpression::Method(unresolved) => write_method(
                     unresolved,
@@ -1119,6 +1143,7 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
                     &args_types,
                     args_ir,
                     func.location,
+                    context,
                 ),
                 _ => Err(TyperError::CallOnNonFunction),
             }
@@ -1216,7 +1241,10 @@ fn parse_expr_unchecked(ast: &ast::Expression, context: &Context) -> TyperResult
 
 /// Parse an expression internally within the expression parser
 /// This allows intermediate values for processing function overloads
-fn parse_expr_internal(expr: &ast::Expression, context: &Context) -> TyperResult<TypedExpression> {
+fn parse_expr_internal(
+    expr: &ast::Expression,
+    context: &mut Context,
+) -> TyperResult<TypedExpression> {
     let texp = parse_expr_unchecked(expr, context)?;
     match texp {
         #[cfg(debug_assertions)]
@@ -1239,7 +1267,7 @@ fn parse_expr_internal(expr: &ast::Expression, context: &Context) -> TyperResult
 /// Parse an expression that is not within another expression
 fn parse_expr_value_only(
     expr: &ast::Expression,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<(ir::Expression, ExpressionType)> {
     let expr_ir = parse_expr_internal(expr, context)?;
     match expr_ir {
@@ -1252,7 +1280,7 @@ fn parse_expr_value_only(
 /// Parse an expression
 pub fn parse_expr(
     expr: &ast::Expression,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<(ir::Expression, ExpressionType)> {
     // Type errors should error out here
     let (expr_ir, expr_ety) = parse_expr_value_only(expr, context)?;

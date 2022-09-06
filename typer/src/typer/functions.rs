@@ -98,10 +98,9 @@ pub fn parse_function_body(
     fd: &ast::FunctionDefinition,
     id: ir::FunctionId,
     signature: FunctionSignature,
-    scope: ScopeIndex,
     context: &mut Context,
 ) -> TyperResult<ir::FunctionDefinition> {
-    context.revisit_scope(scope);
+    context.revisit_function(id);
 
     let return_type = signature.return_type;
 
@@ -138,11 +137,11 @@ fn parse_function(
     let (signature, scope) = parse_function_signature(fd, None, context)?;
 
     // Register the function signature
-    let id = context.register_function(fd.name.clone(), signature.clone())?;
+    let id = context.register_function(fd.name.clone(), signature.clone(), scope, fd.clone())?;
     context.add_function_to_current_scope(id)?;
 
     if signature.template_params.0 == 0 {
-        parse_function_body(fd, id, signature, scope, context)
+        parse_function_body(fd, id, signature, context)
     } else {
         Ok(ir::FunctionDefinition {
             id,

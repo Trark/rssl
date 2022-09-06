@@ -46,7 +46,12 @@ pub fn parse_rootdefinition_struct(
                 let (signature, scope) = parse_function_signature(ast_func, Some(id), context)?;
 
                 // Register the method signature in the function list
-                let id = context.register_function(ast_func.name.clone(), signature.clone())?;
+                let id = context.register_function(
+                    ast_func.name.clone(),
+                    signature.clone(),
+                    scope,
+                    ast_func.clone(),
+                )?;
 
                 // Add the method to the struct function set
                 match method_map.entry(ast_func.name.node.clone()) {
@@ -60,7 +65,7 @@ pub fn parse_rootdefinition_struct(
                 }
 
                 // Add body on list to process later after other members are registered
-                methods_to_parse.push((ast_func, id, signature, scope));
+                methods_to_parse.push((ast_func, id, signature));
             }
         }
     }
@@ -70,9 +75,14 @@ pub fn parse_rootdefinition_struct(
 
     // Process all the methods
     let mut methods = Vec::new();
-    for (ast_func, id, signature, scope) in methods_to_parse {
-        let ir_func = parse_function_body(ast_func, id, signature, scope, context)?;
-        methods.push(ir_func);
+    for (ast_func, id, signature) in methods_to_parse {
+        if signature.template_params.0 == 0 {
+            let ir_func = parse_function_body(ast_func, id, signature, context)?;
+            methods.push(ir_func);
+        } else {
+            // Do not add the templated method to the tree for now
+            // TODO: Template methods in the final output
+        }
     }
 
     let struct_def = ir::StructDefinition {

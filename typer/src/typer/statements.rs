@@ -245,7 +245,7 @@ fn evaluate_constexpr_int(expr: &ast::Expression) -> Result<u64, ()> {
 pub fn parse_initializer_opt(
     init_opt: &Option<ast::Initializer>,
     tyl: &ir::TypeLayout,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<Option<ir::Initializer>> {
     Ok(match *init_opt {
         Some(ref init) => Some(parse_initializer(init, tyl, context)?),
@@ -257,7 +257,7 @@ pub fn parse_initializer_opt(
 fn parse_initializer(
     init: &ast::Initializer,
     tyl: &ir::TypeLayout,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<ir::Initializer> {
     Ok(match *init {
         ast::Initializer::Expression(ref expr) => {
@@ -278,7 +278,7 @@ fn parse_initializer(
             fn build_elements(
                 ety: &ExpressionType,
                 inits: &[ast::Initializer],
-                context: &Context,
+                context: &mut Context,
             ) -> TyperResult<Vec<ir::Initializer>> {
                 let mut elements = Vec::with_capacity(inits.len());
                 for init in inits {

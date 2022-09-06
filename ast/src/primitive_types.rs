@@ -1,5 +1,5 @@
 /// Basic scalar types
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum ScalarType {
     Bool,
     UntypedInt,
@@ -18,7 +18,7 @@ pub enum NumericDimension {
 }
 
 /// Modifiers that can apply to any type
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub struct TypeModifier {
     pub is_const: bool,
     pub row_order: RowOrder,
@@ -27,7 +27,7 @@ pub struct TypeModifier {
 }
 
 /// Matrix ordering
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Copy, Clone)]
 pub enum RowOrder {
     Row,
     Column,
