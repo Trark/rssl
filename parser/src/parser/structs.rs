@@ -41,6 +41,7 @@ fn parse_struct_entry(input: &[LexToken]) -> ParseResult<StructEntry> {
 
 /// Parse a full struct definition
 pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefinition> {
+    let (input, template_params) = parse_template_params(input)?;
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
@@ -48,7 +49,11 @@ pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefiniti
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
-    let sd = StructDefinition { name, members };
+    let sd = StructDefinition {
+        name,
+        template_params,
+        members,
+    };
     Ok((input, sd))
 }
 
@@ -61,6 +66,7 @@ fn test_struct() {
         "struct MyStruct {};",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
             members: Vec::new(),
         },
     );
@@ -69,6 +75,7 @@ fn test_struct() {
         "struct MyStruct {;;;};",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
             members: Vec::new(),
         },
     );
@@ -77,6 +84,7 @@ fn test_struct() {
         "struct MyStruct { uint a; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::uint(),
                 defs: vec![StructMemberName {
@@ -91,6 +99,7 @@ fn test_struct() {
         "struct MyStruct { uint a, b; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::uint(),
                 defs: vec![
@@ -111,6 +120,7 @@ fn test_struct() {
         "struct MyStruct { uint a; void f() {} };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
             members: vec![
                 StructEntry::Variable(StructMember {
                     ty: Type::uint(),
@@ -122,12 +132,33 @@ fn test_struct() {
                 StructEntry::Method(FunctionDefinition {
                     name: "f".to_string().loc(31),
                     returntype: Type::void().into(),
-                    template_params: None,
+                    template_params: TemplateParamList(Vec::new()),
                     params: Vec::new(),
                     body: Vec::new(),
                     attributes: Vec::new(),
                 }),
             ],
+        },
+    );
+
+    structdefinition.check(
+        "template<typename T> struct MyStruct { T a, b; };",
+        StructDefinition {
+            name: "MyStruct".to_string().loc(28),
+            template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
+            members: vec![StructEntry::Variable(StructMember {
+                ty: Type::custom("T"),
+                defs: vec![
+                    StructMemberName {
+                        name: "a".to_string(),
+                        bind: VariableBind::Normal,
+                    },
+                    StructMemberName {
+                        name: "b".to_string(),
+                        bind: VariableBind::Normal,
+                    },
+                ],
+            })],
         },
     );
 }

@@ -253,10 +253,10 @@ pub fn parse_type(input: &[LexToken]) -> ParseResult<Type> {
 }
 
 /// Parse a list of template parameters or no template parameters
-pub fn parse_template_params(input: &[LexToken]) -> ParseResult<Option<TemplateParamList>> {
+pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamList> {
     let input = match parse_token(Token::Template)(input) {
         Ok((input, _)) => input,
-        Err(_) => return Ok((input, None)),
+        Err(_) => return Ok((input, TemplateParamList(Vec::new()))),
     };
 
     let (mut input, _) = match_left_angle_bracket(input)?;
@@ -278,5 +278,5 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<Option<TemplateP
 
     let (input, _) = match_right_angle_bracket(input)?;
 
-    Ok((input, Some(TemplateParamList(args))))
+    Ok((input, TemplateParamList(args)))
 }

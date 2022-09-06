@@ -207,7 +207,7 @@ fn test_template_function() {
                 return_type: Type::void(),
                 semantic: None,
             },
-            template_params: Some(TemplateParamList(Vec::from(["T".to_string().loc(18)]))),
+            template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
             params: vec![FunctionParam {
                 name: "arg".to_string().loc(30),
                 param_type: Type::custom("T").into(),

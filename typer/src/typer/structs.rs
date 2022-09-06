@@ -20,6 +20,11 @@ pub fn parse_rootdefinition_struct(
         Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
     };
 
+    // Template structs are not currently supported
+    if !sd.template_params.0.is_empty() {
+        todo!();
+    }
+
     let mut members = Vec::new();
     let mut methods_to_parse = Vec::new();
     let mut member_map = HashMap::new();

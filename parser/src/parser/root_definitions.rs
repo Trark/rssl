@@ -52,6 +52,7 @@ fn test_struct() {
     let test_struct_str = "struct MyStruct { uint a; float b; };";
     let test_struct_ast = StructDefinition {
         name: "MyStruct".to_string().loc(7),
+        template_params: TemplateParamList(Vec::new()),
         members: vec![
             StructEntry::Variable(StructMember {
                 ty: Type::uint(),
@@ -86,7 +87,7 @@ fn test_function() {
             return_type: Type::float(),
             semantic: Some(Semantic::Depth),
         },
-        template_params: None,
+        template_params: TemplateParamList(Vec::new()),
         params: vec![FunctionParam {
             name: "x".to_string().loc(17),
             param_type: Type::float().into(),
@@ -108,7 +109,7 @@ fn test_function() {
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string().loc(29),
             returntype: Type::void().into(),
-            template_params: None,
+            template_params: TemplateParamList(Vec::new()),
             params: vec![FunctionParam {
                 name: "x".to_string().loc(40),
                 param_type: Type::float().into(),

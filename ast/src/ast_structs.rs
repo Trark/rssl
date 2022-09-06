@@ -1,11 +1,12 @@
 use crate::ast_functions::FunctionDefinition;
 use crate::ast_statements::VariableBind;
-use crate::ast_types::Type;
+use crate::ast_types::{TemplateParamList, Type};
 use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct StructDefinition {
     pub name: Located<String>,
+    pub template_params: TemplateParamList,
     pub members: Vec<StructEntry>,
 }
 

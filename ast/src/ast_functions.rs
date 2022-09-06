@@ -8,7 +8,7 @@ use rssl_text::Located;
 pub struct FunctionDefinition {
     pub name: Located<String>,
     pub returntype: FunctionReturn,
-    pub template_params: Option<TemplateParamList>,
+    pub template_params: TemplateParamList,
     pub params: Vec<FunctionParam>,
     pub body: Vec<Statement>,
     pub attributes: Vec<FunctionAttribute>,

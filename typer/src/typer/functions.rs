@@ -62,12 +62,10 @@ pub fn parse_function_signature(
     }
 
     let mut template_param_count = 0;
-    if let Some(ref ast_template_params) = fd.template_params {
-        for template_param in &ast_template_params.0 {
-            context.insert_template_type(template_param.clone())?;
-            template_param_count += 1;
-        }
-    };
+    for template_param in &fd.template_params.0 {
+        context.insert_template_type(template_param.clone())?;
+        template_param_count += 1;
+    }
 
     let return_type = parse_returntype(&fd.returntype, context)?;
 
