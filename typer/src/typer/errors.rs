@@ -34,6 +34,7 @@ pub enum TyperError {
         Vec<FunctionOverload>,
         Vec<ir::ExpressionType>,
         SourceLocation,
+        bool,
     ),
     ConstructorWrongArgumentCount,
 
@@ -242,11 +243,20 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::FunctionArgumentTypeMismatch(overloads, types, call_location) => {
+            TyperError::FunctionArgumentTypeMismatch(
+                overloads,
+                types,
+                call_location,
+                ambiguous_success,
+            ) => {
                 let func_name = context.get_function_or_intrinsic_name(&overloads[0].0);
                 write_message(
                     &|f| {
-                        write!(f, "no matching function for call to {}(", func_name)?;
+                        if *ambiguous_success {
+                            write!(f, "ambiguous call to {}(", func_name)?;
+                        } else {
+                            write!(f, "no matching function for call to {}(", func_name)?;
+                        }
                         if let Some((last_arg, not_last)) = types.split_last() {
                             for arg in not_last {
                                 write!(f, "{:?}, ", arg.0)?;
@@ -264,8 +274,14 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         &|f| {
                             write!(
                                 f,
-                                "candidate function not viable: {:?} {}(",
-                                overload.1.return_type.return_type, func_name
+                                "candidate function{}: {:?} {}(",
+                                if *ambiguous_success {
+                                    ""
+                                } else {
+                                    " not viable"
+                                },
+                                overload.1.return_type.return_type,
+                                func_name
                             )?;
                             if let Some((last_param, not_last)) =
                                 overload.1.param_types.split_last()

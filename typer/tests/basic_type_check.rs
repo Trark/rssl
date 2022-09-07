@@ -63,7 +63,6 @@ void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
     );
 
     // Check that we fail if multiple overloads are valid
-    // TODO: This currently prints an error indicating none were valid
     check_fail("void f(int2 x) {} void f(int3 x) {} void main() { f(int4(0, 0, 0, 0)); }");
 
     // Check a function can call itself

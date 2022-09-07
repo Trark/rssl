@@ -200,12 +200,23 @@ fn find_function_type(
             let (candidate, casts, _) = casts[0].clone();
             return Ok((candidate, casts));
         }
+
+        if casts.len() > 1 {
+            let ambiguous_overloads = casts.iter().map(|c| c.0.clone()).collect::<Vec<_>>();
+            return Err(TyperError::FunctionArgumentTypeMismatch(
+                ambiguous_overloads,
+                param_types.to_vec(),
+                call_location,
+                true,
+            ));
+        }
     }
 
     Err(TyperError::FunctionArgumentTypeMismatch(
         overloads.clone(),
         param_types.to_vec(),
         call_location,
+        false,
     ))
 }
 
