@@ -6,17 +6,26 @@ use rssl_text::Located;
 
 /// Attempt to get an ir type from an ast type
 pub fn parse_type(ty: &ast::Type, context: &Context) -> TyperResult<ir::Type> {
-    let &ast::Type(ref tyl, modifier) = ty;
-    Ok(ir::Type(parse_typelayout(tyl, context)?, modifier))
+    let ast::Type(ast_tyl, direct_modifier) = ty;
+    let ir::Type(ir_tyl, base_modifier) = parse_typelayout(ast_tyl, context)?;
+    // Matrix ordering not properly handled
+    assert_eq!(base_modifier.row_order, direct_modifier.row_order);
+    let modifier = ir::TypeModifier {
+        is_const: base_modifier.is_const || direct_modifier.is_const,
+        row_order: direct_modifier.row_order,
+        precise: base_modifier.precise || direct_modifier.precise,
+        volatile: base_modifier.volatile || direct_modifier.volatile,
+    };
+    Ok(ir::Type(ir_tyl, modifier))
 }
 
 /// Attempt to get an ir type layout from an ast type layout
-pub fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::TypeLayout> {
+pub fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::Type> {
     Ok(match *ty {
-        ast::TypeLayout::Void => ir::TypeLayout::Void,
-        ast::TypeLayout::Scalar(scalar) => ir::TypeLayout::Scalar(scalar),
-        ast::TypeLayout::Vector(scalar, x) => ir::TypeLayout::Vector(scalar, x),
-        ast::TypeLayout::Matrix(scalar, x, y) => ir::TypeLayout::Matrix(scalar, x, y),
+        ast::TypeLayout::Void => ir::Type::void(),
+        ast::TypeLayout::Scalar(scalar) => ir::Type::from_scalar(scalar),
+        ast::TypeLayout::Vector(scalar, x) => ir::Type::from_vector(scalar, x),
+        ast::TypeLayout::Matrix(scalar, x, y) => ir::Type::from_matrix(scalar, x, y),
         ast::TypeLayout::Custom(ref name, ref args) => {
             let mut ir_args = Vec::with_capacity(args.len());
             for arg in args {
@@ -25,7 +34,7 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<
 
             // Special case all the object types for now
             if let Some(object_type) = parse_object_type(name, &ir_args) {
-                return Ok(object_type);
+                return Ok(ir::Type::from_layout(object_type));
             }
 
             // No support for template args on generic types

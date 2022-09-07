@@ -1181,13 +1181,12 @@ fn parse_expr_unchecked(
                 let expr = cast.apply(expr_base);
                 slots.push(ir::ConstructorSlot { arity, expr });
             }
-            let type_layout =
-                parse_typelayout(ast_layout, context).expect("Data layouts should never fail");
-            let expected_layout = type_layout.get_num_elements();
-            let ty = ir::Type::from_layout(type_layout.clone()).to_rvalue();
+            let ty = parse_typelayout(ast_layout, context).expect("Data layouts should never fail");
+            let expected_layout = ty.0.get_num_elements();
+            let ety = ty.to_rvalue();
             if total_arity == expected_layout {
-                let cons = ir::Expression::Constructor(type_layout, slots);
-                Ok(TypedExpression::Value(cons, ty))
+                let cons = ir::Expression::Constructor(ety.0 .0.clone(), slots);
+                Ok(TypedExpression::Value(cons, ety))
             } else {
                 Err(TyperError::ConstructorWrongArgumentCount)
             }

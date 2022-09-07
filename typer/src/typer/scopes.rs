@@ -65,7 +65,7 @@ struct ScopeData {
     variables: VariableBlock,
 
     function_ids: HashMap<String, Vec<ir::FunctionId>>,
-    struct_ids: HashMap<String, ir::StructId>,
+    types: HashMap<String, ir::Type>,
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
     template_args: HashMap<String, ir::TemplateTypeId>,
@@ -82,7 +82,7 @@ impl Context {
                 parent_scope: usize::MAX,
                 variables: VariableBlock::new(),
                 function_ids: HashMap::new(),
-                struct_ids: HashMap::new(),
+                types: HashMap::new(),
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
                 template_args: HashMap::new(),
@@ -114,7 +114,7 @@ impl Context {
             parent_scope: parent,
             variables: VariableBlock::new(),
             function_ids: HashMap::new(),
-            struct_ids: HashMap::new(),
+            types: HashMap::new(),
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
             template_args: HashMap::new(),
@@ -228,13 +228,13 @@ impl Context {
     }
 
     /// Find the id for a given type name
-    pub fn find_type_id(&self, name: &str) -> TyperResult<ir::TypeLayout> {
+    pub fn find_type_id(&self, name: &str) -> TyperResult<ir::Type> {
         match self.search_scopes(|s| {
-            if let Some(id) = s.struct_ids.get(name) {
-                return Some(ir::TypeLayout::Struct(*id));
+            if let Some(ty) = s.types.get(name) {
+                return Some(ty.clone());
             }
             if let Some(id) = s.template_args.get(name) {
-                return Some(ir::TypeLayout::TemplateParam(*id));
+                return Some(ir::Type::from_layout(ir::TypeLayout::TemplateParam(*id)));
             }
             None
         }) {
@@ -392,10 +392,15 @@ impl Context {
         self.function_data[id.0 as usize].name.location
     }
 
-    /// Get the source location from a struct id
-    pub fn get_struct_location(&self, id: ir::StructId) -> SourceLocation {
-        assert!(id.0 < self.struct_data.len() as u32);
-        self.struct_data[id.0 as usize].name.location
+    /// Get the source location from a type
+    pub fn get_type_location(&self, id: &ir::Type) -> SourceLocation {
+        match id.0 {
+            ir::TypeLayout::Struct(id) => {
+                assert!(id.0 < self.struct_data.len() as u32);
+                self.struct_data[id.0 as usize].name.location
+            }
+            _ => SourceLocation::UNKNOWN,
+        }
     }
 
     /// Get the source location from a constant buffer id
@@ -495,7 +500,7 @@ impl Context {
     }
 
     /// Register a new struct type
-    pub fn begin_struct(&mut self, name: Located<String>) -> Result<ir::StructId, ir::StructId> {
+    pub fn begin_struct(&mut self, name: Located<String>) -> Result<ir::StructId, ir::Type> {
         let data = StructData {
             name,
             members: HashMap::new(),
@@ -504,16 +509,19 @@ impl Context {
         let id = ir::StructId(self.struct_data.len() as u32);
         self.struct_data.push(data);
         let data = self.struct_data.last().unwrap();
+        let type_for_struct = ir::Type::from_layout(ir::TypeLayout::Struct(id));
         match self.scopes[self.current_scope]
-            .struct_ids
+            .types
             .entry(data.name.to_string())
         {
-            Entry::Vacant(id_v) => {
-                id_v.insert(id);
-                Ok(id)
+            Entry::Vacant(v) => {
+                v.insert(type_for_struct);
             }
-            Entry::Occupied(id_o) => Err(*id_o.get()),
+            Entry::Occupied(o) => {
+                return Err(o.get().clone());
+            }
         }
+        Ok(id)
     }
 
     // Finish setting up a struct type
@@ -713,11 +721,20 @@ impl Context {
 
         // None of these expected inside the function scope
         assert!(self.scopes[old_scope_id].function_ids.is_empty());
-        assert!(self.scopes[old_scope_id].struct_ids.is_empty());
+        assert!(self.scopes[old_scope_id].types.is_empty());
         assert!(self.scopes[old_scope_id].cbuffer_ids.is_empty());
         assert!(self.scopes[old_scope_id].global_ids.is_empty());
 
-        // scope template_args explicitly ignored as they are removed
+        // Insert template parameter names as the provided types
+        // The new scopes template_args is empty as they are real types now
+        for (template_param_name, template_param_id) in
+            self.scopes[old_scope_id].template_args.clone()
+        {
+            self.scopes[new_scope_id].types.insert(
+                template_param_name,
+                template_args[template_param_id.0 as usize].node.clone(),
+            );
+        }
 
         // If we are a template method then the struct is the same
         self.scopes[new_scope_id].owning_struct = self.scopes[old_scope_id].owning_struct;

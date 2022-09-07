@@ -87,8 +87,7 @@ fn check_function_templates() {
     check_fail("template<typename T> T f(T v) { return v; } void main() { f(0.0); }");
 
     // We currently do not support using template parameters in template arguments
-    // TODO: Fix using template parameters in the function bodies
-    check_fail("template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }");
+    check_types("template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }");
 
     // Check that we do not fail type checking due to function contents
     // We currently do not try to process these
@@ -98,8 +97,7 @@ fn check_function_templates() {
     check_types("template<typename T> T f(T v) { return v + 1; } void main() { f<float>(0.0); }");
 
     // Check we can declare instances of a template type inside the function body
-    // TODO: Current fails
-    check_fail("template<typename T> void f() { T t; t + 1; }; void main() { f<float>(); };");
+    check_types("template<typename T> void f() { T t; t + 1; }; void main() { f<float>(); };");
 
     // Check that picking a type that does not create a valid instantiation fails
     check_fail(
@@ -190,14 +188,12 @@ fn check_struct_method_templates() {
     );
 
     // Check we can declare instances of template types as local variables
-    // TODO: This should pass but currently fails
-    check_fail(
+    check_types(
         "struct S { template<typename T> void f() { T t; t + 1; } }; void main() { S s; s.f<float>(); };",
     );
 
     // Check (non-templated) struct template method can access both the template type and the containing struct type
-    // TODO: This should pass but currently fails due to using T in the body
-    check_fail("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
+    check_types("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
 }
 
 #[test]

@@ -13,7 +13,7 @@ pub type TyperResult<T> = Result<T, TyperError>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
-    StructAlreadyDefined(Located<String>, ir::StructId),
+    StructAlreadyDefined(Located<String>, ir::Type),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
@@ -151,17 +151,21 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 name.location,
                 Severity::Error,
             ),
-            TyperError::StructAlreadyDefined(name, previous_id) => {
+            TyperError::StructAlreadyDefined(name, previous_type) => {
                 write_message(
                     &|f| write!(f, "redefinition of '{}'", name.node),
                     name.location,
                     Severity::Error,
                 )?;
-                write_message(
-                    &|f| write!(f, "previous definition is here"),
-                    context.get_struct_location(*previous_id),
-                    Severity::Note,
-                )
+                let previous_location = context.get_type_location(previous_type);
+                if previous_location != SourceLocation::UNKNOWN {
+                    write_message(
+                        &|f| write!(f, "previous definition is here"),
+                        previous_location,
+                        Severity::Note,
+                    )?;
+                }
+                Ok(())
             }
             TyperError::ConstantBufferAlreadyDefined(name, previous_id) => {
                 write_message(
