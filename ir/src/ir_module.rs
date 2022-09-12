@@ -10,6 +10,7 @@ pub struct Module {
 #[derive(PartialEq, Debug, Clone)]
 pub enum RootDefinition {
     Struct(StructDefinition),
+    StructTemplate(StructTemplateDefinition),
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),
     Function(FunctionDefinition),
@@ -21,5 +22,6 @@ pub struct GlobalDeclarations {
     pub functions: HashMap<FunctionId, String>,
     pub globals: HashMap<GlobalId, String>,
     pub structs: HashMap<StructId, String>,
+    pub struct_templates: HashMap<StructTemplateId, String>,
     pub constants: HashMap<ConstantBufferId, String>,
 }

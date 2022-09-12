@@ -85,14 +85,12 @@ fn check_function_templates() {
     // We currently do not support inferring the template arguments
     check_fail("template<typename T> T f(T v) { return v; } void main() { f(0.0); }");
 
-    // We currently do not support using template parameters in template arguments
+    // Check support for using template parameters in template arguments
     check_types("template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }");
 
     // Check that we do not fail type checking due to function contents
-    // We currently do not try to process these
     check_types("template<typename T> T f(T v) { return v + 1; }");
-    // Even when we actually invoke the function
-    // This does not generate a complete ir
+    // TODO: This does not generate a complete ir
     check_types("template<typename T> T f(T v) { return v + 1; } void main() { f<float>(0.0); }");
 
     // Check we can declare instances of a template type inside the function body
@@ -193,6 +191,42 @@ fn check_struct_method_templates() {
 
     // Check (non-templated) struct template method can access both the template type and the containing struct type
     check_types("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
+}
+
+#[test]
+fn check_struct_templates() {
+    // Check basic templated struct
+    check_types("template<typename T> struct S {};");
+
+    // Check that redefinitions fail
+    check_fail("template<typename T> struct S {}; template<typename G> struct S {};");
+
+    // Check we can create an instance of a templated struct
+    check_types("template<typename T> struct S {}; S<int> s;");
+
+    // Check the same template argument name can be used twice
+    check_types(
+        "template<typename T> struct M {}; template<typename T> struct N {}; M<int> m; N<int> n;",
+    );
+
+    // Ensure we fail if we try to make a templated struct without providing template arguments
+    check_fail("template<typename T> struct S {}; S s;");
+
+    // Check we can use the template argument in a method
+    check_types("template<typename T> struct S { void f() { T t; t = uint2(3, 4); } }; S<int2> s;");
+
+    // Check we fail if the type is not usable for the template
+    check_fail(
+        "template<typename T> struct S { void f() { T t; t = uint2(3, 4); } }; S<float4x4> s;",
+    );
+
+    // Check that the same template arguments give the same type
+    check_types("template<typename T> struct S {}; void main() { S<int> s1; S<int> s2; s1 = s2; }");
+
+    // Check that different template arguments give different types
+    check_fail(
+        "template<typename T> struct S {}; void main() { S<int> s1; S<float> s2; s1 = s2; }",
+    );
 }
 
 #[test]

@@ -2,6 +2,7 @@ use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use super::functions::{parse_function_body, Callable, FunctionOverload, FunctionSignature};
+use super::structs::build_struct_from_template;
 use super::types::apply_template_type_substitution;
 use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
@@ -19,6 +20,7 @@ pub struct Context {
 
     function_data: Vec<FunctionData>,
     struct_data: Vec<StructData>,
+    struct_template_data: Vec<StructTemplateData>,
     cbuffer_data: Vec<ConstantBufferData>,
     global_data: Vec<GlobalData>,
 }
@@ -44,6 +46,14 @@ struct StructData {
     name: Located<String>,
     members: HashMap<String, ir::Type>,
     methods: HashMap<String, Vec<ir::FunctionId>>,
+}
+
+#[derive(Debug, Clone)]
+struct StructTemplateData {
+    name: Located<String>,
+    ast: Rc<ast::StructDefinition>,
+    scope: ScopeIndex,
+    instantiations: HashMap<Vec<ir::Type>, ir::StructId>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +102,7 @@ impl Context {
             current_scope: 0,
             function_data: Vec::new(),
             struct_data: Vec::new(),
+            struct_template_data: Vec::new(),
             cbuffer_data: Vec::new(),
             global_data: Vec::new(),
         };
@@ -228,8 +239,12 @@ impl Context {
     }
 
     /// Find the id for a given type name
-    pub fn find_type_id(&self, name: &str) -> TyperResult<ir::Type> {
-        match self.search_scopes(|s| {
+    pub fn find_type_id(
+        &mut self,
+        name: &str,
+        template_args: &[ir::Type],
+    ) -> TyperResult<ir::Type> {
+        let ty = self.search_scopes(|s| {
             if let Some(ty) = s.types.get(name) {
                 return Some(ty.clone());
             }
@@ -237,11 +252,63 @@ impl Context {
                 return Some(ir::Type::from_layout(ir::TypeLayout::TemplateParam(*id)));
             }
             None
-        }) {
-            Some(id) => Ok(id),
-            None => Err(TyperError::UnknownType(ErrorType::Untyped(
-                ast::Type::custom(name),
-            ))),
+        });
+        let ty = match ty {
+            Some(ty) => ty,
+            None => {
+                return Err(TyperError::UnknownType(ErrorType::Untyped(
+                    ast::Type::custom(name),
+                )))
+            }
+        };
+        match ty {
+            ir::Type(ir::TypeLayout::StructTemplate(id), modifier) => {
+                // Templated type definitions require template arguments
+                // We do not currently support default arguments
+                if template_args.is_empty() {
+                    // Generic error for now
+                    Err(TyperError::UnknownType(ErrorType::Untyped(
+                        ast::Type::custom(name),
+                    )))
+                } else {
+                    let struct_template_data = &self.struct_template_data[id.0 as usize];
+                    let ast = &struct_template_data.ast.clone();
+
+                    if let Some(id) = struct_template_data.instantiations.get(template_args) {
+                        Ok(ir::Type(ir::TypeLayout::Struct(*id), modifier))
+                    } else {
+                        // Return to scope of the struct definition to build the template
+                        let current_scope = self.current_scope;
+                        self.current_scope = struct_template_data.scope;
+
+                        let sid_res = build_struct_from_template(ast, template_args, self);
+
+                        // Back to calling scope
+                        self.current_scope = current_scope;
+
+                        let sid = sid_res?;
+
+                        // Register the instantiation
+                        let struct_template_data = &mut self.struct_template_data[id.0 as usize];
+                        struct_template_data
+                            .instantiations
+                            .insert(template_args.to_vec(), sid);
+
+                        Ok(ir::Type(ir::TypeLayout::Struct(sid), modifier))
+                    }
+                }
+            }
+            _ => {
+                // Normal types do not expect any template arguments
+                if template_args.is_empty() {
+                    Ok(ty)
+                } else {
+                    // Generic error for now
+                    Err(TyperError::UnknownType(ErrorType::Untyped(
+                        ast::Type::custom(name),
+                    )))
+                }
+            }
         }
     }
 
@@ -374,6 +441,12 @@ impl Context {
         &self.struct_data[id.0 as usize].name.node
     }
 
+    /// Get the name from a struct template_id
+    pub fn get_struct_template_name(&self, id: ir::StructTemplateId) -> &str {
+        assert!(id.0 < self.struct_template_data.len() as u32);
+        &self.struct_template_data[id.0 as usize].name.node
+    }
+
     /// Get the name from a constant buffer id
     pub fn get_cbuffer_name(&self, id: ir::ConstantBufferId) -> &str {
         assert!(id.0 < self.cbuffer_data.len() as u32);
@@ -500,7 +573,11 @@ impl Context {
     }
 
     /// Register a new struct type
-    pub fn begin_struct(&mut self, name: Located<String>) -> Result<ir::StructId, ir::Type> {
+    pub fn begin_struct(
+        &mut self,
+        name: Located<String>,
+        is_non_template: bool,
+    ) -> Result<ir::StructId, ir::Type> {
         let data = StructData {
             name,
             members: HashMap::new(),
@@ -510,15 +587,17 @@ impl Context {
         self.struct_data.push(data);
         let data = self.struct_data.last().unwrap();
         let type_for_struct = ir::Type::from_layout(ir::TypeLayout::Struct(id));
-        match self.scopes[self.current_scope]
-            .types
-            .entry(data.name.to_string())
-        {
-            Entry::Vacant(v) => {
-                v.insert(type_for_struct);
-            }
-            Entry::Occupied(o) => {
-                return Err(o.get().clone());
+        if is_non_template {
+            match self.scopes[self.current_scope]
+                .types
+                .entry(data.name.to_string())
+            {
+                Entry::Vacant(v) => {
+                    v.insert(type_for_struct);
+                }
+                Entry::Occupied(o) => {
+                    return Err(o.get().clone());
+                }
             }
         }
         Ok(id)
@@ -536,6 +615,36 @@ impl Context {
         assert!(data.methods.is_empty());
         data.members = members;
         data.methods = methods;
+    }
+
+    /// Register a new struct template
+    pub fn register_struct_template(
+        &mut self,
+        name: Located<String>,
+        ast: ast::StructDefinition,
+    ) -> Result<ir::StructTemplateId, ir::Type> {
+        let data = StructTemplateData {
+            name,
+            ast: Rc::new(ast),
+            scope: self.current_scope,
+            instantiations: HashMap::new(),
+        };
+        let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
+        self.struct_template_data.push(data);
+        let data = self.struct_template_data.last().unwrap();
+        let type_for_struct = ir::Type::from_layout(ir::TypeLayout::StructTemplate(id));
+        match self.scopes[self.current_scope]
+            .types
+            .entry(data.name.to_string())
+        {
+            Entry::Vacant(v) => {
+                v.insert(type_for_struct);
+            }
+            Entry::Occupied(o) => {
+                return Err(o.get().clone());
+            }
+        }
+        Ok(id)
     }
 
     /// Register a new constant buffer
@@ -557,6 +666,20 @@ impl Context {
                 Ok(id)
             }
             Entry::Occupied(id_o) => Err(*id_o.get()),
+        }
+    }
+
+    /// Register a new typedef
+    pub fn register_typedef(&mut self, name: Located<String>, ty: ir::Type) -> TyperResult<()> {
+        match self.scopes[self.current_scope]
+            .types
+            .entry(name.to_string())
+        {
+            Entry::Vacant(v) => {
+                v.insert(ty);
+                Ok(())
+            }
+            Entry::Occupied(o) => Err(TyperError::StructAlreadyDefined(name, o.get().clone())),
         }
     }
 

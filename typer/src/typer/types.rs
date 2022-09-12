@@ -5,7 +5,7 @@ use rssl_ir as ir;
 use rssl_text::Located;
 
 /// Attempt to get an ir type from an ast type
-pub fn parse_type(ty: &ast::Type, context: &Context) -> TyperResult<ir::Type> {
+pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type> {
     let ast::Type(ast_tyl, direct_modifier) = ty;
     let ir::Type(ir_tyl, base_modifier) = parse_typelayout(ast_tyl, context)?;
     // Matrix ordering not properly handled
@@ -20,7 +20,7 @@ pub fn parse_type(ty: &ast::Type, context: &Context) -> TyperResult<ir::Type> {
 }
 
 /// Attempt to get an ir type layout from an ast type layout
-pub fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<ir::Type> {
+pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperResult<ir::Type> {
     Ok(match *ty {
         ast::TypeLayout::Void => ir::Type::void(),
         ast::TypeLayout::Scalar(scalar) => ir::Type::from_scalar(scalar),
@@ -37,12 +37,13 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &Context) -> TyperResult<
                 return Ok(ir::Type::from_layout(object_type));
             }
 
-            // No support for template args on generic types
-            if !args.is_empty() {
-                unimplemented!("Template args not implemented for {}", name)
+            // Translate type arguments first
+            let mut ir_args = Vec::with_capacity(args.len());
+            for arg in args {
+                ir_args.push(parse_type(arg, context)?);
             }
 
-            context.find_type_id(name)?
+            context.find_type_id(name, &ir_args)?
         }
     })
 }

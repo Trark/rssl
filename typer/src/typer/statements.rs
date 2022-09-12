@@ -175,7 +175,10 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
 }
 
 /// Convert a type for a local variable
-fn parse_localtype(local_type: &ast::LocalType, context: &Context) -> TyperResult<ir::LocalType> {
+fn parse_localtype(
+    local_type: &ast::LocalType,
+    context: &mut Context,
+) -> TyperResult<ir::LocalType> {
     let ty = parse_type(&local_type.0, context)?;
     Ok(ir::LocalType(
         ty,

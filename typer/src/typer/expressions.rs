@@ -1234,7 +1234,7 @@ fn parse_expr_unchecked(
             for constrained_expr in main {
                 let mut valid = true;
                 for type_name in &constrained_expr.expected_type_names {
-                    if context.find_type_id(type_name).is_err() {
+                    if context.find_type_id(type_name, &[]).is_err() {
                         valid = false;
                     }
                 }

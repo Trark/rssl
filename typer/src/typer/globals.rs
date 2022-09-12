@@ -42,7 +42,7 @@ pub fn parse_rootdefinition_globalvariable(
 
 fn parse_globaltype(
     global_type: &ast::GlobalType,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<ir::GlobalType> {
     let ty = parse_type(&global_type.0, context)?;
     Ok(ir::GlobalType(

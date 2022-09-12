@@ -160,13 +160,16 @@ fn parse_function(
 
 fn parse_returntype(
     return_type: &ast::FunctionReturn,
-    context: &Context,
+    context: &mut Context,
 ) -> TyperResult<ir::FunctionReturn> {
     let ty = parse_type(&return_type.return_type, context)?;
     Ok(ir::FunctionReturn { return_type: ty })
 }
 
-fn parse_paramtype(param_type: &ast::ParamType, context: &Context) -> TyperResult<ir::ParamType> {
+fn parse_paramtype(
+    param_type: &ast::ParamType,
+    context: &mut Context,
+) -> TyperResult<ir::ParamType> {
     let ty = parse_type(&param_type.0, context)?;
     Ok(ir::ParamType(
         ty,

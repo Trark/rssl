@@ -221,6 +221,7 @@ fn test_ast_to_ir() {
                 map
             },
             structs: HashMap::new(),
+            struct_templates: HashMap::new(),
             constants: HashMap::new(),
         },
         root_definitions: vec![

@@ -13,16 +13,58 @@ pub fn parse_rootdefinition_struct(
     sd: &ast::StructDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
+    if !sd.template_params.0.is_empty() {
+        // Register the struct template
+        let name = &sd.name;
+        let id = match context.register_struct_template(name.clone(), sd.clone()) {
+            Ok(id) => id,
+            Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
+        };
+
+        Ok(ir::RootDefinition::StructTemplate(
+            ir::StructTemplateDefinition {
+                id,
+                ast: sd.clone(),
+            },
+        ))
+    } else {
+        let struct_def = parse_struct_internal(sd, &[], context)?;
+        Ok(ir::RootDefinition::Struct(struct_def))
+    }
+}
+
+/// Build a struct from a struct template
+pub fn build_struct_from_template(
+    sd: &ast::StructDefinition,
+    template_args: &[ir::Type],
+    context: &mut Context,
+) -> TyperResult<ir::StructId> {
+    let struct_def = parse_struct_internal(sd, template_args, context)?;
+    Ok(struct_def.id)
+}
+
+/// Process a struct internals
+fn parse_struct_internal(
+    sd: &ast::StructDefinition,
+    template_args: &[ir::Type],
+    context: &mut Context,
+) -> TyperResult<ir::StructDefinition> {
     // Register the struct
     let name = &sd.name;
-    let id = match context.begin_struct(name.clone()) {
+    let id = match context.begin_struct(name.clone(), template_args.is_empty()) {
         Ok(id) => id,
         Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
     };
 
-    // Template structs are not currently supported
-    if !sd.template_params.0.is_empty() {
-        todo!();
+    context.push_scope();
+    if !template_args.is_empty() {
+        // Inconsistent number of args not gracefully handled
+        assert_eq!(template_args.len(), sd.template_params.0.len());
+
+        // Register template arguments
+        for (template_param, template_arg) in sd.template_params.0.iter().zip(template_args) {
+            context.register_typedef(template_param.clone(), template_arg.clone())?;
+        }
     }
 
     let mut members = Vec::new();
@@ -85,10 +127,11 @@ pub fn parse_rootdefinition_struct(
         }
     }
 
-    let struct_def = ir::StructDefinition {
+    context.pop_scope();
+
+    Ok(ir::StructDefinition {
         id,
         members,
         methods,
-    };
-    Ok(ir::RootDefinition::Struct(struct_def))
+    })
 }

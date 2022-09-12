@@ -82,6 +82,7 @@ fn gather_global_names(
         functions: HashMap::new(),
         globals: HashMap::new(),
         structs: HashMap::new(),
+        struct_templates: HashMap::new(),
         constants: HashMap::new(),
     };
 
@@ -91,6 +92,11 @@ fn gather_global_names(
                 decls
                     .structs
                     .insert(sd.id, context.get_struct_name(sd.id).to_string());
+            }
+            ir::RootDefinition::StructTemplate(sd) => {
+                decls
+                    .struct_templates
+                    .insert(sd.id, context.get_struct_template_name(sd.id).to_string());
             }
             ir::RootDefinition::ConstantBuffer(cb) => {
                 decls

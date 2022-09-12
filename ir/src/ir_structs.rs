@@ -1,6 +1,6 @@
 use crate::ir_functions::FunctionDefinition;
 use crate::ir_types::Type;
-use crate::StructId;
+use crate::{StructId, StructTemplateId};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct StructDefinition {
@@ -13,4 +13,10 @@ pub struct StructDefinition {
 pub struct StructMember {
     pub name: String,
     pub typename: Type,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct StructTemplateDefinition {
+    pub id: StructTemplateId,
+    pub ast: rssl_ast::StructDefinition,
 }

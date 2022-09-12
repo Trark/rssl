@@ -11,6 +11,7 @@ pub enum TypeLayout {
     Vector(ScalarType, u32),
     Matrix(ScalarType, u32, u32),
     Struct(StructId),
+    StructTemplate(StructTemplateId),
     SamplerState,
     Object(ObjectType),
     Array(Box<TypeLayout>, u64),
@@ -46,6 +47,10 @@ pub enum DataLayout {
 /// Id to a user defined struct
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct StructId(pub u32);
+
+/// Id to a user defined struct template
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct StructTemplateId(pub u32);
 
 /// Id to a template type argument
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -397,6 +402,7 @@ impl std::fmt::Debug for TypeLayout {
             TypeLayout::Vector(ref st, ref x) => write!(f, "{:?}{}", st, x),
             TypeLayout::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
             TypeLayout::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
+            TypeLayout::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
             TypeLayout::SamplerState => write!(f, "SamplerState"),
             TypeLayout::Object(ref ot) => write!(f, "{:?}", ot),
             TypeLayout::Array(ref ty, ref len) => write!(f, "{:?}[{}]", ty, len),
