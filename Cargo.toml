@@ -16,6 +16,7 @@ rssl-preprocess = { path = "preprocess" }
 rssl-lexer = { path = "lexer" }
 rssl-parser = { path = "parser" }
 rssl-typer = { path = "typer" }
+rssl-hlsl = { path = "hlsl" }
 
 [workspace]
 members = [
@@ -27,4 +28,5 @@ members = [
     "text",
     "tok",
     "typer",
+    "hlsl",
 ]
