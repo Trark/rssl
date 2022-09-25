@@ -52,8 +52,6 @@ pub enum Initializer {
     /// Variable is initialized to the value of an expression
     Expression(Expression),
     /// Variable is initialized in parts (composite types and arrays)
-    /// Unlike HLSL or slp_lang_hst, this can not be used for scalars with
-    /// a 1 element aggregate.
     Aggregate(Vec<Initializer>),
 }
 
