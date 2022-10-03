@@ -36,8 +36,8 @@ fn type_check_internal(ast: &ast::Module, context: &mut Context) -> TyperResult<
 
     assert!(context.is_at_root());
 
-    // Remember the function names at the module level
-    let global_declarations = gather_global_names(&root_definitions, context);
+    // Remember the names of non-local definitions at the module level
+    let global_declarations = context.gather_global_names();
 
     Ok(ir::Module {
         root_definitions,
@@ -69,52 +69,4 @@ fn parse_rootdefinition(
             Ok(Vec::from([def]))
         }
     }
-}
-
-/// Make a name map from a set of root definitions
-fn gather_global_names(
-    root_definitions: &[ir::RootDefinition],
-    context: &Context,
-) -> ir::GlobalDeclarations {
-    use std::collections::HashMap;
-
-    let mut decls = ir::GlobalDeclarations {
-        functions: HashMap::new(),
-        globals: HashMap::new(),
-        structs: HashMap::new(),
-        struct_templates: HashMap::new(),
-        constants: HashMap::new(),
-    };
-
-    for def in root_definitions {
-        match def {
-            ir::RootDefinition::Struct(sd) => {
-                decls
-                    .structs
-                    .insert(sd.id, context.get_struct_name(sd.id).to_string());
-            }
-            ir::RootDefinition::StructTemplate(sd) => {
-                decls
-                    .struct_templates
-                    .insert(sd.id, context.get_struct_template_name(sd.id).to_string());
-            }
-            ir::RootDefinition::ConstantBuffer(cb) => {
-                decls
-                    .constants
-                    .insert(cb.id, context.get_cbuffer_name(cb.id).to_string());
-            }
-            ir::RootDefinition::GlobalVariable(gv) => {
-                decls
-                    .globals
-                    .insert(gv.id, context.get_global_name(gv.id).to_string());
-            }
-            ir::RootDefinition::Function(func) => {
-                decls
-                    .functions
-                    .insert(func.id, context.get_function_name(func.id).to_string());
-            }
-        }
-    }
-
-    decls
 }

@@ -212,62 +212,51 @@ fn test_ast_to_ir() {
     };
 
     let static_global_result = rssl_typer::type_check(&static_global_test);
-    let static_global_expected = ir::Module {
-        global_declarations: ir::GlobalDeclarations {
-            functions: HashMap::from([(ir::FunctionId(BASE_FUNCTION_ID), "CSMAIN".to_string())]),
-            globals: {
-                let mut map = HashMap::new();
-                map.insert(ir::GlobalId(0), "g_myFour".to_string());
-                map
-            },
-            structs: HashMap::new(),
-            struct_templates: HashMap::new(),
-            constants: HashMap::new(),
-        },
-        root_definitions: vec![
-            ir::RootDefinition::GlobalVariable(ir::GlobalVariable {
-                id: ir::GlobalId(0),
-                global_type: ir::GlobalType(
-                    ir::Type(
-                        ir::TypeLayout::from_scalar(ir::ScalarType::Int),
-                        ir::TypeModifier {
-                            is_const: true,
-                            ..ir::TypeModifier::default()
-                        },
-                    ),
-                    ir::GlobalStorage::Static,
-                    None,
-                ),
-                init: Some(ir::Initializer::Expression(ir::Expression::Cast(
-                    ir::Type::int(),
-                    Box::new(ir::Expression::Literal(ir::Literal::UntypedInt(4))),
-                ))),
-            }),
-            ir::RootDefinition::Function(ir::FunctionDefinition {
-                id: ir::FunctionId(BASE_FUNCTION_ID),
-                returntype: ir::FunctionReturn {
-                    return_type: ir::Type::void().into(),
-                },
-                params: Vec::new(),
-                scope_block: ir::ScopeBlock(
-                    vec![
-                        ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
-                        ir::Statement::Expression(ir::Expression::Intrinsic(
-                            ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
-                            Vec::new(),
-                            Vec::new(),
-                        )),
-                    ],
-                    ir::ScopedDeclarations {
-                        variables: HashMap::new(),
+    let static_global_expected = vec![
+        ir::RootDefinition::GlobalVariable(ir::GlobalVariable {
+            id: ir::GlobalId(0),
+            global_type: ir::GlobalType(
+                ir::Type(
+                    ir::TypeLayout::from_scalar(ir::ScalarType::Int),
+                    ir::TypeModifier {
+                        is_const: true,
+                        ..ir::TypeModifier::default()
                     },
                 ),
-                attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
-            }),
-        ],
-    };
+                ir::GlobalStorage::Static,
+                None,
+            ),
+            init: Some(ir::Initializer::Expression(ir::Expression::Cast(
+                ir::Type::int(),
+                Box::new(ir::Expression::Literal(ir::Literal::UntypedInt(4))),
+            ))),
+        }),
+        ir::RootDefinition::Function(ir::FunctionDefinition {
+            id: ir::FunctionId(BASE_FUNCTION_ID),
+            returntype: ir::FunctionReturn {
+                return_type: ir::Type::void().into(),
+            },
+            params: Vec::new(),
+            scope_block: ir::ScopeBlock(
+                vec![
+                    ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
+                    ir::Statement::Expression(ir::Expression::Intrinsic(
+                        ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
+                        Vec::new(),
+                        Vec::new(),
+                    )),
+                ],
+                ir::ScopedDeclarations {
+                    variables: HashMap::new(),
+                },
+            ),
+            attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
+        }),
+    ];
     match static_global_result {
-        Ok(actual) => assert_eq!(actual, static_global_expected),
+        Ok(actual) => {
+            assert_eq!(actual.root_definitions, static_global_expected)
+        }
         Err(err) => panic!("Failed to type check: {:?}", err),
     }
 }

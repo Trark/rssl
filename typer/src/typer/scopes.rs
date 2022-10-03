@@ -908,6 +908,49 @@ impl Context {
         data.instantiations.insert(template_args_no_loc, new_id);
         Ok(new_id)
     }
+
+    /// Make a name map from all non-local ids
+    pub fn gather_global_names(&self) -> ir::GlobalDeclarations {
+        let mut decls = ir::GlobalDeclarations {
+            functions: HashMap::new(),
+            globals: HashMap::new(),
+            structs: HashMap::new(),
+            struct_templates: HashMap::new(),
+            constants: HashMap::new(),
+        };
+
+        for struct_index in 0..self.struct_data.len() {
+            let id = ir::StructId(struct_index as u32);
+            let data = &self.struct_data[struct_index];
+            decls.structs.insert(id, data.name.to_string());
+        }
+
+        for struct_template_index in 0..self.struct_template_data.len() {
+            let id = ir::StructTemplateId(struct_template_index as u32);
+            let data = &self.struct_template_data[struct_template_index];
+            decls.struct_templates.insert(id, data.name.to_string());
+        }
+
+        for cbuffer_index in 0..self.cbuffer_data.len() {
+            let id = ir::ConstantBufferId(cbuffer_index as u32);
+            let data = &self.cbuffer_data[cbuffer_index];
+            decls.constants.insert(id, data.name.to_string());
+        }
+
+        for global_index in 0..self.global_data.len() {
+            let id = ir::GlobalId(global_index as u32);
+            let data = &self.global_data[global_index];
+            decls.globals.insert(id, data.name.to_string());
+        }
+
+        for function_index in 0..self.function_data.len() {
+            let id = ir::FunctionId(function_index as u32);
+            let data = &self.function_data[function_index];
+            decls.functions.insert(id, data.name.to_string());
+        }
+
+        decls
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
