@@ -14,8 +14,8 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
 
     for root_decl in &module.root_definitions {
         match root_decl {
-            ir::RootDefinition::Struct(_) => {
-                todo!("RootDefinition::Struct")
+            ir::RootDefinition::Struct(sd) => {
+                export_struct(sd, &mut output_string, &mut context)?;
             }
             ir::RootDefinition::StructTemplate(_) => {
                 todo!("RootDefinition::StructTemplate")
@@ -28,6 +28,7 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
             }
             ir::RootDefinition::Function(decl) => {
                 export_function(decl, &mut output_string, &mut context)?;
+                context.new_line(&mut output_string);
             }
         }
     }
@@ -140,7 +141,7 @@ fn export_function_param(
 fn export_type(
     ty: &ir::Type,
     output: &mut String,
-    _: &mut ExportContext,
+    context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     if !ty.1.is_empty() {
         todo!("Type modifier");
@@ -155,6 +156,7 @@ fn export_type(
         ir::TypeLayout::Matrix(st, x, y) => {
             write!(output, "{}{}x{}", export_scalar_type(st)?, x, y).unwrap()
         }
+        ir::TypeLayout::Struct(id) => output.push_str(context.get_struct_name(id)?),
         ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer) => {
             output.push_str("ByteAddressBuffer");
         }
@@ -361,7 +363,36 @@ fn export_expression(
     match expr {
         ir::Expression::Literal(lit) => export_literal(lit, output)?,
         ir::Expression::Variable(v) => output.push_str(context.get_variable_name(*v)?),
+        ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
+        ir::Expression::Cast(ty, expr) => {
+            output.push('(');
+            export_type(ty, output, context)?;
+            output.push_str(")(");
+            export_expression(expr, output, context)?;
+            output.push(')');
+        }
+        ir::Expression::Member(expr, name) => {
+            export_expression(expr, output, context)?;
+            output.push('.');
+            output.push_str(name)
+        }
+        ir::Expression::Call(id, tys, exprs) => {
+            if !tys.is_empty() {
+                todo!("Function invocation with type arguments");
+            }
+            // TODO: Method calls need different syntax when invoked on an object instead of in another method
+            output.push_str(context.get_function_name(*id)?);
+            output.push('(');
+            if let Some((last, main)) = exprs.split_last() {
+                for expr in main {
+                    export_expression(expr, output, context)?;
+                    output.push_str(", ");
+                }
+                export_expression(last, output, context)?;
+            }
+            output.push(')');
+        }
         ir::Expression::Intrinsic(intrinsic, _, exprs) => {
             enum Form {
                 Unary(&'static str),
@@ -549,13 +580,6 @@ fn export_expression(
                 }
             }
         }
-        ir::Expression::Cast(ty, expr) => {
-            output.push('(');
-            export_type(ty, output, context)?;
-            output.push_str(")(");
-            export_expression(expr, output, context)?;
-            output.push(')');
-        }
         _ => todo!("Expression: {:?}", expr),
     }
     Ok(())
@@ -574,6 +598,41 @@ fn export_initializer(
             ir::Initializer::Aggregate(_) => todo!("Aggregate initialisation"),
         }
     }
+    Ok(())
+}
+
+/// Export ir struct to HLSL
+fn export_struct(
+    decl: &ir::StructDefinition,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    output.push_str("struct ");
+    output.push_str(context.get_struct_name(decl.id)?);
+
+    context.new_line(output);
+    output.push('{');
+    context.push_indent();
+
+    for member in &decl.members {
+        context.new_line(output);
+        export_type(&member.typename, output, context)?;
+        output.push(' ');
+        output.push_str(&member.name);
+        output.push(';');
+    }
+
+    for method in &decl.methods {
+        context.new_line(output);
+        context.new_line(output);
+        export_function(method, output, context)?;
+    }
+
+    context.pop_indent();
+    context.new_line(output);
+    output.push_str("};");
+    context.new_line(output);
+
     Ok(())
 }
 
@@ -634,6 +693,14 @@ impl ExportContext {
         }
     }
 
+    /// Get the name of a struct
+    fn get_struct_name(&self, id: ir::StructId) -> Result<&str, ExportError> {
+        match self.names.structs.get(&id) {
+            Some(name) => Ok(name),
+            None => Err(ExportError::NamelessId),
+        }
+    }
+
     /// Get the name of a local variable
     fn get_variable_name(&self, id_ref: ir::VariableRef) -> Result<&str, ExportError> {
         let scope = &self.scopes[self.scopes.len() - (id_ref.1 .0 as usize) - 1];
@@ -650,7 +717,16 @@ impl ExportContext {
 
     /// Begin a new line and indent up to the current level of indentation
     fn new_line(&self, output: &mut String) {
+        // Remove previous indentation on empty lines - or trailing whitespace
+        let trimmed = output.trim_end_matches(|c| c == ' ');
+        if output.len() != trimmed.len() {
+            output.truncate(trimmed.len());
+        }
+
+        // Push the newline
         output.push('\n');
+
+        // Indent to current indentation level
         for _ in 0..self.indent {
             output.push_str("    ");
         }

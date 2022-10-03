@@ -10,13 +10,14 @@ fn check_static_primitive_variables() {
 
 #[test]
 fn check_functions() {
-    check_rssl_to_hlsl("void f() {}", "void f() {}");
-    check_rssl_to_hlsl("void f(int x) {}", "void f(int x) {}");
+    check_rssl_to_hlsl("void f() {}", "void f() {}\n");
+    check_rssl_to_hlsl("void f(int x) {}", "void f(int x) {}\n");
     check_rssl_to_hlsl(
         "float f(int x, float y) { return x + y; }",
         "float f(int x, float y) {
     return ((float)(x)) + (y);
-}",
+}
+",
     );
 }
 
@@ -28,7 +29,8 @@ fn check_expressions() {
     float4x4 m;
     float4 v0;
     float4 v1 = mul(m, v0);
-}",
+}
+",
     );
 
     check_rssl_to_hlsl(
@@ -36,7 +38,8 @@ fn check_expressions() {
         "extern ByteAddressBuffer g_buffer;
 void f() {
     g_buffer.Load((uint)(0));
-}",
+}
+",
     );
 }
 
@@ -56,7 +59,8 @@ fn check_statement_block() {
         float y = 6;
         float z = (y) + (x);
     }
-}",
+}
+",
     );
 }
 
@@ -78,7 +82,8 @@ fn check_statement_if() {
         return 1;
     }
     return 2;
-}",
+}
+",
     );
 }
 
@@ -108,7 +113,8 @@ fn check_statement_if_else() {
         return 3;
     }
     return 2;
-}",
+}
+",
     );
 }
 
@@ -149,7 +155,8 @@ fn check_statement_if_else_if_else() {
         }
     }
     return 2;
-}",
+}
+",
     );
 }
 
@@ -167,7 +174,8 @@ fn check_statement_for() {
     {
         return;
     }
-}",
+}
+",
     );
 }
 
@@ -185,6 +193,42 @@ fn check_statement_while() {
     {
         return;
     }
-}",
+}
+",
+    );
+}
+
+#[test]
+fn check_struct() {
+    check_rssl_to_hlsl(
+        "struct S
+{
+    int x;
+    float y;
+
+    void f(int z) {}
+    void g() { f(x); }
+};
+void main() {
+    S s;
+    s.x = 5;
+}
+",
+        "struct S
+{
+    int x;
+    float y;
+
+    void f(int z) {}
+
+    void g() {
+        f(x);
+    }
+};
+void main() {
+    S s;
+    (s.x) = ((int)(5));
+}
+",
     );
 }
