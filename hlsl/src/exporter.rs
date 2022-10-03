@@ -81,6 +81,7 @@ fn export_function(
 
     // Scope also contains the names of parameters
     context.push_scope(decl.scope_block.1.clone());
+    context.push_indent();
 
     output.push('(');
 
@@ -102,6 +103,7 @@ fn export_function(
     }
 
     context.pop_scope();
+    context.pop_indent();
 
     if !decl.scope_block.0.is_empty() {
         context.new_line(output);
@@ -199,29 +201,155 @@ fn export_statement(
 ) -> Result<(), ExportError> {
     context.new_line(output);
     match statement {
-        ir::Statement::Var(def) => {
-            match def.local_type.1 {
-                ir::LocalStorage::Local => {}
-                ir::LocalStorage::Static => output.push_str("static "),
-            }
-            export_type(&def.local_type.0, output, context)?;
-            if def.local_type.2.is_some() {
-                todo!("Variable interpolation modifier");
-            }
-
-            output.push(' ');
-            output.push_str(context.get_variable_name_direct(def.id)?);
-
-            export_initializer(&def.init, output, context)?;
-            output.push(';');
-        }
         ir::Statement::Expression(expr) => {
             export_expression(expr, output, context)?;
             output.push(';');
         }
-        _ => todo!("Statement: {:?}", statement),
+        ir::Statement::Var(def) => {
+            export_varible_definition(def, output, context)?;
+            output.push(';');
+        }
+        ir::Statement::Block(block) => {
+            enter_scope_block(block, context);
+            export_scope_block(block, output, context)?;
+            context.pop_scope();
+        }
+        ir::Statement::If(cond, block) => {
+            enter_scope_block(block, context);
+            output.push_str("if (");
+            export_expression(cond, output, context)?;
+            output.push(')');
+            context.new_line(output);
+            export_scope_block(block, output, context)?;
+            context.pop_scope();
+        }
+        ir::Statement::IfElse(cond, block_true, block_false) => {
+            enter_scope_block(block_true, context);
+            output.push_str("if (");
+            export_expression(cond, output, context)?;
+            output.push(')');
+            context.new_line(output);
+            export_scope_block(block_true, output, context)?;
+            context.pop_scope();
+
+            context.new_line(output);
+            output.push_str("else");
+            context.new_line(output);
+            enter_scope_block(block_false, context);
+            export_scope_block(block_false, output, context)?;
+        }
+        ir::Statement::For(init, cond, inc, block) => {
+            enter_scope_block(block, context);
+
+            output.push_str("for (");
+            export_for_init(init, output, context)?;
+            output.push_str("; ");
+            export_expression(cond, output, context)?;
+            output.push_str("; ");
+            export_expression(inc, output, context)?;
+            output.push(')');
+
+            context.new_line(output);
+            export_scope_block(block, output, context)?;
+            context.pop_scope();
+        }
+        ir::Statement::While(cond, block) => {
+            enter_scope_block(block, context);
+
+            output.push_str("while (");
+            export_expression(cond, output, context)?;
+            output.push(')');
+
+            context.new_line(output);
+            export_scope_block(block, output, context)?;
+            context.pop_scope();
+        }
+        ir::Statement::Break => output.push_str("break;"),
+        ir::Statement::Continue => output.push_str("continue;"),
+        ir::Statement::Return(expr_opt) => {
+            output.push_str("return");
+            if let Some(expr) = expr_opt {
+                output.push(' ');
+                export_expression(expr, output, context)?;
+            }
+            output.push(';');
+        }
     }
     Ok(())
+}
+
+/// Export ir variable definition to HLSL
+fn export_varible_definition(
+    def: &ir::VarDef,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match def.local_type.1 {
+        ir::LocalStorage::Local => {}
+        ir::LocalStorage::Static => output.push_str("static "),
+    }
+    export_type(&def.local_type.0, output, context)?;
+    if def.local_type.2.is_some() {
+        todo!("Variable interpolation modifier");
+    }
+
+    export_varible_definition_no_type(def, output, context)
+}
+
+/// Export ir single variable definition to HLSL
+fn export_varible_definition_no_type(
+    def: &ir::VarDef,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    output.push(' ');
+    output.push_str(context.get_variable_name_direct(def.id)?);
+
+    export_initializer(&def.init, output, context)
+}
+
+/// Add scoped variables from a scope block
+fn enter_scope_block(block: &ir::ScopeBlock, context: &mut ExportContext) {
+    context.push_scope(block.1.clone());
+}
+
+/// Export block of ir statements to HLSL
+fn export_scope_block(
+    block: &ir::ScopeBlock,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    output.push('{');
+    context.push_indent();
+    for statement in &block.0 {
+        export_statement(statement, output, context)?;
+    }
+    context.pop_indent();
+    context.new_line(output);
+    output.push('}');
+    Ok(())
+}
+
+/// Export ir initialiser expression to HLSL
+fn export_for_init(
+    init: &ir::ForInit,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match init {
+        ir::ForInit::Empty => Ok(()),
+        ir::ForInit::Expression(expr) => export_expression(expr, output, context),
+        ir::ForInit::Definitions(defs) => {
+            let (head, tail) = defs.split_first().unwrap();
+            export_varible_definition(head, output, context)?;
+            for def in tail {
+                assert_eq!(head.local_type, def.local_type);
+                output.push(',');
+                export_varible_definition_no_type(def, output, context)?;
+            }
+            Ok(())
+        }
+    }
 }
 
 /// Export ir expression to HLSL
@@ -471,7 +599,6 @@ impl ExportContext {
     /// Push a local scope
     fn push_scope(&mut self, scope_declarations: ir::ScopedDeclarations) {
         // TODO: Make names unique
-        self.indent += 1;
         self.scopes.push(scope_declarations);
     }
 
@@ -479,6 +606,15 @@ impl ExportContext {
     /// Okay to not call this if we hit an error case as we do not expect to recover from errors
     fn pop_scope(&mut self) {
         self.scopes.pop();
+    }
+
+    /// Increase indentation
+    fn push_indent(&mut self) {
+        self.indent += 1;
+    }
+
+    /// Decrease indentation
+    fn pop_indent(&mut self) {
         self.indent -= 1;
     }
 

@@ -12,6 +12,12 @@ fn check_static_primitive_variables() {
 fn check_functions() {
     check_rssl_to_hlsl("void f() {}", "void f() {}");
     check_rssl_to_hlsl("void f(int x) {}", "void f(int x) {}");
+    check_rssl_to_hlsl(
+        "float f(int x, float y) { return x + y; }",
+        "float f(int x, float y) {
+    return ((float)(x)) + (y);
+}",
+    );
 }
 
 #[test]
@@ -30,6 +36,155 @@ fn check_expressions() {
         "extern ByteAddressBuffer g_buffer;
 void f() {
     g_buffer.Load((uint)(0));
+}",
+    );
+}
+
+#[test]
+fn check_statement_block() {
+    check_rssl_to_hlsl(
+        "void f() {
+    float x = 0.0;
+    {
+        float y = 6.0;
+        float z = y + x;
+    }
+}",
+        "void f() {
+    float x = 0;
+    {
+        float y = 6;
+        float z = (y) + (x);
+    }
+}",
+    );
+}
+
+#[test]
+fn check_statement_if() {
+    check_rssl_to_hlsl(
+        "float f() {
+    float x = 0.0;
+    if (x)
+    {
+        return 1.0;
+    }
+    return 2.0;
+}",
+        "float f() {
+    float x = 0;
+    if (x)
+    {
+        return 1;
+    }
+    return 2;
+}",
+    );
+}
+
+#[test]
+fn check_statement_if_else() {
+    check_rssl_to_hlsl(
+        "float f() {
+    float x = 0.0;
+    if (x)
+    {
+        return 1.0;
+    }
+    else
+    {
+        return 3.0;
+    }
+    return 2.0;
+}",
+        "float f() {
+    float x = 0;
+    if (x)
+    {
+        return 1;
+    }
+    else
+    {
+        return 3;
+    }
+    return 2;
+}",
+    );
+}
+
+#[test]
+fn check_statement_if_else_if_else() {
+    check_rssl_to_hlsl(
+        "float f() {
+    float x = 0.0;
+    if (x)
+    {
+        return 1.0;
+    }
+    else if (x > 2.0)
+    {
+        return 4.0;
+    }
+    else
+    {
+        return 3.0;
+    }
+    return 2.0;
+}",
+        "float f() {
+    float x = 0;
+    if (x)
+    {
+        return 1;
+    }
+    else
+    {
+        if ((x) > (2))
+        {
+            return 4;
+        }
+        else
+        {
+            return 3;
+        }
+    }
+    return 2;
+}",
+    );
+}
+
+#[test]
+fn check_statement_for() {
+    check_rssl_to_hlsl(
+        "void f() {
+    for (int x = 1, y = 2; x < 10; ++x)
+    {
+        return;
+    }
+}",
+        "void f() {
+    for (int x = (int)(1), y = (int)(2); (x) < ((int)(10)); ++(x))
+    {
+        return;
+    }
+}",
+    );
+}
+
+#[test]
+fn check_statement_while() {
+    check_rssl_to_hlsl(
+        "void f() {
+    while (true)
+    {
+        return;
+    }
+}",
+        "void f() {
+    while (true)
+    {
+        return;
+    }
 }",
     );
 }
