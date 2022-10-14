@@ -19,7 +19,7 @@ pub enum Expression {
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
-    Call(FunctionId, Vec<Located<Type>>, Vec<Expression>),
+    Call(FunctionId, CallType, Vec<Located<Type>>, Vec<Expression>),
     Constructor(TypeLayout, Vec<ConstructorSlot>),
     Cast(Type, Box<Expression>),
     SizeOf(Type),
@@ -45,4 +45,16 @@ pub struct ConstructorSlot {
     /// The type of this expression must be the scalar type of the numeric
     /// constructor this is used in with the arity above
     pub expr: Expression,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum CallType {
+    /// Call is for a free function
+    FreeFunction,
+
+    /// Call is for a method invocation where the first argument is the object
+    MethodExternal,
+
+    /// Call is for a method invocation from within a class scope
+    MethodInternal,
 }

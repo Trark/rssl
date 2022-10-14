@@ -17,6 +17,7 @@ pub enum VariableExpression {
     Global(ir::GlobalId, ir::Type),
     Constant(ir::ConstantBufferId, String, ir::Type),
     Function(UnresolvedFunction),
+    Method(UnresolvedFunction),
 }
 
 /// Set of overloaded functions
@@ -38,6 +39,8 @@ enum TypedExpression {
     Value(ir::Expression, ExpressionType),
     // Set of function overloads
     Function(UnresolvedFunction),
+    // Set of method overloads for an object local method call with no object information
+    MethodInternal(UnresolvedFunction),
     // Set of method overloads + object
     Method(UnresolvedMethod),
 }
@@ -47,6 +50,9 @@ impl ToErrorType for TypedExpression {
         match *self {
             TypedExpression::Value(_, ref ety) => ety.to_error_type(),
             TypedExpression::Function(UnresolvedFunction { ref overloads }) => {
+                ErrorType::Function(overloads.clone())
+            }
+            TypedExpression::MethodInternal(UnresolvedFunction { ref overloads }) => {
                 ErrorType::Function(overloads.clone())
             }
             TypedExpression::Method(UnresolvedMethod {
@@ -73,6 +79,7 @@ fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression>
             TypedExpression::Value(ir::Expression::ConstantVariable(id, name), ty.to_lvalue())
         }
         VariableExpression::Function(func) => TypedExpression::Function(func),
+        VariableExpression::Method(func) => TypedExpression::MethodInternal(func),
     })
 }
 
@@ -235,6 +242,7 @@ fn write_function(
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,
+    call_type: ir::CallType,
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
@@ -263,7 +271,7 @@ fn write_function(
             };
             // TODO: Call will not need template args if we can encode it all in id
             Ok(TypedExpression::Value(
-                ir::Expression::Call(id, template_args.to_vec(), param_values),
+                ir::Expression::Call(id, call_type, template_args.to_vec(), param_values),
                 return_type,
             ))
         }
@@ -306,7 +314,12 @@ fn write_method(
             };
             // TODO: Call will not need template args if we can encode it all in id
             Ok(TypedExpression::Value(
-                ir::Expression::Call(id, template_args.to_vec(), param_values),
+                ir::Expression::Call(
+                    id,
+                    ir::CallType::MethodExternal,
+                    template_args.to_vec(),
+                    param_values,
+                ),
                 return_type,
             ))
         }
@@ -1146,6 +1159,16 @@ fn parse_expr_unchecked(
                     &args_types,
                     args_ir,
                     func.location,
+                    ir::CallType::FreeFunction,
+                    context,
+                ),
+                TypedExpression::MethodInternal(unresolved) => write_function(
+                    unresolved,
+                    &template_args_ir,
+                    &args_types,
+                    args_ir,
+                    func.location,
+                    ir::CallType::MethodInternal,
                     context,
                 ),
                 TypedExpression::Method(unresolved) => write_method(
@@ -1283,6 +1306,7 @@ fn parse_expr_value_only(
     match expr_ir {
         TypedExpression::Value(expr, ety) => Ok((expr, ety)),
         TypedExpression::Function(_) => Err(TyperError::FunctionNotCalled),
+        TypedExpression::MethodInternal(_) => Err(TyperError::FunctionNotCalled),
         TypedExpression::Method(_) => Err(TyperError::FunctionNotCalled),
     }
 }
@@ -1413,7 +1437,7 @@ fn get_expression_type(
             };
             context.get_type_of_struct_member(id, name)
         }
-        ir::Expression::Call(id, ref template_args, _) => {
+        ir::Expression::Call(id, _, ref template_args, _) => {
             context.get_type_of_function_return(id, template_args)
         }
         ir::Expression::Constructor(ref tyl, _) => {

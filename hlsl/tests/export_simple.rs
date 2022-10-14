@@ -212,6 +212,7 @@ fn check_struct() {
 void main() {
     S s;
     s.x = 5;
+    s.g();
 }
 ",
         "struct S
@@ -228,6 +229,7 @@ void main() {
 void main() {
     S s;
     (s.x) = ((int)(5));
+    (s).g();
 }
 ",
     );

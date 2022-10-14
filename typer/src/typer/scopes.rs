@@ -222,9 +222,7 @@ impl Context {
                     }
                     Ok(StructMemberValue::Method(overloads)) => {
                         // Resolve as a function as the method type / value are implicit
-                        return Ok(VariableExpression::Function(UnresolvedFunction {
-                            overloads,
-                        }));
+                        return Ok(VariableExpression::Method(UnresolvedFunction { overloads }));
                     }
                     Err(_) => {}
                 }

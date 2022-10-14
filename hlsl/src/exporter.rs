@@ -377,14 +377,25 @@ fn export_expression(
             output.push('.');
             output.push_str(name)
         }
-        ir::Expression::Call(id, tys, exprs) => {
+        ir::Expression::Call(id, ct, tys, exprs) => {
             if !tys.is_empty() {
                 todo!("Function invocation with type arguments");
             }
-            // TODO: Method calls need different syntax when invoked on an object instead of in another method
+            let (object, arguments) = match ct {
+                ir::CallType::FreeFunction | ir::CallType::MethodInternal => {
+                    (None, exprs.as_slice())
+                }
+                ir::CallType::MethodExternal => (Some(&exprs[0]), &exprs[1..]),
+            };
+            if let Some(object) = object {
+                output.push('(');
+                export_expression(object, output, context)?;
+                output.push(')');
+                output.push('.');
+            }
             output.push_str(context.get_function_name(*id)?);
             output.push('(');
-            if let Some((last, main)) = exprs.split_last() {
+            if let Some((last, main)) = arguments.split_last() {
                 for expr in main {
                     export_expression(expr, output, context)?;
                     output.push_str(", ");
