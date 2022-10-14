@@ -7,10 +7,10 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+rssl-text = { path = "../text" }
 rssl-ir = { path = "../ir" }
 
 [dev-dependencies]
-rssl-text = { path = "../text" }
 rssl-preprocess = { path = "../preprocess" }
 rssl-lexer = { path = "../lexer" }
 rssl-parser = { path = "../parser" }

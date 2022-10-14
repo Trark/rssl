@@ -1,4 +1,5 @@
 use rssl_ir as ir;
+use rssl_text::Located;
 use std::fmt::Write;
 
 /// Error result when exporting to HLSL fails
@@ -71,8 +72,8 @@ fn export_function(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    if !decl.attributes.is_empty() {
-        todo!("Function attributes");
+    for attribute in &decl.attributes {
+        export_function_attribute(attribute, output, context)?;
     }
 
     export_type(&decl.returntype.return_type, output, context)?;
@@ -112,6 +113,15 @@ fn export_function(
     output.push('}');
 
     Ok(())
+}
+
+/// Export ir function attribute to HLSL
+fn export_function_attribute(
+    attr: &ir::FunctionAttribute,
+    _: &mut String,
+    _: &mut ExportContext,
+) -> Result<(), ExportError> {
+    todo!("Function Attribute: {:?}", attr);
 }
 
 /// Export ir function parameter to HLSL
@@ -157,10 +167,48 @@ fn export_type(
             write!(output, "{}{}x{}", export_scalar_type(st)?, x, y).unwrap()
         }
         ir::TypeLayout::Struct(id) => output.push_str(context.get_struct_name(id)?),
-        ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer) => {
-            output.push_str("ByteAddressBuffer");
+        ir::TypeLayout::Object(ref ot) => {
+            match ot {
+                ir::ObjectType::Buffer(dt) => {
+                    output.push_str("Buffer<");
+                    export_type(&(*dt).into(), output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::RWBuffer(dt) => {
+                    output.push_str("RWBuffer<");
+                    export_type(&(*dt).into(), output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::ByteAddressBuffer => output.push_str("ByteAddressBuffer"),
+                ir::ObjectType::RWByteAddressBuffer => output.push_str("RWByteAddressBuffer"),
+                ir::ObjectType::StructuredBuffer(st) => {
+                    output.push_str("StructuredBuffer<");
+                    export_type(&st.clone().into(), output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::RWStructuredBuffer(st) => {
+                    output.push_str("RWStructuredBuffer<");
+                    export_type(&st.clone().into(), output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::Texture2D(dt) => {
+                    output.push_str("Texture2D<");
+                    export_type(&(*dt).into(), output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::RWTexture2D(dt) => {
+                    output.push_str("RWTexture2D<");
+                    export_type(&(*dt).into(), output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::ConstantBuffer(st) => {
+                    output.push_str("ConstantBuffer<");
+                    export_type(&st.clone().into(), output, context)?;
+                    output.push('>');
+                }
+            };
         }
-        _ => todo!("Type layout not implemented"),
+        _ => todo!("Type layout not implemented: {:?}", ty.0),
     };
 
     Ok(())
@@ -365,11 +413,46 @@ fn export_expression(
         ir::Expression::Variable(v) => output.push_str(context.get_variable_name(*v)?),
         ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
+        ir::Expression::ConstantVariable(id, name) => {
+            todo!("ConstantVariable: {:?} {:?}", id, name)
+        }
+        ir::Expression::TernaryConditional(expr_cond, expr_true, expr_false) => {
+            todo!(
+                "TernaryConditional: {:?} {:?} {:?}",
+                expr_cond,
+                expr_true,
+                expr_false,
+            )
+        }
+        ir::Expression::Sequence(exprs) => todo!("Sequence: {:?}", exprs),
+        ir::Expression::Swizzle(expr_object, swizzle) => {
+            output.push('(');
+            export_expression(expr_object, output, context)?;
+            output.push(')');
+            output.push('.');
+            for channel in swizzle {
+                match channel {
+                    ir::SwizzleSlot::X => output.push('x'),
+                    ir::SwizzleSlot::Y => output.push('y'),
+                    ir::SwizzleSlot::Z => output.push('z'),
+                    ir::SwizzleSlot::W => output.push('w'),
+                }
+            }
+        }
+        ir::Expression::ArraySubscript(expr_object, expr_index) => {
+            todo!("ArraySubscript: {:?} {:?}", expr_object, expr_index)
+        }
+        ir::Expression::Constructor(tyl, args) => todo!("Constructor: {:?} {:?}", tyl, args),
         ir::Expression::Cast(ty, expr) => {
             output.push('(');
             export_type(ty, output, context)?;
             output.push_str(")(");
             export_expression(expr, output, context)?;
+            output.push(')');
+        }
+        ir::Expression::SizeOf(ty) => {
+            output.push_str("sizeof(");
+            export_type(ty, output, context)?;
             output.push(')');
         }
         ir::Expression::Member(expr, name) => {
@@ -378,9 +461,6 @@ fn export_expression(
             output.push_str(name)
         }
         ir::Expression::Call(id, ct, tys, exprs) => {
-            if !tys.is_empty() {
-                todo!("Function invocation with type arguments");
-            }
             let (object, arguments) = match ct {
                 ir::CallType::FreeFunction | ir::CallType::MethodInternal => {
                     (None, exprs.as_slice())
@@ -394,17 +474,10 @@ fn export_expression(
                 output.push('.');
             }
             output.push_str(context.get_function_name(*id)?);
-            output.push('(');
-            if let Some((last, main)) = arguments.split_last() {
-                for expr in main {
-                    export_expression(expr, output, context)?;
-                    output.push_str(", ");
-                }
-                export_expression(last, output, context)?;
-            }
-            output.push(')');
+            export_template_type_args(tys.as_slice(), output, context)?;
+            export_invocation_args(arguments, output, context)?;
         }
-        ir::Expression::Intrinsic(intrinsic, _, exprs) => {
+        ir::Expression::Intrinsic(intrinsic, tys, exprs) => {
             enum Form {
                 Unary(&'static str),
                 UnaryPostfix(&'static str),
@@ -537,6 +610,7 @@ fn export_expression(
 
             match form {
                 Form::Unary(s) => {
+                    assert!(tys.is_empty());
                     assert_eq!(exprs.len(), 1);
                     output.push_str(s);
                     output.push('(');
@@ -544,6 +618,7 @@ fn export_expression(
                     output.push(')');
                 }
                 Form::UnaryPostfix(s) => {
+                    assert!(tys.is_empty());
                     assert_eq!(exprs.len(), 1);
                     output.push('(');
                     export_expression(&exprs[0], output, context)?;
@@ -551,6 +626,7 @@ fn export_expression(
                     output.push_str(s);
                 }
                 Form::Binary(s) => {
+                    assert!(tys.is_empty());
                     assert_eq!(exprs.len(), 2);
                     output.push('(');
                     export_expression(&exprs[0], output, context)?;
@@ -562,36 +638,19 @@ fn export_expression(
                 }
                 Form::Invoke(s) => {
                     output.push_str(s);
-                    output.push('(');
-                    if let Some((last, main)) = exprs.split_last() {
-                        for expr in main {
-                            export_expression(expr, output, context)?;
-                            output.push_str(", ");
-                        }
-                        export_expression(last, output, context)?;
-                    }
-
-                    output.push(')');
+                    export_template_type_args(tys.as_slice(), output, context)?;
+                    export_invocation_args(exprs, output, context)?;
                 }
                 Form::Method(s) => {
                     assert!(!exprs.is_empty());
                     export_expression(&exprs[0], output, context)?;
                     output.push('.');
                     output.push_str(s);
-                    output.push('(');
-                    if let Some((last, main)) = exprs[1..].split_last() {
-                        for expr in main {
-                            export_expression(expr, output, context)?;
-                            output.push_str(", ");
-                        }
-                        export_expression(last, output, context)?;
-                    }
-
-                    output.push(')');
+                    export_template_type_args(tys.as_slice(), output, context)?;
+                    export_invocation_args(&exprs[1..], output, context)?;
                 }
             }
         }
-        _ => todo!("Expression: {:?}", expr),
     }
     Ok(())
 }
@@ -608,6 +667,42 @@ fn export_initializer(
             ir::Initializer::Expression(expr) => export_expression(expr, output, context)?,
             ir::Initializer::Aggregate(_) => todo!("Aggregate initialisation"),
         }
+    }
+    Ok(())
+}
+
+/// Export function invocation argument list to HLSL
+fn export_invocation_args(
+    exprs: &[ir::Expression],
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    output.push('(');
+    if let Some((last, main)) = exprs.split_last() {
+        for expr in main {
+            export_expression(expr, output, context)?;
+            output.push_str(", ");
+        }
+        export_expression(last, output, context)?;
+    }
+    output.push(')');
+    Ok(())
+}
+
+/// Export template argument list to HLSL
+fn export_template_type_args(
+    tys: &[Located<ir::Type>],
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    if let Some((ty_last, ty_main)) = tys.split_last() {
+        output.push('<');
+        for ty in ty_main {
+            export_type(ty, output, context)?;
+            output.push_str(", ");
+        }
+        export_type(ty_last, output, context)?;
+        output.push('>');
     }
     Ok(())
 }

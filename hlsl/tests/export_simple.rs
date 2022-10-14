@@ -234,3 +234,19 @@ void main() {
 ",
     );
 }
+
+#[test]
+fn check_object_types() {
+    check_rssl_to_hlsl(
+        include_str!("object_types.rssl"),
+        include_str!("object_types.hlsl"),
+    );
+}
+
+#[test]
+fn check_cluster_expand() {
+    check_rssl_to_hlsl(
+        include_str!("cluster_expand.rssl"),
+        include_str!("cluster_expand.hlsl"),
+    );
+}

@@ -1,0 +1,15 @@
+ByteAddressBuffer g_byteBuffer;
+RWByteAddressBuffer g_byteBufferOutput;
+Buffer g_texelBuffer;
+RWBuffer<uint3> g_texelBufferOutput;
+Texture2D g_texture;
+RWTexture2D<float2> g_textureOutput;
+StructuredBuffer<uint> g_primitiveStructuredBuffer;
+RWStructuredBuffer<uint2> g_primitiveStructuredBufferOutput;
+struct S
+{
+    float4x4 mat;
+};
+StructuredBuffer<S> g_complexStructuredBuffer;
+RWStructuredBuffer<S> g_complexStructuredBufferOutput;
+ConstantBuffer<S> g_cb;
