@@ -136,7 +136,10 @@ fn check_intrinsic_calls() {
     check_types("void f() { abs(float4(7.0, 7.0, 7.0, 7.0)); }");
 
     check_types("Buffer<float4> buf; void main() { buf.Load(0); }");
+    check_types("Buffer buf; void main() { buf.Load(0); }");
     check_types("Buffer<uint4> buf; void main() { buf.Load(0); }");
+    check_types("RWBuffer<float4> buf; void main() { buf.Load(0); }");
+    check_fail("RWBuffer buf;");
 
     check_types("RWByteAddressBuffer buf; void main() { uint previous; buf.InterlockedAdd(0, 1, previous); }");
 }
@@ -255,7 +258,7 @@ fn check_variable_scope() {
 fn check_object_type_arguments() {
     check_types("Buffer buf;");
     check_types("Buffer<uint4> buf;");
-    check_types("RWBuffer buf;");
+    check_types("RWBuffer<float4> buf;");
     check_types("RWBuffer<uint4> buf;");
 
     check_types("ByteAddressBuffer buf;");
@@ -268,7 +271,7 @@ fn check_object_type_arguments() {
 
     check_types("Texture2D tex;");
     check_types("Texture2D<uint4> tex;");
-    check_types("RWTexture2D tex;");
+    check_types("RWTexture2D<float4> tex;");
     check_types("RWTexture2D<uint4> tex;");
 
     check_types("ConstantBuffer<uint4> buf;");
@@ -277,9 +280,9 @@ fn check_object_type_arguments() {
 
 #[test]
 fn check_texture_index() {
-    check_types("RWTexture2D tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }");
+    check_types("RWTexture2D<float4> tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }");
     check_types(
-        "RWTexture2D tex; void sub(out float4 v) {} void main() { sub(tex[uint2(0, 0)]); }",
+        "RWTexture2D<float4> tex; void sub(out float4 v) {} void main() { sub(tex[uint2(0, 0)]); }",
     );
     check_types("Texture2D tex; void main() { float x = tex[uint2(0, 0)]; }");
     check_fail("Texture2D tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }");

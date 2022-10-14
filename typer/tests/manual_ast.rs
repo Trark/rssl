@@ -10,7 +10,11 @@ fn test_ast_pass() {
     let module = ast::Module {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
-                global_type: ast::Type::from_layout(ast::TypeLayout::custom("RWBuffer")).into(),
+                global_type: ast::Type::from_layout(ast::TypeLayout::Custom(
+                    "RWBuffer".to_string(),
+                    Vec::from([Located::none(ast::Type::floatn(4))]),
+                ))
+                .into(),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myOutBuffer".to_string()),
                     bind: ast::VariableBind::Normal,

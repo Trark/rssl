@@ -50,14 +50,14 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
 
 /// Attempt to turn an ast type into one of the built in object types
 fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeLayout> {
-    let get_data_type = |args: &[ir::Type]| match args {
+    let get_data_type = |args: &[ir::Type], default_float4: bool| match args {
         [ir::Type(ir::TypeLayout::Scalar(st), modifier)] => {
             Some(ir::DataType(ir::DataLayout::Scalar(*st), *modifier))
         }
         [ir::Type(ir::TypeLayout::Vector(st, x), modifier)] => {
             Some(ir::DataType(ir::DataLayout::Vector(*st, *x), *modifier))
         }
-        [] => Some(ir::DataType(
+        [] if default_float4 => Some(ir::DataType(
             ir::DataLayout::Vector(ir::ScalarType::Float, 4),
             ir::TypeModifier::default(),
         )),
@@ -80,10 +80,10 @@ fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeL
     };
     match name {
         "Buffer" => Some(ir::TypeLayout::Object(ir::ObjectType::Buffer(
-            get_data_type(template_args)?,
+            get_data_type(template_args, true)?,
         ))),
         "RWBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWBuffer(
-            get_data_type(template_args)?,
+            get_data_type(template_args, false)?,
         ))),
         "ByteAddressBuffer" if template_args.is_empty() => {
             Some(ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer))
@@ -92,10 +92,10 @@ fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeL
             Some(ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer))
         }
         "Texture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::Texture2D(
-            get_data_type(template_args)?,
+            get_data_type(template_args, true)?,
         ))),
         "RWTexture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(
-            get_data_type(template_args)?,
+            get_data_type(template_args, false)?,
         ))),
         "ConstantBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(
             get_structured_type(template_args)?,
