@@ -236,6 +236,36 @@ void main() {
 }
 
 #[test]
+fn check_constant_buffer() {
+    check_rssl_to_hlsl(
+        "cbuffer GlobalConstants
+{
+    float4 v0;
+    uint4 v1;
+    float4x4 m2;
+};
+void main() {
+    v0;
+    v1.wwww;
+    m2;
+}
+",
+        "cbuffer GlobalConstants
+{
+    float4 v0;
+    uint4 v1;
+    float4x4 m2;
+};
+void main() {
+    v0;
+    (v1).wwww;
+    m2;
+}
+",
+    );
+}
+
+#[test]
 fn check_object_types() {
     check_rssl_to_hlsl(
         include_str!("object_types.rssl"),

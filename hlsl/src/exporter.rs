@@ -21,8 +21,8 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
             ir::RootDefinition::StructTemplate(_) => {
                 todo!("RootDefinition::StructTemplate")
             }
-            ir::RootDefinition::ConstantBuffer(_) => {
-                todo!("RootDefinition::ConstantBuffer")
+            ir::RootDefinition::ConstantBuffer(cb) => {
+                export_constant_buffer(cb, &mut output_string, &mut context)?;
             }
             ir::RootDefinition::GlobalVariable(decl) => {
                 export_global_variable(decl, &mut output_string, &mut context)?;
@@ -425,9 +425,7 @@ fn export_expression(
         ir::Expression::Variable(v) => output.push_str(context.get_variable_name(*v)?),
         ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
-        ir::Expression::ConstantVariable(id, name) => {
-            todo!("ConstantVariable: {:?} {:?}", id, name)
-        }
+        ir::Expression::ConstantVariable(_, name) => output.push_str(name),
         ir::Expression::TernaryConditional(expr_cond, expr_true, expr_false) => {
             todo!(
                 "TernaryConditional: {:?} {:?} {:?}",
@@ -754,6 +752,39 @@ fn export_struct(
     Ok(())
 }
 
+/// Export ir constant buffer to HLSL
+fn export_constant_buffer(
+    decl: &ir::ConstantBuffer,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    output.push_str("cbuffer ");
+    output.push_str(context.get_constant_buffer_name(decl.id)?);
+
+    context.new_line(output);
+    output.push('{');
+    context.push_indent();
+
+    for member in &decl.members {
+        context.new_line(output);
+        export_type(&member.typename, output, context)?;
+        output.push(' ');
+        output.push_str(&member.name);
+        output.push(';');
+
+        if member.offset.is_some() {
+            todo!("Constant buffer variable with packoffset");
+        }
+    }
+
+    context.pop_indent();
+    context.new_line(output);
+    output.push_str("};");
+    context.new_line(output);
+
+    Ok(())
+}
+
 /// Contextual state for exporter
 struct ExportContext {
     names: ir::GlobalDeclarations,
@@ -814,6 +845,14 @@ impl ExportContext {
     /// Get the name of a struct
     fn get_struct_name(&self, id: ir::StructId) -> Result<&str, ExportError> {
         match self.names.structs.get(&id) {
+            Some(name) => Ok(name),
+            None => Err(ExportError::NamelessId),
+        }
+    }
+
+    /// Get the name of a constant buffer
+    fn get_constant_buffer_name(&self, id: ir::ConstantBufferId) -> Result<&str, ExportError> {
+        match self.names.constants.get(&id) {
             Some(name) => Ok(name),
             None => Err(ExportError::NamelessId),
         }
