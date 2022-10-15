@@ -966,7 +966,7 @@ fn parse_expr_unchecked(
                 | ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
-                    let index = ir::Type::int().to_rvalue();
+                    let index = ir::Type::uint().to_rvalue();
                     let cast_to_int_result = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast_to_int_result {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
@@ -978,7 +978,7 @@ fn parse_expr_unchecked(
                     Ok(sub_node)
                 }
                 ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => {
-                    let index = ir::Type::intn(2).to_rvalue();
+                    let index = ir::Type::uintn(2).to_rvalue();
                     let cast = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
@@ -990,7 +990,7 @@ fn parse_expr_unchecked(
                     Ok(sub_node)
                 }
                 ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
-                    let index = ir::Type::intn(2).to_rvalue();
+                    let index = ir::Type::uintn(2).to_rvalue();
                     let cast = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
