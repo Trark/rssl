@@ -46,6 +46,16 @@ void f() {
 }
 ",
     );
+
+    check_rssl_to_hlsl(
+        "RWStructuredBuffer<uint> g_buffer; void f() { g_buffer[0]; g_buffer[0] = 1; }",
+        "extern RWStructuredBuffer<uint> g_buffer;
+void f() {
+    (g_buffer)[(uint)(0)];
+    ((g_buffer)[(uint)(0)]) = ((uint)(1));
+}
+",
+    );
 }
 
 #[test]

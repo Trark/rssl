@@ -459,7 +459,12 @@ fn export_expression(
             }
         }
         ir::Expression::ArraySubscript(expr_object, expr_index) => {
-            todo!("ArraySubscript: {:?} {:?}", expr_object, expr_index)
+            output.push('(');
+            export_expression(expr_object, output, context)?;
+            output.push(')');
+            output.push('[');
+            export_expression(expr_index, output, context)?;
+            output.push(']');
         }
         ir::Expression::Constructor(tyl, args) => {
             export_type_layout(tyl, output, context)?;
