@@ -118,10 +118,22 @@ fn export_function(
 /// Export ir function attribute to HLSL
 fn export_function_attribute(
     attr: &ir::FunctionAttribute,
-    _: &mut String,
-    _: &mut ExportContext,
+    output: &mut String,
+    context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    todo!("Function Attribute: {:?}", attr);
+    match attr {
+        ir::FunctionAttribute::NumThreads(x, y, z) => {
+            output.push_str("[numthreads(");
+            export_expression(x, output, context)?;
+            output.push_str(", ");
+            export_expression(y, output, context)?;
+            output.push_str(", ");
+            export_expression(z, output, context)?;
+            output.push_str(")]");
+        }
+    }
+    context.new_line(output);
+    Ok(())
 }
 
 /// Export ir function parameter to HLSL

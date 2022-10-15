@@ -1,4 +1,5 @@
 use super::errors::*;
+use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::parse_statement_list;
 use super::types::{apply_template_type_substitution, parse_type};
@@ -116,6 +117,8 @@ pub fn parse_function_body(
         vec
     };
 
+    let attributes = parse_function_attributes(&fd.attributes, context)?;
+
     // Parse the function
     let body_ir = parse_statement_list(&fd.body, context)?;
     let decls = context.pop_scope_with_locals();
@@ -125,7 +128,7 @@ pub fn parse_function_body(
         returntype: return_type,
         params: func_params,
         scope_block: ir::ScopeBlock(body_ir, decls),
-        attributes: fd.attributes.clone(),
+        attributes,
     };
     Ok(fd_ir)
 }
@@ -143,6 +146,7 @@ fn parse_function(
     if signature.template_params.0 == 0 {
         parse_function_body(fd, id, signature, context)
     } else {
+        let attributes = parse_function_attributes(&fd.attributes, context)?;
         Ok(ir::FunctionDefinition {
             id,
             returntype: signature.return_type,
@@ -153,7 +157,7 @@ fn parse_function(
                     variables: Default::default(),
                 },
             ),
-            attributes: fd.attributes.clone(),
+            attributes,
         })
     }
 }
@@ -176,4 +180,31 @@ fn parse_paramtype(
         param_type.1.clone(),
         param_type.2.clone(),
     ))
+}
+
+/// Process all function attributes
+fn parse_function_attributes(
+    ast_attributes: &[ast::FunctionAttribute],
+    context: &mut Context,
+) -> TyperResult<Vec<ir::FunctionAttribute>> {
+    let mut ir_attributes = Vec::new();
+    for ast_attribute in ast_attributes {
+        ir_attributes.push(parse_function_attribute(ast_attribute, context)?);
+    }
+    Ok(ir_attributes)
+}
+
+/// Process a single function attribute
+fn parse_function_attribute(
+    attribute: &ast::FunctionAttribute,
+    context: &mut Context,
+) -> TyperResult<ir::FunctionAttribute> {
+    Ok(match attribute {
+        ast::FunctionAttribute::NumThreads(x, y, z) => {
+            let x = parse_expr(x, context)?.0;
+            let y = parse_expr(y, context)?.0;
+            let z = parse_expr(z, context)?.0;
+            ir::FunctionAttribute::NumThreads(x, y, z)
+        }
+    })
 }

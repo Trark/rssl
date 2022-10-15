@@ -29,6 +29,7 @@ uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint cluster_index = ((word) >> (((uint)(8)) * (byte_pos))) & (255u);
     return cluster_index;
 }
+[numthreads(64, 1, 1)]
 void CSMAIN(uint3 dispatchThreadID) {
     if (((dispatchThreadID).x) >= (g_constantData.instance_cluster_count))
     {
