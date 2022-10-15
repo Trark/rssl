@@ -436,12 +436,21 @@ fn export_expression(
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
         ir::Expression::ConstantVariable(_, name) => output.push_str(name),
         ir::Expression::TernaryConditional(expr_cond, expr_true, expr_false) => {
-            todo!(
-                "TernaryConditional: {:?} {:?} {:?}",
-                expr_cond,
-                expr_true,
-                expr_false,
-            )
+            output.push('(');
+            export_expression(expr_cond, output, context)?;
+            output.push(')');
+
+            output.push_str(" ? ");
+
+            output.push('(');
+            export_expression(expr_true, output, context)?;
+            output.push(')');
+
+            output.push_str(" : ");
+
+            output.push('(');
+            export_expression(expr_false, output, context)?;
+            output.push(')');
         }
         ir::Expression::Sequence(exprs) => todo!("Sequence: {:?}", exprs),
         ir::Expression::Swizzle(expr_object, swizzle) => {
