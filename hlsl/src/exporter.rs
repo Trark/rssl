@@ -168,8 +168,17 @@ fn export_type(
     if !ty.1.is_empty() {
         todo!("Type modifier");
     }
+    export_type_layout(&ty.0, output, context)?;
+    Ok(())
+}
 
-    match ty.0 {
+/// Export ir type layout to HLSL
+fn export_type_layout(
+    tyl: &ir::TypeLayout,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match *tyl {
         ir::TypeLayout::Void => write!(output, "void").unwrap(),
         ir::TypeLayout::Scalar(st) => write!(output, "{}", export_scalar_type(st)?).unwrap(),
         ir::TypeLayout::Vector(st, x) => {
@@ -220,7 +229,7 @@ fn export_type(
                 }
             };
         }
-        _ => todo!("Type layout not implemented: {:?}", ty.0),
+        _ => todo!("Type layout not implemented: {:?}", tyl),
     };
 
     Ok(())
@@ -452,7 +461,18 @@ fn export_expression(
         ir::Expression::ArraySubscript(expr_object, expr_index) => {
             todo!("ArraySubscript: {:?} {:?}", expr_object, expr_index)
         }
-        ir::Expression::Constructor(tyl, args) => todo!("Constructor: {:?} {:?}", tyl, args),
+        ir::Expression::Constructor(tyl, args) => {
+            export_type_layout(tyl, output, context)?;
+            output.push('(');
+            if let Some((last, main)) = args.split_last() {
+                for slot in main {
+                    export_expression(&slot.expr, output, context)?;
+                    output.push_str(", ");
+                }
+                export_expression(&last.expr, output, context)?;
+            }
+            output.push(')');
+        }
         ir::Expression::Cast(ty, expr) => {
             output.push('(');
             export_type(ty, output, context)?;

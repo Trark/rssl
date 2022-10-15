@@ -24,10 +24,15 @@ fn check_functions() {
 #[test]
 fn check_expressions() {
     check_rssl_to_hlsl(
-        "void f() { float4x4 m; float4 v0; float4 v1 = mul(m, v0); }",
         "void f() {
-    float4x4 m;
-    float4 v0;
+    float4 v0 = float4(1, 2, 3, 4);
+    float4x4 m = float4x4(v0, v0, v0, v0);
+    float4 v1 = mul(m, v0);
+}
+",
+        "void f() {
+    float4 v0 = float4((float)(1), (float)(2), (float)(3), (float)(4));
+    float4x4 m = float4x4(v0, v0, v0, v0);
     float4 v1 = mul(m, v0);
 }
 ",
