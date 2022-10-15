@@ -30,7 +30,7 @@ uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     return cluster_index;
 }
 [numthreads(64, 1, 1)]
-void CSMAIN(uint3 dispatchThreadID) {
+void CSMAIN(uint3 dispatchThreadID : SV_DispatchThreadID) {
     if (((dispatchThreadID).x) >= (g_constantData.instance_cluster_count))
     {
         return;

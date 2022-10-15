@@ -112,6 +112,7 @@ pub fn parse_function_body(
             vec.push(ir::FunctionParam {
                 id: var_id,
                 param_type: var_type,
+                semantic: ast_param.semantic.clone(),
             });
         }
         vec
@@ -167,7 +168,10 @@ fn parse_returntype(
     context: &mut Context,
 ) -> TyperResult<ir::FunctionReturn> {
     let ty = parse_type(&return_type.return_type, context)?;
-    Ok(ir::FunctionReturn { return_type: ty })
+    Ok(ir::FunctionReturn {
+        return_type: ty,
+        semantic: return_type.semantic.clone(),
+    })
 }
 
 fn parse_paramtype(

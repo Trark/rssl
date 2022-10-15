@@ -12,12 +12,14 @@ pub struct FunctionDefinition {
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionReturn {
     pub return_type: Type,
+    pub semantic: Option<Semantic>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionParam {
     pub id: VariableId,
     pub param_type: ParamType,
+    pub semantic: Option<Semantic>,
 }
 
 /// The type of any parameter declaration

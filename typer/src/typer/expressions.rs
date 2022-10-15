@@ -1100,6 +1100,7 @@ fn parse_expr_unchecked(
                                         return_type: factory
                                             .get_method_return_type(ty.clone().to_rvalue())
                                             .0,
+                                        semantic: None,
                                     };
                                     FunctionOverload(
                                         Callable::Intrinsic(factory.clone()),

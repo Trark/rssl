@@ -97,7 +97,7 @@ fn export_function(
 
     output.push(')');
 
-    // Function return attribute not supported in ir
+    export_semantic_annotation(&decl.returntype.semantic, output)?;
 
     output.push_str(" {");
     for statement in &decl.scope_block.0 {
@@ -156,6 +156,34 @@ fn export_function_param(
 
     output.push_str(context.get_variable_name_direct(param.id)?);
 
+    export_semantic_annotation(&param.semantic, output)?;
+
+    Ok(())
+}
+
+/// Export variable semantic annotation to HLSL
+fn export_semantic_annotation(
+    semantic: &Option<ir::Semantic>,
+    output: &mut String,
+) -> Result<(), ExportError> {
+    if let Some(semantic) = &semantic {
+        output.push_str(" : ");
+        match semantic {
+            ir::Semantic::DispatchThreadId => output.push_str("SV_DispatchThreadID"),
+            ir::Semantic::GroupId => output.push_str("SV_GroupID"),
+            ir::Semantic::GroupIndex => output.push_str("SV_GroupIndex"),
+            ir::Semantic::GroupThreadId => output.push_str("SV_GroupThreadID"),
+            ir::Semantic::VertexId => output.push_str("SV_VertexID"),
+            ir::Semantic::InstanceId => output.push_str("SV_InstanceID"),
+            ir::Semantic::PrimitiveId => output.push_str("SV_PrimitiveID"),
+            ir::Semantic::Position => output.push_str("SV_Position"),
+            ir::Semantic::Target(i) => write!(output, "SV_Target{}", i).unwrap(),
+            ir::Semantic::Depth => output.push_str("SV_Depth"),
+            ir::Semantic::DepthGreaterEqual => output.push_str("SV_DepthGreaterEqual"),
+            ir::Semantic::DepthLessEqual => output.push_str("SV_DepthLessEqual"),
+            ir::Semantic::User(s) => output.push_str(s),
+        }
+    }
     Ok(())
 }
 

@@ -239,6 +239,7 @@ fn test_ast_to_ir() {
             id: ir::FunctionId(BASE_FUNCTION_ID),
             returntype: ir::FunctionReturn {
                 return_type: ir::Type::void().into(),
+                semantic: None,
             },
             params: Vec::new(),
             scope_block: ir::ScopeBlock(

@@ -291,6 +291,25 @@ fn check_object_types() {
 }
 
 #[test]
+fn check_semantics() {
+    check_rssl_to_hlsl(
+        "float4 main(uint id : SV_VertexID) : SV_Position { return 0; }",
+        "float4 main(uint id : SV_VertexID) : SV_Position {
+    return (float4)(0);
+}
+",
+    );
+
+    check_rssl_to_hlsl(
+        "float4 main(float4 coord : SV_Position) : SV_Target { return 0; }",
+        "float4 main(float4 coord : SV_Position) : SV_Target0 {
+    return (float4)(0);
+}
+",
+    );
+}
+
+#[test]
 fn check_cluster_expand() {
     check_rssl_to_hlsl(
         include_str!("cluster_expand.rssl"),

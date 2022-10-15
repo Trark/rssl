@@ -1032,6 +1032,7 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
         let factory = IntrinsicFactory::Function(intrinsic.clone(), params);
         let return_type = ir::FunctionReturn {
             return_type: factory.get_return_type().0,
+            semantic: None,
         };
         let param_types = params.to_vec();
         let overload = FunctionOverload(
