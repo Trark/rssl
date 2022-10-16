@@ -339,10 +339,10 @@ const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
         0,
         &[T_SAMPLER, T_FLOAT2],
     ),
-    ("Load", Intrinsic::Texture2DLoad, 0, &[T_INT]),
+    ("Load", Intrinsic::Texture2DLoad, 0, &[T_INT3]),
 ];
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::RWTexture2DLoad, 0, &[T_INT])];
+    &[("Load", Intrinsic::RWTexture2DLoad, 0, &[T_INT2])];
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     ("Load", Intrinsic::ByteAddressBufferLoad, 0, &[T_UINT]),
     ("Load2", Intrinsic::ByteAddressBufferLoad2, 0, &[T_UINT]),
