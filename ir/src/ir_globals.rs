@@ -4,6 +4,7 @@ use crate::*;
 pub struct GlobalVariable {
     pub id: GlobalId,
     pub global_type: GlobalType,
+    pub slot: Option<GlobalSlot>,
     pub init: Option<Initializer>,
 }
 

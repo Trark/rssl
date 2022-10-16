@@ -26,6 +26,7 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
             }
             ir::RootDefinition::GlobalVariable(decl) => {
                 export_global_variable(decl, &mut output_string, &mut context)?;
+                context.new_line(&mut output_string);
             }
             ir::RootDefinition::Function(decl) => {
                 export_function(decl, &mut output_string, &mut context)?;
@@ -61,7 +62,24 @@ fn export_global_variable(
 
     export_initializer(&decl.init, output, context)?;
 
-    output.push_str(";\n");
+    if let Some(slot) = &decl.slot {
+        output.push_str(" : register(");
+        match slot {
+            ir::GlobalSlot::ReadSlot(_) => output.push('t'),
+            ir::GlobalSlot::ReadWriteSlot(_) => output.push('u'),
+            ir::GlobalSlot::SamplerSlot(_) => output.push('s'),
+            ir::GlobalSlot::ConstantSlot(_) => output.push('b'),
+        }
+        match slot {
+            ir::GlobalSlot::ReadSlot(i)
+            | ir::GlobalSlot::ReadWriteSlot(i)
+            | ir::GlobalSlot::SamplerSlot(i)
+            | ir::GlobalSlot::ConstantSlot(i) => write!(output, "{}", i).unwrap(),
+        }
+        output.push(')');
+    }
+
+    output.push(';');
 
     Ok(())
 }

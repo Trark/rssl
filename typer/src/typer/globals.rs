@@ -31,6 +31,7 @@ pub fn parse_rootdefinition_globalvariable(
         let gv_ir = ir::GlobalVariable {
             id: var_id,
             global_type: gv_type,
+            slot: def.slot.clone(),
             init: var_init,
         };
 

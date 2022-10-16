@@ -1,8 +1,8 @@
-extern ByteAddressBuffer g_clusterInstanceData;
-extern ByteAddressBuffer g_clusterData;
-extern ByteAddressBuffer g_primitiveData;
-extern RWByteAddressBuffer g_indexData;
-extern RWByteAddressBuffer g_indirectBuffer;
+extern ByteAddressBuffer g_clusterInstanceData : register(t0);
+extern ByteAddressBuffer g_clusterData : register(t1);
+extern ByteAddressBuffer g_primitiveData : register(t2);
+extern RWByteAddressBuffer g_indexData : register(u3);
+extern RWByteAddressBuffer g_indirectBuffer : register(u4);
 struct ClusterInstanceData
 {
     uint instance_id;
@@ -20,7 +20,7 @@ struct ConstantData
     uint instance_cluster_count;
     uint index_buffer_size;
 };
-extern ConstantBuffer<ConstantData> g_constantData;
+extern ConstantBuffer<ConstantData> g_constantData : register(b5);
 uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint offset = (cluster.primitive_base) + (primitive_index_index);
     uint offset_low = (offset) & (~(3u));
