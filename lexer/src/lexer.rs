@@ -772,6 +772,7 @@ declare_keyword!(reserved_word_groupshared, "groupshared");
 declare_keyword!(reserved_word_sizeof, "sizeof");
 declare_keyword!(reserved_word_template, "template");
 declare_keyword!(reserved_word_typename, "typename");
+declare_keyword!(reserved_word_namespace, "namespace");
 
 // Unused reserved words
 declare_keyword!(reserved_word_auto, "auto");
@@ -870,6 +871,7 @@ fn reserved_word(input: &[u8]) -> IResult<&[u8], &[u8]> {
             reserved_word_unsigned,
             reserved_word_using,
             reserved_word_virtual,
+            reserved_word_namespace,
         )),
     ))(input)
 }
@@ -1246,7 +1248,7 @@ fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
     ))(input)
 }
 
-/// Parse keyword into a  token
+/// Parse keyword into a token
 fn token_no_whitespace_words(input: &[u8]) -> IResult<&[u8], Token> {
     use nom::combinator::map;
     nom::branch::alt((
@@ -1268,6 +1270,7 @@ fn token_no_whitespace_words(input: &[u8]) -> IResult<&[u8], Token> {
         map(reserved_word_enum, |_| Token::Enum),
         map(reserved_word_cbuffer, |_| Token::ConstantBuffer),
         register,
+        map(reserved_word_namespace, |_| Token::Namespace),
         // Parameter Attributes
         map(reserved_word_inout, |_| Token::InOut),
         map(reserved_word_in, |_| Token::In),
@@ -1617,8 +1620,16 @@ fn test_token() {
         Ok((&b""[..], from_end(Token::Struct, 6)))
     );
     assert_eq!(
+        token(&b"enum"[..]),
+        Ok((&b""[..], from_end(Token::Enum, 4)))
+    );
+    assert_eq!(
         token(&b"cbuffer"[..]),
         Ok((&b""[..], from_end(Token::ConstantBuffer, 7)))
+    );
+    assert_eq!(
+        token(&b"namespace"[..]),
+        Ok((&b""[..], from_end(Token::Namespace, 9)))
     );
     assert_eq!(
         token(&b"register(t4)"[..]),

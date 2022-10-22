@@ -99,6 +99,7 @@ pub enum Token {
     ConstantBuffer,
     Register(RegisterSlot),
     PackOffset(OffsetSlot),
+    Namespace,
     Colon,
 
     In,

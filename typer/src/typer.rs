@@ -55,8 +55,8 @@ fn parse_rootdefinition(
             let def = structs::parse_rootdefinition_struct(sd, context)?;
             Ok(Vec::from([def]))
         }
-        ast::RootDefinition::Enum(_) => unimplemented!(),
-        ast::RootDefinition::SamplerState => unimplemented!(),
+        ast::RootDefinition::Enum(_) => todo!(),
+        ast::RootDefinition::SamplerState => todo!(),
         ast::RootDefinition::ConstantBuffer(ref cb) => {
             let def = globals::parse_rootdefinition_constantbuffer(cb, context)?;
             Ok(Vec::from([def]))
@@ -68,5 +68,6 @@ fn parse_rootdefinition(
             let def = functions::parse_rootdefinition_function(fd, context)?;
             Ok(Vec::from([def]))
         }
+        ast::RootDefinition::Namespace(_, _) => todo!(),
     }
 }

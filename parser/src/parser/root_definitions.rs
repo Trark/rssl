@@ -33,6 +33,11 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
         Err(err) => Err(err),
     });
 
+    let res = res.select(match parse_namespace(input) {
+        Ok((rest, def)) => return Ok((rest, def)),
+        Err(err) => Err(err),
+    });
+
     res
 }
 
@@ -41,6 +46,26 @@ pub fn parse_root_definition_with_semicolon(input: &[LexToken]) -> ParseResult<R
     let (input, def) = parse_root_definition(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, def))
+}
+
+/// Parse a namespace
+fn parse_namespace(input: &[LexToken]) -> ParseResult<RootDefinition> {
+    let (input, _) = parse_token(Token::Namespace)(input)?;
+    let (input, name) = parse_optional(match_identifier)(input)?;
+    let (input, _) = parse_token(Token::LeftBrace)(input)?;
+    let (input, defs) = parse_namespace_contents(input)?;
+    let (input, _) = parse_token(Token::RightBrace)(input)?;
+    let name = match name {
+        Some(tok) => tok.0.clone(),
+        None => String::new(),
+    };
+    let ns = RootDefinition::Namespace(name, defs);
+    Ok((input, ns))
+}
+
+/// Parse the insides of a namespace
+fn parse_namespace_contents(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
+    parse_multiple(parse_root_definition_with_semicolon)(input)
 }
 
 #[test]
@@ -347,5 +372,64 @@ fn test_global_variable() {
     rootdefinition.check(
         test_groupshared_str,
         RootDefinition::GlobalVariable(test_groupshared_ast),
+    );
+}
+
+#[test]
+fn test_namespace() {
+    use test_support::*;
+    let namespace = ParserTester::new(parse_namespace);
+
+    namespace.check(
+        "namespace A {}",
+        RootDefinition::Namespace("A".to_string(), Vec::new()),
+    );
+
+    namespace.check(
+        "namespace {}",
+        RootDefinition::Namespace(String::new(), Vec::new()),
+    );
+
+    namespace.check(
+        "namespace A { struct S {}; }",
+        RootDefinition::Namespace(
+            "A".to_string(),
+            Vec::from([RootDefinition::Struct(StructDefinition {
+                name: "S".to_string().loc(21),
+                template_params: TemplateParamList(Vec::new()),
+                members: Vec::new(),
+            })]),
+        ),
+    );
+
+    namespace.check(
+        "namespace A { namespace B { struct S {}; } namespace C { void f() {} } }",
+        RootDefinition::Namespace(
+            "A".to_string(),
+            Vec::from([
+                RootDefinition::Namespace(
+                    "B".to_string(),
+                    Vec::from([RootDefinition::Struct(StructDefinition {
+                        name: "S".to_string().loc(35),
+                        template_params: TemplateParamList(Vec::new()),
+                        members: Vec::new(),
+                    })]),
+                ),
+                RootDefinition::Namespace(
+                    "C".to_string(),
+                    Vec::from([RootDefinition::Function(FunctionDefinition {
+                        name: "f".to_string().loc(62),
+                        returntype: FunctionReturn {
+                            return_type: Type::void(),
+                            semantic: None,
+                        },
+                        template_params: TemplateParamList(Vec::new()),
+                        params: Vec::new(),
+                        body: Vec::new(),
+                        attributes: Vec::new(),
+                    })]),
+                ),
+            ]),
+        ),
     );
 }
