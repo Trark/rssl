@@ -1,4 +1,3 @@
-use nom::IResult;
 use rssl_text::*;
 use rssl_tok::*;
 
@@ -85,34 +84,40 @@ struct IntermediateToken(Token, IntermediateLocation);
 #[derive(PartialEq, Debug, Clone)]
 struct StreamToken(pub Token, pub StreamLocation);
 
+/// Internal error kind when a lexer fails to lex
+#[derive(PartialEq, Debug, Clone)]
+enum LexErrorKind {
+    UnexpectedBytes,
+    OtherTokenBytes,
+    Eof,
+}
+
+/// Internal error data when a lexer fails to lex
+#[derive(PartialEq, Debug, Clone)]
+struct LexErrorContext<'b>(&'b [u8], LexErrorKind);
+
+/// Internal error result type
+type LexResult<'b, O> = Result<(&'b [u8], O), LexErrorContext<'b>>;
+
 /// Make an error for when the wrong characters were encountered to parse a certain token
-fn wrong_chars<T>(input: &[u8]) -> IResult<&[u8], T> {
-    Err(nom::Err::Error(nom::error::Error::new(
-        input,
-        nom::error::ErrorKind::Tag,
-    )))
+fn wrong_chars<T>(input: &[u8]) -> LexResult<T> {
+    Err(LexErrorContext(input, LexErrorKind::UnexpectedBytes))
 }
 
 /// Make an error for when the characters are encountered which indicate we are another token
-fn invalid_chars<T>(input: &[u8]) -> IResult<&[u8], T> {
-    Err(nom::Err::Error(nom::error::Error::new(
-        input,
-        nom::error::ErrorKind::Not,
-    )))
+fn invalid_chars<T>(input: &[u8]) -> LexResult<T> {
+    Err(LexErrorContext(input, LexErrorKind::OtherTokenBytes))
 }
 
 /// Make an error when the end of stream was encountered while trying to lex a certain token
-fn end_of_stream<T>() -> IResult<&'static [u8], T> {
-    Err(nom::Err::Error(nom::error::Error::new(
-        &[],
-        nom::error::ErrorKind::Eof,
-    )))
+fn end_of_stream<T>() -> LexResult<'static, T> {
+    Err(LexErrorContext(&[], LexErrorKind::Eof))
 }
 
 /// Lex a token or return none
 fn opt<'b, T>(
-    lex_fn: impl Fn(&[u8]) -> IResult<&[u8], T>,
-) -> impl Fn(&'b [u8]) -> IResult<&'b [u8], Option<T>> {
+    lex_fn: impl Fn(&[u8]) -> LexResult<T>,
+) -> impl Fn(&'b [u8]) -> LexResult<'b, Option<T>> {
     move |input: &'b [u8]| {
         match lex_fn(input) {
             // If we succeeded then return the element
@@ -124,22 +129,19 @@ fn opt<'b, T>(
 
 /// Lex a token and apply a function to the result
 fn map<'b, T, G>(
-    lex_fn: impl Fn(&[u8]) -> IResult<&[u8], T>,
+    lex_fn: impl Fn(&[u8]) -> LexResult<T>,
     map_fn: impl Fn(T) -> G,
-) -> impl Fn(&'b [u8]) -> IResult<&'b [u8], G> {
+) -> impl Fn(&'b [u8]) -> LexResult<'b, G> {
     move |input: &'b [u8]| match lex_fn(input) {
         Ok((rest, element)) => Ok((rest, map_fn(element))),
         Err(err) => Err(err),
     }
 }
 
-type DynLexFn<'f, T> = &'f dyn Fn(&[u8]) -> IResult<&[u8], T>;
+type DynLexFn<'f, T> = &'f dyn Fn(&[u8]) -> LexResult<T>;
 
 /// Lex a token from a set of lexers
-fn choose<'b, T: std::fmt::Debug>(
-    lex_fns: &[DynLexFn<T>],
-    input: &'b [u8],
-) -> IResult<&'b [u8], T> {
+fn choose<'b, T: std::fmt::Debug>(lex_fns: &[DynLexFn<T>], input: &'b [u8]) -> LexResult<'b, T> {
     for lex_fn in lex_fns {
         if let Ok(ok) = lex_fn(input) {
             return Ok(ok);
@@ -149,7 +151,7 @@ fn choose<'b, T: std::fmt::Debug>(
 }
 
 /// Parse a single decimal digit
-fn digit(input: &[u8]) -> IResult<&[u8], u64> {
+fn digit(input: &[u8]) -> LexResult<u64> {
     // Handle end of stream
     if input.is_empty() {
         return end_of_stream();
@@ -178,7 +180,7 @@ fn digit(input: &[u8]) -> IResult<&[u8], u64> {
 }
 
 /// Parse multiple decimal digits into a 64-bit value
-fn digits(input: &[u8]) -> IResult<&[u8], u64> {
+fn digits(input: &[u8]) -> LexResult<u64> {
     let (mut input, mut value) = digit(input)?;
     while let Ok((next_input, d)) = digit(input) {
         input = next_input;
@@ -196,7 +198,7 @@ fn test_digits() {
 }
 
 /// Parse a single hexadecimal digit
-fn digit_hex(input: &[u8]) -> IResult<&[u8], u64> {
+fn digit_hex(input: &[u8]) -> LexResult<u64> {
     // Handle end of stream
     if input.is_empty() {
         return end_of_stream();
@@ -237,7 +239,7 @@ fn digit_hex(input: &[u8]) -> IResult<&[u8], u64> {
 }
 
 /// Parse multiple hexadecimal digits into a 64-bit value
-fn digits_hex(input: &[u8]) -> IResult<&[u8], u64> {
+fn digits_hex(input: &[u8]) -> LexResult<u64> {
     let (mut input, mut value) = digit_hex(input)?;
     while let Ok((next_input, d)) = digit_hex(input) {
         input = next_input;
@@ -255,7 +257,7 @@ fn test_digits_hex() {
 }
 
 /// Parse a single octal digit
-fn digit_octal(input: &[u8]) -> IResult<&[u8], u64> {
+fn digit_octal(input: &[u8]) -> LexResult<u64> {
     // Handle end of stream
     if input.is_empty() {
         return end_of_stream();
@@ -282,7 +284,7 @@ fn digit_octal(input: &[u8]) -> IResult<&[u8], u64> {
 }
 
 /// Parse multiple octal digits into a 64-bit value
-fn digits_octal(input: &[u8]) -> IResult<&[u8], u64> {
+fn digits_octal(input: &[u8]) -> LexResult<u64> {
     let (mut input, mut value) = digit_octal(input)?;
     while let Ok((next_input, d)) = digit_octal(input) {
         input = next_input;
@@ -306,7 +308,7 @@ enum IntType {
 }
 
 /// Parse an integer literal suffix
-fn int_type(input: &[u8]) -> IResult<&[u8], IntType> {
+fn int_type(input: &[u8]) -> LexResult<IntType> {
     // Match on the first character
     let n = match input.first() {
         Some(b'u') | Some(b'U') => IntType::UInt,
@@ -319,7 +321,7 @@ fn int_type(input: &[u8]) -> IResult<&[u8], IntType> {
 }
 
 /// Parse a decimal literal
-fn literal_decimal_int(input: &[u8]) -> IResult<&[u8], Token> {
+fn literal_decimal_int(input: &[u8]) -> LexResult<Token> {
     let (input, value) = digits(input)?;
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
@@ -331,7 +333,7 @@ fn literal_decimal_int(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse a hexadecimal literal
-fn literal_hex_int(input: &[u8]) -> IResult<&[u8], Token> {
+fn literal_hex_int(input: &[u8]) -> LexResult<Token> {
     let (input, value) = digits_hex(input)?;
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
@@ -343,7 +345,7 @@ fn literal_hex_int(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse an octal literal
-fn literal_octal_int(input: &[u8]) -> IResult<&[u8], Token> {
+fn literal_octal_int(input: &[u8]) -> LexResult<Token> {
     let (input, value) = digits_octal(input)?;
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
@@ -355,7 +357,7 @@ fn literal_octal_int(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse an integer literal
-fn literal_int(input: &[u8]) -> IResult<&[u8], Token> {
+fn literal_int(input: &[u8]) -> LexResult<Token> {
     if input.starts_with(b"0x") {
         literal_hex_int(&input[2..])
     } else if input.starts_with(b"0") && (digit_octal(&input[1..]).is_ok()) {
@@ -383,7 +385,7 @@ fn test_literal_int() {
 type DigitSequence = Vec<u64>;
 
 /// Parse a sequence of digits into an array
-fn digit_sequence(input: &[u8]) -> IResult<&[u8], DigitSequence> {
+fn digit_sequence(input: &[u8]) -> LexResult<DigitSequence> {
     let (mut input, first) = digit(input)?;
     let mut digits = Vec::from([first]);
     while let Ok((rest, next)) = digit(input) {
@@ -397,7 +399,7 @@ fn digit_sequence(input: &[u8]) -> IResult<&[u8], DigitSequence> {
 struct Fraction(DigitSequence, DigitSequence);
 
 /// Parse the main fractional parts of a float literal
-fn fractional_constant(input: &[u8]) -> IResult<&[u8], Fraction> {
+fn fractional_constant(input: &[u8]) -> LexResult<Fraction> {
     let (input, whole_part) = opt(digit_sequence)(input)?;
     let (input, _) = specific_text(input, ".")?;
 
@@ -422,7 +424,7 @@ enum FloatType {
 }
 
 /// Parse a float literal
-fn float_type(input: &[u8]) -> IResult<&[u8], FloatType> {
+fn float_type(input: &[u8]) -> LexResult<FloatType> {
     // Match on the first character
     let n = match input.first() {
         Some(b'h') | Some(b'H') => FloatType::Half,
@@ -442,7 +444,7 @@ enum Sign {
 }
 
 /// Parse a sign marker
-fn sign(input: &[u8]) -> IResult<&[u8], Sign> {
+fn sign(input: &[u8]) -> LexResult<Sign> {
     match input.first() {
         Some(b'+') => Ok((&input[1..], Sign::Positive)),
         Some(b'-') => Ok((&input[1..], Sign::Negative)),
@@ -455,7 +457,7 @@ fn sign(input: &[u8]) -> IResult<&[u8], Sign> {
 struct Exponent(i64);
 
 /// Parse an exponent in a float literal
-fn float_exponent(input: &[u8]) -> IResult<&[u8], Exponent> {
+fn float_exponent(input: &[u8]) -> LexResult<Exponent> {
     let input = match input {
         [b'e', ..] | [b'E', ..] => &input[1..],
         _ => return wrong_chars(input),
@@ -529,7 +531,7 @@ fn calculate_float_from_parts(
 }
 
 /// Parse a float literal
-fn literal_float(input: &[u8]) -> IResult<&[u8], Token> {
+fn literal_float(input: &[u8]) -> LexResult<Token> {
     // First try to parse a fraction
     let (input, fraction) = opt(fractional_constant)(input)?;
 
@@ -588,7 +590,7 @@ fn test_literal_float() {
 }
 
 /// Parse the first character of an identifier
-fn identifier_firstchar(input: &[u8]) -> IResult<&[u8], u8> {
+fn identifier_firstchar(input: &[u8]) -> LexResult<u8> {
     if input.is_empty() {
         end_of_stream()
     } else {
@@ -601,7 +603,7 @@ fn identifier_firstchar(input: &[u8]) -> IResult<&[u8], u8> {
 }
 
 /// Parse characters in an identifier after the first
-fn identifier_char(input: &[u8]) -> IResult<&[u8], u8> {
+fn identifier_char(input: &[u8]) -> LexResult<u8> {
     if input.is_empty() {
         end_of_stream()
     } else {
@@ -614,7 +616,7 @@ fn identifier_char(input: &[u8]) -> IResult<&[u8], u8> {
 }
 
 /// Parse an identifier or a keyword as an identifier
-fn identifier(input: &[u8]) -> IResult<&[u8], Identifier> {
+fn identifier(input: &[u8]) -> LexResult<Identifier> {
     let mut chars = Vec::new();
     let first_result = identifier_firstchar(input);
 
@@ -643,7 +645,7 @@ fn identifier(input: &[u8]) -> IResult<&[u8], Identifier> {
 }
 
 /// Parse an identifier or keyword
-fn any_word(input: &[u8]) -> IResult<&[u8], Token> {
+fn any_word(input: &[u8]) -> LexResult<Token> {
     let (stream, id) = identifier(input)?;
 
     let tok = match id.0.as_str() {
@@ -693,7 +695,7 @@ fn any_word(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse a single specific word
-fn specific_word<'a>(input: &'a [u8], name: &'static str) -> IResult<&'a [u8], &'a [u8]> {
+fn specific_word<'a>(input: &'a [u8], name: &'static str) -> LexResult<'a, &'a [u8]> {
     let name_bytes = name.as_bytes();
     if input.starts_with(name_bytes) {
         let (k, r) = input.split_at(name_bytes.len());
@@ -708,7 +710,7 @@ fn specific_word<'a>(input: &'a [u8], name: &'static str) -> IResult<&'a [u8], &
 }
 
 /// Parse a specific string of characters
-fn specific_text<'a>(input: &'a [u8], text: &'static str) -> IResult<&'a [u8], &'a [u8]> {
+fn specific_text<'a>(input: &'a [u8], text: &'static str) -> LexResult<'a, &'a [u8]> {
     let text_bytes = text.as_bytes();
     if input.starts_with(text_bytes) {
         let (k, r) = input.split_at(text_bytes.len());
@@ -719,7 +721,7 @@ fn specific_text<'a>(input: &'a [u8], text: &'static str) -> IResult<&'a [u8], &
 }
 
 /// Parse trivial whitespace
-fn whitespace_simple(input: &[u8]) -> IResult<&[u8], ()> {
+fn whitespace_simple(input: &[u8]) -> LexResult<()> {
     if input.is_empty() {
         end_of_stream()
     } else {
@@ -731,7 +733,7 @@ fn whitespace_simple(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Parse a line comment
-fn line_comment(input: &[u8]) -> IResult<&[u8], ()> {
+fn line_comment(input: &[u8]) -> LexResult<()> {
     if input.starts_with(b"//") {
         match input.iter().enumerate().position(|c| *c.1 == b'\n') {
             Some(len) => Ok((&input[len..], ())),
@@ -743,7 +745,7 @@ fn line_comment(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Parse a block comment
-fn block_comment(input: &[u8]) -> IResult<&[u8], ()> {
+fn block_comment(input: &[u8]) -> LexResult<()> {
     if input.starts_with(b"/*") {
         // Find the end of the block
         // We do not supported nested blocks
@@ -767,12 +769,11 @@ fn block_comment(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Parse any kind of whitespace
-fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
+fn whitespace(input: &[u8]) -> LexResult<()> {
     let mut search = input;
     loop {
         search = match choose(&[&whitespace_simple, &line_comment, &block_comment], search) {
             Ok((input, ())) => input,
-            Err(nom::Err::Failure(err)) => return Err(nom::Err::Failure(err)),
             Err(_) => break,
         }
     }
@@ -787,7 +788,7 @@ fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Parse any kind of white space or no whitespace
-fn skip_whitespace(input: &[u8]) -> IResult<&[u8], ()> {
+fn skip_whitespace(input: &[u8]) -> LexResult<()> {
     let (input, _) = opt(whitespace)(input)?;
     Ok((input, ()))
 }
@@ -814,7 +815,7 @@ enum RegisterType {
 }
 
 /// Parse a register type
-fn register_type(input: &[u8]) -> IResult<&[u8], RegisterType> {
+fn register_type(input: &[u8]) -> LexResult<RegisterType> {
     match input {
         [b't', rest @ ..] => Ok((rest, RegisterType::T)),
         [b'u', rest @ ..] => Ok((rest, RegisterType::U)),
@@ -825,7 +826,7 @@ fn register_type(input: &[u8]) -> IResult<&[u8], RegisterType> {
 }
 
 /// Parse a register slot attribute
-fn register(input: &[u8]) -> IResult<&[u8], Token> {
+fn register(input: &[u8]) -> LexResult<Token> {
     let (input, _) = specific_word(input, "register")?;
     let (input, _) = skip_whitespace(input)?;
     let (input, _) = specific_text(input, "(")?;
@@ -863,7 +864,7 @@ fn test_register() {
 }
 
 /// Peek at what token is coming next unless there is whitespace
-fn lookahead_token(input: &[u8]) -> IResult<&[u8], Option<Token>> {
+fn lookahead_token(input: &[u8]) -> LexResult<Option<Token>> {
     match token_no_whitespace_intermediate(input) {
         Ok((_, o)) => Ok((input, Some(o))),
         Err(_) => Ok((input, None)),
@@ -871,7 +872,7 @@ fn lookahead_token(input: &[u8]) -> IResult<&[u8], Option<Token>> {
 }
 
 /// Parse a < token
-fn leftanglebracket(input: &[u8]) -> IResult<&[u8], Token> {
+fn leftanglebracket(input: &[u8]) -> LexResult<Token> {
     match input.first() {
         Some(b'<') => {
             let input = &input[1..];
@@ -905,7 +906,7 @@ fn test_leftanglebracket() {
 }
 
 /// Parse a > token
-fn rightanglebracket(input: &[u8]) -> IResult<&[u8], Token> {
+fn rightanglebracket(input: &[u8]) -> LexResult<Token> {
     match input.first() {
         Some(b'>') => {
             let input = &input[1..];
@@ -939,7 +940,7 @@ fn test_rightanglebracket() {
 }
 
 /// Parse a single character symbol into a token
-fn symbol_single(op_char: u8, op_token: Token) -> impl Fn(&[u8]) -> IResult<&[u8], Token> {
+fn symbol_single(op_char: u8, op_token: Token) -> impl Fn(&[u8]) -> LexResult<Token> {
     move |input: &[u8]| match input {
         [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
         _ => wrong_chars(input),
@@ -952,7 +953,7 @@ fn symbol_op_or_op_equals(
     op_token: Token,
     op_equals_token: Token,
     op_op_token: Token,
-) -> impl Fn(&[u8]) -> IResult<&[u8], Token> {
+) -> impl Fn(&[u8]) -> LexResult<Token> {
     move |input: &[u8]| match input {
         [c, b'=', b'=', ..] if *c == op_char => invalid_chars(input),
         [c, b'=', ..] if *c == op_char => Ok((&input[2..], op_equals_token.clone())),
@@ -965,7 +966,7 @@ fn symbol_op_or_op_equals(
 }
 
 /// Parse a = or == token
-fn symbol_equals(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_equals(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'=', Token::Equals, Token::EqualsEquals, Token::Eof)(input)
 }
 
@@ -982,17 +983,17 @@ fn test_symbol_equals() {
 }
 
 /// Parse a + token
-fn symbol_plus(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_plus(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'+', Token::Plus, Token::PlusEquals, Token::PlusPlus)(input)
 }
 
 /// Parse a - token
-fn symbol_minus(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_minus(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'-', Token::Minus, Token::MinusEquals, Token::MinusMinus)(input)
 }
 
 /// Parse a / token
-fn symbol_forward_slash(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_forward_slash(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(
         b'/',
         Token::ForwardSlash,
@@ -1002,17 +1003,17 @@ fn symbol_forward_slash(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse a % token
-fn symbol_percent(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_percent(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'%', Token::Percent, Token::PercentEquals, Token::Eof)(input)
 }
 
 /// Parse a * token
-fn symbol_asterix(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_asterix(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'*', Token::Asterix, Token::AsterixEquals, Token::Eof)(input)
 }
 
 /// Parse a & token
-fn symbol_ampersand(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_ampersand(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(
         b'&',
         Token::Ampersand,
@@ -1022,7 +1023,7 @@ fn symbol_ampersand(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse a | token
-fn symbol_verticalbar(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_verticalbar(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(
         b'|',
         Token::VerticalBar,
@@ -1032,12 +1033,12 @@ fn symbol_verticalbar(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse a ^ token
-fn symbol_hat(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_hat(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'^', Token::Hat, Token::HatEquals, Token::Eof)(input)
 }
 
 /// Parse a ! or != token
-fn symbol_exclamation(input: &[u8]) -> IResult<&[u8], Token> {
+fn symbol_exclamation(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(
         b'!',
         Token::ExclamationPoint,
@@ -1074,7 +1075,7 @@ fn test_symbol_ampersand() {
 }
 
 /// Parse symbol into a token
-fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
+fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
     choose(
         &[
             &symbol_single(b';', Token::Semicolon),
@@ -1101,7 +1102,7 @@ fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse any single non-whitespace token - without a location
-fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
+fn token_no_whitespace_intermediate(input: &[u8]) -> LexResult<Token> {
     choose(
         &[
             // Literals
@@ -1128,14 +1129,14 @@ fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
 }
 
 /// Parse any single non-whitespace token - with a location
-fn token_no_whitespace(input: &[u8]) -> IResult<&[u8], IntermediateToken> {
+fn token_no_whitespace(input: &[u8]) -> LexResult<IntermediateToken> {
     let (remaining, token) = token_no_whitespace_intermediate(input)?;
     let intermediate_token = IntermediateToken(token, IntermediateLocation(input.len() as u32));
     Ok((remaining, intermediate_token))
 }
 
 /// Parse a single token
-fn token(input: &[u8]) -> IResult<&[u8], IntermediateToken> {
+fn token(input: &[u8]) -> LexResult<IntermediateToken> {
     let (input, _) = skip_whitespace(input)?;
     let (input, token) = token_no_whitespace(input)?;
     let (input, _) = skip_whitespace(input)?;
@@ -1144,7 +1145,7 @@ fn token(input: &[u8]) -> IResult<&[u8], IntermediateToken> {
 }
 
 /// Parse all tokens in a stream
-fn token_stream(mut input: &[u8]) -> IResult<&[u8], Vec<StreamToken>> {
+fn token_stream(mut input: &[u8]) -> LexResult<Vec<StreamToken>> {
     let total_length = input.len() as u32;
     let mut tokens = Vec::new();
     while !input.is_empty() {
@@ -1209,15 +1210,14 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
                 ))
             }
         }
-        Err(nom::Err::Incomplete(_)) => panic!("Incomplete not expected"),
-        Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
-            if err.code == nom::error::ErrorKind::Eof {
+        Err(LexErrorContext(input, kind)) => {
+            if kind == LexErrorKind::Eof {
                 Err(LexerError::new(
                     LexerErrorReason::UnexpectedEndOfStream,
                     preprocessed.get_source_location(StreamLocation(code_bytes.len() as u32)),
                 ))
             } else {
-                let offset = StreamLocation((code_bytes.len() - err.input.len()) as u32);
+                let offset = StreamLocation((code_bytes.len() - input.len()) as u32);
                 Err(LexerError::new(
                     LexerErrorReason::Unknown,
                     preprocessed.get_source_location(offset),
