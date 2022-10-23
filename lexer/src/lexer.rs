@@ -411,9 +411,7 @@ struct Exponent(i64);
 
 /// Parse an exponent in a float literal
 fn float_exponent(input: &[u8]) -> IResult<&[u8], Exponent> {
-    // Use streaming tag so we return incomplete on empty streams
-    // Float parsing code currently relies on this to not error when there is not an exponent
-    use nom::bytes::streaming::tag;
+    use nom::bytes::complete::tag;
     let (input, _) = nom::branch::alt((tag("e"), tag("E")))(input)?;
     let (input, s_opt) = nom::combinator::opt(sign)(input)?;
     let (input, exponent) = digits(input)?;
@@ -435,7 +433,7 @@ fn test_exponent() {
     assert_eq!(p(b"E+8;"), Ok((&b";"[..], Exponent(8))));
     assert_eq!(p(b"E-45;"), Ok((&b";"[..], Exponent(-45))));
 
-    assert_eq!(p(b""), Err(nom::Err::Incomplete(nom::Needed::new(1))));
+    assert_eq!(p(b""), wrong_chars(b""));
     assert_eq!(p(b"."), wrong_chars(b"."));
 }
 
@@ -526,9 +524,10 @@ fn test_literal_float() {
     assert_eq!(p(b"0.f"), Ok((&b""[..], Token::LiteralFloat(0.0))));
     assert_eq!(p(b".0f"), Ok((&b""[..], Token::LiteralFloat(0.0))));
 
-    // Float without suffix at end of file does not currently work
     assert_eq!(p(b"0.;"), Ok((&b";"[..], Token::LiteralFloat(0.0))));
     assert_eq!(p(b".0;"), Ok((&b";"[..], Token::LiteralFloat(0.0))));
+    assert_eq!(p(b"0."), Ok((&b""[..], Token::LiteralFloat(0.0))));
+    assert_eq!(p(b".0"), Ok((&b""[..], Token::LiteralFloat(0.0))));
 
     assert_eq!(p(b"7E-7"), Ok((&b""[..], Token::LiteralFloat(7e-7))));
     assert_eq!(p(b"1e+11"), Ok((&b""[..], Token::LiteralFloat(1e+11))));
@@ -538,8 +537,6 @@ fn test_literal_float() {
     );
 
     assert!(p(b"0").is_err());
-    assert!(p(b"0.").is_err());
-    assert!(p(b".0").is_err());
     assert!(p(b".").is_err());
 }
 
