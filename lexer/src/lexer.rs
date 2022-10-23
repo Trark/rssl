@@ -369,7 +369,13 @@ type DigitSequence = Vec<u64>;
 
 /// Parse a sequence of digits into an array
 fn digit_sequence(input: &[u8]) -> IResult<&[u8], DigitSequence> {
-    nom::multi::many1(digit)(input)
+    let (mut input, first) = digit(input)?;
+    let mut digits = Vec::from([first]);
+    while let Ok((rest, next)) = digit(input) {
+        input = rest;
+        digits.push(next);
+    }
+    Ok((input, digits))
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -1117,18 +1123,22 @@ fn token(input: &[u8]) -> IResult<&[u8], IntermediateToken> {
 }
 
 /// Parse all tokens in a stream
-fn token_stream(input: &[u8]) -> IResult<&[u8], Vec<StreamToken>> {
+fn token_stream(mut input: &[u8]) -> IResult<&[u8], Vec<StreamToken>> {
     let total_length = input.len() as u32;
-    match nom::multi::many0(nom::combinator::complete(token))(input) {
-        Ok((rest, itokens)) => {
-            let tokens = itokens
-                .into_iter()
-                .map(|itoken| StreamToken(itoken.0, StreamLocation(total_length - (itoken.1).0)))
-                .collect::<Vec<_>>();
-            Ok((rest, tokens))
+    let mut tokens = Vec::new();
+    while !input.is_empty() {
+        match token(input) {
+            Ok((rest, itoken)) => {
+                input = rest;
+                tokens.push(StreamToken(
+                    itoken.0,
+                    StreamLocation(total_length - (itoken.1).0),
+                ))
+            }
+            Err(err) => return Err(err),
         }
-        Err(err) => Err(err),
     }
+    Ok((input, tokens))
 }
 
 /// Run the lexer on input text to turn it into a token stream
