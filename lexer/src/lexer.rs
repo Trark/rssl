@@ -591,7 +591,7 @@ fn identifier_char(input: &[u8]) -> IResult<&[u8], u8> {
     }
 }
 
-/// Parse an identifier
+/// Parse an identifier or a keyword as an identifier
 fn identifier(input: &[u8]) -> IResult<&[u8], Identifier> {
     let mut chars = Vec::new();
     let first_result = identifier_firstchar(input);
@@ -614,26 +614,81 @@ fn identifier(input: &[u8]) -> IResult<&[u8], Identifier> {
         }
     }
 
-    // If we match a reserved word, fail instead. The token parser
-    // will then match the reserved word next
-    // This is done instead of just running the reserved word parsing
-    // first to avoid having the deal with detecting the end of a name
-    // for when parsing an identifier that has a reserved word as a
-    // sub string at the start
-    // Maybe just combine the identifier and reserved word parsing?
-    if let Ok((slice, _)) = reserved_word(&chars[..]) {
-        if slice.is_empty() {
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            )));
-        }
-    }
-
     Ok((
         stream,
         Identifier(std::str::from_utf8(&chars[..]).unwrap().to_string()),
     ))
+}
+
+/// Parse an identifier or keyword
+fn any_word(input: &[u8]) -> IResult<&[u8], Token> {
+    let (stream, id) = identifier(input)?;
+
+    let tok = match id.0.as_str() {
+        "if" => Token::If,
+        "else" => Token::Else,
+        "for" => Token::For,
+        "while" => Token::While,
+        "switch" => Token::Switch,
+        "return" => Token::Return,
+        "break" => Token::Break,
+        "continue" => Token::Continue,
+
+        "struct" => Token::Struct,
+        "enum" => Token::Enum,
+        "cbuffer" => Token::ConstantBuffer,
+        "namespace" => Token::Namespace,
+
+        "true" => Token::True,
+        "false" => Token::False,
+
+        "in" => Token::In,
+        "out" => Token::Out,
+        "inout" => Token::InOut,
+
+        "const" => Token::Const,
+        "extern" => Token::Extern,
+        "static" => Token::Static,
+        "groupshared" => Token::GroupShared,
+        "sizeof" => Token::SizeOf,
+        "template" => Token::Template,
+        "typename" => Token::Typename,
+
+        // Unimplemented keywords
+        "SamplerState" | "packoffset" | "case" | "default" => Token::ReservedWord(id.0),
+
+        // Reserved keywords for future use
+        "auto" | "catch" | "char" | "class" | "const_cast" | "delete" | "dynamic_cast"
+        | "explicit" | "friend" | "goto" | "long" | "mutable" | "new" | "operator" | "private"
+        | "protected" | "public" | "reinterpret_cast" | "short" | "signed" | "static_cast"
+        | "this" | "throw" | "try" | "union" | "unsigned" | "using" | "virtual" => {
+            Token::ReservedWord(id.0)
+        }
+
+        _ => Token::Id(id),
+    };
+    Ok((stream, tok))
+}
+
+/// Parse a single specific word
+fn specific_word<'a>(input: &'a [u8], name: &'static str) -> IResult<&'a [u8], &'a [u8]> {
+    let name_bytes = name.as_bytes();
+    if input.starts_with(name_bytes) {
+        let (k, r) = input.split_at(name_bytes.len());
+        if r.is_empty() || identifier_char(r).is_err() {
+            Ok((r, k))
+        } else {
+            Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                ErrorKind::Not,
+            )))
+        }
+    } else {
+        Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            ErrorKind::Tag,
+        )))
+    }
 }
 
 /// Parse trivial whitespace
@@ -738,144 +793,6 @@ fn test_whitespace() {
     assert_eq!(whitespace(b"/* line 1\n\t slash /\n\t line 3 */"), complete);
 }
 
-macro_rules! declare_keyword {
-    ( $parse_function:ident, $name:expr ) => {
-        fn $parse_function(input: &[u8]) -> IResult<&[u8], &[u8]> {
-            nom::bytes::complete::tag($name)(input)
-        }
-    };
-}
-
-// Reserved words
-declare_keyword!(reserved_word_if, "if");
-declare_keyword!(reserved_word_else, "else");
-declare_keyword!(reserved_word_for, "for");
-declare_keyword!(reserved_word_while, "while");
-declare_keyword!(reserved_word_switch, "switch");
-declare_keyword!(reserved_word_return, "return");
-declare_keyword!(reserved_word_break, "break");
-declare_keyword!(reserved_word_continue, "continue");
-declare_keyword!(reserved_word_struct, "struct");
-declare_keyword!(reserved_word_samplerstate, "SamplerState");
-declare_keyword!(reserved_word_cbuffer, "cbuffer");
-declare_keyword!(reserved_word_register, "register");
-declare_keyword!(reserved_word_true, "true");
-declare_keyword!(reserved_word_false, "false");
-declare_keyword!(reserved_word_packoffset, "packoffset");
-declare_keyword!(reserved_word_in, "in");
-declare_keyword!(reserved_word_out, "out");
-declare_keyword!(reserved_word_inout, "inout");
-declare_keyword!(reserved_word_const, "const");
-declare_keyword!(reserved_word_extern, "extern");
-declare_keyword!(reserved_word_static, "static");
-declare_keyword!(reserved_word_groupshared, "groupshared");
-declare_keyword!(reserved_word_sizeof, "sizeof");
-declare_keyword!(reserved_word_template, "template");
-declare_keyword!(reserved_word_typename, "typename");
-declare_keyword!(reserved_word_namespace, "namespace");
-
-// Unused reserved words
-declare_keyword!(reserved_word_auto, "auto");
-declare_keyword!(reserved_word_case, "case");
-declare_keyword!(reserved_word_catch, "catch");
-declare_keyword!(reserved_word_char, "char");
-declare_keyword!(reserved_word_class, "class");
-declare_keyword!(reserved_word_const_cast, "const_cast");
-declare_keyword!(reserved_word_default, "default");
-declare_keyword!(reserved_word_delete, "delete");
-declare_keyword!(reserved_word_dynamic_cast, "dynamic_cast");
-declare_keyword!(reserved_word_enum, "enum");
-declare_keyword!(reserved_word_explicit, "explicit");
-declare_keyword!(reserved_word_friend, "friend");
-declare_keyword!(reserved_word_goto, "goto");
-declare_keyword!(reserved_word_long, "long");
-declare_keyword!(reserved_word_mutable, "mutable");
-declare_keyword!(reserved_word_new, "new");
-declare_keyword!(reserved_word_operator, "operator");
-declare_keyword!(reserved_word_private, "private");
-declare_keyword!(reserved_word_protected, "protected");
-declare_keyword!(reserved_word_public, "public");
-declare_keyword!(reserved_word_reinterpret_cast, "reinterpret_cast");
-declare_keyword!(reserved_word_short, "short");
-declare_keyword!(reserved_word_signed, "signed");
-declare_keyword!(reserved_word_static_cast, "static_cast");
-declare_keyword!(reserved_word_this, "this");
-declare_keyword!(reserved_word_throw, "throw");
-declare_keyword!(reserved_word_try, "try");
-declare_keyword!(reserved_word_union, "union");
-declare_keyword!(reserved_word_unsigned, "unsigned");
-declare_keyword!(reserved_word_using, "using");
-declare_keyword!(reserved_word_virtual, "virtual");
-
-fn reserved_word(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    // alt only supports 21 alternatives so recursively use alt
-    nom::branch::alt((
-        nom::branch::alt((
-            reserved_word_if,
-            reserved_word_else,
-            reserved_word_for,
-            reserved_word_while,
-            reserved_word_switch,
-            reserved_word_return,
-            reserved_word_break,
-            reserved_word_continue,
-            reserved_word_struct,
-            reserved_word_samplerstate,
-            reserved_word_cbuffer,
-            reserved_word_register,
-            reserved_word_true,
-            reserved_word_false,
-            reserved_word_packoffset,
-            reserved_word_inout,
-            reserved_word_out,
-            reserved_word_in,
-            reserved_word_auto,
-            reserved_word_case,
-            reserved_word_catch,
-        )),
-        nom::branch::alt((
-            reserved_word_char,
-            reserved_word_class,
-            reserved_word_const_cast,
-            reserved_word_default,
-            reserved_word_delete,
-            reserved_word_dynamic_cast,
-            reserved_word_enum,
-            reserved_word_const,
-            reserved_word_extern,
-            reserved_word_static,
-            reserved_word_groupshared,
-            reserved_word_explicit,
-            reserved_word_friend,
-            reserved_word_goto,
-            reserved_word_long,
-            reserved_word_mutable,
-            reserved_word_new,
-            reserved_word_operator,
-            reserved_word_private,
-            reserved_word_protected,
-            reserved_word_public,
-        )),
-        nom::branch::alt((
-            reserved_word_reinterpret_cast,
-            reserved_word_short,
-            reserved_word_signed,
-            reserved_word_sizeof,
-            reserved_word_static_cast,
-            reserved_word_template,
-            reserved_word_this,
-            reserved_word_throw,
-            reserved_word_try,
-            reserved_word_typename,
-            reserved_word_union,
-            reserved_word_unsigned,
-            reserved_word_using,
-            reserved_word_virtual,
-            reserved_word_namespace,
-        )),
-    ))(input)
-}
-
 /// Register class for a resource
 enum RegisterType {
     T,
@@ -899,7 +816,7 @@ fn register_type(input: &[u8]) -> IResult<&[u8], RegisterType> {
 /// Parse a register slot attribute
 fn register(input: &[u8]) -> IResult<&[u8], Token> {
     use nom::bytes::complete::tag;
-    let (input, _) = reserved_word_register(input)?;
+    let (input, _) = specific_word(input, "register")?;
     let (input, _) = skip_whitespace(input)?;
     let (input, _) = tag("(")(input)?;
     let (input, _) = skip_whitespace(input)?;
@@ -1248,56 +1165,14 @@ fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
     ))(input)
 }
 
-/// Parse keyword into a token
-fn token_no_whitespace_words(input: &[u8]) -> IResult<&[u8], Token> {
-    use nom::combinator::map;
-    nom::branch::alt((
-        // Control flow
-        nom::branch::alt((
-            map(reserved_word_if, |_| Token::If),
-            map(reserved_word_else, |_| Token::Else),
-            map(reserved_word_for, |_| Token::For),
-            map(reserved_word_while, |_| Token::While),
-            map(reserved_word_switch, |_| Token::Switch),
-            map(reserved_word_case, |_| Token::Case),
-            map(reserved_word_default, |_| Token::Default),
-            map(reserved_word_return, |_| Token::Return),
-            map(reserved_word_break, |_| Token::Break),
-            map(reserved_word_continue, |_| Token::Continue),
-        )),
-        // Types
-        map(reserved_word_struct, |_| Token::Struct),
-        map(reserved_word_enum, |_| Token::Enum),
-        map(reserved_word_cbuffer, |_| Token::ConstantBuffer),
-        register,
-        map(reserved_word_namespace, |_| Token::Namespace),
-        // Parameter Attributes
-        map(reserved_word_inout, |_| Token::InOut),
-        map(reserved_word_in, |_| Token::In),
-        map(reserved_word_out, |_| Token::Out),
-        // Type modifiers
-        map(reserved_word_const, |_| Token::Const),
-        // Variable storage classes
-        map(reserved_word_extern, |_| Token::Extern),
-        map(reserved_word_static, |_| Token::Static),
-        map(reserved_word_groupshared, |_| Token::GroupShared),
-        map(reserved_word_sizeof, |_| Token::SizeOf),
-        map(reserved_word_template, |_| Token::Template),
-        map(reserved_word_typename, |_| Token::Typename),
-    ))(input)
-}
-
 /// Parse any single non-whitespace token - without a location
 fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
     use nom::bytes::complete::tag;
     use nom::combinator::map;
     nom::branch::alt((
-        // Literals and identifiers
-        map(identifier, Token::Id),
+        // Literals
         literal_float,
         literal_int,
-        map(reserved_word_true, |_| Token::True),
-        map(reserved_word_false, |_| Token::False),
         // Scope markers
         map(tag("{"), |_| Token::LeftBrace),
         map(tag("}"), |_| Token::RightBrace),
@@ -1307,9 +1182,12 @@ fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
         map(tag("]"), |_| Token::RightSquareBracket),
         leftanglebracket,
         rightanglebracket,
-        // Keywords and symbols
+        // Symbols
         token_no_whitespace_symbols,
-        token_no_whitespace_words,
+        // Special words
+        register,
+        // Identifiers and keywords
+        any_word,
     ))(input)
 }
 
