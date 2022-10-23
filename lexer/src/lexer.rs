@@ -1,4 +1,4 @@
-use nom::{error::ErrorKind, IResult, Needed};
+use nom::IResult;
 use rssl_text::*;
 use rssl_tok::*;
 
@@ -85,14 +85,35 @@ struct IntermediateToken(Token, IntermediateLocation);
 #[derive(PartialEq, Debug, Clone)]
 struct StreamToken(pub Token, pub StreamLocation);
 
+/// Make an error for when the wrong characters were encountered to parse a certain token
+fn wrong_chars<T>(input: &[u8]) -> IResult<&[u8], T> {
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::Tag,
+    )))
+}
+
+/// Make an error for when the characters are encountered which indicate we are another token
+fn invalid_chars<T>(input: &[u8]) -> IResult<&[u8], T> {
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::Not,
+    )))
+}
+
+/// Make an error when the end of stream was encountered while trying to lex a certain token
+fn end_of_stream<T>() -> IResult<&'static [u8], T> {
+    Err(nom::Err::Error(nom::error::Error::new(
+        &[],
+        nom::error::ErrorKind::Eof,
+    )))
+}
+
 /// Parse a single decimal digit
 fn digit(input: &[u8]) -> IResult<&[u8], u64> {
     // Handle end of stream
     if input.is_empty() {
-        return Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        )));
+        return end_of_stream();
     };
 
     // Match on the next character
@@ -109,10 +130,7 @@ fn digit(input: &[u8]) -> IResult<&[u8], u64> {
         b'9' => 9,
         _ => {
             // Not a digit
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            )));
+            return wrong_chars(input);
         }
     };
 
@@ -142,10 +160,7 @@ fn test_digits() {
 fn digit_hex(input: &[u8]) -> IResult<&[u8], u64> {
     // Handle end of stream
     if input.is_empty() {
-        return Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        )));
+        return end_of_stream();
     };
 
     // Match on the next character
@@ -174,10 +189,7 @@ fn digit_hex(input: &[u8]) -> IResult<&[u8], u64> {
         b'f' => 15,
         _ => {
             // Not a digit
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            )));
+            return wrong_chars(input);
         }
     };
 
@@ -207,10 +219,7 @@ fn test_digits_hex() {
 fn digit_octal(input: &[u8]) -> IResult<&[u8], u64> {
     // Handle end of stream
     if input.is_empty() {
-        return Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        )));
+        return end_of_stream();
     };
 
     // Match on the next character
@@ -225,10 +234,7 @@ fn digit_octal(input: &[u8]) -> IResult<&[u8], u64> {
         b'7' => 7,
         _ => {
             // Not a digit
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            )));
+            return wrong_chars(input);
         }
     };
 
@@ -266,12 +272,7 @@ fn int_type(input: &[u8]) -> IResult<&[u8], IntType> {
     let n = match input.first() {
         Some(b'u') | Some(b'U') => IntType::UInt,
         Some(b'l') | Some(b'L') => IntType::Long,
-        _ => {
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            )));
-        }
+        _ => return wrong_chars(input),
     };
 
     // Success
@@ -382,12 +383,7 @@ fn float_type(input: &[u8]) -> IResult<&[u8], FloatType> {
         Some(b'h') | Some(b'H') => FloatType::Half,
         Some(b'f') | Some(b'F') => FloatType::Float,
         Some(b'l') | Some(b'L') => FloatType::Double,
-        _ => {
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            )));
-        }
+        _ => return wrong_chars(input),
     };
 
     // Success
@@ -405,10 +401,7 @@ fn sign(input: &[u8]) -> IResult<&[u8], Sign> {
     match input.first() {
         Some(b'+') => Ok((&input[1..], Sign::Positive)),
         Some(b'-') => Ok((&input[1..], Sign::Negative)),
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
+        _ => wrong_chars(input),
     }
 }
 
@@ -443,13 +436,7 @@ fn test_exponent() {
     assert_eq!(p(b"E-45;"), Ok((&b";"[..], Exponent(-45))));
 
     assert_eq!(p(b""), Err(nom::Err::Incomplete(nom::Needed::new(1))));
-    assert_eq!(
-        p(b"."),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b"."[..],
-            nom::error::ErrorKind::Tag
-        )))
-    );
+    assert_eq!(p(b"."), wrong_chars(b"."));
 }
 
 /// Build a float literal token from each part of literal
@@ -516,10 +503,7 @@ fn literal_float(input: &[u8]) -> IResult<&[u8], Token> {
     // If we did not have a fractional part then we require the exponent, else it is optional
     // This avoids integers parsing as valid floats
     if !has_fraction && exponent_opt.is_none() {
-        return Err(nom::Err::Error(nom::error::Error::new(
-            &b"."[..],
-            nom::error::ErrorKind::Not,
-        )));
+        return invalid_chars(b".");
     }
 
     let (input, float_type) = nom::combinator::opt(float_type)(input)?;
@@ -562,15 +546,12 @@ fn test_literal_float() {
 /// Parse the first character of an identifier
 fn identifier_firstchar(input: &[u8]) -> IResult<&[u8], u8> {
     if input.is_empty() {
-        Err(nom::Err::Incomplete(Needed::new(1)))
+        end_of_stream()
     } else {
         let byte = input[0];
         match byte as char {
             'A'..='Z' | 'a'..='z' | '_' => Ok((&input[1..], byte)),
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            ))),
+            _ => wrong_chars(input),
         }
     }
 }
@@ -578,15 +559,12 @@ fn identifier_firstchar(input: &[u8]) -> IResult<&[u8], u8> {
 /// Parse characters in an identifier after the first
 fn identifier_char(input: &[u8]) -> IResult<&[u8], u8> {
     if input.is_empty() {
-        Err(nom::Err::Incomplete(Needed::new(1)))
+        end_of_stream()
     } else {
         let byte = input[0];
         match byte as char {
             'A'..='Z' | 'a'..='z' | '_' | '0'..='9' => Ok((&input[1..], byte)),
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Tag,
-            ))),
+            _ => wrong_chars(input),
         }
     }
 }
@@ -678,30 +656,21 @@ fn specific_word<'a>(input: &'a [u8], name: &'static str) -> IResult<&'a [u8], &
         if r.is_empty() || identifier_char(r).is_err() {
             Ok((r, k))
         } else {
-            Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Not,
-            )))
+            wrong_chars(input)
         }
     } else {
-        Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        )))
+        wrong_chars(input)
     }
 }
 
 /// Parse trivial whitespace
 fn whitespace_simple(input: &[u8]) -> IResult<&[u8], ()> {
     if input.is_empty() {
-        Err(nom::Err::Incomplete(Needed::new(1)))
+        end_of_stream()
     } else {
         match input[0] {
             b' ' | b'\n' | b'\r' | b'\t' => Ok((&input[1..], ())),
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                ErrorKind::Alt,
-            ))),
+            _ => wrong_chars(input),
         }
     }
 }
@@ -714,10 +683,7 @@ fn line_comment(input: &[u8]) -> IResult<&[u8], ()> {
             None => Ok((&[], ())),
         }
     } else {
-        Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Eof,
-        )))
+        wrong_chars(input)
     }
 }
 
@@ -738,16 +704,10 @@ fn block_comment(input: &[u8]) -> IResult<&[u8], ()> {
         }
 
         // Comment goes off the end of the file
-        Err(nom::Err::Failure(nom::error::Error::new(
-            input,
-            ErrorKind::Eof,
-        )))
+        end_of_stream()
     } else {
         // Not a block comment
-        Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        )))
+        wrong_chars(input)
     }
 }
 
@@ -764,10 +724,7 @@ fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
 
     if input == search {
         // No whitespace found
-        Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Alt,
-        )))
+        wrong_chars(input)
     } else {
         // Whitespace found
         Ok((search, ()))
@@ -871,10 +828,7 @@ fn leftanglebracket(input: &[u8]) -> IResult<&[u8], Token> {
             };
             Ok((input, token))
         }
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
+        _ => wrong_chars(input),
     }
 }
 
@@ -893,20 +847,8 @@ fn test_leftanglebracket() {
         p(b"<<"),
         Ok((&b"<"[..], Token::LeftAngleBracket(FollowedBy::Token)))
     );
-    assert_eq!(
-        p(b""),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b""[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b" "),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b" "[..],
-            ErrorKind::Tag,
-        )))
-    );
+    assert_eq!(p(b""), wrong_chars(b""));
+    assert_eq!(p(b" "), wrong_chars(b" "));
 }
 
 /// Parse a > token
@@ -920,10 +862,7 @@ fn rightanglebracket(input: &[u8]) -> IResult<&[u8], Token> {
             };
             Ok((input, token))
         }
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
+        _ => wrong_chars(input),
     }
 }
 
@@ -942,20 +881,8 @@ fn test_rightanglebracket() {
         p(b">>"),
         Ok((&b">"[..], Token::RightAngleBracket(FollowedBy::Token)))
     );
-    assert_eq!(
-        p(b""),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b""[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b" "),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b" "[..],
-            ErrorKind::Tag,
-        )))
-    );
+    assert_eq!(p(b""), wrong_chars(b""));
+    assert_eq!(p(b" "), wrong_chars(b" "));
 }
 
 /// Parse a binary operation that can either be standalone or combined into an assignment operation
@@ -966,19 +893,13 @@ fn symbol_op_or_op_equals(
     op_op_token: Token,
 ) -> impl Fn(&[u8]) -> IResult<&[u8], Token> {
     move |input: &[u8]| match input {
-        [c, b'=', b'=', ..] if *c == op_char => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Not,
-        ))),
+        [c, b'=', b'=', ..] if *c == op_char => invalid_chars(input),
         [c, b'=', ..] if *c == op_char => Ok((&input[2..], op_equals_token.clone())),
         [c1, c2, ..] if *c1 == op_char && *c2 == op_char && op_op_token != Token::Eof => {
             Ok((&input[2..], op_op_token.clone()))
         }
         [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
-        _ => Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            ErrorKind::Tag,
-        ))),
+        _ => wrong_chars(input),
     }
 }
 
@@ -994,27 +915,9 @@ fn test_symbol_equals() {
     assert_eq!(p(b"= "), Ok((&b" "[..], Token::Equals)));
     assert_eq!(p(b"=="), Ok((&b""[..], Token::EqualsEquals)));
     assert_eq!(p(b"== "), Ok((&b" "[..], Token::EqualsEquals)));
-    assert_eq!(
-        p(b""),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b""[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b" "),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b" "[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b"==="),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b"==="[..],
-            ErrorKind::Not,
-        )))
-    );
+    assert_eq!(p(b""), wrong_chars(b""));
+    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b"==="), invalid_chars(b"==="));
 }
 
 /// Parse a + token
@@ -1090,27 +993,9 @@ fn test_symbol_exclamation() {
     assert_eq!(p(b"! "), Ok((&b" "[..], Token::ExclamationPoint)));
     assert_eq!(p(b"!="), Ok((&b""[..], Token::ExclamationPointEquals)));
     assert_eq!(p(b"!= "), Ok((&b" "[..], Token::ExclamationPointEquals)));
-    assert_eq!(
-        p(b""),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b""[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b" "),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b" "[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b"!=="),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b"!=="[..],
-            ErrorKind::Not,
-        )))
-    );
+    assert_eq!(p(b""), wrong_chars(b""));
+    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b"!=="), invalid_chars(b"!=="));
 }
 
 #[test]
@@ -1123,20 +1008,8 @@ fn test_symbol_ampersand() {
     assert_eq!(p(b"&= "), Ok((&b" "[..], Token::AmpersandEquals)));
     assert_eq!(p(b"&&"), Ok((&b""[..], Token::AmpersandAmpersand)));
     assert_eq!(p(b"&& "), Ok((&b" "[..], Token::AmpersandAmpersand)));
-    assert_eq!(
-        p(b""),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b""[..],
-            ErrorKind::Tag,
-        )))
-    );
-    assert_eq!(
-        p(b" "),
-        Err(nom::Err::Error(nom::error::Error::new(
-            &b" "[..],
-            ErrorKind::Tag,
-        )))
-    );
+    assert_eq!(p(b""), wrong_chars(b""));
+    assert_eq!(p(b" "), wrong_chars(b" "));
 }
 
 /// Parse symbol into a token
@@ -1269,16 +1142,20 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
                 ))
             }
         }
-        Err(nom::Err::Incomplete(_)) => Err(LexerError::new(
-            LexerErrorReason::UnexpectedEndOfStream,
-            preprocessed.get_source_location(StreamLocation(code_bytes.len() as u32)),
-        )),
+        Err(nom::Err::Incomplete(_)) => panic!("Incomplete not expected"),
         Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
-            let offset = StreamLocation((code_bytes.len() - err.input.len()) as u32);
-            Err(LexerError::new(
-                LexerErrorReason::Unknown,
-                preprocessed.get_source_location(offset),
-            ))
+            if err.code == nom::error::ErrorKind::Eof {
+                Err(LexerError::new(
+                    LexerErrorReason::UnexpectedEndOfStream,
+                    preprocessed.get_source_location(StreamLocation(code_bytes.len() as u32)),
+                ))
+            } else {
+                let offset = StreamLocation((code_bytes.len() - err.input.len()) as u32);
+                Err(LexerError::new(
+                    LexerErrorReason::Unknown,
+                    preprocessed.get_source_location(offset),
+                ))
+            }
         }
     }
 }
@@ -1289,7 +1166,7 @@ fn test_token() {
         IntermediateToken(tok, IntermediateLocation(from))
     }
 
-    assert_eq!(token(&b""[..]), Err(nom::Err::Incomplete(Needed::new(1))));
+    assert!(token(&b""[..]).is_err());
     assert_eq!(
         token(&b";"[..]),
         Ok((&b""[..], from_end(Token::Semicolon, 1)))
