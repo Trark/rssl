@@ -111,7 +111,7 @@ fn end_of_stream<T>() -> IResult<&'static [u8], T> {
 
 /// Lex a token or return none
 fn opt<'b, T>(
-    lex_fn: impl Fn(&'b [u8]) -> IResult<&'b [u8], T>,
+    lex_fn: impl Fn(&[u8]) -> IResult<&[u8], T>,
 ) -> impl Fn(&'b [u8]) -> IResult<&'b [u8], Option<T>> {
     move |input: &'b [u8]| {
         match lex_fn(input) {
@@ -124,13 +124,28 @@ fn opt<'b, T>(
 
 /// Lex a token and apply a function to the result
 fn map<'b, T, G>(
-    lex_fn: impl Fn(&'b [u8]) -> IResult<&'b [u8], T>,
+    lex_fn: impl Fn(&[u8]) -> IResult<&[u8], T>,
     map_fn: impl Fn(T) -> G,
 ) -> impl Fn(&'b [u8]) -> IResult<&'b [u8], G> {
     move |input: &'b [u8]| match lex_fn(input) {
         Ok((rest, element)) => Ok((rest, map_fn(element))),
         Err(err) => Err(err),
     }
+}
+
+type DynLexFn<'f, T> = &'f dyn Fn(&[u8]) -> IResult<&[u8], T>;
+
+/// Lex a token from a set of lexers
+fn choose<'b, T: std::fmt::Debug>(
+    lex_fns: &[DynLexFn<T>],
+    input: &'b [u8],
+) -> IResult<&'b [u8], T> {
+    for lex_fn in lex_fns {
+        if let Ok(ok) = lex_fn(input) {
+            return Ok(ok);
+        }
+    }
+    wrong_chars(input)
 }
 
 /// Parse a single decimal digit
@@ -755,7 +770,7 @@ fn block_comment(input: &[u8]) -> IResult<&[u8], ()> {
 fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
     let mut search = input;
     loop {
-        search = match nom::branch::alt((whitespace_simple, line_comment, block_comment))(search) {
+        search = match choose(&[&whitespace_simple, &line_comment, &block_comment], search) {
             Ok((input, ())) => input,
             Err(nom::Err::Failure(err)) => return Err(nom::Err::Failure(err)),
             Err(_) => break,
@@ -1060,50 +1075,56 @@ fn test_symbol_ampersand() {
 
 /// Parse symbol into a token
 fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
-    nom::branch::alt((
-        symbol_single(b';', Token::Semicolon),
-        symbol_single(b',', Token::Comma),
-        symbol_plus,
-        symbol_minus,
-        symbol_forward_slash,
-        symbol_percent,
-        symbol_asterix,
-        symbol_ampersand,
-        symbol_verticalbar,
-        symbol_hat,
-        symbol_exclamation,
-        symbol_equals,
-        symbol_single(b'#', Token::Hash),
-        symbol_single(b'@', Token::At),
-        symbol_single(b'~', Token::Tilde),
-        symbol_single(b'.', Token::Period),
-        symbol_single(b':', Token::Colon),
-        symbol_single(b'?', Token::QuestionMark),
-    ))(input)
+    choose(
+        &[
+            &symbol_single(b';', Token::Semicolon),
+            &symbol_single(b',', Token::Comma),
+            &symbol_plus,
+            &symbol_minus,
+            &symbol_forward_slash,
+            &symbol_percent,
+            &symbol_asterix,
+            &symbol_ampersand,
+            &symbol_verticalbar,
+            &symbol_hat,
+            &symbol_exclamation,
+            &symbol_equals,
+            &symbol_single(b'#', Token::Hash),
+            &symbol_single(b'@', Token::At),
+            &symbol_single(b'~', Token::Tilde),
+            &symbol_single(b'.', Token::Period),
+            &symbol_single(b':', Token::Colon),
+            &symbol_single(b'?', Token::QuestionMark),
+        ],
+        input,
+    )
 }
 
 /// Parse any single non-whitespace token - without a location
 fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
-    nom::branch::alt((
-        // Literals
-        literal_float,
-        literal_int,
-        // Scope markers
-        symbol_single(b'{', Token::LeftBrace),
-        symbol_single(b'}', Token::RightBrace),
-        symbol_single(b'(', Token::LeftParen),
-        symbol_single(b')', Token::RightParen),
-        symbol_single(b'[', Token::LeftSquareBracket),
-        symbol_single(b']', Token::RightSquareBracket),
-        leftanglebracket,
-        rightanglebracket,
-        // Symbols
-        token_no_whitespace_symbols,
-        // Special words
-        register,
-        // Identifiers and keywords
-        any_word,
-    ))(input)
+    choose(
+        &[
+            // Literals
+            &literal_float,
+            &literal_int,
+            // Scope markers
+            &symbol_single(b'{', Token::LeftBrace),
+            &symbol_single(b'}', Token::RightBrace),
+            &symbol_single(b'(', Token::LeftParen),
+            &symbol_single(b')', Token::RightParen),
+            &symbol_single(b'[', Token::LeftSquareBracket),
+            &symbol_single(b']', Token::RightSquareBracket),
+            &leftanglebracket,
+            &rightanglebracket,
+            // Symbols
+            &token_no_whitespace_symbols,
+            // Special words
+            &register,
+            // Identifiers and keywords
+            &any_word,
+        ],
+        input,
+    )
 }
 
 /// Parse any single non-whitespace token - with a location
