@@ -109,6 +109,30 @@ fn end_of_stream<T>() -> IResult<&'static [u8], T> {
     )))
 }
 
+/// Lex a token or return none
+fn opt<'b, T>(
+    lex_fn: impl Fn(&'b [u8]) -> IResult<&'b [u8], T>,
+) -> impl Fn(&'b [u8]) -> IResult<&'b [u8], Option<T>> {
+    move |input: &'b [u8]| {
+        match lex_fn(input) {
+            // If we succeeded then return the element
+            Ok((rest, element)) => Ok((rest, Some(element))),
+            Err(_) => Ok((input, None)),
+        }
+    }
+}
+
+/// Lex a token and apply a function to the result
+fn map<'b, T, G>(
+    lex_fn: impl Fn(&'b [u8]) -> IResult<&'b [u8], T>,
+    map_fn: impl Fn(T) -> G,
+) -> impl Fn(&'b [u8]) -> IResult<&'b [u8], G> {
+    move |input: &'b [u8]| match lex_fn(input) {
+        Ok((rest, element)) => Ok((rest, map_fn(element))),
+        Err(err) => Err(err),
+    }
+}
+
 /// Parse a single decimal digit
 fn digit(input: &[u8]) -> IResult<&[u8], u64> {
     // Handle end of stream
@@ -282,7 +306,7 @@ fn int_type(input: &[u8]) -> IResult<&[u8], IntType> {
 /// Parse a decimal literal
 fn literal_decimal_int(input: &[u8]) -> IResult<&[u8], Token> {
     let (input, value) = digits(input)?;
-    let (input, int_type_opt) = nom::combinator::opt(int_type)(input)?;
+    let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
         None => Token::LiteralInt(value),
         Some(IntType::UInt) => Token::LiteralUInt(value),
@@ -294,7 +318,7 @@ fn literal_decimal_int(input: &[u8]) -> IResult<&[u8], Token> {
 /// Parse a hexadecimal literal
 fn literal_hex_int(input: &[u8]) -> IResult<&[u8], Token> {
     let (input, value) = digits_hex(input)?;
-    let (input, int_type_opt) = nom::combinator::opt(int_type)(input)?;
+    let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
         None => Token::LiteralInt(value),
         Some(IntType::UInt) => Token::LiteralUInt(value),
@@ -306,7 +330,7 @@ fn literal_hex_int(input: &[u8]) -> IResult<&[u8], Token> {
 /// Parse an octal literal
 fn literal_octal_int(input: &[u8]) -> IResult<&[u8], Token> {
     let (input, value) = digits_octal(input)?;
-    let (input, int_type_opt) = nom::combinator::opt(int_type)(input)?;
+    let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
         None => Token::LiteralInt(value),
         Some(IntType::UInt) => Token::LiteralUInt(value),
@@ -353,14 +377,14 @@ struct Fraction(DigitSequence, DigitSequence);
 
 /// Parse the main fractional parts of a float literal
 fn fractional_constant(input: &[u8]) -> IResult<&[u8], Fraction> {
-    let (input, whole_part) = nom::combinator::opt(digit_sequence)(input)?;
+    let (input, whole_part) = opt(digit_sequence)(input)?;
     let (input, _) = nom::bytes::complete::tag(".")(input)?;
 
     // If there was not a whole part then the fractional part is mandatory
     let (input, fractional_part) = if whole_part.is_none() {
-        nom::combinator::map(digit_sequence, Some)(input)?
+        map(digit_sequence, Some)(input)?
     } else {
-        nom::combinator::opt(digit_sequence)(input)?
+        opt(digit_sequence)(input)?
     };
 
     let whole_part = whole_part.unwrap_or_default();
@@ -413,7 +437,7 @@ struct Exponent(i64);
 fn float_exponent(input: &[u8]) -> IResult<&[u8], Exponent> {
     use nom::bytes::complete::tag;
     let (input, _) = nom::branch::alt((tag("e"), tag("E")))(input)?;
-    let (input, s_opt) = nom::combinator::opt(sign)(input)?;
+    let (input, s_opt) = opt(sign)(input)?;
     let (input, exponent) = digits(input)?;
     let exponent = match s_opt {
         Some(Sign::Negative) => -(exponent as i64),
@@ -484,7 +508,7 @@ fn calculate_float_from_parts(
 /// Parse a float literal
 fn literal_float(input: &[u8]) -> IResult<&[u8], Token> {
     // First try to parse a fraction
-    let (input, fraction) = nom::combinator::opt(fractional_constant)(input)?;
+    let (input, fraction) = opt(fractional_constant)(input)?;
 
     // Then if that failed try to parse as a whole number
     let has_fraction = fraction.is_some();
@@ -496,7 +520,7 @@ fn literal_float(input: &[u8]) -> IResult<&[u8], Token> {
         }
     };
 
-    let (input, exponent_opt) = nom::combinator::opt(float_exponent)(input)?;
+    let (input, exponent_opt) = opt(float_exponent)(input)?;
 
     // If we did not have a fractional part then we require the exponent, else it is optional
     // This avoids integers parsing as valid floats
@@ -504,7 +528,7 @@ fn literal_float(input: &[u8]) -> IResult<&[u8], Token> {
         return invalid_chars(b".");
     }
 
-    let (input, float_type) = nom::combinator::opt(float_type)(input)?;
+    let (input, float_type) = opt(float_type)(input)?;
 
     let exponent = exponent_opt.unwrap_or(Exponent(0));
     let Fraction(left, right) = fraction;
@@ -730,7 +754,7 @@ fn whitespace(input: &[u8]) -> IResult<&[u8], ()> {
 
 /// Parse any kind of white space or no whitespace
 fn skip_whitespace(input: &[u8]) -> IResult<&[u8], ()> {
-    let (input, _) = nom::combinator::opt(whitespace)(input)?;
+    let (input, _) = opt(whitespace)(input)?;
     Ok((input, ()))
 }
 
@@ -758,7 +782,6 @@ enum RegisterType {
 /// Parse a register type
 fn register_type(input: &[u8]) -> IResult<&[u8], RegisterType> {
     use nom::bytes::complete::tag;
-    use nom::combinator::map;
     nom::branch::alt((
         map(tag("t"), |_| RegisterType::T),
         map(tag("u"), |_| RegisterType::U),
@@ -1012,7 +1035,6 @@ fn test_symbol_ampersand() {
 /// Parse symbol into a token
 fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
     use nom::bytes::complete::tag;
-    use nom::combinator::map;
     nom::branch::alt((
         map(tag(";"), |_| Token::Semicolon),
         map(tag(","), |_| Token::Comma),
@@ -1038,7 +1060,6 @@ fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
 /// Parse any single non-whitespace token - without a location
 fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
     use nom::bytes::complete::tag;
-    use nom::combinator::map;
     nom::branch::alt((
         // Literals
         literal_float,
