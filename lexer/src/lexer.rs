@@ -378,7 +378,7 @@ struct Fraction(DigitSequence, DigitSequence);
 /// Parse the main fractional parts of a float literal
 fn fractional_constant(input: &[u8]) -> IResult<&[u8], Fraction> {
     let (input, whole_part) = opt(digit_sequence)(input)?;
-    let (input, _) = nom::bytes::complete::tag(".")(input)?;
+    let (input, _) = specific_text(input, ".")?;
 
     // If there was not a whole part then the fractional part is mandatory
     let (input, fractional_part) = if whole_part.is_none() {
@@ -435,8 +435,10 @@ struct Exponent(i64);
 
 /// Parse an exponent in a float literal
 fn float_exponent(input: &[u8]) -> IResult<&[u8], Exponent> {
-    use nom::bytes::complete::tag;
-    let (input, _) = nom::branch::alt((tag("e"), tag("E")))(input)?;
+    let input = match input {
+        [b'e', ..] | [b'E', ..] => &input[1..],
+        _ => return wrong_chars(input),
+    };
     let (input, s_opt) = opt(sign)(input)?;
     let (input, exponent) = digits(input)?;
     let exponent = match s_opt {
@@ -684,6 +686,17 @@ fn specific_word<'a>(input: &'a [u8], name: &'static str) -> IResult<&'a [u8], &
     }
 }
 
+/// Parse a specific string of characters
+fn specific_text<'a>(input: &'a [u8], text: &'static str) -> IResult<&'a [u8], &'a [u8]> {
+    let text_bytes = text.as_bytes();
+    if input.starts_with(text_bytes) {
+        let (k, r) = input.split_at(text_bytes.len());
+        Ok((r, k))
+    } else {
+        wrong_chars(input)
+    }
+}
+
 /// Parse trivial whitespace
 fn whitespace_simple(input: &[u8]) -> IResult<&[u8], ()> {
     if input.is_empty() {
@@ -781,26 +794,25 @@ enum RegisterType {
 
 /// Parse a register type
 fn register_type(input: &[u8]) -> IResult<&[u8], RegisterType> {
-    use nom::bytes::complete::tag;
-    nom::branch::alt((
-        map(tag("t"), |_| RegisterType::T),
-        map(tag("u"), |_| RegisterType::U),
-        map(tag("b"), |_| RegisterType::B),
-        map(tag("s"), |_| RegisterType::S),
-    ))(input)
+    match input {
+        [b't', rest @ ..] => Ok((rest, RegisterType::T)),
+        [b'u', rest @ ..] => Ok((rest, RegisterType::U)),
+        [b'b', rest @ ..] => Ok((rest, RegisterType::B)),
+        [b's', rest @ ..] => Ok((rest, RegisterType::S)),
+        _ => wrong_chars(input),
+    }
 }
 
 /// Parse a register slot attribute
 fn register(input: &[u8]) -> IResult<&[u8], Token> {
-    use nom::bytes::complete::tag;
     let (input, _) = specific_word(input, "register")?;
     let (input, _) = skip_whitespace(input)?;
-    let (input, _) = tag("(")(input)?;
+    let (input, _) = specific_text(input, "(")?;
     let (input, _) = skip_whitespace(input)?;
     let (input, slot_type) = register_type(input)?;
     let (input, num) = digits(input)?;
     let (input, _) = skip_whitespace(input)?;
-    let (input, _) = tag(")")(input)?;
+    let (input, _) = specific_text(input, ")")?;
 
     let token = Token::Register(match slot_type {
         RegisterType::T => RegisterSlot::T(num as u32),
@@ -903,6 +915,14 @@ fn test_rightanglebracket() {
     );
     assert_eq!(p(b""), wrong_chars(b""));
     assert_eq!(p(b" "), wrong_chars(b" "));
+}
+
+/// Parse a single character symbol into a token
+fn symbol_single(op_char: u8, op_token: Token) -> impl Fn(&[u8]) -> IResult<&[u8], Token> {
+    move |input: &[u8]| match input {
+        [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
+        _ => wrong_chars(input),
+    }
 }
 
 /// Parse a binary operation that can either be standalone or combined into an assignment operation
@@ -1034,10 +1054,9 @@ fn test_symbol_ampersand() {
 
 /// Parse symbol into a token
 fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
-    use nom::bytes::complete::tag;
     nom::branch::alt((
-        map(tag(";"), |_| Token::Semicolon),
-        map(tag(","), |_| Token::Comma),
+        symbol_single(b';', Token::Semicolon),
+        symbol_single(b',', Token::Comma),
         symbol_plus,
         symbol_minus,
         symbol_forward_slash,
@@ -1048,29 +1067,28 @@ fn token_no_whitespace_symbols(input: &[u8]) -> IResult<&[u8], Token> {
         symbol_hat,
         symbol_exclamation,
         symbol_equals,
-        map(tag("#"), |_| Token::Hash),
-        map(tag("@"), |_| Token::At),
-        map(tag("~"), |_| Token::Tilde),
-        map(tag("."), |_| Token::Period),
-        map(tag(":"), |_| Token::Colon),
-        map(tag("?"), |_| Token::QuestionMark),
+        symbol_single(b'#', Token::Hash),
+        symbol_single(b'@', Token::At),
+        symbol_single(b'~', Token::Tilde),
+        symbol_single(b'.', Token::Period),
+        symbol_single(b':', Token::Colon),
+        symbol_single(b'?', Token::QuestionMark),
     ))(input)
 }
 
 /// Parse any single non-whitespace token - without a location
 fn token_no_whitespace_intermediate(input: &[u8]) -> IResult<&[u8], Token> {
-    use nom::bytes::complete::tag;
     nom::branch::alt((
         // Literals
         literal_float,
         literal_int,
         // Scope markers
-        map(tag("{"), |_| Token::LeftBrace),
-        map(tag("}"), |_| Token::RightBrace),
-        map(tag("("), |_| Token::LeftParen),
-        map(tag(")"), |_| Token::RightParen),
-        map(tag("["), |_| Token::LeftSquareBracket),
-        map(tag("]"), |_| Token::RightSquareBracket),
+        symbol_single(b'{', Token::LeftBrace),
+        symbol_single(b'}', Token::RightBrace),
+        symbol_single(b'(', Token::LeftParen),
+        symbol_single(b')', Token::RightParen),
+        symbol_single(b'[', Token::LeftSquareBracket),
+        symbol_single(b']', Token::RightSquareBracket),
         leftanglebracket,
         rightanglebracket,
         // Symbols
