@@ -14,28 +14,51 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
     let mut output_string = String::new();
 
     for root_decl in &module.root_definitions {
-        match root_decl {
-            ir::RootDefinition::Struct(sd) => {
-                export_struct(sd, &mut output_string, &mut context)?;
-            }
-            ir::RootDefinition::StructTemplate(_) => {
-                todo!("RootDefinition::StructTemplate")
-            }
-            ir::RootDefinition::ConstantBuffer(cb) => {
-                export_constant_buffer(cb, &mut output_string, &mut context)?;
-            }
-            ir::RootDefinition::GlobalVariable(decl) => {
-                export_global_variable(decl, &mut output_string, &mut context)?;
-                context.new_line(&mut output_string);
-            }
-            ir::RootDefinition::Function(decl) => {
-                export_function(decl, &mut output_string, &mut context)?;
-                context.new_line(&mut output_string);
-            }
-        }
+        export_root_definition(root_decl, &mut output_string, &mut context)?;
     }
 
     Ok(output_string)
+}
+
+/// Export ir root definition to HLSL
+fn export_root_definition(
+    decl: &ir::RootDefinition,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match decl {
+        ir::RootDefinition::Struct(sd) => {
+            export_struct(sd, output, context)?;
+        }
+        ir::RootDefinition::StructTemplate(_) => {
+            todo!("RootDefinition::StructTemplate")
+        }
+        ir::RootDefinition::ConstantBuffer(cb) => {
+            export_constant_buffer(cb, output, context)?;
+        }
+        ir::RootDefinition::GlobalVariable(decl) => {
+            export_global_variable(decl, output, context)?;
+            context.new_line(output);
+        }
+        ir::RootDefinition::Function(decl) => {
+            export_function(decl, output, context)?;
+            context.new_line(output);
+        }
+        ir::RootDefinition::Namespace(name, decls) => {
+            output.push_str("namespace ");
+            output.push_str(name);
+            output.push_str(" {");
+            context.new_line(output);
+            context.new_line(output);
+            for decl in decls {
+                export_root_definition(decl, output, context)?;
+            }
+            context.new_line(output);
+            output.push('}');
+            context.new_line(output);
+        }
+    }
+    Ok(())
 }
 
 /// Export ir global variable to HLSL

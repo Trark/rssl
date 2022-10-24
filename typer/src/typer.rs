@@ -68,6 +68,15 @@ fn parse_rootdefinition(
             let def = functions::parse_rootdefinition_function(fd, context)?;
             Ok(Vec::from([def]))
         }
-        ast::RootDefinition::Namespace(_, _) => todo!(),
+        ast::RootDefinition::Namespace(name, contents) => {
+            context.enter_namespace(name);
+            let mut ir_defs = Vec::new();
+            for ast_def in contents {
+                ir_defs.extend(parse_rootdefinition(ast_def, context)?);
+            }
+            context.exit_namespace();
+            let ns = ir::RootDefinition::Namespace(name.clone(), ir_defs);
+            Ok(Vec::from([ns]))
+        }
     }
 }

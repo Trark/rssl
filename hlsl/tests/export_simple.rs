@@ -310,6 +310,29 @@ fn check_semantics() {
 }
 
 #[test]
+fn check_namespaces() {
+    check_rssl_to_hlsl(
+        "namespace N {
+
+struct S
+{
+    int x;
+};
+
+}",
+        "namespace N {
+
+struct S
+{
+    int x;
+};
+
+}
+",
+    );
+}
+
+#[test]
 fn check_cluster_expand() {
     check_rssl_to_hlsl(
         include_str!("cluster_expand.rssl"),

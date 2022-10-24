@@ -79,6 +79,7 @@ struct ScopeData {
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
     template_args: HashMap<String, ir::TemplateTypeId>,
+    namespaces: HashMap<String, ScopeIndex>,
 
     owning_struct: Option<ir::StructId>,
     function_return_type: Option<ir::Type>,
@@ -96,6 +97,7 @@ impl Context {
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
                 template_args: HashMap::new(),
+                namespaces: HashMap::new(),
                 owning_struct: None,
                 function_return_type: None,
             }]),
@@ -129,6 +131,7 @@ impl Context {
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
             template_args: HashMap::new(),
+            namespaces: HashMap::new(),
             owning_struct: None,
             function_return_type: None,
         });
@@ -698,6 +701,27 @@ impl Context {
             }
             Entry::Occupied(id_o) => Err(TyperError::TemplateTypeAlreadyDefined(name, *id_o.get())),
         }
+    }
+
+    /// Start a namespace scope
+    pub fn enter_namespace(&mut self, name: &String) {
+        if let Some(index) = self.scopes[self.current_scope].namespaces.get(name) {
+            // If the namespace already exists then reopen it
+            assert_eq!(self.scopes[*index].parent_scope, self.current_scope);
+            self.current_scope = *index;
+        } else {
+            // Make a new scope for the namespace
+            let parent_scope = self.current_scope;
+            let scope_index = self.push_scope();
+            self.scopes[parent_scope]
+                .namespaces
+                .insert(name.clone(), scope_index);
+        }
+    }
+
+    // Leave the current namespace
+    pub fn exit_namespace(&mut self) {
+        self.pop_scope();
     }
 
     /// Walk up scopes and attempt to find something

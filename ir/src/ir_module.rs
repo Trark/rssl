@@ -14,6 +14,7 @@ pub enum RootDefinition {
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),
     Function(FunctionDefinition),
+    Namespace(String, Vec<RootDefinition>),
 }
 
 /// Map of declarations in the global scope

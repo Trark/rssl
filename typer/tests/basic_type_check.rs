@@ -348,3 +348,13 @@ fn check_cast_or_not() {
     check_fail("struct a {}; struct b {}; struct c {}; void f() { (a) + (b) + (c); }");
     check_fail("int a; struct b {}; struct c {}; void f() { (a) + (b) + (c); }");
 }
+
+#[test]
+fn check_namespaces() {
+    check_types("namespace N {}");
+    check_types("namespace N { int a; }");
+    check_types("int a; namespace N { int a; }");
+    check_types("int a; namespace N { void f() { a; } }");
+    check_types("namespace N { int a; } namespace N { void f() { a; } }");
+    check_fail("namespace M { int a; } namespace N { void f() { a; } }");
+}
