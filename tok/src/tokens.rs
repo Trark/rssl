@@ -101,6 +101,7 @@ pub enum Token {
     PackOffset(OffsetSlot),
     Namespace,
     Colon,
+    ScopeResolution,
 
     In,
     Out,

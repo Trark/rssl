@@ -955,8 +955,12 @@ fn symbol_op_or_op_equals(
     op_op_token: Token,
 ) -> impl Fn(&[u8]) -> LexResult<Token> {
     move |input: &[u8]| match input {
-        [c, b'=', b'=', ..] if *c == op_char => invalid_chars(input),
-        [c, b'=', ..] if *c == op_char => Ok((&input[2..], op_equals_token.clone())),
+        [c, b'=', b'=', ..] if *c == op_char && op_equals_token != Token::Eof => {
+            invalid_chars(input)
+        }
+        [c, b'=', ..] if *c == op_char && op_equals_token != Token::Eof => {
+            Ok((&input[2..], op_equals_token.clone()))
+        }
         [c1, c2, ..] if *c1 == op_char && *c2 == op_char && op_op_token != Token::Eof => {
             Ok((&input[2..], op_op_token.clone()))
         }
@@ -968,6 +972,11 @@ fn symbol_op_or_op_equals(
 /// Parse a = or == token
 fn symbol_equals(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'=', Token::Equals, Token::EqualsEquals, Token::Eof)(input)
+}
+
+/// Parse a : or :: token
+fn symbol_colon(input: &[u8]) -> LexResult<Token> {
+    symbol_op_or_op_equals(b':', Token::Colon, Token::Eof, Token::ScopeResolution)(input)
 }
 
 #[test]
@@ -1094,7 +1103,7 @@ fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
             &symbol_single(b'@', Token::At),
             &symbol_single(b'~', Token::Tilde),
             &symbol_single(b'.', Token::Period),
-            &symbol_single(b':', Token::Colon),
+            &symbol_colon,
             &symbol_single(b'?', Token::QuestionMark),
         ],
         input,
@@ -1458,6 +1467,10 @@ fn test_token() {
         Ok((&b""[..], from_end(Token::Register(RegisterSlot::T(4)), 12)))
     );
     assert_eq!(token(&b":"[..]), Ok((&b""[..], from_end(Token::Colon, 1))));
+    assert_eq!(
+        token(&b"::"[..]),
+        Ok((&b""[..], from_end(Token::ScopeResolution, 2)))
+    );
     assert_eq!(
         token(&b"?"[..]),
         Ok((&b""[..], from_end(Token::QuestionMark, 1)))
