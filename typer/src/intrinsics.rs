@@ -365,19 +365,19 @@ const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
         "Store2",
         Intrinsic::RWByteAddressBufferStore2,
         0,
-        &[T_UINT, T_UINT],
+        &[T_UINT, T_UINT2],
     ),
     (
         "Store3",
         Intrinsic::RWByteAddressBufferStore3,
         0,
-        &[T_UINT, T_UINT],
+        &[T_UINT, T_UINT3],
     ),
     (
         "Store4",
         Intrinsic::RWByteAddressBufferStore4,
         0,
-        &[T_UINT, T_UINT],
+        &[T_UINT, T_UINT4],
     ),
     (
         "InterlockedAdd",
