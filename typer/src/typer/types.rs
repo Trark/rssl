@@ -49,7 +49,7 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
 }
 
 /// Attempt to turn an ast type into one of the built in object types
-fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeLayout> {
+fn parse_object_type(name: &ast::ScopedName, template_args: &[ir::Type]) -> Option<ir::TypeLayout> {
     let get_data_type = |args: &[ir::Type], default_float4: bool| match args {
         [ir::Type(ir::TypeLayout::Scalar(st), modifier)] => {
             Some(ir::DataType(ir::DataLayout::Scalar(*st), *modifier))
@@ -78,7 +78,13 @@ fn parse_object_type(name: &str, template_args: &[ir::Type]) -> Option<ir::TypeL
         )),
         _ => None,
     };
-    match name {
+
+    // Special object types are all unscoped names
+    if name.0.len() != 1 {
+        return None;
+    }
+
+    match name.0[0].node.as_str() {
         "Buffer" => Some(ir::TypeLayout::Object(ir::ObjectType::Buffer(
             get_data_type(template_args, true)?,
         ))),

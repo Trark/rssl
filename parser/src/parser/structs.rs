@@ -147,7 +147,7 @@ fn test_struct() {
             name: "MyStruct".to_string().loc(28),
             template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
             members: vec![StructEntry::Variable(StructMember {
-                ty: Type::custom("T"),
+                ty: Type::custom("T".loc(39)),
                 defs: vec![
                     StructMemberName {
                         name: "a".to_string(),

@@ -31,6 +31,7 @@ where
 impl TestLocationExt for Expression {}
 impl TestLocationExt for Type {}
 impl TestLocationExt for String {}
+impl TestLocationExt for &str {}
 
 pub trait TestVariableExt {
     fn as_var(self, offset: u32) -> Located<Expression>;

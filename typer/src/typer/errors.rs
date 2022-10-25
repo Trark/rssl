@@ -84,6 +84,15 @@ pub enum ErrorType {
     Unknown,
 }
 
+impl From<&ast::ScopedName> for ErrorType {
+    fn from(name: &ast::ScopedName) -> Self {
+        ErrorType::Untyped(ast::Type::from_layout(ast::TypeLayout::Custom(
+            name.clone(),
+            Vec::new(),
+        )))
+    }
+}
+
 pub trait ToErrorType {
     fn to_error_type(&self) -> ErrorType;
 }

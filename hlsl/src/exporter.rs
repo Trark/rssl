@@ -256,7 +256,9 @@ fn export_type_layout(
         ir::TypeLayout::Matrix(st, x, y) => {
             write!(output, "{}{}x{}", export_scalar_type(st)?, x, y).unwrap()
         }
-        ir::TypeLayout::Struct(id) => output.push_str(context.get_struct_name(id)?),
+        ir::TypeLayout::Struct(id) => {
+            write!(output, "{}", context.get_struct_name_full(id)?).unwrap()
+        }
         ir::TypeLayout::Object(ref ot) => {
             match ot {
                 ir::ObjectType::Buffer(dt) => {
@@ -947,6 +949,14 @@ impl ExportContext {
 
     /// Get the name of a struct
     fn get_struct_name(&self, id: ir::StructId) -> Result<&str, ExportError> {
+        match self.names.structs.get(&id) {
+            Some(name) => Ok(name.0.last().unwrap()),
+            None => Err(ExportError::NamelessId),
+        }
+    }
+
+    /// Get the full name of a struct
+    fn get_struct_name_full(&self, id: ir::StructId) -> Result<&ir::ScopedName, ExportError> {
         match self.names.structs.get(&id) {
             Some(name) => Ok(name),
             None => Err(ExportError::NamelessId),

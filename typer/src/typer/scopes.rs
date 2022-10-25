@@ -44,6 +44,7 @@ struct FunctionData {
 #[derive(Debug, Clone)]
 struct StructData {
     name: Located<String>,
+    full_name: ir::ScopedName,
     members: HashMap<String, ir::Type>,
     methods: HashMap<String, Vec<ir::FunctionId>>,
 }
@@ -71,6 +72,7 @@ struct GlobalData {
 #[derive(Debug, Clone)]
 struct ScopeData {
     parent_scope: usize,
+    scope_name: Option<String>,
 
     variables: VariableBlock,
 
@@ -91,6 +93,7 @@ impl Context {
         let mut context = Context {
             scopes: Vec::from([ScopeData {
                 parent_scope: usize::MAX,
+                scope_name: None,
                 variables: VariableBlock::new(),
                 function_ids: HashMap::new(),
                 types: HashMap::new(),
@@ -125,6 +128,7 @@ impl Context {
     fn make_scope(&mut self, parent: ScopeIndex) -> ScopeIndex {
         self.scopes.push(ScopeData {
             parent_scope: parent,
+            scope_name: None,
             variables: VariableBlock::new(),
             function_ids: HashMap::new(),
             types: HashMap::new(),
@@ -242,35 +246,49 @@ impl Context {
     /// Find the id for a given type name
     pub fn find_type_id(
         &mut self,
-        name: &str,
+        name: &ast::ScopedName,
         template_args: &[ir::Type],
     ) -> TyperResult<ir::Type> {
-        let ty = self.search_scopes(|s| {
-            if let Some(ty) = s.types.get(name) {
+        let (leaf_name, scopes) = name.0.split_last().unwrap();
+        let name_str = leaf_name.node.as_str();
+
+        // Attempt to find the type by walking up the scope
+        let ty = self.search_scopes(|mut s| {
+            // Walk through name scopes
+            // Currently only support namespaces - not struct name scopes
+            for scope in scopes {
+                if let Some(index) = s.namespaces.get(&scope.node) {
+                    s = &self.scopes[*index];
+                } else {
+                    return None;
+                }
+            }
+
+            // Evaluate leaf name
+
+            if let Some(ty) = s.types.get(name_str) {
                 return Some(ty.clone());
             }
-            if let Some(id) = s.template_args.get(name) {
+            if let Some(id) = s.template_args.get(name_str) {
                 return Some(ir::Type::from_layout(ir::TypeLayout::TemplateParam(*id)));
             }
             None
         });
+
+        // If we failed to find a type then return
         let ty = match ty {
             Some(ty) => ty,
-            None => {
-                return Err(TyperError::UnknownType(ErrorType::Untyped(
-                    ast::Type::custom(name),
-                )))
-            }
+            None => return Err(TyperError::UnknownType(name.into())),
         };
+
+        // Match template argument counts with type
         match ty {
             ir::Type(ir::TypeLayout::StructTemplate(id), modifier) => {
                 // Templated type definitions require template arguments
                 // We do not currently support default arguments
                 if template_args.is_empty() {
                     // Generic error for now
-                    Err(TyperError::UnknownType(ErrorType::Untyped(
-                        ast::Type::custom(name),
-                    )))
+                    Err(TyperError::UnknownType(name.into()))
                 } else {
                     let struct_template_data = &self.struct_template_data[id.0 as usize];
                     let ast = &struct_template_data.ast.clone();
@@ -305,9 +323,7 @@ impl Context {
                     Ok(ty)
                 } else {
                     // Generic error for now
-                    Err(TyperError::UnknownType(ErrorType::Untyped(
-                        ast::Type::custom(name),
-                    )))
+                    Err(TyperError::UnknownType(name.into()))
                 }
             }
         }
@@ -579,8 +595,29 @@ impl Context {
         name: Located<String>,
         is_non_template: bool,
     ) -> Result<ir::StructId, ir::Type> {
+        // Build fully qualified name
+        let mut full_name = Vec::from([name.node.clone()]);
+        {
+            let mut scope_index = self.current_scope;
+            loop {
+                let parent_index = self.scopes[scope_index].parent_scope;
+                if let Some(s) = &self.scopes[scope_index].scope_name {
+                    assert_ne!(parent_index, usize::MAX);
+                    full_name.insert(0, s.clone());
+                } else {
+                    assert_eq!(parent_index, usize::MAX);
+                }
+                scope_index = parent_index;
+                if scope_index == usize::MAX {
+                    break;
+                }
+            }
+        }
+        let full_name = ir::ScopedName(full_name);
+
         let data = StructData {
             name,
+            full_name,
             members: HashMap::new(),
             methods: HashMap::new(),
         };
@@ -716,6 +753,7 @@ impl Context {
             self.scopes[parent_scope]
                 .namespaces
                 .insert(name.clone(), scope_index);
+            self.scopes[scope_index].scope_name = Some(name.clone());
         }
     }
 
@@ -944,7 +982,7 @@ impl Context {
         for struct_index in 0..self.struct_data.len() {
             let id = ir::StructId(struct_index as u32);
             let data = &self.struct_data[struct_index];
-            decls.structs.insert(id, data.name.to_string());
+            decls.structs.insert(id, data.full_name.clone());
         }
 
         for struct_template_index in 0..self.struct_template_data.len() {

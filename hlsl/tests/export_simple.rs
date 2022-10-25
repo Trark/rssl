@@ -312,23 +312,8 @@ fn check_semantics() {
 #[test]
 fn check_namespaces() {
     check_rssl_to_hlsl(
-        "namespace N {
-
-struct S
-{
-    int x;
-};
-
-}",
-        "namespace N {
-
-struct S
-{
-    int x;
-};
-
-}
-",
+        include_str!("namespace.rssl"),
+        include_str!("namespace.hlsl"),
     );
 }
 

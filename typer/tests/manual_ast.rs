@@ -11,7 +11,7 @@ fn test_ast_pass() {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
                 global_type: ast::Type::from_layout(ast::TypeLayout::Custom(
-                    "RWBuffer".to_string(),
+                    ast::ScopedName::trivial("RWBuffer"),
                     Vec::from([Located::none(ast::Type::floatn(4))]),
                 ))
                 .into(),

@@ -378,6 +378,22 @@ fn test_local_variables() {
         ParseErrorReason::WrongToken,
         29,
     );
+
+    statement.check(
+        "My::Type x = y;",
+        Statement::Var(VarDef::one_with_expr(
+            "x".to_string().loc(9),
+            Type::from_layout(TypeLayout::Custom(
+                ScopedName(Vec::from([
+                    "My".to_string().loc(0),
+                    "Type".to_string().loc(4),
+                ])),
+                Vec::new(),
+            ))
+            .into(),
+            "y".as_var(13),
+        )),
+    );
 }
 
 #[test]

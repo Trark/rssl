@@ -1,4 +1,5 @@
 use crate::primitive_types::*;
+use crate::ScopedName;
 use rssl_text::Located;
 
 #[derive(PartialEq, Clone)]
@@ -10,7 +11,7 @@ pub enum TypeLayout {
     Scalar(ScalarType),
     Vector(ScalarType, u32),
     Matrix(ScalarType, u32, u32),
-    Custom(String, Vec<Located<Type>>),
+    Custom(ScopedName, Vec<Located<Type>>),
 }
 
 /// Template parameters
@@ -49,8 +50,11 @@ impl Type {
     pub const fn float4x4() -> Type {
         Type::from_layout(TypeLayout::float4x4())
     }
-    pub fn custom(name: &str) -> Type {
+    pub fn custom(name: Located<&str>) -> Type {
         Type::from_layout(TypeLayout::custom(name))
+    }
+    pub fn custom_templated(name: Located<&str>, types: Vec<Located<Type>>) -> Type {
+        Type::from_layout(TypeLayout::custom_templated(name, types))
     }
 }
 
@@ -83,8 +87,11 @@ impl TypeLayout {
     pub const fn float4x4() -> TypeLayout {
         TypeLayout::Matrix(ScalarType::Float, 4, 4)
     }
-    pub fn custom(name: &str) -> TypeLayout {
-        TypeLayout::Custom(name.to_string(), Vec::new())
+    pub fn custom(name: Located<&str>) -> TypeLayout {
+        TypeLayout::Custom(name.into(), Vec::new())
+    }
+    pub fn custom_templated(name: Located<&str>, types: Vec<Located<Type>>) -> TypeLayout {
+        TypeLayout::Custom(name.into(), types)
     }
 }
 

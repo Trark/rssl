@@ -1,5 +1,6 @@
 use crate::ast_types::Type;
 use crate::ast_types::TypeLayout;
+use crate::ScopedName;
 use rssl_text::Located;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -90,5 +91,5 @@ pub struct ConstrainedExpression {
     pub expr: Located<Expression>,
 
     /// The set of type names we require for this path
-    pub expected_type_names: Vec<String>,
+    pub expected_type_names: Vec<ScopedName>,
 }

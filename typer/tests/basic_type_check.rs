@@ -351,10 +351,44 @@ fn check_cast_or_not() {
 
 #[test]
 fn check_namespaces() {
+    // Check we can declare a namespace
     check_types("namespace N {}");
+
+    // Check we can declare a global in a namespace
     check_types("namespace N { int a; }");
+
+    // Check we can declare a global in a namespace with the same name as in another namespace
     check_types("int a; namespace N { int a; }");
+
+    // Check we can use values from the parent namespace in the current namespace
     check_types("int a; namespace N { void f() { a; } }");
+
+    // Check we can use values in the previous opening of the same namespace
     check_types("namespace N { int a; } namespace N { void f() { a; } }");
+
+    // Check we can't use values in another namespace
     check_fail("namespace M { int a; } namespace N { void f() { a; } }");
+
+    // Check we can access a type name inside a namespace
+    check_types("namespace N { struct S {}; } StructuredBuffer<N::S> g_buffer;");
+
+    // Check we can use namespaced structs in various global buffers
+    check_types(
+        "namespace N1
+        {
+            struct S { uint x; };
+            StructuredBuffer<S> g_buffer1;
+            StructuredBuffer<N1::S> g_buffer2;
+        }
+        namespace N2
+        {
+            struct S { N1::S s; };
+            StructuredBuffer<S> g_buffer1;
+            StructuredBuffer<N2::S> g_buffer2;
+            StructuredBuffer<N1::S> g_buffer3;
+        }
+        StructuredBuffer<N1::S> g_buffer1;
+        StructuredBuffer<N2::S> g_buffer2;
+    ",
+    );
 }

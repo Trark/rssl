@@ -222,7 +222,7 @@ fn test_global_variable() {
 
     let test_buffersrv_str = "Buffer g_myBuffer : register(t1);";
     let test_buffersrv_ast = GlobalVariable {
-        global_type: Type::from_layout(TypeLayout::custom("Buffer")).into(),
+        global_type: Type::from_layout(TypeLayout::custom("Buffer".loc(0))).into(),
         defs: vec![GlobalVariableName {
             name: "g_myBuffer".to_string().loc(7),
             bind: VariableBind::Normal,
@@ -238,8 +238,8 @@ fn test_global_variable() {
 
     let test_buffersrv2_str = "Buffer<uint4> g_myBuffer : register(t1);";
     let test_buffersrv2_ast = GlobalVariable {
-        global_type: Type::from_layout(TypeLayout::Custom(
-            "Buffer".to_string(),
+        global_type: Type::from_layout(TypeLayout::custom_templated(
+            "Buffer".loc(0),
             Vec::from([Type::from_layout(TypeLayout::from_vector(ScalarType::UInt, 4)).loc(7)]),
         ))
         .into(),
@@ -258,8 +258,8 @@ fn test_global_variable() {
 
     let test_buffersrv3_str = "Buffer<vector<int, 4>> g_myBuffer : register(t1);";
     let test_buffersrv3_ast = GlobalVariable {
-        global_type: Type::from_layout(TypeLayout::Custom(
-            "Buffer".to_string(),
+        global_type: Type::from_layout(TypeLayout::custom_templated(
+            "Buffer".loc(0),
             Vec::from([Type::from_layout(TypeLayout::from_vector(ScalarType::Int, 4)).loc(7)]),
         ))
         .into(),
@@ -278,9 +278,9 @@ fn test_global_variable() {
 
     let test_buffersrv4_str = "StructuredBuffer<CustomType> g_myBuffer : register(t1);";
     let test_buffersrv4_ast = GlobalVariable {
-        global_type: Type::from_layout(TypeLayout::Custom(
-            "StructuredBuffer".to_string(),
-            Vec::from([Type::from_layout(TypeLayout::custom("CustomType")).loc(17)]),
+        global_type: Type::from_layout(TypeLayout::custom_templated(
+            "StructuredBuffer".loc(0),
+            Vec::from([Type::from_layout(TypeLayout::custom("CustomType".loc(17))).loc(17)]),
         ))
         .into(),
         defs: vec![GlobalVariableName {

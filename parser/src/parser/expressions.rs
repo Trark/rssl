@@ -326,7 +326,7 @@ fn expr_p2<'t>(
         let (input, start) = parse_token(Token::LeftParen)(input)?;
         let (input, cast) = locate(contextual(parse_type_with_symbols, st))(input)?;
         if let TypeLayout::Custom(name, _) = &cast.0 {
-            st.assumed_symbols.push(name.clone());
+            st.assumed_symbols.push(name.clone().unlocate());
         }
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st)?;
@@ -683,13 +683,13 @@ fn parse_expression_no_seq_internal<'t>(
 }
 
 struct SymbolQueue {
-    added_symbols: Vec<String>,
-    added_symbols_expanded: Vec<Vec<String>>,
-    queue: Vec<Vec<String>>,
+    added_symbols: Vec<ScopedName>,
+    added_symbols_expanded: Vec<Vec<ScopedName>>,
+    queue: Vec<Vec<ScopedName>>,
 }
 
 impl SymbolQueue {
-    fn add_to_queue(&mut self, s: &String) {
+    fn add_to_queue(&mut self, s: &ScopedName) {
         if !self.added_symbols.contains(s) {
             self.added_symbols.push(s.clone());
 
@@ -1156,11 +1156,11 @@ fn test_ambiguous() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    Type::custom("a").loc(1),
+                    Type::custom("a".loc(1)).loc(1),
                     Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
                 )
                 .loc(0),
-                expected_type_names: Vec::from(["a".to_string()]),
+                expected_type_names: Vec::from([ScopedName::trivial("a")]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6))
@@ -1176,11 +1176,11 @@ fn test_ambiguous() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    Type::custom("a").loc(1),
+                    Type::custom("a".loc(1)).loc(1),
                     Expression::UnaryOperation(
                         UnaryOp::Plus,
                         Expression::Cast(
-                            Type::custom("b").loc(7),
+                            Type::custom("b".loc(7)).loc(7),
                             Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar(12)).bloc(10),
                         )
                         .bloc(6),
@@ -1188,33 +1188,36 @@ fn test_ambiguous() {
                     .bloc(4),
                 )
                 .loc(0),
-                expected_type_names: Vec::from(["a".to_string(), "b".to_string()]),
+                expected_type_names: Vec::from([
+                    ScopedName::trivial("a"),
+                    ScopedName::trivial("b"),
+                ]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
                     "a".as_bvar(0),
                     Expression::Cast(
-                        Type::custom("b").loc(7),
+                        Type::custom("b".loc(7)).loc(7),
                         Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar(12)).bloc(10),
                     )
                     .bloc(6),
                 )
                 .loc(0),
-                expected_type_names: Vec::from(["b".to_string()]),
+                expected_type_names: Vec::from([ScopedName::trivial("b")]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
                     Expression::Cast(
-                        Type::custom("a").loc(1),
+                        Type::custom("a".loc(1)).loc(1),
                         Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
                     )
                     .bloc(0),
                     "c".as_bvar(12),
                 )
                 .loc(0),
-                expected_type_names: Vec::from(["a".to_string()]),
+                expected_type_names: Vec::from([ScopedName::trivial("a")]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(
