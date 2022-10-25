@@ -78,6 +78,10 @@ pub fn parse_rootdefinition_constantbuffer(
         Ok(id) => id,
         Err(id) => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name, id)),
     };
-    let cb_ir = ir::ConstantBuffer { id, members };
+    let cb_ir = ir::ConstantBuffer {
+        id,
+        slot: cb.slot.clone().map(|c| ir::GlobalSlot::ConstantSlot(c.0)),
+        members,
+    };
     Ok(ir::RootDefinition::ConstantBuffer(cb_ir))
 }

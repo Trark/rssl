@@ -83,9 +83,20 @@ fn export_global_variable(
 
     output.push_str(context.get_global_name(decl.id)?);
 
+    export_register_annotation(&decl.slot, output)?;
     export_initializer(&decl.init, output, context)?;
 
-    if let Some(slot) = &decl.slot {
+    output.push(';');
+
+    Ok(())
+}
+
+/// Export register slot annotation to HLSL
+fn export_register_annotation(
+    slot: &Option<ir::GlobalSlot>,
+    output: &mut String,
+) -> Result<(), ExportError> {
+    if let Some(slot) = &slot {
         output.push_str(" : register(");
         match slot {
             ir::GlobalSlot::ReadSlot(_) => output.push('t'),
@@ -101,8 +112,6 @@ fn export_global_variable(
         }
         output.push(')');
     }
-
-    output.push(';');
 
     Ok(())
 }
@@ -865,6 +874,7 @@ fn export_constant_buffer(
 ) -> Result<(), ExportError> {
     output.push_str("cbuffer ");
     output.push_str(context.get_constant_buffer_name(decl.id)?);
+    export_register_annotation(&decl.slot, output)?;
 
     context.new_line(output);
     output.push('{');
@@ -884,7 +894,7 @@ fn export_constant_buffer(
 
     context.pop_indent();
     context.new_line(output);
-    output.push_str("};");
+    output.push('}');
     context.new_line(output);
 
     Ok(())

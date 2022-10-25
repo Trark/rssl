@@ -19,6 +19,7 @@ pub struct GlobalType(
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub id: ConstantBufferId,
+    pub slot: Option<GlobalSlot>,
     pub members: Vec<ConstantVariable>,
 }
 

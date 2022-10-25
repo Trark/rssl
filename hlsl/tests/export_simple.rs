@@ -260,7 +260,7 @@ fn check_constant_buffer() {
     float4 v0;
     uint4 v1;
     float4x4 m2;
-};
+}
 void main() {
     v0;
     v1.wwww;
@@ -272,7 +272,7 @@ void main() {
     float4 v0;
     uint4 v1;
     float4x4 m2;
-};
+}
 void main() {
     v0;
     (v1).wwww;
