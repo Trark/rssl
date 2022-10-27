@@ -3,11 +3,13 @@ extern ByteAddressBuffer g_clusterData : register(t1);
 extern ByteAddressBuffer g_primitiveData : register(t2);
 extern RWByteAddressBuffer g_indexData : register(u3);
 extern RWByteAddressBuffer g_indirectBuffer : register(u4);
+
 struct ClusterInstanceData
 {
     uint instance_id;
     uint cluster_offset;
 };
+
 struct ClusterData
 {
     uint primitive_base;
@@ -15,12 +17,15 @@ struct ClusterData
     uint primitive_count;
     uint vertex_count;
 };
+
 struct ConstantData
 {
     uint instance_cluster_count;
     uint index_buffer_size;
 };
+
 extern ConstantBuffer<ConstantData> g_constantData : register(b5);
+
 uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint offset = (cluster.primitive_base) + (primitive_index_index);
     uint offset_low = (offset) & (~(3u));
@@ -29,6 +34,7 @@ uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint cluster_index = ((word) >> (((uint)(8)) * (byte_pos))) & (255u);
     return cluster_index;
 }
+
 [numthreads(64, 1, 1)]
 void CSMAIN(uint3 dispatchThreadID : SV_DispatchThreadID) {
     if (((dispatchThreadID).x) >= (g_constantData.instance_cluster_count))

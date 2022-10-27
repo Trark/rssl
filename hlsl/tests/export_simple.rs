@@ -43,6 +43,7 @@ fn check_expressions() {
     check_rssl_to_hlsl(
         "ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",
         "extern ByteAddressBuffer g_buffer;
+
 void f() {
     g_buffer.Load((uint)(0));
 }
@@ -52,6 +53,7 @@ void f() {
     check_rssl_to_hlsl(
         "RWStructuredBuffer<uint> g_buffer; void f() { g_buffer[0]; g_buffer[0] = 1; }",
         "extern RWStructuredBuffer<uint> g_buffer;
+
 void f() {
     (g_buffer)[(uint)(0)];
     ((g_buffer)[(uint)(0)]) = ((uint)(1));
@@ -226,6 +228,7 @@ fn check_struct() {
     void f(int z) {}
     void g() { f(x); }
 };
+
 void main() {
     S s;
     s.x = 5;
@@ -243,6 +246,7 @@ void main() {
         f(x);
     }
 };
+
 void main() {
     S s;
     (s.x) = ((int)(5));
@@ -261,6 +265,7 @@ fn check_constant_buffer() {
     uint4 v1;
     float4x4 m2;
 }
+
 void main() {
     v0;
     v1.wwww;
@@ -273,6 +278,7 @@ void main() {
     uint4 v1;
     float4x4 m2;
 }
+
 void main() {
     v0;
     (v1).wwww;

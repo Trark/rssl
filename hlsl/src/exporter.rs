@@ -13,19 +13,49 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
     let mut context = ExportContext::new(module.global_declarations.clone());
     let mut output_string = String::new();
 
-    for root_decl in &module.root_definitions {
-        export_root_definition(root_decl, &mut output_string, &mut context)?;
-    }
+    export_root_definitions(&module.root_definitions, &mut output_string, &mut context)?;
+    context.new_line(&mut output_string);
 
     Ok(output_string)
+}
+
+/// Export ir root definitions to HLSL
+fn export_root_definitions(
+    decls: &[ir::RootDefinition],
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    let mut last_was_variable = false;
+    for decl in decls {
+        export_root_definition(decl, &mut last_was_variable, output, context)?;
+    }
+    Ok(())
 }
 
 /// Export ir root definition to HLSL
 fn export_root_definition(
     decl: &ir::RootDefinition,
+    last_was_variable: &mut bool,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    // Start a new line
+    context.new_line(output);
+
+    // Start a second new line if we are not two sequential variables
+    match decl {
+        ir::RootDefinition::GlobalVariable(_) => {
+            if !*last_was_variable {
+                context.new_line(output);
+            }
+            *last_was_variable = true;
+        }
+        _ => {
+            context.new_line(output);
+            *last_was_variable = false;
+        }
+    }
+
     match decl {
         ir::RootDefinition::Struct(sd) => {
             export_struct(sd, output, context)?;
@@ -38,24 +68,19 @@ fn export_root_definition(
         }
         ir::RootDefinition::GlobalVariable(decl) => {
             export_global_variable(decl, output, context)?;
-            context.new_line(output);
         }
         ir::RootDefinition::Function(decl) => {
             export_function(decl, output, context)?;
-            context.new_line(output);
         }
         ir::RootDefinition::Namespace(name, decls) => {
             output.push_str("namespace ");
             output.push_str(name);
             output.push_str(" {");
+            export_root_definitions(decls, output, context)?;
             context.new_line(output);
             context.new_line(output);
-            for decl in decls {
-                export_root_definition(decl, output, context)?;
-            }
-            context.new_line(output);
-            output.push('}');
-            context.new_line(output);
+            output.push_str("} // namespace ");
+            output.push_str(name);
         }
     }
     Ok(())
@@ -861,7 +886,6 @@ fn export_struct(
     context.pop_indent();
     context.new_line(output);
     output.push_str("};");
-    context.new_line(output);
 
     Ok(())
 }
@@ -895,7 +919,6 @@ fn export_constant_buffer(
     context.pop_indent();
     context.new_line(output);
     output.push('}');
-    context.new_line(output);
 
     Ok(())
 }
@@ -997,6 +1020,11 @@ impl ExportContext {
 
     /// Begin a new line and indent up to the current level of indentation
     fn new_line(&self, output: &mut String) {
+        // Skip new lines when we are starting the file as there is nothing before us to separate from
+        if output.is_empty() {
+            return;
+        }
+
         // Remove previous indentation on empty lines - or trailing whitespace
         let trimmed = output.trim_end_matches(|c| c == ' ');
         if output.len() != trimmed.len() {
