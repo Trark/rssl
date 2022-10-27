@@ -3,8 +3,8 @@ use shared::*;
 
 #[test]
 fn check_static_primitive_variables() {
-    check_rssl_to_hlsl("int x = 0;", "extern int x = (int)(0);\n");
-    check_rssl_to_hlsl("static int x = 1;", "static int x = (int)(1);\n");
+    check_rssl_to_hlsl("int x = 0;", "extern int x = 0;\n");
+    check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
     check_rssl_to_hlsl("extern int x = -1;", "extern int x = (int)(-(1));\n");
 }
 
@@ -32,7 +32,7 @@ fn check_expressions() {
 }
 ",
         "void f() {
-    float4 v0 = float4((float)(1), (float)(2), (float)(3), (float)(4));
+    float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
     float4 v1 = (true) ? (v0) : ((float4)(0));
     float4x4 m = float4x4(v0, v0, v1, v1);
     float4 v2 = mul(m, v0);
@@ -45,7 +45,7 @@ fn check_expressions() {
         "extern ByteAddressBuffer g_buffer;
 
 void f() {
-    g_buffer.Load((uint)(0));
+    g_buffer.Load(0u);
 }
 ",
     );
@@ -55,8 +55,8 @@ void f() {
         "extern RWStructuredBuffer<uint> g_buffer;
 
 void f() {
-    (g_buffer)[(uint)(0)];
-    ((g_buffer)[(uint)(0)]) = ((uint)(1));
+    (g_buffer)[0u];
+    ((g_buffer)[0u]) = (1u);
 }
 ",
     );
@@ -73,9 +73,9 @@ fn check_statement_block() {
     }
 }",
         "void f() {
-    float x = 0;
+    float x = 0.0;
     {
-        float y = 6;
+        float y = 6.0;
         float z = (y) + (x);
     }
 }
@@ -95,12 +95,12 @@ fn check_statement_if() {
     return 2.0;
 }",
         "float f() {
-    float x = 0;
+    float x = 0.0;
     if (x)
     {
-        return 1;
+        return 1.0;
     }
-    return 2;
+    return 2.0;
 }
 ",
     );
@@ -122,16 +122,16 @@ fn check_statement_if_else() {
     return 2.0;
 }",
         "float f() {
-    float x = 0;
+    float x = 0.0;
     if (x)
     {
-        return 1;
+        return 1.0;
     }
     else
     {
-        return 3;
+        return 3.0;
     }
-    return 2;
+    return 2.0;
 }
 ",
     );
@@ -157,23 +157,23 @@ fn check_statement_if_else_if_else() {
     return 2.0;
 }",
         "float f() {
-    float x = 0;
+    float x = 0.0;
     if (x)
     {
-        return 1;
+        return 1.0;
     }
     else
     {
-        if ((x) > (2))
+        if ((x) > (2.0))
         {
-            return 4;
+            return 4.0;
         }
         else
         {
-            return 3;
+            return 3.0;
         }
     }
-    return 2;
+    return 2.0;
 }
 ",
     );
@@ -189,7 +189,7 @@ fn check_statement_for() {
     }
 }",
         "void f() {
-    for (int x = (int)(1), y = (int)(2); (x) < ((int)(10)); ++(x))
+    for (int x = 1, y = 2; (x) < (10); ++(x))
     {
         return;
     }
@@ -249,7 +249,7 @@ void main() {
 
 void main() {
     S s;
-    (s.x) = ((int)(5));
+    (s.x) = (5);
     (s).g();
 }
 ",

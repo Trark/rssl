@@ -404,11 +404,39 @@ impl ImplicitConversion {
     }
 
     pub fn apply(&self, expr: Expression) -> Expression {
-        let target_type = self.get_target_type();
-        match *self {
-            ImplicitConversion(_, _, None, None, None) => expr,
-            _ => Expression::Cast(target_type.0, Box::new(expr)),
+        // If there was no conversion then return the given expression
+        if let ImplicitConversion(_, _, None, None, None) = *self {
+            return expr;
         }
+
+        let target_type = self.get_target_type();
+
+        // If the type was an untyped literal int then instead convert the literal type
+        // This simplifies the expressions we generate so we don't have to clean it up later
+        if let Expression::Literal(Literal::UntypedInt(v)) = expr {
+            match target_type.0 .0 {
+                TypeLayout::Scalar(ScalarType::Bool) => {
+                    return Expression::Literal(Literal::Bool(v != 0))
+                }
+                TypeLayout::Scalar(ScalarType::UInt) => {
+                    return Expression::Literal(Literal::UInt(v))
+                }
+                TypeLayout::Scalar(ScalarType::Int) => return Expression::Literal(Literal::Int(v)),
+                TypeLayout::Scalar(ScalarType::Half) => {
+                    return Expression::Literal(Literal::Half(v as f32))
+                }
+                TypeLayout::Scalar(ScalarType::Float) => {
+                    return Expression::Literal(Literal::Float(v as f32))
+                }
+                TypeLayout::Scalar(ScalarType::Double) => {
+                    return Expression::Literal(Literal::Double(v as f64))
+                }
+                _ => {}
+            }
+        }
+
+        // Emit a cast operation on the given expression
+        Expression::Cast(target_type.0, Box::new(expr))
     }
 }
 

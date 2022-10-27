@@ -231,9 +231,8 @@ fn test_ast_to_ir() {
                 None,
             ),
             slot: None,
-            init: Some(ir::Initializer::Expression(ir::Expression::Cast(
-                ir::Type::int(),
-                Box::new(ir::Expression::Literal(ir::Literal::UntypedInt(4))),
+            init: Some(ir::Initializer::Expression(ir::Expression::Literal(
+                ir::Literal::Int(4),
             ))),
         }),
         ir::RootDefinition::Function(ir::FunctionDefinition {

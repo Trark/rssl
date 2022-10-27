@@ -31,7 +31,7 @@ uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint offset_low = (offset) & (~(3u));
     uint byte_pos = (offset) & (3u);
     uint word = g_primitiveData.Load(offset_low);
-    uint cluster_index = ((word) >> (((uint)(8)) * (byte_pos))) & (255u);
+    uint cluster_index = ((word) >> ((8u) * (byte_pos))) & (255u);
     return cluster_index;
 }
 
@@ -43,14 +43,14 @@ void CSMAIN(uint3 dispatchThreadID : SV_DispatchThreadID) {
     }
     ClusterInstanceData cluster_instance_data = g_clusterInstanceData.Load<ClusterInstanceData>(((dispatchThreadID).x) * (sizeof(ClusterInstanceData)));
     ClusterData cluster_data = g_clusterData.Load<ClusterData>(cluster_instance_data.cluster_offset);
-    uint writeLocation = (uint)(0);
-    g_indirectBuffer.InterlockedAdd((uint)(0), (cluster_data.primitive_count) * ((uint)(3)), writeLocation);
-    for (uint i = (uint)(0); (i) < ((cluster_data.primitive_count) * ((uint)(3))); ++(i))
+    uint writeLocation = 0u;
+    g_indirectBuffer.InterlockedAdd(0u, (cluster_data.primitive_count) * (3u), writeLocation);
+    for (uint i = 0u; (i) < ((cluster_data.primitive_count) * (3u)); ++(i))
     {
         uint cluster_index = LoadClusterIndex(cluster_data, i);
         if (((writeLocation) + (i)) < (g_constantData.index_buffer_size))
         {
-            g_indexData.Store(((uint)(4)) * ((writeLocation) + (i)), (((dispatchThreadID).x) << ((uint)(8))) | (cluster_index));
+            g_indexData.Store((4u) * ((writeLocation) + (i)), (((dispatchThreadID).x) << (8u)) | (cluster_index));
         }
     }
 }

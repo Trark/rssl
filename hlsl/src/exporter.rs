@@ -363,6 +363,9 @@ fn export_literal(literal: &ir::Literal, output: &mut String) -> Result<(), Expo
         ir::Literal::UInt(v) => write!(output, "{}u", v).unwrap(),
         ir::Literal::Long(v) => write!(output, "{}l", v).unwrap(),
         ir::Literal::Half(v) => write!(output, "{}h", v).unwrap(),
+        ir::Literal::Float(v) if *v == (*v as i64 as f32) => {
+            write!(output, "{}.0", *v as i64).unwrap()
+        }
         ir::Literal::Float(v) => write!(output, "{}", v).unwrap(),
         ir::Literal::Double(v) => write!(output, "{}L", v).unwrap(),
     }
