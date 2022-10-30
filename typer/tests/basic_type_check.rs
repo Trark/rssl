@@ -308,6 +308,28 @@ fn check_swizzle() {
 }
 
 #[test]
+fn check_assignment() {
+    // Trivial assignment
+    check_types("void f() { int x = 1; int y = x; }");
+    // Sum assignment
+    check_types("void f() { int x = 1; int y = x; y += x; }");
+    // Sum assignment to self
+    check_types("void f() { int x = 1; x += x; }");
+    // Sum assignment with rvalue value is okay (although this is unsequenced)
+    check_types("void f() { int x = 1; x += x += x * x; }");
+    // Sum assignment with rvalue object is not
+    check_fail("void f() { int x = 1; x * x += x; }");
+    // Still not okay
+    check_fail("void f() { int x = 1; x += x * x += x; }");
+    // Try with chaining all the assignment operators (also unsequenced)
+    check_types("void f() { int x = 1; x = x += x /= x -= x *= x %= x; }");
+    // Check different types on each side but which have casts
+    check_types("void f() { int x = 1; float y = x; y += x; x += y; }");
+    // Check different types work in a chain (again unsequenced)
+    check_types("void f() { int x = 1; float y = x; y += x += y /= x; }");
+}
+
+#[test]
 fn check_constructors() {
     check_types("int x = int(7);");
     check_types("int x = (int)(7);");
