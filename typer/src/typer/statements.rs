@@ -152,10 +152,10 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
         let var_name = &local_variable.name.clone();
 
         // Build type from ast type + bind
-        let ir::LocalType(lty, ls, interp) = base_type.clone();
+        let ir::LocalType(lty, ls) = base_type.clone();
         let bind = &local_variable.bind;
         let lv_tyl = apply_variable_bind(lty, bind, &local_variable.init)?;
-        let lv_type = ir::LocalType(lv_tyl, ls, interp);
+        let lv_type = ir::LocalType(lv_tyl, ls);
 
         // Parse the initializer
         let var_init = parse_initializer_opt(&local_variable.init, &(lv_type.0).0, context)?;
@@ -180,11 +180,7 @@ fn parse_localtype(
     context: &mut Context,
 ) -> TyperResult<ir::LocalType> {
     let ty = parse_type(&local_type.0, context)?;
-    Ok(ir::LocalType(
-        ty,
-        local_type.1.clone(),
-        local_type.2.clone(),
-    ))
+    Ok(ir::LocalType(ty, local_type.1.clone()))
 }
 
 /// Apply part of type applied to variable name onto the type itself

@@ -110,10 +110,9 @@ fn test_initializer() {
 
 /// Parse the type for a local variable
 fn parse_local_type(input: &[LexToken]) -> ParseResult<LocalType> {
-    // TODO: input modifiers
     // TODO: This may defeat expressions
     match parse_type(input) {
-        Ok((rest, ty)) => Ok((rest, LocalType(ty, LocalStorage::default(), None))),
+        Ok((rest, ty)) => Ok((rest, LocalType(ty, LocalStorage::default()))),
         Err(err) => Err(err),
     }
 }

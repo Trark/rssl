@@ -464,10 +464,6 @@ fn export_varible_definition(
         ir::LocalStorage::Static => output.push_str("static "),
     }
     export_type(&def.local_type.0, output, context)?;
-    if def.local_type.2.is_some() {
-        todo!("Variable interpolation modifier");
-    }
-
     export_varible_definition_no_type(def, output, context)
 }
 

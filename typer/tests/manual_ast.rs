@@ -78,7 +78,7 @@ fn test_ast_pass() {
                 body: vec![
                     ast::Statement::Var(ast::VarDef::one(
                         Located::none("local_static".to_string()),
-                        ast::LocalType(ast::Type::uint(), ast::LocalStorage::Static, None),
+                        ast::LocalType(ast::Type::uint(), ast::LocalStorage::Static),
                     )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,

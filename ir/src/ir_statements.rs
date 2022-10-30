@@ -33,11 +33,7 @@ pub struct VarDef {
 
 /// The type of any local variable declaration
 #[derive(PartialEq, Debug, Clone)]
-pub struct LocalType(
-    pub Type,
-    pub LocalStorage,
-    pub Option<InterpolationModifier>,
-);
+pub struct LocalType(pub Type, pub LocalStorage);
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ForInit {
@@ -57,6 +53,6 @@ pub enum Initializer {
 
 impl From<Type> for LocalType {
     fn from(ty: Type) -> LocalType {
-        LocalType(ty, LocalStorage::default(), None)
+        LocalType(ty, LocalStorage::default())
     }
 }
