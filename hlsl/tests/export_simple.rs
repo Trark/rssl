@@ -5,7 +5,7 @@ use shared::*;
 fn check_static_primitive_variables() {
     check_rssl_to_hlsl("int x = 0;", "extern int x = 0;\n");
     check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
-    check_rssl_to_hlsl("extern int x = -1;", "extern int x = (int)(-(1));\n");
+    check_rssl_to_hlsl("extern int x = -1;", "extern int x = (int)-1;\n");
 }
 
 #[test]
@@ -15,7 +15,7 @@ fn check_functions() {
     check_rssl_to_hlsl(
         "float f(int x, float y) { return x + y; }",
         "float f(int x, float y) {
-    return ((float)(x)) + (y);
+    return (float)x + y;
 }
 ",
     );
@@ -33,7 +33,7 @@ fn check_expressions() {
 ",
         "void f() {
     float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
-    float4 v1 = (true) ? (v0) : ((float4)(0));
+    float4 v1 = true ? v0 : (float4)0;
     float4x4 m = float4x4(v0, v0, v1, v1);
     float4 v2 = mul(m, v0);
 }
@@ -55,8 +55,99 @@ void f() {
         "extern RWStructuredBuffer<uint> g_buffer;
 
 void f() {
-    (g_buffer)[0u];
-    ((g_buffer)[0u]) = (1u);
+    g_buffer[0u];
+    g_buffer[0u] = 1u;
+}
+",
+    );
+
+    // Check ?: chain emits with the same lack of parenthesis
+    check_rssl_to_hlsl(
+        "void f() {
+    bool a, b, c, d, e, f, g;
+    a ? b ? c : d : e ? f : g;
+}
+",
+        "void f() {
+    bool a;
+    bool b;
+    bool c;
+    bool d;
+    bool e;
+    bool f;
+    bool g;
+    a ? b ? c : d : e ? f : g;
+}
+",
+    );
+
+    // Check comma operator exports with correct precedence
+    check_rssl_to_hlsl(
+        "void g(float x) {}
+void f() {
+    float a, b, c;
+    a, b, c;
+    (a, b), c;
+    a, (b, c);
+    g((a, b, c));
+    g(((a, b), c));
+    g((a, (b, c)));
+}
+",
+        "void g(float x) {}
+
+void f() {
+    float a;
+    float b;
+    float c;
+    a, b, c;
+    a, b, c;
+    a, (b, c);
+    g((a, b, c));
+    g((a, b, c));
+    g((a, (b, c)));
+}
+",
+    );
+
+    // Check various arithmetic chains give the expected optimal lack of parenthesis
+    check_rssl_to_hlsl(
+        "void f() {
+    uint a, b, c, d, e, f, g;
+    a + b * c / e % f - g;
+    (a + b) * c / (e % f) - g;
+    a + b * (c / e) % (f - g);
+    a + (b * c) / e % (f - g);
+    (a + (((b * c) / e) % f)) - g;
+    a >> b & c;
+    a >> (b & c);
+    (a >> b) & c;
+    a += b += c * d;
+    a += (b += c * d);
+    (a += b) += c * d;
+    a += (b += c) * d;
+}
+",
+        "void f() {
+    uint a;
+    uint b;
+    uint c;
+    uint d;
+    uint e;
+    uint f;
+    uint g;
+    a + b * c / e % f - g;
+    (a + b) * c / (e % f) - g;
+    a + b * (c / e) % (f - g);
+    a + b * c / e % (f - g);
+    a + b * c / e % f - g;
+    a >> b & c;
+    a >> (b & c);
+    a >> b & c;
+    a += b += c * d;
+    a += b += c * d;
+    (a += b) += c * d;
+    a += (b += c) * d;
 }
 ",
     );
@@ -76,7 +167,7 @@ fn check_statement_block() {
     float x = 0.0;
     {
         float y = 6.0;
-        float z = (y) + (x);
+        float z = y + x;
     }
 }
 ",
@@ -164,7 +255,7 @@ fn check_statement_if_else_if_else() {
     }
     else
     {
-        if ((x) > (2.0))
+        if (x > 2.0)
         {
             return 4.0;
         }
@@ -189,7 +280,7 @@ fn check_statement_for() {
     }
 }",
         "void f() {
-    for (int x = 1, y = 2; (x) < (10); ++(x))
+    for (int x = 1, y = 2; x < 10; ++x)
     {
         return;
     }
@@ -249,8 +340,8 @@ void main() {
 
 void main() {
     S s;
-    (s.x) = (5);
-    (s).g();
+    s.x = 5;
+    s.g();
 }
 ",
     );
@@ -281,7 +372,7 @@ void main() {
 
 void main() {
     v0;
-    (v1).wwww;
+    v1.wwww;
     m2;
 }
 ",
@@ -301,7 +392,7 @@ fn check_semantics() {
     check_rssl_to_hlsl(
         "float4 main(uint id : SV_VertexID) : SV_Position { return 0; }",
         "float4 main(uint id : SV_VertexID) : SV_Position {
-    return (float4)(0);
+    return (float4)0;
 }
 ",
     );
@@ -309,7 +400,7 @@ fn check_semantics() {
     check_rssl_to_hlsl(
         "float4 main(float4 coord : SV_Position) : SV_Target { return 0; }",
         "float4 main(float4 coord : SV_Position) : SV_Target0 {
-    return (float4)(0);
+    return (float4)0;
 }
 ",
     );

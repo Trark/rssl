@@ -537,6 +537,50 @@ fn export_expression(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    export_subexpression(
+        expr,
+        u32::max_value(),
+        OperatorSide::Middle,
+        output,
+        context,
+    )
+}
+
+enum OperatorSide {
+    Left,
+    Right,
+    Middle,
+    CommaList,
+}
+
+enum Associativity {
+    LeftToRight,
+    RightToLeft,
+    None,
+}
+
+/// Export an expression within another expression
+fn export_subexpression(
+    expr: &ir::Expression,
+    outer_precedence: u32,
+    side: OperatorSide,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    let prec = get_expression_precedence(expr);
+    let requires_paren = match prec.cmp(&outer_precedence) {
+        std::cmp::Ordering::Greater => true,
+        std::cmp::Ordering::Less => false,
+        std::cmp::Ordering::Equal => !matches!(
+            (side, get_precedence_associativity(prec)),
+            (OperatorSide::Left, Associativity::LeftToRight)
+                | (OperatorSide::Right, Associativity::RightToLeft)
+                | (OperatorSide::Middle, _)
+        ),
+    };
+    if requires_paren {
+        output.push('(')
+    }
     match expr {
         ir::Expression::Literal(lit) => export_literal(lit, output)?,
         ir::Expression::Variable(v) => output.push_str(context.get_variable_name(*v)?),
@@ -544,27 +588,29 @@ fn export_expression(
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
         ir::Expression::ConstantVariable(_, name) => output.push_str(name),
         ir::Expression::TernaryConditional(expr_cond, expr_true, expr_false) => {
-            output.push('(');
-            export_expression(expr_cond, output, context)?;
-            output.push(')');
-
+            export_subexpression(expr_cond, prec, OperatorSide::Left, output, context)?;
             output.push_str(" ? ");
-
-            output.push('(');
-            export_expression(expr_true, output, context)?;
-            output.push(')');
-
+            export_subexpression(expr_true, prec, OperatorSide::Middle, output, context)?;
             output.push_str(" : ");
-
-            output.push('(');
-            export_expression(expr_false, output, context)?;
-            output.push(')');
+            export_subexpression(expr_false, prec, OperatorSide::Right, output, context)?;
         }
-        ir::Expression::Sequence(exprs) => todo!("Sequence: {:?}", exprs),
+        ir::Expression::Sequence(exprs) => {
+            for i in 0..exprs.len() {
+                let side = if i == 0 {
+                    OperatorSide::Left
+                } else if i == exprs.len() - 1 {
+                    OperatorSide::Right
+                } else {
+                    OperatorSide::Middle
+                };
+                export_subexpression(&exprs[i], prec, side, output, context)?;
+                if i != exprs.len() - 1 {
+                    output.push_str(", ");
+                }
+            }
+        }
         ir::Expression::Swizzle(expr_object, swizzle) => {
-            output.push('(');
-            export_expression(expr_object, output, context)?;
-            output.push(')');
+            export_subexpression(expr_object, prec, OperatorSide::Left, output, context)?;
             output.push('.');
             for channel in swizzle {
                 match channel {
@@ -576,11 +622,9 @@ fn export_expression(
             }
         }
         ir::Expression::ArraySubscript(expr_object, expr_index) => {
-            output.push('(');
-            export_expression(expr_object, output, context)?;
-            output.push(')');
+            export_subexpression(expr_object, prec, OperatorSide::Left, output, context)?;
             output.push('[');
-            export_expression(expr_index, output, context)?;
+            export_subexpression(expr_index, prec, OperatorSide::Middle, output, context)?;
             output.push(']');
         }
         ir::Expression::Constructor(tyl, args) => {
@@ -588,19 +632,18 @@ fn export_expression(
             output.push('(');
             if let Some((last, main)) = args.split_last() {
                 for slot in main {
-                    export_expression(&slot.expr, output, context)?;
+                    export_subexpression(&slot.expr, 17, OperatorSide::Middle, output, context)?;
                     output.push_str(", ");
                 }
-                export_expression(&last.expr, output, context)?;
+                export_subexpression(&last.expr, 17, OperatorSide::Middle, output, context)?;
             }
             output.push(')');
         }
         ir::Expression::Cast(ty, expr) => {
             output.push('(');
             export_type(ty, output, context)?;
-            output.push_str(")(");
-            export_expression(expr, output, context)?;
             output.push(')');
+            export_subexpression(expr, prec, OperatorSide::Right, output, context)?;
         }
         ir::Expression::SizeOf(ty) => {
             output.push_str("sizeof(");
@@ -608,7 +651,7 @@ fn export_expression(
             output.push(')');
         }
         ir::Expression::Member(expr, name) => {
-            export_expression(expr, output, context)?;
+            export_subexpression(expr, prec, OperatorSide::Left, output, context)?;
             output.push('.');
             output.push_str(name)
         }
@@ -620,9 +663,7 @@ fn export_expression(
                 ir::CallType::MethodExternal => (Some(&exprs[0]), &exprs[1..]),
             };
             if let Some(object) = object {
-                output.push('(');
-                export_expression(object, output, context)?;
-                output.push(')');
+                export_subexpression(object, 2, OperatorSide::Left, output, context)?;
                 output.push('.');
             }
             output.push_str(context.get_function_name(*id)?);
@@ -765,28 +806,22 @@ fn export_expression(
                     assert!(tys.is_empty());
                     assert_eq!(exprs.len(), 1);
                     output.push_str(s);
-                    output.push('(');
-                    export_expression(&exprs[0], output, context)?;
-                    output.push(')');
+                    export_subexpression(&exprs[0], prec, OperatorSide::Right, output, context)?;
                 }
                 Form::UnaryPostfix(s) => {
                     assert!(tys.is_empty());
                     assert_eq!(exprs.len(), 1);
-                    output.push('(');
-                    export_expression(&exprs[0], output, context)?;
-                    output.push(')');
+                    export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
                     output.push_str(s);
                 }
                 Form::Binary(s) => {
                     assert!(tys.is_empty());
                     assert_eq!(exprs.len(), 2);
-                    output.push('(');
-                    export_expression(&exprs[0], output, context)?;
-                    output.push_str(") ");
+                    export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
+                    output.push(' ');
                     output.push_str(s);
-                    output.push_str(" (");
-                    export_expression(&exprs[1], output, context)?;
-                    output.push(')');
+                    output.push(' ');
+                    export_subexpression(&exprs[1], prec, OperatorSide::Right, output, context)?;
                 }
                 Form::Invoke(s) => {
                     output.push_str(s);
@@ -795,7 +830,7 @@ fn export_expression(
                 }
                 Form::Method(s) => {
                     assert!(!exprs.is_empty());
-                    export_expression(&exprs[0], output, context)?;
+                    export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
                     output.push('.');
                     output.push_str(s);
                     export_template_type_args(tys.as_slice(), output, context)?;
@@ -804,7 +839,84 @@ fn export_expression(
             }
         }
     }
+    if requires_paren {
+        output.push(')')
+    }
     Ok(())
+}
+
+/// Get the precedence of an expression when it is HLSL
+fn get_expression_precedence(expr: &ir::Expression) -> u32 {
+    match expr {
+        ir::Expression::Literal(_)
+        | ir::Expression::Variable(_)
+        | ir::Expression::MemberVariable(_)
+        | ir::Expression::Global(_) => 0,
+
+        ir::Expression::ConstantVariable(_, _) => 1,
+        ir::Expression::TernaryConditional(_, _, _) => 16,
+        ir::Expression::Sequence(_) => 17,
+        ir::Expression::Swizzle(_, _) => 2,
+        ir::Expression::ArraySubscript(_, _) => 2,
+        ir::Expression::Constructor(_, _) => 2,
+        ir::Expression::Cast(_, _) => 3,
+        ir::Expression::SizeOf(_) => 3,
+        ir::Expression::Member(_, _) => 2,
+        ir::Expression::Call(_, _, _, _) => 2,
+        ir::Expression::Intrinsic(intrinsic, _, _) => {
+            use ir::Intrinsic::*;
+            match &intrinsic {
+                PrefixIncrement => 3,
+                PrefixDecrement => 3,
+                PostfixIncrement => 2,
+                PostfixDecrement => 2,
+                Plus => 3,
+                Minus => 3,
+                LogicalNot => 3,
+                BitwiseNot => 3,
+
+                Add => 6,
+                Subtract => 6,
+                Multiply => 5,
+                Divide => 5,
+                Modulus => 5,
+                LeftShift => 7,
+                RightShift => 7,
+                BitwiseAnd => 11,
+                BitwiseOr => 13,
+                BitwiseXor => 12,
+                BooleanAnd => 14,
+                BooleanOr => 15,
+                LessThan => 9,
+                LessEqual => 9,
+                GreaterThan => 9,
+                GreaterEqual => 9,
+                Equality => 10,
+                Inequality => 10,
+                Assignment => 16,
+                SumAssignment => 16,
+                DifferenceAssignment => 16,
+                ProductAssignment => 16,
+                QuotientAssignment => 16,
+                RemainderAssignment => 16,
+
+                _ => 2,
+            }
+        }
+    }
+}
+
+/// Get the associativity of a precedence level
+fn get_precedence_associativity(prec: u32) -> Associativity {
+    match prec {
+        1 | 2 => Associativity::LeftToRight,
+        3 => Associativity::RightToLeft,
+        4..=15 => Associativity::LeftToRight,
+        16 => Associativity::RightToLeft,
+        17 => Associativity::LeftToRight,
+
+        _ => Associativity::None,
+    }
 }
 
 /// Export ir variable initializer to HLSL
@@ -832,10 +944,10 @@ fn export_invocation_args(
     output.push('(');
     if let Some((last, main)) = exprs.split_last() {
         for expr in main {
-            export_expression(expr, output, context)?;
+            export_subexpression(expr, 17, OperatorSide::CommaList, output, context)?;
             output.push_str(", ");
         }
-        export_expression(last, output, context)?;
+        export_subexpression(last, 17, OperatorSide::CommaList, output, context)?;
     }
     output.push(')');
     Ok(())
