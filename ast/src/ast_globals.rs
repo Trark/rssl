@@ -11,11 +11,7 @@ pub struct GlobalVariable {
 
 /// The type of any global declaration
 #[derive(PartialEq, Debug, Clone)]
-pub struct GlobalType(
-    pub Type,
-    pub GlobalStorage,
-    pub Option<InterpolationModifier>,
-);
+pub struct GlobalType(pub Type, pub GlobalStorage);
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariableName {
@@ -70,6 +66,6 @@ pub enum PackSubOffset {
 
 impl From<Type> for GlobalType {
     fn from(ty: Type) -> GlobalType {
-        GlobalType(ty, GlobalStorage::default(), None)
+        GlobalType(ty, GlobalStorage::default())
     }
 }

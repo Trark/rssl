@@ -100,10 +100,6 @@ fn export_global_variable(
 
     export_type(&decl.global_type.0, output, context)?;
 
-    if decl.global_type.2.is_some() {
-        todo!("Global variable interpolation modifier");
-    }
-
     output.push(' ');
 
     output.push_str(context.get_global_name(decl.id)?);

@@ -5,7 +5,6 @@ fn parse_global_type(input: &[LexToken]) -> ParseResult<GlobalType> {
     if input.is_empty() {
         return ParseErrorReason::end_of_stream();
     }
-    // Interpolation modifiers unimplemented
     // Non-standard combinations of storage classes unimplemented
     let (input, gs) = match input[0] {
         LexToken(Token::Static, _) => (&input[1..], Some(GlobalStorage::Static)),
@@ -14,7 +13,7 @@ fn parse_global_type(input: &[LexToken]) -> ParseResult<GlobalType> {
         _ => (input, None),
     };
     let (input, ty) = parse_type(input)?;
-    let gt = GlobalType(ty, gs.unwrap_or_default(), None);
+    let gt = GlobalType(ty, gs.unwrap_or_default());
     Ok((input, gt))
 }
 

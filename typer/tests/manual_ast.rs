@@ -32,7 +32,6 @@ fn test_ast_pass() {
                         },
                     ),
                     ast::GlobalStorage::Static,
-                    None,
                 ),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myFour".to_string()),
@@ -182,7 +181,6 @@ fn test_ast_to_ir() {
                         },
                     ),
                     ast::GlobalStorage::Static,
-                    None,
                 ),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myFour".to_string()),
@@ -228,7 +226,6 @@ fn test_ast_to_ir() {
                     },
                 ),
                 ir::GlobalStorage::Static,
-                None,
             ),
             slot: None,
             init: Some(ir::Initializer::Expression(ir::Expression::Literal(

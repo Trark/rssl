@@ -17,10 +17,10 @@ pub fn parse_rootdefinition_globalvariable(
 
     for def in &gv.defs {
         // Resolve type
-        let ir::GlobalType(lty, gs, interp) = var_type.clone();
+        let ir::GlobalType(lty, gs) = var_type.clone();
         let bind = &def.bind;
         let gv_tyl = apply_variable_bind(lty, bind, &def.init)?;
-        let gv_type = ir::GlobalType(gv_tyl, gs, interp);
+        let gv_type = ir::GlobalType(gv_tyl, gs);
 
         // Insert variable
         let var_name = def.name.clone();
@@ -46,11 +46,7 @@ fn parse_globaltype(
     context: &mut Context,
 ) -> TyperResult<ir::GlobalType> {
     let ty = parse_type(&global_type.0, context)?;
-    Ok(ir::GlobalType(
-        ty,
-        global_type.1.clone(),
-        global_type.2.clone(),
-    ))
+    Ok(ir::GlobalType(ty, global_type.1.clone()))
 }
 
 pub fn parse_rootdefinition_constantbuffer(

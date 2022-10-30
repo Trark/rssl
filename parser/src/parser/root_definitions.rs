@@ -307,7 +307,6 @@ fn test_global_variable() {
                 },
             ),
             GlobalStorage::Static,
-            None,
         ),
         defs: vec![GlobalVariableName {
             name: "c_numElements".to_string().loc(17),
@@ -347,7 +346,6 @@ fn test_global_variable() {
                 },
             ),
             GlobalStorage::Static,
-            None,
         ),
         defs: vec![test_const_arr_ast_gvn],
     };
@@ -365,7 +363,7 @@ fn test_global_variable() {
         init: None,
     };
     let test_groupshared_ast = GlobalVariable {
-        global_type: GlobalType(Type::floatn(4), GlobalStorage::GroupShared, None),
+        global_type: GlobalType(Type::floatn(4), GlobalStorage::GroupShared),
         defs: vec![test_groupshared_ast_gvn],
     };
     globalvariable.check(test_groupshared_str, test_groupshared_ast.clone());
