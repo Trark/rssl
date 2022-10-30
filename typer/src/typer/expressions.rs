@@ -1380,7 +1380,7 @@ fn get_expression_type(
                 .last()
                 .expect("Sequence must have at least one expression");
             let ety = get_expression_type(last, context)?;
-            Ok(ety.0.to_rvalue())
+            Ok(ety)
         }
         ir::Expression::Swizzle(ref vec, ref swizzle) => {
             let ExpressionType(ir::Type(vec_tyl, vec_mod), vec_vt) =
