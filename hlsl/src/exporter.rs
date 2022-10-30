@@ -98,11 +98,13 @@ fn export_global_variable(
         ir::GlobalStorage::GroupShared => output.push_str("groupshared "),
     }
 
-    export_type(&decl.global_type.0, output, context)?;
+    let mut array_part = String::new();
+    export_type_for_def(&decl.global_type.0, output, &mut array_part, context)?;
 
     output.push(' ');
 
     output.push_str(context.get_global_name(decl.id)?);
+    output.push_str(&array_part);
 
     export_register_annotation(&decl.slot, output)?;
     export_initializer(&decl.init, output, context)?;
@@ -221,11 +223,13 @@ fn export_function_param(
     if param.param_type.2.is_some() {
         todo!("Interpolation modifier: {:?}", param.param_type.2);
     }
-    export_type(&param.param_type.0, output, context)?;
+    let mut array_part = String::new();
+    export_type_for_def(&param.param_type.0, output, &mut array_part, context)?;
 
     output.push(' ');
 
     output.push_str(context.get_variable_name_direct(param.id)?);
+    output.push_str(&array_part);
 
     export_semantic_annotation(&param.semantic, output)?;
 
@@ -264,10 +268,23 @@ fn export_type(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    let mut array_part = String::new();
+    export_type_for_def(ty, output, &mut array_part, context)?;
+    output.push_str(&array_part);
+    Ok(())
+}
+
+/// Export ir type to HLSL
+fn export_type_for_def(
+    ty: &ir::Type,
+    output: &mut String,
+    output_array: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
     if !ty.1.is_empty() {
         todo!("Type modifier");
     }
-    export_type_layout(&ty.0, output, context)?;
+    export_type_layout_for_def(&ty.0, output, output_array, context)?;
     Ok(())
 }
 
@@ -275,6 +292,19 @@ fn export_type(
 fn export_type_layout(
     tyl: &ir::TypeLayout,
     output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    let mut array_part = String::new();
+    export_type_layout_for_def(tyl, output, &mut array_part, context)?;
+    output.push_str(&array_part);
+    Ok(())
+}
+
+/// Export ir type layout to HLSL
+fn export_type_layout_for_def(
+    tyl: &ir::TypeLayout,
+    output: &mut String,
+    output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     match *tyl {
@@ -330,6 +360,10 @@ fn export_type_layout(
                 }
             };
         }
+        ir::TypeLayout::Array(ref ty, ref len) => {
+            export_type_layout_for_def(ty, output, output_array, context)?;
+            write!(output_array, "[{}]", len).unwrap();
+        }
         _ => todo!("Type layout not implemented: {:?}", tyl),
     };
 
@@ -381,7 +415,7 @@ fn export_statement(
             output.push(';');
         }
         ir::Statement::Var(def) => {
-            export_varible_definition(def, output, context)?;
+            export_variable_definition(def, output, context)?;
             output.push(';');
         }
         ir::Statement::Block(block) => {
@@ -454,7 +488,7 @@ fn export_statement(
 }
 
 /// Export ir variable definition to HLSL
-fn export_varible_definition(
+fn export_variable_definition(
     def: &ir::VarDef,
     output: &mut String,
     context: &mut ExportContext,
@@ -463,18 +497,21 @@ fn export_varible_definition(
         ir::LocalStorage::Local => {}
         ir::LocalStorage::Static => output.push_str("static "),
     }
-    export_type(&def.local_type.0, output, context)?;
-    export_varible_definition_no_type(def, output, context)
+    let mut array_part = String::new();
+    export_type_for_def(&def.local_type.0, output, &mut array_part, context)?;
+    export_variable_definition_no_type(def, &array_part, output, context)
 }
 
 /// Export ir single variable definition to HLSL
-fn export_varible_definition_no_type(
+fn export_variable_definition_no_type(
     def: &ir::VarDef,
+    array_part: &str,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     output.push(' ');
     output.push_str(context.get_variable_name_direct(def.id)?);
+    output.push_str(array_part);
 
     export_initializer(&def.init, output, context)
 }
@@ -512,11 +549,33 @@ fn export_for_init(
         ir::ForInit::Expression(expr) => export_expression(expr, output, context),
         ir::ForInit::Definitions(defs) => {
             let (head, tail) = defs.split_first().unwrap();
-            export_varible_definition(head, output, context)?;
+
+            // Extract type information from first definition to ensure later definitions match
+            let mut head_core_part = String::new();
+            let mut head_array_part = String::new();
+            export_type_for_def(
+                &head.local_type.0,
+                &mut head_core_part,
+                &mut head_array_part,
+                context,
+            )?;
+
+            export_variable_definition(head, output, context)?;
             for def in tail {
-                assert_eq!(head.local_type, def.local_type);
                 output.push(',');
-                export_varible_definition_no_type(def, output, context)?;
+                // Extract type information from the non-first definition
+                let mut cur_core_part = String::new();
+                let mut cur_array_part = String::new();
+                export_type_for_def(
+                    &def.local_type.0,
+                    &mut cur_core_part,
+                    &mut cur_array_part,
+                    context,
+                )?;
+                // The base type definitions should all match - so the generated string should be the same
+                assert_eq!(head_core_part, cur_core_part);
+                // The array part of the type definition is used here - and may vary between definitions
+                export_variable_definition_no_type(def, &cur_array_part, output, context)?;
             }
             Ok(())
         }
@@ -919,9 +978,28 @@ fn export_initializer(
 ) -> Result<(), ExportError> {
     if let Some(init) = init_opt {
         output.push_str(" = ");
-        match init {
-            ir::Initializer::Expression(expr) => export_expression(expr, output, context)?,
-            ir::Initializer::Aggregate(_) => todo!("Aggregate initialisation"),
+        export_initializer_inner(init, output, context)?;
+    }
+    Ok(())
+}
+
+/// Export ir variable initializer part to HLSL
+fn export_initializer_inner(
+    init: &ir::Initializer,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match init {
+        ir::Initializer::Expression(expr) => export_expression(expr, output, context)?,
+        ir::Initializer::Aggregate(exprs) => {
+            output.push_str("{ ");
+            let (head, tail) = exprs.split_first().unwrap();
+            export_initializer_inner(head, output, context)?;
+            for expr in tail {
+                output.push_str(", ");
+                export_initializer_inner(expr, output, context)?;
+            }
+            output.push_str(" }");
         }
     }
     Ok(())
@@ -978,9 +1056,11 @@ fn export_struct(
 
     for member in &decl.members {
         context.new_line(output);
-        export_type(&member.typename, output, context)?;
+        let mut array_part = String::new();
+        export_type_for_def(&member.typename, output, &mut array_part, context)?;
         output.push(' ');
         output.push_str(&member.name);
+        output.push_str(&array_part);
         output.push(';');
     }
 
@@ -1013,9 +1093,11 @@ fn export_constant_buffer(
 
     for member in &decl.members {
         context.new_line(output);
-        export_type(&member.typename, output, context)?;
+        let mut array_part = String::new();
+        export_type_for_def(&member.typename, output, &mut array_part, context)?;
         output.push(' ');
         output.push_str(&member.name);
+        output.push_str(&array_part);
         output.push(';');
 
         if member.offset.is_some() {

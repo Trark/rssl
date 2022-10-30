@@ -6,6 +6,11 @@ fn check_static_primitive_variables() {
     check_rssl_to_hlsl("int x = 0;", "extern int x = 0;\n");
     check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
     check_rssl_to_hlsl("extern int x = -1;", "extern int x = (int)-1;\n");
+    check_rssl_to_hlsl("static float x[4];", "static float x[4];\n");
+    check_rssl_to_hlsl(
+        "static float x[4] = { 0.0, 1.0, 2.0, 3.0 };",
+        "static float x[4] = { 0.0, 1.0, 2.0, 3.0 };\n",
+    );
 }
 
 #[test]
@@ -287,6 +292,22 @@ fn check_statement_for() {
 }
 ",
     );
+
+    check_rssl_to_hlsl(
+        "void f() {
+    for (int x[2] = { 1, 5 }, y[3] = { 2, 3, 4 }; true; true)
+    {
+        break;
+    }
+}",
+        "void f() {
+    for (int x[2] = { 1, 5 }, y[3] = { 2, 3, 4 }; true; true)
+    {
+        break;
+    }
+}
+",
+    );
 }
 
 #[test]
@@ -315,6 +336,7 @@ fn check_struct() {
 {
     int x;
     float y;
+    float z[2], w[3];
 
     void f(int z) {}
     void g() { f(x); }
@@ -330,6 +352,8 @@ void main() {
 {
     int x;
     float y;
+    float z[2];
+    float w[3];
 
     void f(int z) {}
 
@@ -355,6 +379,7 @@ fn check_constant_buffer() {
     float4 v0;
     uint4 v1;
     float4x4 m2;
+    float a3[2], a4[3];
 }
 
 void main() {
@@ -368,6 +393,8 @@ void main() {
     float4 v0;
     uint4 v1;
     float4x4 m2;
+    float a3[2];
+    float a4[3];
 }
 
 void main() {
