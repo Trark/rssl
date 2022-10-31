@@ -17,7 +17,7 @@ fn test_ast_pass() {
                 .into(),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myOutBuffer".to_string()),
-                    bind: ast::VariableBind::Normal,
+                    bind: Default::default(),
                     slot: Some(ast::GlobalSlot::ReadSlot(0)),
                     init: None,
                 }],
@@ -35,7 +35,7 @@ fn test_ast_pass() {
                 ),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myFour".to_string()),
-                    bind: ast::VariableBind::Normal,
+                    bind: Default::default(),
                     slot: None,
                     init: Some(ast::Initializer::Expression(Located::none(
                         ast::Expression::Literal(ast::Literal::UntypedInt(4)),
@@ -143,9 +143,9 @@ fn test_ast_pass() {
                         local_type: ast::Type::from_layout(ast::TypeLayout::float()).into(),
                         defs: vec![ast::LocalVariableName {
                             name: Located::none("x".to_string()),
-                            bind: ast::VariableBind::Array(Some(Located::none(
+                            bind: ast::VariableBind(Vec::from([Some(Located::none(
                                 ast::Expression::Literal(ast::Literal::UntypedInt(3)),
-                            ))),
+                            ))])),
                             init: None,
                         }],
                     }),
@@ -184,7 +184,7 @@ fn test_ast_to_ir() {
                 ),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myFour".to_string()),
-                    bind: ast::VariableBind::Normal,
+                    bind: Default::default(),
                     slot: None,
                     init: Some(ast::Initializer::Expression(Located::none(
                         ast::Expression::Literal(ast::Literal::UntypedInt(4)),

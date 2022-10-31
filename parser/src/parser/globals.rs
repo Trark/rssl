@@ -20,13 +20,10 @@ fn parse_global_type(input: &[LexToken]) -> ParseResult<GlobalType> {
 /// Parse a single named constant in a constant buffer definition
 fn parse_constant_variable_name(input: &[LexToken]) -> ParseResult<ConstantVariableName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = parse_optional(parse_arraydim)(input)?;
+    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
     let v = ConstantVariableName {
         name: name.to_node(),
-        bind: match array_dim {
-            Some(ref expr) => VariableBind::Array(expr.clone()),
-            None => VariableBind::Normal,
-        },
+        bind: VariableBind(bind),
         offset: None,
     };
     Ok((input, v))
@@ -52,7 +49,7 @@ fn test_constant_variable() {
         ty: Type::float4x4(),
         defs: Vec::from([ConstantVariableName {
             name: "wvp".to_string(),
-            bind: VariableBind::Normal,
+            bind: Default::default(),
             offset: None,
         }]),
     };
@@ -110,15 +107,12 @@ fn parse_global_slot(input: &[LexToken]) -> ParseResult<GlobalSlot> {
 /// Parse a single name in a global variable definition
 fn parse_global_variable_name(input: &[LexToken]) -> ParseResult<GlobalVariableName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = parse_optional(parse_arraydim)(input)?;
+    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
     let (input, slot) = parse_optional(parse_global_slot)(input)?;
     let (input, init) = parse_initializer(input)?;
     let v = GlobalVariableName {
         name,
-        bind: match array_dim {
-            Some(ref expr) => VariableBind::Array(expr.clone()),
-            None => VariableBind::Normal,
-        },
+        bind: VariableBind(bind),
         slot,
         init,
     };
@@ -149,7 +143,7 @@ fn test_global_variable() {
             global_type: Type::from_layout(TypeLayout::custom("Buffer".loc(0))).into(),
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(7),
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 slot: Some(GlobalSlot::ReadSlot(1)),
                 init: None,
             }]),
@@ -166,7 +160,7 @@ fn test_global_variable() {
             .into(),
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(14),
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 slot: Some(GlobalSlot::ReadSlot(1)),
                 init: None,
             }]),
@@ -183,7 +177,7 @@ fn test_global_variable() {
             .into(),
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(23),
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 slot: Some(GlobalSlot::ReadSlot(1)),
                 init: None,
             }]),
@@ -200,7 +194,7 @@ fn test_global_variable() {
             .into(),
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(29),
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 slot: Some(GlobalSlot::ReadSlot(1)),
                 init: None,
             }]),
@@ -222,7 +216,7 @@ fn test_global_variable() {
             ),
             defs: Vec::from([GlobalVariableName {
                 name: "c_numElements".to_string().loc(17),
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 slot: None,
                 init: Some(Initializer::Expression(
                     Expression::Literal(Literal::UntypedInt(4)).loc(33),
@@ -246,9 +240,9 @@ fn test_global_variable() {
             ),
             defs: Vec::from([GlobalVariableName {
                 name: "data".to_string().loc(17),
-                bind: VariableBind::Array(Some(
+                bind: VariableBind(Vec::from([Some(
                     Expression::Literal(Literal::UntypedInt(4)).loc(22),
-                )),
+                )])),
                 slot: None,
                 init: Some(Initializer::Aggregate(Vec::from([
                     Initializer::Expression(Expression::Literal(Literal::UntypedInt(0)).loc(29)),
@@ -266,11 +260,61 @@ fn test_global_variable() {
             global_type: GlobalType(Type::floatn(4), GlobalStorage::GroupShared),
             defs: Vec::from([GlobalVariableName {
                 name: "local_data".to_string().loc(19),
-                bind: VariableBind::Array(Some(
+                bind: VariableBind(Vec::from([Some(
                     Expression::Literal(Literal::UntypedInt(32)).loc(30),
-                )),
+                )])),
                 slot: None,
                 init: None,
+            }]),
+        },
+    );
+
+    globalvariable.check(
+        "static const int data[2][3] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };",
+        GlobalVariable {
+            global_type: GlobalType(
+                Type(
+                    TypeLayout::int(),
+                    TypeModifier {
+                        is_const: true,
+                        ..TypeModifier::default()
+                    },
+                ),
+                GlobalStorage::Static,
+            ),
+            defs: Vec::from([GlobalVariableName {
+                name: "data".to_string().loc(17),
+                bind: VariableBind(Vec::from([
+                    Some(Expression::Literal(Literal::UntypedInt(2)).loc(22)),
+                    Some(Expression::Literal(Literal::UntypedInt(3)).loc(25)),
+                ])),
+                slot: None,
+                init: Some(Initializer::Aggregate(Vec::from([
+                    Initializer::Aggregate(Vec::from([
+                        Initializer::Expression(
+                            Expression::Literal(Literal::UntypedInt(0)).loc(34),
+                        ),
+                        Initializer::Expression(
+                            Expression::Literal(Literal::UntypedInt(1)).loc(37),
+                        ),
+                    ])),
+                    Initializer::Aggregate(Vec::from([
+                        Initializer::Expression(
+                            Expression::Literal(Literal::UntypedInt(2)).loc(44),
+                        ),
+                        Initializer::Expression(
+                            Expression::Literal(Literal::UntypedInt(3)).loc(47),
+                        ),
+                    ])),
+                    Initializer::Aggregate(Vec::from([
+                        Initializer::Expression(
+                            Expression::Literal(Literal::UntypedInt(4)).loc(54),
+                        ),
+                        Initializer::Expression(
+                            Expression::Literal(Literal::UntypedInt(5)).loc(57),
+                        ),
+                    ])),
+                ]))),
             }]),
         },
     );
@@ -290,7 +334,7 @@ fn test_constant_buffer() {
                 ty: Type::float4x4(),
                 defs: Vec::from([ConstantVariableName {
                     name: "wvp".to_string(),
-                    bind: VariableBind::Normal,
+                    bind: Default::default(),
                     offset: None,
                 }]),
             }]),
@@ -298,7 +342,7 @@ fn test_constant_buffer() {
     );
 
     cbuffer.check(
-        "cbuffer globals : register(b12) { float4x4 wvp; float x, y[2]; }",
+        "cbuffer globals : register(b12) { float4x4 wvp; float x, y[2], z[3][4]; }",
         ConstantBuffer {
             name: "globals".to_string().loc(8),
             slot: Some(ConstantSlot(12)),
@@ -307,7 +351,7 @@ fn test_constant_buffer() {
                     ty: Type::float4x4(),
                     defs: vec![ConstantVariableName {
                         name: "wvp".to_string(),
-                        bind: VariableBind::Normal,
+                        bind: Default::default(),
                         offset: None,
                     }],
                 },
@@ -316,14 +360,22 @@ fn test_constant_buffer() {
                     defs: Vec::from([
                         ConstantVariableName {
                             name: "x".to_string(),
-                            bind: VariableBind::Normal,
+                            bind: Default::default(),
                             offset: None,
                         },
                         ConstantVariableName {
                             name: "y".to_string(),
-                            bind: VariableBind::Array(Some(
+                            bind: VariableBind(Vec::from([Some(
                                 Expression::Literal(Literal::UntypedInt(2)).loc(59),
-                            )),
+                            )])),
+                            offset: None,
+                        },
+                        ConstantVariableName {
+                            name: "z".to_string(),
+                            bind: VariableBind(Vec::from([
+                                Some(Expression::Literal(Literal::UntypedInt(3)).loc(65)),
+                                Some(Expression::Literal(Literal::UntypedInt(4)).loc(68)),
+                            ])),
                             offset: None,
                         },
                     ]),

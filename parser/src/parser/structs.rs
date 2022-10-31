@@ -4,16 +4,10 @@ use super::*;
 /// Parse a struct member name in an entry
 fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName> {
     let (input, name) = parse_variable_name(input)?;
-    let (input, array_dim) = match parse_arraydim(input) {
-        Ok((input, array_dim)) => (input, Some(array_dim)),
-        Err(_) => (input, None),
-    };
+    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
     let member_name = StructMemberName {
         name: name.to_node(),
-        bind: match array_dim {
-            Some(ref expr) => VariableBind::Array(expr.clone()),
-            None => VariableBind::Normal,
-        },
+        bind: VariableBind(bind),
     };
     Ok((input, member_name))
 }
@@ -89,7 +83,7 @@ fn test_struct() {
                 ty: Type::uint(),
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
-                    bind: VariableBind::Normal,
+                    bind: Default::default(),
                 }],
             })],
         },
@@ -105,11 +99,37 @@ fn test_struct() {
                 defs: vec![
                     StructMemberName {
                         name: "a".to_string(),
-                        bind: VariableBind::Normal,
+                        bind: Default::default(),
                     },
                     StructMemberName {
                         name: "b".to_string(),
-                        bind: VariableBind::Normal,
+                        bind: Default::default(),
+                    },
+                ],
+            })],
+        },
+    );
+
+    structdefinition.check(
+        "struct MyStruct { uint a[2], b[3][4]; };",
+        StructDefinition {
+            name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
+            members: vec![StructEntry::Variable(StructMember {
+                ty: Type::uint(),
+                defs: vec![
+                    StructMemberName {
+                        name: "a".to_string(),
+                        bind: VariableBind(Vec::from([Some(
+                            Expression::Literal(Literal::UntypedInt(2)).loc(25),
+                        )])),
+                    },
+                    StructMemberName {
+                        name: "b".to_string(),
+                        bind: VariableBind(Vec::from([
+                            Some(Expression::Literal(Literal::UntypedInt(3)).loc(31)),
+                            Some(Expression::Literal(Literal::UntypedInt(4)).loc(34)),
+                        ])),
                     },
                 ],
             })],
@@ -126,7 +146,7 @@ fn test_struct() {
                     ty: Type::uint(),
                     defs: vec![StructMemberName {
                         name: "a".to_string(),
-                        bind: VariableBind::Normal,
+                        bind: Default::default(),
                     }],
                 }),
                 StructEntry::Method(FunctionDefinition {
@@ -151,11 +171,11 @@ fn test_struct() {
                 defs: vec![
                     StructMemberName {
                         name: "a".to_string(),
-                        bind: VariableBind::Normal,
+                        bind: Default::default(),
                     },
                     StructMemberName {
                         name: "b".to_string(),
-                        bind: VariableBind::Normal,
+                        bind: Default::default(),
                     },
                 ],
             })],

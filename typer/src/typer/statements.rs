@@ -185,35 +185,34 @@ fn parse_localtype(
 
 /// Apply part of type applied to variable name onto the type itself
 pub fn apply_variable_bind(
-    ty: ir::Type,
+    mut ty: ir::Type,
     bind: &ast::VariableBind,
     init: &Option<ast::Initializer>,
 ) -> TyperResult<ir::Type> {
-    match *bind {
-        ast::VariableBind::Array(ref dim) => {
-            let ir::Type(layout, modifiers) = ty;
+    for dim in &bind.0 {
+        let ir::Type(layout, modifiers) = ty;
 
-            let constant_dim = match *dim {
-                Some(ref dim_expr) => match evaluate_constexpr_int(&**dim_expr) {
-                    Ok(val) => val,
-                    Err(()) => {
-                        let p = (**dim_expr).clone();
-                        return Err(TyperError::ArrayDimensionsMustBeConstantExpression(p));
-                    }
-                },
-                None => match *init {
-                    Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
-                    _ => return Err(TyperError::ArrayDimensionNotSpecified),
-                },
-            };
+        let constant_dim = match *dim {
+            Some(ref dim_expr) => match evaluate_constexpr_int(&**dim_expr) {
+                Ok(val) => val,
+                Err(()) => {
+                    let p = (**dim_expr).clone();
+                    return Err(TyperError::ArrayDimensionsMustBeConstantExpression(p));
+                }
+            },
+            None => match *init {
+                Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
+                _ => return Err(TyperError::ArrayDimensionNotSpecified),
+            },
+        };
 
-            Ok(ir::Type(
-                ir::TypeLayout::Array(Box::new(layout), constant_dim),
-                modifiers,
-            ))
-        }
-        ast::VariableBind::Normal => Ok(ty),
+        ty = ir::Type(
+            ir::TypeLayout::Array(Box::new(layout), constant_dim),
+            modifiers,
+        );
     }
+
+    Ok(ty)
 }
 
 /// Evaluate a subset of possible constant expressions

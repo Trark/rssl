@@ -122,14 +122,11 @@ fn parse_vardef(input: &[LexToken]) -> ParseResult<VarDef> {
     let (input, typename) = parse_local_type(input)?;
     let (input, defs) = parse_list_nonempty(parse_token(Token::Comma), |input| {
         let (input, varname) = parse_variable_name(input)?;
-        let (input, array_dim) = parse_optional(parse_arraydim)(input)?;
+        let (input, bind) = parse_multiple(parse_arraydim)(input)?;
         let (input, init) = parse_initializer(input)?;
         let v = LocalVariableName {
             name: varname,
-            bind: match array_dim {
-                Some(ref expr) => VariableBind::Array(expr.clone()),
-                None => VariableBind::Normal,
-            },
+            bind: VariableBind(bind),
             init,
         };
         Ok((input, v))
@@ -362,14 +359,26 @@ fn test_local_variables() {
         )),
     );
     statement.check(
-        "float x[3];",
+        "float x[3], y[2][4];",
         Statement::Var(VarDef {
             local_type: Type::from_layout(TypeLayout::float()).into(),
-            defs: vec![LocalVariableName {
-                name: "x".to_string().loc(6),
-                bind: VariableBind::Array(Some(Expression::Literal(Literal::UntypedInt(3)).loc(8))),
-                init: None,
-            }],
+            defs: Vec::from([
+                LocalVariableName {
+                    name: "x".to_string().loc(6),
+                    bind: VariableBind(Vec::from([Some(
+                        Expression::Literal(Literal::UntypedInt(3)).loc(8),
+                    )])),
+                    init: None,
+                },
+                LocalVariableName {
+                    name: "y".to_string().loc(12),
+                    bind: VariableBind(Vec::from([
+                        Some(Expression::Literal(Literal::UntypedInt(2)).loc(14)),
+                        Some(Expression::Literal(Literal::UntypedInt(4)).loc(17)),
+                    ])),
+                    init: None,
+                },
+            ]),
         }),
     );
     statement.expect_fail(

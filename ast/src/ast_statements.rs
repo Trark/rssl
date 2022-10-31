@@ -47,11 +47,8 @@ pub struct LocalVariableName {
     pub init: Option<Initializer>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
-pub enum VariableBind {
-    Normal,
-    Array(Option<Located<Expression>>),
-}
+#[derive(PartialEq, Debug, Clone, Default)]
+pub struct VariableBind(pub Vec<Option<Located<Expression>>>);
 
 #[derive(PartialEq, Debug, Clone)]
 /// The node for representing the initial value of a variable
@@ -74,7 +71,7 @@ impl VarDef {
             local_type,
             defs: vec![LocalVariableName {
                 name,
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 init: None,
             }],
         }
@@ -88,7 +85,7 @@ impl VarDef {
             local_type,
             defs: vec![LocalVariableName {
                 name,
-                bind: VariableBind::Normal,
+                bind: Default::default(),
                 init: Some(Initializer::Expression(expr)),
             }],
         }

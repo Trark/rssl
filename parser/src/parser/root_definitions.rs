@@ -83,14 +83,14 @@ fn test_struct() {
                 ty: Type::uint(),
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
-                    bind: VariableBind::Normal,
+                    bind: Default::default(),
                 }],
             }),
             StructEntry::Variable(StructMember {
                 ty: Type::float(),
                 defs: vec![StructMemberName {
                     name: "b".to_string(),
-                    bind: VariableBind::Normal,
+                    bind: Default::default(),
                 }],
             }),
         ],
