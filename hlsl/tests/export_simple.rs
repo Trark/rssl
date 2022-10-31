@@ -15,6 +15,10 @@ fn check_static_primitive_variables() {
         "static float x[2][3], y[3][4];",
         "static float x[2][3];\nstatic float y[3][4];\n",
     );
+    check_rssl_to_hlsl(
+        "static const int data[2][3] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };",
+        "static const int data[2][3] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };\n",
+    );
 }
 
 #[test]

@@ -281,9 +281,7 @@ fn export_type_for_def(
     output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    if !ty.1.is_empty() {
-        todo!("Type modifier");
-    }
+    write!(output, "{:?}", ty.1).unwrap();
     export_type_layout_for_def(&ty.0, output, output_array, context)?;
     Ok(())
 }
