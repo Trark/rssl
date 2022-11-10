@@ -71,6 +71,11 @@ void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
     check_types("void f(int3 x) {} void f(int2 x) { f(int2(3, 4)); }");
     // And that ambiguous overloads fail with itself
     check_fail("void f(int3 x) {} void f(int2 x) { f(1); }");
+
+    // Check that a function can have a local variable that is an array
+    check_types("void f() { int x[2]; } void main() { f(); }");
+    // Check that a function can have a function parameter that is an array
+    check_types("void f(out int x[2]) {} void main() { int a[2]; f(a); }");
 }
 
 #[test]
@@ -105,6 +110,12 @@ fn check_function_templates() {
     check_types(
         "struct S {}; template<typename T> T f(T t) { return t; } void main() { S s1; S s2 = f<S>(s1); }",
     );
+
+    // Check multiple type arguments are accepted
+    check_types("template<typename T1, typename T2> T1 f(T1 v1, T2 v2) { return v1 + v2; } void main() { f<float, int>(0.0, 0); }");
+
+    // Check that the template arguments can make an array
+    check_types("template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f<float>(a); }");
 }
 
 #[test]

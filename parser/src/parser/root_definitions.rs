@@ -116,6 +116,7 @@ fn test_function() {
         params: vec![FunctionParam {
             name: "x".to_string().loc(17),
             param_type: Type::float().into(),
+            bind: Default::default(),
             semantic: None,
         }],
         body: Vec::new(),
@@ -138,6 +139,7 @@ fn test_function() {
             params: vec![FunctionParam {
                 name: "x".to_string().loc(40),
                 param_type: Type::float().into(),
+                bind: Default::default(),
                 semantic: None,
             }],
             body: vec![Statement::If(

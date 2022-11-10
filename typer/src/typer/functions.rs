@@ -1,7 +1,7 @@
 use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
-use super::statements::parse_statement_list;
+use super::statements::{apply_variable_bind, parse_statement_list};
 use super::types::{apply_template_type_substitution, parse_type};
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -76,7 +76,11 @@ pub fn parse_function_signature(
     let param_types = {
         let mut vec = vec![];
         for param in &fd.params {
-            let var_type = parse_paramtype(&param.param_type, context)?;
+            let mut var_type = parse_paramtype(&param.param_type, context)?;
+
+            // If the parameter has type information bound to the name then apply it to the type now
+            var_type.0 = apply_variable_bind(var_type.0, &param.bind, &None)?;
+
             vec.push(var_type);
         }
         vec

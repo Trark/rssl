@@ -123,8 +123,13 @@ pub fn apply_template_type_substitution(
 ) -> ir::Type {
     match source_type {
         ir::Type(ir::TypeLayout::TemplateParam(ref p), _) => remap[p.0 as usize].node.clone(),
-        ir::Type(ir::TypeLayout::Array(_, _), _) => {
-            todo!("Arrays of templated types are not implemented")
+        ir::Type(ir::TypeLayout::Array(tyl, len), modifier) => {
+            // Arrays currently can only contain types without modifiers - add default modifier
+            let tyl_as_ty = ir::Type::from_layout(*tyl);
+            let inner_ty = apply_template_type_substitution(tyl_as_ty, remap);
+            // TODO: modifiers inside array elements
+            assert_eq!(inner_ty.1, ir::TypeModifier::default());
+            ir::Type(ir::TypeLayout::Array(Box::new(inner_ty.0), len), modifier)
         }
         t => t,
     }

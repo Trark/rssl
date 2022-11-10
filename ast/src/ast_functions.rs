@@ -1,5 +1,5 @@
 use crate::ast_expressions::*;
-use crate::ast_statements::Statement;
+use crate::ast_statements::{Statement, VariableBind};
 use crate::ast_types::{TemplateParamList, Type};
 use crate::primitive_types::*;
 use rssl_text::Located;
@@ -24,6 +24,7 @@ pub struct FunctionReturn {
 pub struct FunctionParam {
     pub name: Located<String>,
     pub param_type: ParamType,
+    pub bind: VariableBind,
     pub semantic: Option<Semantic>,
 }
 

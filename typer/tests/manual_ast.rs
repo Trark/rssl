@@ -49,6 +49,7 @@ fn test_ast_pass() {
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::Type::uint().into(),
+                    bind: Default::default(),
                     semantic: None,
                 }],
                 body: vec![],
@@ -61,6 +62,7 @@ fn test_ast_pass() {
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::Type::float().into(),
+                    bind: Default::default(),
                     semantic: None,
                 }],
                 body: vec![],
@@ -73,6 +75,7 @@ fn test_ast_pass() {
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
                     param_type: ast::ParamType(ast::Type::float(), ast::InputModifier::Out, None),
+                    bind: Default::default(),
                     semantic: None,
                 }],
                 body: vec![

@@ -90,6 +90,7 @@ fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
 fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
     let (input, ty) = parse_param_type(input)?;
     let (input, param) = parse_variable_name(input)?;
+    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
 
     // Parse semantic if present
     let (input, semantic) = match parse_token(Token::Colon)(input) {
@@ -103,6 +104,7 @@ fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
     let param = FunctionParam {
         name: param,
         param_type: ty,
+        bind: VariableBind(bind),
         semantic,
     };
     Ok((input, param))
@@ -118,6 +120,7 @@ fn test_function_param() {
         FunctionParam {
             name: "x".to_string().loc(6),
             param_type: Type::float().into(),
+            bind: Default::default(),
             semantic: None,
         },
     );
@@ -126,6 +129,7 @@ fn test_function_param() {
         FunctionParam {
             name: "x".to_string().loc(9),
             param_type: ParamType(Type::float(), InputModifier::In, None),
+            bind: Default::default(),
             semantic: None,
         },
     );
@@ -134,6 +138,7 @@ fn test_function_param() {
         FunctionParam {
             name: "x".to_string().loc(10),
             param_type: ParamType(Type::float(), InputModifier::Out, None),
+            bind: Default::default(),
             semantic: None,
         },
     );
@@ -142,6 +147,7 @@ fn test_function_param() {
         FunctionParam {
             name: "x".to_string().loc(12),
             param_type: ParamType(Type::float(), InputModifier::InOut, None),
+            bind: Default::default(),
             semantic: None,
         },
     );
@@ -150,6 +156,7 @@ fn test_function_param() {
         FunctionParam {
             name: "vertex_id".to_string().loc(8),
             param_type: ParamType(Type::uint(), InputModifier::In, None),
+            bind: Default::default(),
             semantic: Some(Semantic::VertexId),
         },
     );
@@ -158,7 +165,19 @@ fn test_function_param() {
         FunctionParam {
             name: "uv".to_string().loc(10),
             param_type: ParamType(Type::floatn(2), InputModifier::In, None),
+            bind: Default::default(),
             semantic: Some(Semantic::User("TEXCOORD".to_string())),
+        },
+    );
+    function_param.check(
+        "float v[4]",
+        FunctionParam {
+            name: "v".to_string().loc(6),
+            param_type: Type::float().into(),
+            bind: VariableBind(Vec::from([Some(
+                Expression::Literal(Literal::UntypedInt(4)).loc(8),
+            )])),
+            semantic: None,
         },
     );
 }
@@ -211,6 +230,7 @@ fn test_template_function() {
             params: vec![FunctionParam {
                 name: "arg".to_string().loc(30),
                 param_type: Type::custom("T".loc(28)).into(),
+                bind: Default::default(),
                 semantic: None,
             }],
             body: vec![],
