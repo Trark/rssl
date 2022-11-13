@@ -21,8 +21,13 @@ pub enum TyperError {
     UnknownType(ErrorType),
 
     TypeDoesNotHaveMembers(ErrorType),
-    UnknownTypeMember(ErrorType, String),
-    InvalidSwizzle(ErrorType, String),
+    /// Failed to find member of a type
+    MemberDoesNotExist(ir::Type, ast::ScopedIdentifier),
+    InvalidSwizzle(ir::Type, String),
+    /// Member identifier is part of a different type
+    MemberIsForDifferentType(ir::Type, ir::TypeLayout, ast::ScopedIdentifier),
+    /// Member identifier does not point to a type member
+    IdentifierIsNotAMember(ir::Type, ast::ScopedIdentifier),
 
     ArrayIndexingNonArrayType,
     ArraySubscriptIndexNotInteger,
@@ -228,13 +233,52 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::UnknownTypeMember(_, _) => write_message(
-                &|f| write!(f, "unknown member"),
+            TyperError::MemberDoesNotExist(ty, name) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "type '{}' does not contain member '{}'",
+                        get_type_string(ty, context),
+                        name
+                    )
+                },
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::InvalidSwizzle(_, _) => write_message(
-                &|f| write!(f, "invalid swizzle"),
+            TyperError::InvalidSwizzle(ty, swizzle) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "invalid swizzle '{}' on type '{}'",
+                        swizzle,
+                        get_type_string(ty, context)
+                    )
+                },
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            TyperError::MemberIsForDifferentType(sampled_ty, found_tyl, path) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "accessing member of type '{}' ('{}') on type '{}'",
+                        get_type_layout_string(found_tyl, context),
+                        path,
+                        get_type_string(sampled_ty, context),
+                    )
+                },
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            TyperError::IdentifierIsNotAMember(ty, path) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "identifier '{}' is not a member of type '{}'",
+                        path,
+                        get_type_string(ty, context)
+                    )
+                },
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),

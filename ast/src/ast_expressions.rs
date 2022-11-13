@@ -119,6 +119,15 @@ impl ScopedIdentifier {
         }
     }
 
+    /// Get the identifier if it is a single name without additional qualificatioon
+    pub fn try_trivial(&self) -> Option<&Located<String>> {
+        if self.base == ScopedIdentifierBase::Relative && self.identifiers.len() == 1 {
+            Some(&self.identifiers[0])
+        } else {
+            None
+        }
+    }
+
     /// Get the location of the leaf part of the identifier
     pub fn get_location(&self) -> SourceLocation {
         self.identifiers.last().unwrap().location

@@ -353,6 +353,7 @@ fn check_struct() {
 void main() {
     S s;
     s.x = 5;
+    s.::S::x = 4;
     s.g();
 }
 ",
@@ -373,6 +374,7 @@ void main() {
 void main() {
     S s;
     s.x = 5;
+    s.x = 4;
     s.g();
 }
 ",

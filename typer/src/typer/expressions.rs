@@ -1014,41 +1014,78 @@ fn parse_expr_unchecked(
             Ok(TypedExpression::Value(node, ety))
         }
         ast::Expression::Member(ref composite, ref member) => {
-            // We do not currently support checking complex identifier patterns
-            assert_eq!(member.base, ast::ScopedIdentifierBase::Relative);
-            assert_eq!(member.identifiers.len(), 1);
-            let member = &member.identifiers[0].node;
-
+            let error_name = member;
             let composite_texp = parse_expr_internal(composite, context)?;
             let composite_pt = composite_texp.to_error_type();
-            let (composite_ir, composite_ty) = match composite_texp {
+            let (composite_ir, composite_ety) = match composite_texp {
                 TypedExpression::Value(composite_ir, composite_type) => {
                     (composite_ir, composite_type)
                 }
                 _ => return Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
             };
-            let ExpressionType(ir::Type(composite_tyl, composite_mod), vt) = composite_ty;
-            match composite_tyl {
+            let ExpressionType(composite_ty, vt) = composite_ety;
+            let ir::Type(ref composite_tyl, composite_mod) = composite_ty;
+            match *composite_tyl {
                 ir::TypeLayout::Struct(id)
                 | ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
                     ir::StructuredLayout::Struct(id),
                     _,
-                ))) => match context.get_struct_member_expression(id, member) {
-                    Ok(StructMemberValue::Variable(ty)) => {
-                        let composite = Box::new(composite_ir);
-                        let member = ir::Expression::Member(composite, member.clone());
-                        Ok(TypedExpression::Value(member, ty.to_lvalue()))
+                ))) => {
+                    assert!(!member.identifiers.is_empty());
+                    let member_name = &member.identifiers.last().unwrap().node;
+
+                    // Ensure the path is for the correct type
+                    // We have no inheritance / data hiding here so this is purely validation - it will always link back to the provided struct
+                    if member.try_trivial().is_none() {
+                        let mut path = member.clone();
+                        path.identifiers.pop();
+                        match context.find_identifier(&path) {
+                            Ok(VariableExpression::Type(ir::Type(
+                                ir::TypeLayout::Struct(found_id),
+                                _,
+                            ))) => {
+                                if id != found_id {
+                                    return Err(TyperError::MemberIsForDifferentType(
+                                        composite_ty,
+                                        ir::TypeLayout::Struct(found_id),
+                                        path,
+                                    ));
+                                }
+                            }
+                            Ok(_) => {
+                                return Err(TyperError::IdentifierIsNotAMember(composite_ty, path))
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    };
+
+                    match context.get_struct_member_expression(id, member_name) {
+                        Ok(StructMemberValue::Variable(ty)) => {
+                            let composite = Box::new(composite_ir);
+                            let member = ir::Expression::Member(composite, member_name.clone());
+                            Ok(TypedExpression::Value(member, ty.to_lvalue()))
+                        }
+                        Ok(StructMemberValue::Method(overloads)) => {
+                            Ok(TypedExpression::Method(UnresolvedMethod {
+                                object_type: composite_ty,
+                                overloads,
+                                object_value: composite_ir,
+                            }))
+                        }
+                        Err(err) => Err(err),
                     }
-                    Ok(StructMemberValue::Method(overloads)) => {
-                        Ok(TypedExpression::Method(UnresolvedMethod {
-                            object_type: ir::Type(composite_tyl, composite_mod),
-                            overloads,
-                            object_value: composite_ir,
-                        }))
-                    }
-                    Err(err) => Err(err),
-                },
+                }
                 ir::TypeLayout::Scalar(scalar) => {
+                    let member = match member.try_trivial() {
+                        Some(member) => member,
+                        None => {
+                            return Err(TyperError::MemberDoesNotExist(
+                                composite_ty,
+                                member.clone(),
+                            ))
+                        }
+                    };
+
                     let mut swizzle_slots = Vec::with_capacity(member.len());
                     for c in member.chars() {
                         swizzle_slots.push(match c {
@@ -1068,6 +1105,16 @@ fn parse_expr_unchecked(
                     Ok(TypedExpression::Value(node, ety))
                 }
                 ir::TypeLayout::Vector(scalar, x) => {
+                    let member = match member.try_trivial() {
+                        Some(member) => member,
+                        None => {
+                            return Err(TyperError::MemberDoesNotExist(
+                                composite_ty,
+                                member.clone(),
+                            ))
+                        }
+                    };
+
                     let mut swizzle_slots = Vec::with_capacity(member.len());
                     for c in member.chars() {
                         swizzle_slots.push(match c {
@@ -1077,8 +1124,8 @@ fn parse_expr_unchecked(
                             'w' | 'a' if x >= 4 => ir::SwizzleSlot::W,
                             _ => {
                                 return Err(TyperError::InvalidSwizzle(
-                                    composite_pt,
-                                    member.clone(),
+                                    composite_ty,
+                                    member.node.clone(),
                                 ))
                             }
                         });
@@ -1099,6 +1146,17 @@ fn parse_expr_unchecked(
                     Ok(TypedExpression::Value(node, ety))
                 }
                 ir::TypeLayout::Object(ref object_type) => {
+                    // We do not currently support checking complex identifier patterns
+                    let member = match member.try_trivial() {
+                        Some(member) => member,
+                        None => {
+                            return Err(TyperError::MemberDoesNotExist(
+                                composite_ty,
+                                member.clone(),
+                            ))
+                        }
+                    };
+
                     match intrinsics::get_method(object_type, member) {
                         Ok(intrinsics::MethodDefinition(object_type, _, method_overloads)) => {
                             let ty = ir::Type::from_object(object_type);
@@ -1127,7 +1185,10 @@ fn parse_expr_unchecked(
                                 object_value: composite_ir,
                             }))
                         }
-                        Err(()) => Err(TyperError::UnknownTypeMember(composite_pt, member.clone())),
+                        Err(()) => Err(TyperError::MemberDoesNotExist(
+                            composite_ty,
+                            error_name.clone(),
+                        )),
                     }
                 }
                 // Todo: Matrix components + Object members
