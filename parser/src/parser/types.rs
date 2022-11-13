@@ -199,19 +199,8 @@ fn parse_type_layout_internal<'t>(
     }
 
     // Attempt to parse a custom type
-    let scoped_name_result = parse_list_nonempty(
-        parse_token(Token::ScopeResolution),
-        locate(match_identifier),
-    )(input);
-    match scoped_name_result {
-        Ok((input, namespaced_name)) => {
-            let name = ScopedName(
-                namespaced_name
-                    .iter()
-                    .map(|id| Located::new(id.node.0.to_string(), id.location))
-                    .collect(),
-            );
-
+    match expressions::parse_scoped_identifier(input) {
+        Ok((input, name)) => {
             let reject = if let Some(st) = st {
                 let name_unlocated = name.clone().unlocate();
                 st.reject_symbols.contains(&name_unlocated)
@@ -223,7 +212,7 @@ fn parse_type_layout_internal<'t>(
                 ParseErrorReason::SymbolIsNotAType.into_result(input)
             } else {
                 let (input, args) = expressions::parse_template_args(input)?;
-                Ok((input, TypeLayout::Custom(name, args)))
+                Ok((input, TypeLayout::Custom(Box::new(name), args)))
             }
         }
         Err(err) => Err(err),

@@ -17,7 +17,7 @@ pub enum TyperError {
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
-    UnknownIdentifier(String),
+    UnknownIdentifier(ast::ScopedIdentifier),
     UnknownType(ErrorType),
 
     TypeDoesNotHaveMembers(ErrorType),
@@ -65,6 +65,12 @@ pub enum TyperError {
     /// Failed to find member of a struct
     StructMemberDoesNotExist(ir::StructId, String),
 
+    /// Identifier in an expression resolved as a type
+    ExpectedExpressionReceivedType(ast::ScopedIdentifier, ir::Type),
+
+    /// Identifier in a type context resolved as an expression
+    ExpectedTypeReceivedExpression(ast::ScopedIdentifier),
+
     /// Swizzle is not allowed on the type
     InvalidTypeForSwizzle(ir::TypeLayout),
 
@@ -84,10 +90,10 @@ pub enum ErrorType {
     Unknown,
 }
 
-impl From<&ast::ScopedName> for ErrorType {
-    fn from(name: &ast::ScopedName) -> Self {
+impl From<&ast::ScopedIdentifier> for ErrorType {
+    fn from(name: &ast::ScopedIdentifier) -> Self {
         ErrorType::Untyped(ast::Type::from_layout(ast::TypeLayout::Custom(
-            name.clone(),
+            Box::new(name.clone()),
             Vec::new(),
         )))
     }
@@ -414,6 +420,16 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
             TyperError::StructMemberDoesNotExist(_, name) => write_message(
                 &|f| write!(f, "struct does not contain member '{}'", name),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            TyperError::ExpectedExpressionReceivedType(name, _) => write_message(
+                &|f| write!(f, "identifier '{}' is not expected to be a type", name),
+                name.get_location(),
+                Severity::Error,
+            ),
+            TyperError::ExpectedTypeReceivedExpression(name) => write_message(
+                &|f| write!(f, "identifier '{}' is expected to be a type", name),
+                name.get_location(),
                 Severity::Error,
             ),
             TyperError::InvalidTypeForSwizzle(_) => write_message(

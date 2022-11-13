@@ -11,8 +11,8 @@ use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 /// Stores current context of active symbols while parsing
 #[derive(Debug)]
 pub struct SymbolTable {
-    reject_symbols: HashSet<ScopedName>,
-    assumed_symbols: Vec<ScopedName>,
+    reject_symbols: HashSet<ScopedIdentifier>,
+    assumed_symbols: Vec<ScopedIdentifier>,
 }
 
 /// Provide symbol table to another parser

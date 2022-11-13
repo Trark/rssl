@@ -18,6 +18,7 @@ pub enum VariableExpression {
     Constant(ir::ConstantBufferId, String, ir::Type),
     Function(UnresolvedFunction),
     Method(UnresolvedFunction),
+    Type(ir::Type),
 }
 
 /// Set of overloaded functions
@@ -64,8 +65,8 @@ impl ToErrorType for TypedExpression {
     }
 }
 
-fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression> {
-    Ok(match context.find_variable(name)? {
+fn parse_identifier(id: &ast::ScopedIdentifier, context: &Context) -> TyperResult<TypedExpression> {
+    Ok(match context.find_identifier(id)? {
         VariableExpression::Local(var, ty) => {
             TypedExpression::Value(ir::Expression::Variable(var), ty.to_lvalue())
         }
@@ -80,6 +81,9 @@ fn parse_variable(name: &str, context: &Context) -> TyperResult<TypedExpression>
         }
         VariableExpression::Function(func) => TypedExpression::Function(func),
         VariableExpression::Method(func) => TypedExpression::MethodInternal(func),
+        VariableExpression::Type(ty) => {
+            return Err(TyperError::ExpectedExpressionReceivedType(id.clone(), ty))
+        }
     })
 }
 
@@ -940,7 +944,7 @@ fn parse_expr_unchecked(
 ) -> TyperResult<TypedExpression> {
     match *ast {
         ast::Expression::Literal(ref lit) => Ok(parse_literal(lit)),
-        ast::Expression::Variable(ref s) => parse_variable(s, context),
+        ast::Expression::Identifier(ref id) => parse_identifier(id, context),
         ast::Expression::UnaryOperation(ref op, ref expr) => parse_expr_unaryop(op, expr, context),
         ast::Expression::BinaryOperation(ref op, ref lhs, ref rhs) => {
             parse_expr_binop(op, lhs, rhs, context)
@@ -1010,6 +1014,11 @@ fn parse_expr_unchecked(
             Ok(TypedExpression::Value(node, ety))
         }
         ast::Expression::Member(ref composite, ref member) => {
+            // We do not currently support checking complex identifier patterns
+            assert_eq!(member.base, ast::ScopedIdentifierBase::Relative);
+            assert_eq!(member.identifiers.len(), 1);
+            let member = &member.identifiers[0].node;
+
             let composite_texp = parse_expr_internal(composite, context)?;
             let composite_pt = composite_texp.to_error_type();
             let (composite_ir, composite_ty) = match composite_texp {

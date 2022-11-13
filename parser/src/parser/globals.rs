@@ -318,6 +318,28 @@ fn test_global_variable() {
             }]),
         },
     );
+
+    globalvariable.check(
+        "S s = N::p;",
+        GlobalVariable {
+            global_type: GlobalType(
+                Type(TypeLayout::custom("S".loc(0)), TypeModifier::default()),
+                GlobalStorage::Extern,
+            ),
+            defs: Vec::from([GlobalVariableName {
+                name: "s".to_string().loc(2),
+                bind: Default::default(),
+                init: Some(Initializer::Expression(
+                    Expression::Identifier(ScopedIdentifier {
+                        base: ScopedIdentifierBase::Relative,
+                        identifiers: Vec::from(["N".to_string().loc(6), "p".to_string().loc(9)]),
+                    })
+                    .loc(6),
+                )),
+                slot: None,
+            }]),
+        },
+    );
 }
 
 #[test]

@@ -5,13 +5,19 @@ use std::collections::HashMap;
 
 const BASE_FUNCTION_ID: u32 = 164;
 
+fn make_id(name: &str) -> Located<ast::Expression> {
+    Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+        name,
+    )))
+}
+
 #[test]
 fn test_ast_pass() {
     let module = ast::Module {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
                 global_type: ast::Type::from_layout(ast::TypeLayout::Custom(
-                    ast::ScopedName::trivial("RWBuffer"),
+                    Box::new(ast::ScopedIdentifier::trivial("RWBuffer")),
                     Vec::from([Located::none(ast::Type::floatn(4))]),
                 ))
                 .into(),
@@ -85,7 +91,7 @@ fn test_ast_pass() {
                     )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,
-                        Box::new(Located::none(ast::Expression::Variable("x".to_string()))),
+                        Box::new(make_id("x")),
                         Box::new(Located::none(ast::Expression::Literal(
                             ast::Literal::Float(1.5f32),
                         ))),
@@ -110,19 +116,14 @@ fn test_ast_pass() {
                     )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,
-                        Box::new(Located::none(ast::Expression::Variable("a".to_string()))),
-                        Box::new(Located::none(ast::Expression::Variable("b".to_string()))),
+                        Box::new(make_id("a")),
+                        Box::new(make_id("b")),
                     ))),
-                    ast::Statement::If(
-                        Located::none(ast::Expression::Variable("b".to_string())),
-                        Box::new(ast::Statement::Empty),
-                    ),
+                    ast::Statement::If(make_id("b"), Box::new(ast::Statement::Empty)),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,
                         Box::new(Located::none(ast::Expression::ArraySubscript(
-                            Box::new(Located::none(ast::Expression::Variable(
-                                "g_myOutBuffer".to_string(),
-                            ))),
+                            Box::new(make_id("g_myOutBuffer")),
                             Box::new(Located::none(ast::Expression::Literal(ast::Literal::Int(
                                 0,
                             )))),
@@ -132,11 +133,9 @@ fn test_ast_pass() {
                         )))),
                     ))),
                     ast::Statement::Expression(Located::none(ast::Expression::Call(
-                        Box::new(Located::none(ast::Expression::Variable(
-                            "myFunc".to_string(),
-                        ))),
+                        Box::new(make_id("myFunc")),
                         vec![],
-                        vec![Located::none(ast::Expression::Variable("b".to_string()))],
+                        vec![make_id("b")],
                     ))),
                     ast::Statement::Var(ast::VarDef::one(
                         Located::none("testOut".to_string()),
@@ -153,13 +152,9 @@ fn test_ast_pass() {
                         }],
                     }),
                     ast::Statement::Expression(Located::none(ast::Expression::Call(
-                        Box::new(Located::none(ast::Expression::Variable(
-                            "outFunc".to_string(),
-                        ))),
+                        Box::new(make_id("outFunc")),
                         vec![],
-                        vec![Located::none(ast::Expression::Variable(
-                            "testOut".to_string(),
-                        ))],
+                        vec![make_id("testOut")],
                     ))),
                 ],
                 attributes: vec![ast::FunctionAttribute::numthreads(8, 8, 1)],
@@ -200,13 +195,9 @@ fn test_ast_to_ir() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
                 body: vec![
-                    ast::Statement::Expression(Located::none(ast::Expression::Variable(
-                        "g_myFour".to_string(),
-                    ))),
+                    ast::Statement::Expression(make_id("g_myFour")),
                     ast::Statement::Expression(Located::none(ast::Expression::Call(
-                        Box::new(Located::none(ast::Expression::Variable(
-                            "GroupMemoryBarrierWithGroupSync".to_string(),
-                        ))),
+                        Box::new(make_id("GroupMemoryBarrierWithGroupSync")),
                         Vec::new(),
                         Vec::new(),
                     ))),

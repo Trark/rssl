@@ -213,25 +213,49 @@ impl Context {
     }
 
     /// Find a variable with a given name in the current scope
-    pub fn find_variable(&self, name: &str) -> TyperResult<VariableExpression> {
-        let mut scope_index = self.current_scope;
+    pub fn find_identifier(&self, id: &ast::ScopedIdentifier) -> TyperResult<VariableExpression> {
+        let (leaf_name, scopes) = id.identifiers.split_last().unwrap();
+
+        let mut scope_index = match id.base {
+            ast::ScopedIdentifierBase::Relative => self.current_scope,
+            ast::ScopedIdentifierBase::Absolute => 0,
+        };
         let mut scopes_up = 0;
         loop {
-            if let Some(ve) =
-                self.find_variable_in_scope(&self.scopes[scope_index], name, scopes_up)
-            {
-                return Ok(ve);
-            }
-            if let Some(id) = self.scopes[scope_index].owning_struct {
-                match self.get_struct_member_expression(id, name) {
-                    Ok(StructMemberValue::Variable(ty)) => {
-                        return Ok(VariableExpression::Member(name.to_string(), ty));
+            if let Some(scope_index) = self.walk_into_scopes(scope_index, scopes) {
+                let scope = &self.scopes[scope_index];
+
+                // Try to find a matching variable in the searched scope
+                if let Some(ve) = self.find_variable_in_scope(scope, leaf_name, scopes_up) {
+                    return Ok(ve);
+                }
+
+                // If the scope is for a struct then struct members are possible identifiers
+                if let Some(id) = scope.owning_struct {
+                    match self.get_struct_member_expression(id, leaf_name) {
+                        Ok(StructMemberValue::Variable(ty)) => {
+                            return Ok(VariableExpression::Member(leaf_name.to_string(), ty));
+                        }
+                        Ok(StructMemberValue::Method(overloads)) => {
+                            // Resolve as a function as the method type / value are implicit
+                            return Ok(VariableExpression::Method(UnresolvedFunction {
+                                overloads,
+                            }));
+                        }
+                        Err(_) => {}
                     }
-                    Ok(StructMemberValue::Method(overloads)) => {
-                        // Resolve as a function as the method type / value are implicit
-                        return Ok(VariableExpression::Method(UnresolvedFunction { overloads }));
-                    }
-                    Err(_) => {}
+                }
+
+                // Try to find a type name in the searched scope
+                if let Some(ty) = scope.types.get(&leaf_name.node) {
+                    return Ok(VariableExpression::Type(ty.clone()));
+                }
+
+                // Try to find a template type name in the searched scope
+                if let Some(id) = scope.template_args.get(&leaf_name.node) {
+                    return Ok(VariableExpression::Type(ir::Type::from_layout(
+                        ir::TypeLayout::TemplateParam(*id),
+                    )));
                 }
             }
             scope_index = self.scopes[scope_index].parent_scope;
@@ -240,45 +264,19 @@ impl Context {
                 break;
             }
         }
-        Err(TyperError::UnknownIdentifier(name.to_string()))
+        Err(TyperError::UnknownIdentifier(id.clone()))
     }
 
     /// Find the id for a given type name
     pub fn find_type_id(
         &mut self,
-        name: &ast::ScopedName,
+        name: &ast::ScopedIdentifier,
         template_args: &[ir::Type],
     ) -> TyperResult<ir::Type> {
-        let (leaf_name, scopes) = name.0.split_last().unwrap();
-        let name_str = leaf_name.node.as_str();
-
-        // Attempt to find the type by walking up the scope
-        let ty = self.search_scopes(|mut s| {
-            // Walk through name scopes
-            // Currently only support namespaces - not struct name scopes
-            for scope in scopes {
-                if let Some(index) = s.namespaces.get(&scope.node) {
-                    s = &self.scopes[*index];
-                } else {
-                    return None;
-                }
-            }
-
-            // Evaluate leaf name
-
-            if let Some(ty) = s.types.get(name_str) {
-                return Some(ty.clone());
-            }
-            if let Some(id) = s.template_args.get(name_str) {
-                return Some(ir::Type::from_layout(ir::TypeLayout::TemplateParam(*id)));
-            }
-            None
-        });
-
-        // If we failed to find a type then return
-        let ty = match ty {
-            Some(ty) => ty,
-            None => return Err(TyperError::UnknownType(name.into())),
+        let ty = match self.find_identifier(name) {
+            Ok(VariableExpression::Type(ty)) => ty,
+            Ok(_) => return Err(TyperError::ExpectedTypeReceivedExpression(name.clone())),
+            Err(err) => return Err(err),
         };
 
         // Match template argument counts with type
@@ -327,6 +325,20 @@ impl Context {
                 }
             }
         }
+    }
+
+    /// Enter a chain of scopes from their names
+    fn walk_into_scopes(&self, start: ScopeIndex, names: &[Located<String>]) -> Option<ScopeIndex> {
+        let mut current = start;
+        for scope in names {
+            // Currently only support namespaces - not struct name scopes
+            if let Some(index) = self.scopes[current].namespaces.get(&scope.node) {
+                current = *index;
+            } else {
+                return None;
+            }
+        }
+        Some(current)
     }
 
     /// Find the type of a variable

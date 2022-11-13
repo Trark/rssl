@@ -38,6 +38,29 @@ fn expr_in_paren<'t>(
     Ok((input, Located::new(expr.to_node(), start.to_loc())))
 }
 
+/// Parse an identifier that may be a variable name
+pub fn parse_scoped_identifier(input: &[LexToken]) -> ParseResult<ScopedIdentifier> {
+    let (base, input) = match parse_token(Token::ScopeResolution)(input) {
+        Ok((input, _)) => (ScopedIdentifierBase::Absolute, input),
+        _ => (ScopedIdentifierBase::Relative, input),
+    };
+
+    let (input, identifiers) =
+        parse_list_nonempty(parse_token(Token::ScopeResolution), parse_variable_name)(input)?;
+
+    Ok((input, ScopedIdentifier { base, identifiers }))
+}
+
+/// Parse an identifier that may be a variable name to an expression
+fn parse_scoped_identifier_expr(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+    let (rest, id) = parse_scoped_identifier(input)?;
+
+    assert_ne!(input.len(), rest.len());
+    let loc = input[0].1;
+
+    Ok((rest, Located::new(Expression::Identifier(id), loc)))
+}
+
 /// Try to parse one of the base components of an expression
 fn expr_leaf<'t>(
     input: &'t [LexToken],
@@ -47,13 +70,7 @@ fn expr_leaf<'t>(
     let res = expr_in_paren(input, st);
 
     // Try to parse a variable identifier
-    let res = res.select(match parse_variable_name(input) {
-        Ok((input, name)) => Ok((
-            input,
-            Located::new(Expression::Variable(name.node), name.location),
-        )),
-        Err(err) => Err(err),
-    });
+    let res = res.select(parse_scoped_identifier_expr(input));
 
     // Try to parse a literal
     res.select(expr_literal(input))
@@ -85,7 +102,7 @@ fn expr_p1<'t>(
         Decrement,
         Call(Vec<Located<Type>>, Vec<Located<Expression>>),
         ArraySubscript(Located<Expression>),
-        Member(String),
+        Member(ScopedIdentifier),
     }
 
     fn expr_p1_increment(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
@@ -106,7 +123,7 @@ fn expr_p1<'t>(
 
     fn expr_p1_member(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
         let (input, _) = parse_token(Token::Period)(input)?;
-        let (input, member) = parse_variable_name(input)?;
+        let (input, member) = locate(parse_scoped_identifier)(input)?;
         Ok((
             input,
             Located::new(
@@ -683,13 +700,13 @@ fn parse_expression_no_seq_internal<'t>(
 }
 
 struct SymbolQueue {
-    added_symbols: Vec<ScopedName>,
-    added_symbols_expanded: Vec<Vec<ScopedName>>,
-    queue: Vec<Vec<ScopedName>>,
+    added_symbols: Vec<ScopedIdentifier>,
+    added_symbols_expanded: Vec<Vec<ScopedIdentifier>>,
+    queue: Vec<Vec<ScopedIdentifier>>,
 }
 
 impl SymbolQueue {
-    fn add_to_queue(&mut self, s: &ScopedName) {
+    fn add_to_queue(&mut self, s: &ScopedIdentifier) {
         if !self.added_symbols.contains(s) {
             self.added_symbols.push(s.clone());
 
@@ -1157,14 +1174,18 @@ fn test_ambiguous() {
             ConstrainedExpression {
                 expr: Expression::Cast(
                     Type::custom("a".loc(1)).loc(1),
-                    Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
+                    Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
                 )
                 .loc(0),
-                expected_type_names: Vec::from([ScopedName::trivial("a")]),
+                expected_type_names: Vec::from([ScopedIdentifier::trivial("a")]),
             },
             ConstrainedExpression {
-                expr: Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6))
-                    .loc(0),
+                expr: Expression::BinaryOperation(
+                    BinOp::Add,
+                    "a".as_bvar2(1, 0),
+                    "b".as_bvar2(7, 6),
+                )
+                .loc(0),
                 expected_type_names: Vec::from([]),
             },
         ]))),
@@ -1181,7 +1202,8 @@ fn test_ambiguous() {
                         UnaryOp::Plus,
                         Expression::Cast(
                             Type::custom("b".loc(7)).loc(7),
-                            Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar(12)).bloc(10),
+                            Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12))
+                                .bloc(10),
                         )
                         .bloc(6),
                     )
@@ -1189,41 +1211,42 @@ fn test_ambiguous() {
                 )
                 .loc(0),
                 expected_type_names: Vec::from([
-                    ScopedName::trivial("a"),
-                    ScopedName::trivial("b"),
+                    ScopedIdentifier::trivial("a"),
+                    ScopedIdentifier::trivial("b"),
                 ]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
-                    "a".as_bvar(0),
+                    "a".as_bvar2(1, 0),
                     Expression::Cast(
                         Type::custom("b".loc(7)).loc(7),
-                        Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar(12)).bloc(10),
+                        Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12)).bloc(10),
                     )
                     .bloc(6),
                 )
                 .loc(0),
-                expected_type_names: Vec::from([ScopedName::trivial("b")]),
+                expected_type_names: Vec::from([ScopedIdentifier::trivial("b")]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
                     Expression::Cast(
                         Type::custom("a".loc(1)).loc(1),
-                        Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar(6)).bloc(4),
+                        Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
                     )
                     .bloc(0),
-                    "c".as_bvar(12),
+                    "c".as_bvar2(13, 12),
                 )
                 .loc(0),
-                expected_type_names: Vec::from([ScopedName::trivial("a")]),
+                expected_type_names: Vec::from([ScopedIdentifier::trivial("a")]),
             },
             ConstrainedExpression {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
-                    Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(6)).bloc(0),
-                    "c".as_bvar(12),
+                    Expression::BinaryOperation(BinOp::Add, "a".as_bvar2(1, 0), "b".as_bvar2(7, 6))
+                        .bloc(0),
+                    "c".as_bvar2(13, 12),
                 )
                 .loc(0),
                 expected_type_names: Vec::from([]),
@@ -1281,18 +1304,75 @@ fn test_sizeof() {
 }
 
 #[test]
+fn test_member_access() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    // Simple member access
+    expr.check(
+        "s.x",
+        Expression::Member("s".as_bvar(0), "x".loc(2).into()).loc(0),
+    );
+
+    // Member access where the member name is a qualified name
+    expr.check(
+        "s.S::x",
+        Expression::Member(
+            "s".as_bvar(0),
+            ScopedIdentifier {
+                base: ScopedIdentifierBase::Relative,
+                identifiers: Vec::from(["S".to_string().loc(2), "x".to_string().loc(5)]),
+            },
+        )
+        .loc(0),
+    );
+
+    // Member access where the member name is a qualified name from the root namespace
+    expr.check(
+        "s.::S::x",
+        Expression::Member(
+            "s".as_bvar(0),
+            ScopedIdentifier {
+                base: ScopedIdentifierBase::Absolute,
+                identifiers: Vec::from(["S".to_string().loc(4), "x".to_string().loc(7)]),
+            },
+        )
+        .loc(0),
+    );
+
+    // Member access where the member name and object name are qualified names from the root namespace
+    expr.check(
+        "::M::s.::S::x",
+        Expression::Member(
+            Box::new(
+                Expression::Identifier(ScopedIdentifier {
+                    base: ScopedIdentifierBase::Absolute,
+                    identifiers: Vec::from(["M".to_string().loc(2), "s".to_string().loc(5)]),
+                })
+                .loc(0),
+            ),
+            ScopedIdentifier {
+                base: ScopedIdentifierBase::Absolute,
+                identifiers: Vec::from(["S".to_string().loc(9), "x".to_string().loc(12)]),
+            },
+        )
+        .loc(0),
+    );
+}
+
+#[test]
 fn test_method_call() {
     use test_support::*;
     let expr = ParserTester::new(parse_expression);
 
     expr.check(
         "array.Load",
-        Expression::Member("array".as_bvar(0), "Load".to_string()).loc(0),
+        Expression::Member("array".as_bvar(0), "Load".loc(6).into()).loc(0),
     );
     expr.check(
         "array.Load()",
         Expression::Call(
-            Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
+            Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
             vec![],
             vec![],
         )
@@ -1301,7 +1381,7 @@ fn test_method_call() {
     expr.check(
         " array . Load ( ) ",
         Expression::Call(
-            Expression::Member("array".as_bvar(1), "Load".to_string()).bloc(1),
+            Expression::Member("array".as_bvar(1), "Load".loc(9).into()).bloc(1),
             vec![],
             vec![],
         )
@@ -1310,7 +1390,7 @@ fn test_method_call() {
     expr.check(
         "array.Load(a)",
         Expression::Call(
-            Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
+            Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
             vec![],
             vec!["a".as_var(11)],
         )
@@ -1319,7 +1399,7 @@ fn test_method_call() {
     expr.check(
         "array.Load(a,b)",
         Expression::Call(
-            Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
+            Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
             vec![],
             vec!["a".as_var(11), "b".as_var(13)],
         )
@@ -1328,7 +1408,7 @@ fn test_method_call() {
     expr.check(
         "array.Load(a, b)",
         Expression::Call(
-            Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
+            Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
             vec![],
             vec!["a".as_var(11), "b".as_var(14)],
         )
@@ -1338,7 +1418,7 @@ fn test_method_call() {
     expr.check(
         "array.Load<float4>(i * sizeof(float4))",
         Expression::Call(
-            Expression::Member("array".as_bvar(0), "Load".to_string()).bloc(0),
+            Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
             vec![Type::floatn(4).loc(11)],
             vec![Expression::BinaryOperation(
                 BinOp::Multiply,

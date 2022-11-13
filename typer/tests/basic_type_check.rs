@@ -399,10 +399,19 @@ fn check_namespaces() {
     // Check we can use values in the previous opening of the same namespace
     check_types("namespace N { int a; } namespace N { void f() { a; } }");
 
-    // Check we can't use values in another namespace
+    // Check we can not access values in another namespace
     check_fail("namespace M { int a; } namespace N { void f() { a; } }");
 
-    // Check we can access a type name inside a namespace
+    // Check we can use values in another namespace by qualifying the name
+    check_types("namespace M { int a; } namespace N { void f() { M::a; } }");
+
+    // Check we can use values in another namespace by qualifying the name - with rooted name
+    check_types("namespace M { int a; } namespace N { void f() { ::M::a; } }");
+
+    // Check we can not access a type name inside a namespace
+    check_fail("namespace N { struct S {}; } StructuredBuffer<S> g_buffer;");
+
+    // Check we can access a type name inside a namespace by qualifying the name
     check_types("namespace N { struct S {}; } StructuredBuffer<N::S> g_buffer;");
 
     // Check we can use namespaced structs in various global buffers

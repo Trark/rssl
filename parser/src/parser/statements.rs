@@ -392,10 +392,10 @@ fn test_local_variables() {
         Statement::Var(VarDef::one_with_expr(
             "x".to_string().loc(9),
             Type::from_layout(TypeLayout::Custom(
-                ScopedName(Vec::from([
-                    "My".to_string().loc(0),
-                    "Type".to_string().loc(4),
-                ])),
+                Box::new(ScopedIdentifier {
+                    base: ScopedIdentifierBase::Relative,
+                    identifiers: Vec::from(["My".to_string().loc(0), "Type".to_string().loc(4)]),
+                }),
                 Vec::new(),
             ))
             .into(),

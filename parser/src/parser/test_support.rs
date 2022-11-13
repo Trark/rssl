@@ -36,15 +36,28 @@ impl TestLocationExt for &str {}
 pub trait TestVariableExt {
     fn as_var(self, offset: u32) -> Located<Expression>;
     fn as_bvar(self, offset: u32) -> Box<Located<Expression>>;
+    fn as_bvar2(self, inner_offset: u32, outer_offset: u32) -> Box<Located<Expression>>;
 }
 
 impl TestVariableExt for &str {
     fn as_var(self, offset: u32) -> Located<Expression> {
-        Expression::Variable(self.to_string()).loc(offset)
+        Expression::Identifier(ScopedIdentifier {
+            base: ScopedIdentifierBase::Relative,
+            identifiers: Vec::from([self.to_string().loc(offset)]),
+        })
+        .loc(offset)
     }
 
     fn as_bvar(self, offset: u32) -> Box<Located<Expression>> {
-        Expression::Variable(self.to_string()).bloc(offset)
+        self.as_bvar2(offset, offset)
+    }
+
+    fn as_bvar2(self, inner_offset: u32, outer_offset: u32) -> Box<Located<Expression>> {
+        Expression::Identifier(ScopedIdentifier {
+            base: ScopedIdentifierBase::Relative,
+            identifiers: Vec::from([self.to_string().loc(inner_offset)]),
+        })
+        .bloc(outer_offset)
     }
 }
 
