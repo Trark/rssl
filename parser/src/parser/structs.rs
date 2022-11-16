@@ -80,7 +80,7 @@ fn test_struct() {
             name: "MyStruct".to_string().loc(7),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
-                ty: Type::uint(),
+                ty: Type::from("uint".loc(18)),
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
                     bind: Default::default(),
@@ -95,7 +95,7 @@ fn test_struct() {
             name: "MyStruct".to_string().loc(7),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
-                ty: Type::uint(),
+                ty: Type::from("uint".loc(18)),
                 defs: vec![
                     StructMemberName {
                         name: "a".to_string(),
@@ -116,7 +116,7 @@ fn test_struct() {
             name: "MyStruct".to_string().loc(7),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
-                ty: Type::uint(),
+                ty: Type::from("uint".loc(18)),
                 defs: vec![
                     StructMemberName {
                         name: "a".to_string(),
@@ -143,7 +143,7 @@ fn test_struct() {
             template_params: TemplateParamList(Vec::new()),
             members: vec![
                 StructEntry::Variable(StructMember {
-                    ty: Type::uint(),
+                    ty: Type::from("uint".loc(18)),
                     defs: vec![StructMemberName {
                         name: "a".to_string(),
                         bind: Default::default(),
@@ -151,7 +151,7 @@ fn test_struct() {
                 }),
                 StructEntry::Method(FunctionDefinition {
                     name: "f".to_string().loc(31),
-                    returntype: Type::void().into(),
+                    returntype: Type::from("void".loc(26)).into(),
                     template_params: TemplateParamList(Vec::new()),
                     params: Vec::new(),
                     body: Vec::new(),
@@ -167,7 +167,7 @@ fn test_struct() {
             name: "MyStruct".to_string().loc(28),
             template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
             members: vec![StructEntry::Variable(StructMember {
-                ty: Type::custom("T".loc(39)),
+                ty: Type::from("T".loc(39)),
                 defs: vec![
                     StructMemberName {
                         name: "a".to_string(),

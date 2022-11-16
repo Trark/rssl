@@ -6,8 +6,8 @@ use rssl_text::Located;
 
 /// Attempt to get an ir type from an ast type
 pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type> {
-    let ast::Type(ast_tyl, direct_modifier) = ty;
-    let ir::Type(ir_tyl, base_modifier) = parse_typelayout(ast_tyl, context)?;
+    let direct_modifier = ty.modifier;
+    let ir::Type(ir_tyl, base_modifier) = parse_typelayout(&ty.layout, context)?;
     // Matrix ordering not properly handled
     assert_eq!(base_modifier.row_order, direct_modifier.row_order);
     let modifier = ir::TypeModifier {
@@ -22,30 +22,178 @@ pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type
 /// Attempt to get an ir type layout from an ast type layout
 pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperResult<ir::Type> {
     Ok(match *ty {
-        ast::TypeLayout::Void => ir::Type::void(),
-        ast::TypeLayout::Scalar(scalar) => ir::Type::from_scalar(scalar),
-        ast::TypeLayout::Vector(scalar, x) => ir::Type::from_vector(scalar, x),
-        ast::TypeLayout::Matrix(scalar, x, y) => ir::Type::from_matrix(scalar, x, y),
-        ast::TypeLayout::Custom(ref name, ref args) => {
+        ast::TypeLayout(ref name, ref args) => {
+            // Translate type arguments first
             let mut ir_args = Vec::with_capacity(args.len());
-            for arg in args {
-                ir_args.push(parse_type(arg, context)?);
+            for arg in args.as_ref() {
+                ir_args.push(parse_expression_or_type(arg, context)?);
             }
 
-            // Special case all the object types for now
+            // Special case all the built in types
+
+            if let Some(ty) = parse_voidtype(name, &ir_args) {
+                return Ok(ir::Type::from_layout(ty));
+            }
+
+            if let Some(ty) = parse_data_layout(name, &ir_args) {
+                return Ok(ir::Type::from_layout(ty));
+            }
+
             if let Some(object_type) = parse_object_type(name, &ir_args) {
                 return Ok(ir::Type::from_layout(object_type));
             }
 
-            // Translate type arguments first
-            let mut ir_args = Vec::with_capacity(args.len());
-            for arg in args {
-                ir_args.push(parse_type(arg, context)?);
-            }
-
+            // Find the type from the scope stack
             context.find_type_id(name, &ir_args)?
         }
     })
+}
+
+/// Attempt to get an ir type or expression from an ast type or expression
+pub fn parse_expression_or_type(
+    arg: &ast::ExpressionOrType,
+    context: &mut Context,
+) -> TyperResult<ir::Type> {
+    match arg {
+        ast::ExpressionOrType::Type(ast_ty) => {
+            let ir_ty = parse_type(ast_ty, context)?;
+            Ok(ir_ty)
+        }
+        ast::ExpressionOrType::Expression(_) => todo!("Non-type arguments"),
+        ast::ExpressionOrType::Either(_, ast_ty) => {
+            let ir_ty = parse_type(ast_ty, context)?;
+            Ok(ir_ty)
+        }
+    }
+}
+
+enum PrimitiveTypeError {
+    UnexpectedCharacter,
+    EndOfStream,
+}
+
+// Parse scalar type as part of a string
+fn parse_scalartype_str(input: &[u8]) -> Result<(&[u8], ir::ScalarType), PrimitiveTypeError> {
+    match input {
+        [b'b', b'o', b'o', b'l', rest @ ..] => Ok((rest, ir::ScalarType::Bool)),
+        [b'i', b'n', b't', rest @ ..] => Ok((rest, ir::ScalarType::Int)),
+        [b'u', b'i', b'n', b't', rest @ ..] => Ok((rest, ir::ScalarType::UInt)),
+        [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Ok((rest, ir::ScalarType::UInt)),
+        [b'h', b'a', b'l', b'f', rest @ ..] => Ok((rest, ir::ScalarType::Half)),
+        [b'f', b'l', b'o', b'a', b't', rest @ ..] => Ok((rest, ir::ScalarType::Float)),
+        [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Ok((rest, ir::ScalarType::Double)),
+        _ => Err(PrimitiveTypeError::UnexpectedCharacter),
+    }
+}
+
+// Parse data type as part of a string
+fn parse_datalayout_str(typename: &str) -> Option<ir::TypeLayout> {
+    fn digit(input: &[u8]) -> Result<(&[u8], u32), PrimitiveTypeError> {
+        // Handle end of stream
+        if input.is_empty() {
+            return Err(PrimitiveTypeError::EndOfStream);
+        };
+
+        // Match on the next character
+        let n = match input[0] {
+            b'1' => 1,
+            b'2' => 2,
+            b'3' => 3,
+            b'4' => 4,
+            _ => {
+                // Not a digit
+                return Err(PrimitiveTypeError::UnexpectedCharacter);
+            }
+        };
+
+        // Success
+        Ok((&input[1..], n))
+    }
+
+    fn parse_str(input: &[u8]) -> Result<(&[u8], ir::TypeLayout), PrimitiveTypeError> {
+        let (rest, ty) = parse_scalartype_str(input)?;
+        if rest.is_empty() {
+            return Ok((&[], ir::TypeLayout::Scalar(ty)));
+        }
+
+        let (rest, x) = digit(rest)?;
+        if rest.is_empty() {
+            return Ok((&[], ir::TypeLayout::Vector(ty, x)));
+        }
+
+        let rest = match rest.first() {
+            Some(b'x') => &rest[1..],
+            _ => return Err(PrimitiveTypeError::UnexpectedCharacter),
+        };
+
+        let (rest, y) = digit(rest)?;
+        if rest.is_empty() {
+            return Ok((&[], ir::TypeLayout::Matrix(ty, x, y)));
+        }
+
+        Err(PrimitiveTypeError::UnexpectedCharacter)
+    }
+
+    match parse_str(typename[..].as_bytes()) {
+        Ok((rest, ty)) => {
+            assert_eq!(rest.len(), 0);
+            Some(ty)
+        }
+        Err(_) => None,
+    }
+}
+
+#[test]
+fn test_parse_datalayout_str() {
+    assert_eq!(
+        parse_datalayout_str("float"),
+        Some(ir::TypeLayout::Scalar(ir::ScalarType::Float))
+    );
+    assert_eq!(
+        parse_datalayout_str("uint3"),
+        Some(ir::TypeLayout::Vector(ir::ScalarType::UInt, 3))
+    );
+    assert_eq!(
+        parse_datalayout_str("bool2x3"),
+        Some(ir::TypeLayout::Matrix(ir::ScalarType::Bool, 2, 3))
+    );
+
+    assert_eq!(parse_datalayout_str(""), None);
+    assert_eq!(parse_datalayout_str("float5"), None);
+    assert_eq!(parse_datalayout_str("float2x"), None);
+}
+
+/// Parse a type layout for a basic data type
+pub fn parse_data_layout(
+    name: &ast::ScopedIdentifier,
+    template_args: &[ir::Type],
+) -> Option<ir::TypeLayout> {
+    if let Some(name) = name.try_trivial() {
+        if template_args.is_empty() {
+            parse_datalayout_str(name.as_str())
+        } else {
+            // TODO: vector<> and matrix<>
+            None
+        }
+    } else {
+        None
+    }
+}
+
+/// Parse the void type
+fn parse_voidtype(
+    name: &ast::ScopedIdentifier,
+    template_args: &[ir::Type],
+) -> Option<ir::TypeLayout> {
+    if let Some(name) = name.try_trivial() {
+        if name.node == "void" && template_args.is_empty() {
+            Some(ir::TypeLayout::Void)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
 }
 
 /// Attempt to turn an ast type into one of the built in object types

@@ -80,14 +80,14 @@ fn test_struct() {
         template_params: TemplateParamList(Vec::new()),
         members: vec![
             StructEntry::Variable(StructMember {
-                ty: Type::uint(),
+                ty: Type::from("uint".loc(18)),
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
                     bind: Default::default(),
                 }],
             }),
             StructEntry::Variable(StructMember {
-                ty: Type::float(),
+                ty: Type::from("float".loc(26)),
                 defs: vec![StructMemberName {
                     name: "b".to_string(),
                     bind: Default::default(),
@@ -109,13 +109,13 @@ fn test_function() {
     let test_func_ast = FunctionDefinition {
         name: "func".to_string().loc(6),
         returntype: FunctionReturn {
-            return_type: Type::float(),
+            return_type: Type::from("float".loc(0)),
             semantic: Some(Semantic::Depth),
         },
         template_params: TemplateParamList(Vec::new()),
         params: vec![FunctionParam {
             name: "x".to_string().loc(17),
-            param_type: Type::float().into(),
+            param_type: Type::from("float".loc(11)).into(),
             bind: Default::default(),
             semantic: None,
         }],
@@ -134,11 +134,11 @@ fn test_function() {
         "[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }",
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string().loc(29),
-            returntype: Type::void().into(),
+            returntype: Type::from("void".loc(24)).into(),
             template_params: TemplateParamList(Vec::new()),
             params: vec![FunctionParam {
                 name: "x".to_string().loc(40),
-                param_type: Type::float().into(),
+                param_type: Type::from("float".loc(34)).into(),
                 bind: Default::default(),
                 semantic: None,
             }],
@@ -201,7 +201,7 @@ fn test_namespace() {
                     Vec::from([RootDefinition::Function(FunctionDefinition {
                         name: "f".to_string().loc(62),
                         returntype: FunctionReturn {
-                            return_type: Type::void(),
+                            return_type: Type::from("void".loc(57)),
                             semantic: None,
                         },
                         template_params: TemplateParamList(Vec::new()),

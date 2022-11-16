@@ -145,7 +145,7 @@ fn test_vardef() {
 
     vardef.check(
         "uint x",
-        VarDef::one("x".to_string().loc(5), Type::uint().into()),
+        VarDef::one("x".to_string().loc(5), Type::from("uint".loc(0)).into()),
     );
 }
 
@@ -174,13 +174,16 @@ fn test_init_statement() {
     init_statement.check("x", InitStatement::Expression("x".as_var(0)));
     init_statement.check(
         "uint x",
-        InitStatement::Declaration(VarDef::one("x".to_string().loc(5), Type::uint().into())),
+        InitStatement::Declaration(VarDef::one(
+            "x".to_string().loc(5),
+            Type::from("uint".loc(0)).into(),
+        )),
     );
     init_statement.check(
         "uint x = y",
         InitStatement::Declaration(VarDef::one_with_expr(
             "x".to_string().loc(5),
-            Type::uint().into(),
+            Type::from("uint".loc(0)).into(),
             "y".as_var(9),
         )),
     );
@@ -354,14 +357,14 @@ fn test_local_variables() {
         "uint x = y;",
         Statement::Var(VarDef::one_with_expr(
             "x".to_string().loc(5),
-            Type::uint().into(),
+            Type::from("uint".loc(0)).into(),
             "y".as_var(9),
         )),
     );
     statement.check(
         "float x[3], y[2][4];",
         Statement::Var(VarDef {
-            local_type: Type::from_layout(TypeLayout::float()).into(),
+            local_type: Type::from("float".loc(0)).into(),
             defs: Vec::from([
                 LocalVariableName {
                     name: "x".to_string().loc(6),
@@ -391,12 +394,12 @@ fn test_local_variables() {
         "My::Type x = y;",
         Statement::Var(VarDef::one_with_expr(
             "x".to_string().loc(9),
-            Type::from_layout(TypeLayout::Custom(
-                Box::new(ScopedIdentifier {
+            Type::from_layout(TypeLayout(
+                ScopedIdentifier {
                     base: ScopedIdentifierBase::Relative,
                     identifiers: Vec::from(["My".to_string().loc(0), "Type".to_string().loc(4)]),
-                }),
-                Vec::new(),
+                },
+                Default::default(),
             ))
             .into(),
             "y".as_var(13),
@@ -512,7 +515,7 @@ fn test_for() {
         Statement::For(
             InitStatement::Declaration(VarDef::one_with_expr(
                 "i".to_string().loc(10),
-                Type::uint().into(),
+                Type::from("uint".loc(5)).into(),
                 Expression::Literal(Literal::UntypedInt(0)).loc(14),
             )),
             "i".as_var(17),

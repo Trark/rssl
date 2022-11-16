@@ -119,7 +119,7 @@ fn test_function_param() {
         "float x",
         FunctionParam {
             name: "x".to_string().loc(6),
-            param_type: Type::float().into(),
+            param_type: Type::from("float".loc(0)).into(),
             bind: Default::default(),
             semantic: None,
         },
@@ -128,7 +128,7 @@ fn test_function_param() {
         "in float x",
         FunctionParam {
             name: "x".to_string().loc(9),
-            param_type: ParamType(Type::float(), InputModifier::In, None),
+            param_type: ParamType(Type::from("float".loc(3)), InputModifier::In, None),
             bind: Default::default(),
             semantic: None,
         },
@@ -137,7 +137,7 @@ fn test_function_param() {
         "out float x",
         FunctionParam {
             name: "x".to_string().loc(10),
-            param_type: ParamType(Type::float(), InputModifier::Out, None),
+            param_type: ParamType(Type::from("float".loc(4)), InputModifier::Out, None),
             bind: Default::default(),
             semantic: None,
         },
@@ -146,7 +146,7 @@ fn test_function_param() {
         "inout float x",
         FunctionParam {
             name: "x".to_string().loc(12),
-            param_type: ParamType(Type::float(), InputModifier::InOut, None),
+            param_type: ParamType(Type::from("float".loc(6)), InputModifier::InOut, None),
             bind: Default::default(),
             semantic: None,
         },
@@ -155,7 +155,7 @@ fn test_function_param() {
         "in uint vertex_id : SV_VertexID",
         FunctionParam {
             name: "vertex_id".to_string().loc(8),
-            param_type: ParamType(Type::uint(), InputModifier::In, None),
+            param_type: ParamType(Type::from("uint".loc(3)), InputModifier::In, None),
             bind: Default::default(),
             semantic: Some(Semantic::VertexId),
         },
@@ -164,7 +164,7 @@ fn test_function_param() {
         "in float2 uv : TEXCOORD",
         FunctionParam {
             name: "uv".to_string().loc(10),
-            param_type: ParamType(Type::floatn(2), InputModifier::In, None),
+            param_type: ParamType(Type::from("float2".loc(3)), InputModifier::In, None),
             bind: Default::default(),
             semantic: Some(Semantic::User("TEXCOORD".to_string())),
         },
@@ -173,7 +173,7 @@ fn test_function_param() {
         "float v[4]",
         FunctionParam {
             name: "v".to_string().loc(6),
-            param_type: Type::float().into(),
+            param_type: Type::from("float".loc(0)).into(),
             bind: VariableBind(Vec::from([Some(
                 Expression::Literal(Literal::UntypedInt(4)).loc(8),
             )])),
@@ -223,13 +223,13 @@ fn test_template_function() {
         FunctionDefinition {
             name: "f".to_string().loc(26),
             returntype: FunctionReturn {
-                return_type: Type::void(),
+                return_type: Type::from("void".loc(21)),
                 semantic: None,
             },
             template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
             params: vec![FunctionParam {
                 name: "arg".to_string().loc(30),
-                param_type: Type::custom("T".loc(28)).into(),
+                param_type: Type::from("T".loc(28)).into(),
                 bind: Default::default(),
                 semantic: None,
             }],

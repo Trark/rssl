@@ -46,7 +46,7 @@ fn test_constant_variable() {
 
     let test_cbuffervar_str = "float4x4 wvp;";
     let test_cbuffervar_ast = ConstantVariable {
-        ty: Type::float4x4(),
+        ty: Type::from("float4x4".loc(0)),
         defs: Vec::from([ConstantVariableName {
             name: "wvp".to_string(),
             bind: Default::default(),
@@ -140,7 +140,7 @@ fn test_global_variable() {
     globalvariable.check(
         "Buffer g_myBuffer : register(t1);",
         GlobalVariable {
-            global_type: Type::from_layout(TypeLayout::custom("Buffer".loc(0))).into(),
+            global_type: Type::from("Buffer".loc(0)).into(),
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(7),
                 bind: Default::default(),
@@ -153,9 +153,9 @@ fn test_global_variable() {
     globalvariable.check(
         "Buffer<uint4> g_myBuffer : register(t1);",
         GlobalVariable {
-            global_type: Type::from_layout(TypeLayout::custom_templated(
+            global_type: Type::from_layout(TypeLayout::with_template_types(
                 "Buffer".loc(0),
-                Vec::from([Type::from_layout(TypeLayout::from_vector(ScalarType::UInt, 4)).loc(7)]),
+                &[ExpressionOrType::from("uint4".loc(7))],
             ))
             .into(),
             defs: Vec::from([GlobalVariableName {
@@ -170,9 +170,19 @@ fn test_global_variable() {
     globalvariable.check(
         "Buffer<vector<int, 4>> g_myBuffer : register(t1);",
         GlobalVariable {
-            global_type: Type::from_layout(TypeLayout::custom_templated(
+            global_type: Type::from_layout(TypeLayout::with_template_types(
                 "Buffer".loc(0),
-                Vec::from([Type::from_layout(TypeLayout::from_vector(ScalarType::Int, 4)).loc(7)]),
+                &[ExpressionOrType::Type(Type::from_layout(
+                    TypeLayout::with_template_types(
+                        "vector".loc(7),
+                        &[
+                            ExpressionOrType::from("int".loc(14)),
+                            ExpressionOrType::Expression(
+                                Expression::Literal(Literal::UntypedInt(4)).loc(19),
+                            ),
+                        ],
+                    ),
+                ))],
             ))
             .into(),
             defs: Vec::from([GlobalVariableName {
@@ -187,9 +197,9 @@ fn test_global_variable() {
     globalvariable.check(
         "StructuredBuffer<CustomType> g_myBuffer : register(t1);",
         GlobalVariable {
-            global_type: Type::from_layout(TypeLayout::custom_templated(
+            global_type: Type::from_layout(TypeLayout::with_template_types(
                 "StructuredBuffer".loc(0),
-                Vec::from([Type::from_layout(TypeLayout::custom("CustomType".loc(17))).loc(17)]),
+                &[ExpressionOrType::from("CustomType".loc(17))],
             ))
             .into(),
             defs: Vec::from([GlobalVariableName {
@@ -205,13 +215,14 @@ fn test_global_variable() {
         "static const int c_numElements = 4;",
         GlobalVariable {
             global_type: GlobalType(
-                Type(
-                    TypeLayout::int(),
-                    TypeModifier {
+                Type {
+                    layout: TypeLayout::from("int".loc(13)),
+                    modifier: TypeModifier {
                         is_const: true,
                         ..TypeModifier::default()
                     },
-                ),
+                    location: SourceLocation::first().offset(7),
+                },
                 GlobalStorage::Static,
             ),
             defs: Vec::from([GlobalVariableName {
@@ -229,13 +240,14 @@ fn test_global_variable() {
         "static const int data[4] = { 0, 1, 2, 3 };",
         GlobalVariable {
             global_type: GlobalType(
-                Type(
-                    TypeLayout::int(),
-                    TypeModifier {
+                Type {
+                    layout: TypeLayout::from("int".loc(13)),
+                    modifier: TypeModifier {
                         is_const: true,
                         ..TypeModifier::default()
                     },
-                ),
+                    location: SourceLocation::first().offset(7),
+                },
                 GlobalStorage::Static,
             ),
             defs: Vec::from([GlobalVariableName {
@@ -257,7 +269,7 @@ fn test_global_variable() {
     globalvariable.check(
         "groupshared float4 local_data[32];",
         GlobalVariable {
-            global_type: GlobalType(Type::floatn(4), GlobalStorage::GroupShared),
+            global_type: GlobalType(Type::from("float4".loc(12)), GlobalStorage::GroupShared),
             defs: Vec::from([GlobalVariableName {
                 name: "local_data".to_string().loc(19),
                 bind: VariableBind(Vec::from([Some(
@@ -273,13 +285,14 @@ fn test_global_variable() {
         "static const int data[2][3] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };",
         GlobalVariable {
             global_type: GlobalType(
-                Type(
-                    TypeLayout::int(),
-                    TypeModifier {
+                Type {
+                    layout: TypeLayout::from("int".loc(13)),
+                    modifier: TypeModifier {
                         is_const: true,
                         ..TypeModifier::default()
                     },
-                ),
+                    location: SourceLocation::first().offset(7),
+                },
                 GlobalStorage::Static,
             ),
             defs: Vec::from([GlobalVariableName {
@@ -322,10 +335,7 @@ fn test_global_variable() {
     globalvariable.check(
         "S s = N::p;",
         GlobalVariable {
-            global_type: GlobalType(
-                Type(TypeLayout::custom("S".loc(0)), TypeModifier::default()),
-                GlobalStorage::Extern,
-            ),
+            global_type: GlobalType(Type::from("S".loc(0)), GlobalStorage::Extern),
             defs: Vec::from([GlobalVariableName {
                 name: "s".to_string().loc(2),
                 bind: Default::default(),
@@ -353,7 +363,7 @@ fn test_constant_buffer() {
             name: "globals".to_string().loc(8),
             slot: None,
             members: Vec::from([ConstantVariable {
-                ty: Type::float4x4(),
+                ty: Type::from("float4x4".loc(18)),
                 defs: Vec::from([ConstantVariableName {
                     name: "wvp".to_string(),
                     bind: Default::default(),
@@ -370,7 +380,7 @@ fn test_constant_buffer() {
             slot: Some(ConstantSlot(12)),
             members: Vec::from([
                 ConstantVariable {
-                    ty: Type::float4x4(),
+                    ty: Type::from("float4x4".loc(34)),
                     defs: vec![ConstantVariableName {
                         name: "wvp".to_string(),
                         bind: Default::default(),
@@ -378,7 +388,7 @@ fn test_constant_buffer() {
                     }],
                 },
                 ConstantVariable {
-                    ty: Type::float(),
+                    ty: Type::from("float".loc(48)),
                     defs: Vec::from([
                         ConstantVariableName {
                             name: "x".to_string(),

@@ -97,9 +97,9 @@ pub enum ErrorType {
 
 impl From<&ast::ScopedIdentifier> for ErrorType {
     fn from(name: &ast::ScopedIdentifier) -> Self {
-        ErrorType::Untyped(ast::Type::from_layout(ast::TypeLayout::Custom(
-            Box::new(name.clone()),
-            Vec::new(),
+        ErrorType::Untyped(ast::Type::from_layout(ast::TypeLayout(
+            name.clone(),
+            Default::default(),
         )))
     }
 }

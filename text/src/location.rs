@@ -240,6 +240,12 @@ impl std::fmt::Display for FileLocation {
 #[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
 pub struct StreamLocation(pub u32);
 
+/// Types implementing `Locate` are able to fetch the source location that the node was parsed from
+pub trait Locate {
+    /// Retrieve the source location that this node is represented by
+    fn get_location(&self) -> SourceLocation;
+}
+
 /// Wrapper to pair a node with a source location
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 pub struct Located<T> {
@@ -267,6 +273,12 @@ impl<T> Located<T> {
             node,
             location: SourceLocation::UNKNOWN,
         }
+    }
+}
+
+impl<T> Locate for Located<T> {
+    fn get_location(&self) -> SourceLocation {
+        self.location
     }
 }
 

@@ -13,6 +13,21 @@ use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 pub struct SymbolTable {
     reject_symbols: HashSet<ScopedIdentifier>,
     assumed_symbols: Vec<ScopedIdentifier>,
+    terminator: Terminator,
+}
+
+/// When the expression parsing has to end
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Terminator {
+    /// Expression has no explicit end point
+    Standard,
+
+    /// Expression is in a function call or array subscript so must move to next expression on comma
+    /// Terminating ) or ] does not need ignoring so these cases are the same
+    Sequence,
+
+    /// Expression is in a type list so must move to next expression on comma or right angle bracket
+    TypeList,
 }
 
 /// Provide symbol table to another parser
@@ -162,7 +177,7 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 
 // Implement parsing for type names
 mod types;
-use types::{parse_data_layout, parse_template_params, parse_type};
+use types::{parse_template_params, parse_type};
 
 fn parse_arraydim(input: &[LexToken]) -> ParseResult<Option<Located<Expression>>> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;

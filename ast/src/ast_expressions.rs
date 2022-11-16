@@ -1,6 +1,5 @@
 use crate::ast_types::Type;
-use crate::ast_types::TypeLayout;
-use rssl_text::{Located, SourceLocation};
+use rssl_text::{Locate, Located, SourceLocation};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
@@ -15,17 +14,18 @@ pub enum Expression {
     ),
     ArraySubscript(Box<Located<Expression>>, Box<Located<Expression>>),
     Member(Box<Located<Expression>>, ScopedIdentifier),
+    /// A function call or constructor invocation
+    /// In the constructor case the function to invoke is an identifier for a type name
     Call(
         /// Function to invoke
         Box<Located<Expression>>,
         /// Template arguments
-        Vec<Located<Type>>,
+        Vec<ExpressionOrType>,
         /// Arguments
         Vec<Located<Expression>>,
     ),
-    Constructor(TypeLayout, Vec<Located<Expression>>),
-    Cast(Located<Type>, Box<Located<Expression>>),
-    SizeOf(Located<Type>),
+    Cast(Type, Box<Located<Expression>>),
+    SizeOf(Type),
     /// Set of expressions which may be selected depending on known type names
     AmbiguousParseBranch(Vec<ConstrainedExpression>),
 }
@@ -100,6 +100,19 @@ pub enum BinOp {
     Sequence,
 }
 
+/// Either an expression or a type
+#[derive(PartialEq, Clone)]
+pub enum ExpressionOrType {
+    /// Fragment must be an expression
+    Expression(Located<Expression>),
+
+    /// Fragment must be a type
+    Type(Type),
+
+    /// Fragment may be a type or an expression depending on context
+    Either(Located<Expression>, Type),
+}
+
 /// Expression which can only be activated when certain symbols are types
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstrainedExpression {
@@ -128,17 +141,29 @@ impl ScopedIdentifier {
         }
     }
 
-    /// Get the location of the leaf part of the identifier
-    pub fn get_location(&self) -> SourceLocation {
-        self.identifiers.last().unwrap().location
-    }
-
     /// Remove location information from a scoped name
     pub fn unlocate(mut self) -> ScopedIdentifier {
         for name in &mut self.identifiers {
             name.location = rssl_text::SourceLocation::UNKNOWN;
         }
         self
+    }
+}
+
+impl Locate for ScopedIdentifier {
+    /// Get the location of the leaf part of the identifier
+    fn get_location(&self) -> SourceLocation {
+        self.identifiers.last().unwrap().location
+    }
+}
+
+impl Locate for ExpressionOrType {
+    fn get_location(&self) -> SourceLocation {
+        match self {
+            ExpressionOrType::Expression(expr) => expr.get_location(),
+            ExpressionOrType::Type(ty) => ty.get_location(),
+            ExpressionOrType::Either(ty, _) => ty.get_location(),
+        }
     }
 }
 
@@ -151,6 +176,20 @@ impl From<Located<&str>> for ScopedIdentifier {
                 unscoped_name.location,
             )]),
         }
+    }
+}
+
+impl From<Located<&str>> for ExpressionOrType {
+    fn from(name: Located<&str>) -> Self {
+        let location = name.location;
+        ExpressionOrType::Either(
+            Located::new(Expression::Identifier(name.clone().into()), name.location),
+            Type {
+                layout: name.into(),
+                modifier: Default::default(),
+                location,
+            },
+        )
     }
 }
 
@@ -174,8 +213,18 @@ impl std::fmt::Debug for ScopedIdentifier {
         }
         let (last, scopes) = self.identifiers.split_last().unwrap();
         for scope in scopes {
-            write!(f, "{:?} :: ", scope)?;
+            write!(f, "{} @ {}::", scope.node, scope.location.get_raw())?;
         }
-        write!(f, "{:?}", last)
+        write!(f, "{} @ {}", last.node, last.location.get_raw())
+    }
+}
+
+impl std::fmt::Debug for ExpressionOrType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ExpressionOrType::Type(ty) => write!(f, "{:?}", ty),
+            ExpressionOrType::Expression(expr) => write!(f, "{:?}", expr),
+            ExpressionOrType::Either(expr, ty) => write!(f, "[{:?} | {:?}]", expr, ty),
+        }
     }
 }

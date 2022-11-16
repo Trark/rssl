@@ -1,14 +1,16 @@
 use super::errors::*;
 use super::functions::{Callable, FunctionOverload, FunctionSignature};
 use super::scopes::*;
-use super::types::{apply_template_type_substitution, parse_type, parse_typelayout};
+use super::types::{
+    apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
+};
 use crate::casting::{ConversionPriority, ImplicitConversion};
 use crate::intrinsics;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::ExpressionType;
 use rssl_ir::ToExpressionType;
-use rssl_text::{Located, SourceLocation};
+use rssl_text::{Locate, Located, SourceLocation};
 
 /// Result of a variable query
 pub enum VariableExpression {
@@ -1196,105 +1198,22 @@ fn parse_expr_unchecked(
             }
         }
         ast::Expression::Call(ref func, ref template_args, ref args) => {
-            let func_texp = parse_expr_internal(func, context)?;
-
-            // Process template arguments
-            let mut template_args_ir = Vec::new();
-            for template_arg in template_args {
-                let ty = parse_type(&template_arg.node, context)?;
-                template_args_ir.push(Located::new(ty, template_arg.location));
+            // If we are a simple identifier then check of we are a type
+            if let ast::Expression::Identifier(ref name) = func.node {
+                // Build an ast type from the pure identifier
+                let candidate_type = ast::Type::from_layout(ast::TypeLayout(
+                    name.clone(),
+                    template_args.clone().into_boxed_slice(),
+                ));
+                // Attempt to convert the ast type to an ir type
+                if let Ok(ty) = parse_type(&candidate_type, context) {
+                    // If we are successful then this Call node is actually for a constructor
+                    return parse_expr_constructor(&ty, args, context);
+                }
             }
 
-            // Process arguments
-            let mut args_ir: Vec<ir::Expression> = vec![];
-            let mut args_types: Vec<ExpressionType> = vec![];
-            for arg in args {
-                let expr_texp = parse_expr_internal(arg, context)?;
-                let (expr_ir, expr_ty) = match expr_texp {
-                    TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
-                    texp => {
-                        return Err(TyperError::FunctionPassedToAnotherFunction(
-                            func_texp.to_error_type(),
-                            texp.to_error_type(),
-                        ))
-                    }
-                };
-                args_ir.push(expr_ir);
-                args_types.push(expr_ty);
-            }
-
-            match func_texp {
-                TypedExpression::Function(unresolved) => write_function(
-                    unresolved,
-                    &template_args_ir,
-                    &args_types,
-                    args_ir,
-                    func.location,
-                    ir::CallType::FreeFunction,
-                    context,
-                ),
-                TypedExpression::MethodInternal(unresolved) => write_function(
-                    unresolved,
-                    &template_args_ir,
-                    &args_types,
-                    args_ir,
-                    func.location,
-                    ir::CallType::MethodInternal,
-                    context,
-                ),
-                TypedExpression::Method(unresolved) => write_method(
-                    unresolved,
-                    &template_args_ir,
-                    &args_types,
-                    args_ir,
-                    func.location,
-                    context,
-                ),
-                _ => Err(TyperError::CallOnNonFunction),
-            }
-        }
-        ast::Expression::Constructor(ref ast_layout, ref params) => {
-            let target_scalar = match ast_layout {
-                ast::TypeLayout::Scalar(st)
-                | ast::TypeLayout::Vector(st, _)
-                | ast::TypeLayout::Matrix(st, _, _) => *st,
-                _ => return Err(TyperError::ConstructorWrongArgumentCount),
-            };
-            let mut slots: Vec<ir::ConstructorSlot> = vec![];
-            let mut total_arity = 0;
-            for param in params {
-                let expr_texp = parse_expr_internal(param, context)?;
-                let (expr_base, ety) = match expr_texp {
-                    TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
-                    _ => return Err(TyperError::FunctionNotCalled),
-                };
-                let &ExpressionType(ir::Type(ref expr_tyl, _), _) = &ety;
-                let arity = expr_tyl.get_num_elements();
-                total_arity += arity;
-                let s = target_scalar;
-                let target_tyl = match *expr_tyl {
-                    ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(s),
-                    ir::TypeLayout::Vector(_, ref x) => ir::TypeLayout::Vector(s, *x),
-                    ir::TypeLayout::Matrix(_, ref x, ref y) => ir::TypeLayout::Matrix(s, *x, *y),
-                    _ => return Err(TyperError::WrongTypeInConstructor),
-                };
-                let target_type = ir::Type::from_layout(target_tyl).to_rvalue();
-                let cast = match ImplicitConversion::find(&ety, &target_type) {
-                    Ok(cast) => cast,
-                    Err(()) => return Err(TyperError::WrongTypeInConstructor),
-                };
-                let expr = cast.apply(expr_base);
-                slots.push(ir::ConstructorSlot { arity, expr });
-            }
-            let ty = parse_typelayout(ast_layout, context).expect("Data layouts should never fail");
-            let expected_layout = ty.0.get_num_elements();
-            let ety = ty.to_rvalue();
-            if total_arity == expected_layout {
-                let cons = ir::Expression::Constructor(ety.0 .0.clone(), slots);
-                Ok(TypedExpression::Value(cons, ety))
-            } else {
-                Err(TyperError::ConstructorWrongArgumentCount)
-            }
+            // If we are not a constructor then process this as a normal call
+            parse_expr_call(func, template_args, args, context)
         }
         ast::Expression::Cast(ref ty, ref expr) => {
             let expr_texp = parse_expr_internal(expr, context)?;
@@ -1309,7 +1228,7 @@ fn parse_expr_unchecked(
                 }
                 _ => Err(TyperError::InvalidCast(
                     expr_pt,
-                    ErrorType::Untyped(ty.node.clone()),
+                    ErrorType::Untyped(ty.clone()),
                 )),
             }
         }
@@ -1328,7 +1247,11 @@ fn parse_expr_unchecked(
             for constrained_expr in main {
                 let mut valid = true;
                 for type_name in &constrained_expr.expected_type_names {
-                    if context.find_type_id(type_name, &[]).is_err() {
+                    // Unfortunate copy to resolve the type name
+                    // Moving the registered types into a more central location and including built ins
+                    // should make this simpler
+                    let ast_tyl = ast::TypeLayout(type_name.clone(), Default::default());
+                    if parse_typelayout(&ast_tyl, context).is_err() {
                         valid = false;
                     }
                 }
@@ -1340,6 +1263,119 @@ fn parse_expr_unchecked(
             // We should then fail to parse and return an error with a hopefully more accurate location
             parse_expr_internal(&last.expr, context)
         }
+    }
+}
+
+/// Process types for a call invocation
+fn parse_expr_call(
+    func: &Located<ast::Expression>,
+    template_args: &[ast::ExpressionOrType],
+    args: &[Located<ast::Expression>],
+    context: &mut Context,
+) -> TyperResult<TypedExpression> {
+    let func_texp = parse_expr_internal(func, context)?;
+
+    // Process template arguments
+    let mut template_args_ir = Vec::new();
+    for template_arg in template_args {
+        let ty = parse_expression_or_type(template_arg, context)?;
+        template_args_ir.push(Located::new(ty, template_arg.get_location()));
+    }
+
+    // Process arguments
+    let mut args_ir: Vec<ir::Expression> = vec![];
+    let mut args_types: Vec<ExpressionType> = vec![];
+    for arg in args {
+        let expr_texp = parse_expr_internal(arg, context)?;
+        let (expr_ir, expr_ty) = match expr_texp {
+            TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
+            texp => {
+                return Err(TyperError::FunctionPassedToAnotherFunction(
+                    func_texp.to_error_type(),
+                    texp.to_error_type(),
+                ))
+            }
+        };
+        args_ir.push(expr_ir);
+        args_types.push(expr_ty);
+    }
+
+    match func_texp {
+        TypedExpression::Function(unresolved) => write_function(
+            unresolved,
+            &template_args_ir,
+            &args_types,
+            args_ir,
+            func.location,
+            ir::CallType::FreeFunction,
+            context,
+        ),
+        TypedExpression::MethodInternal(unresolved) => write_function(
+            unresolved,
+            &template_args_ir,
+            &args_types,
+            args_ir,
+            func.location,
+            ir::CallType::MethodInternal,
+            context,
+        ),
+        TypedExpression::Method(unresolved) => write_method(
+            unresolved,
+            &template_args_ir,
+            &args_types,
+            args_ir,
+            func.location,
+            context,
+        ),
+        _ => Err(TyperError::CallOnNonFunction),
+    }
+}
+
+/// Process types for a constructor invocation
+fn parse_expr_constructor(
+    ty: &ir::Type,
+    args: &[Located<ast::Expression>],
+    context: &mut Context,
+) -> TyperResult<TypedExpression> {
+    let target_scalar = match ty.0 {
+        ir::TypeLayout::Scalar(st)
+        | ir::TypeLayout::Vector(st, _)
+        | ir::TypeLayout::Matrix(st, _, _) => st,
+        _ => return Err(TyperError::ConstructorWrongArgumentCount),
+    };
+    let mut slots: Vec<ir::ConstructorSlot> = vec![];
+    let mut total_arity = 0;
+    for param in args {
+        let expr_texp = parse_expr_internal(param, context)?;
+        let (expr_base, ety) = match expr_texp {
+            TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
+            _ => return Err(TyperError::FunctionNotCalled),
+        };
+        let &ExpressionType(ir::Type(ref expr_tyl, _), _) = &ety;
+        let arity = expr_tyl.get_num_elements();
+        total_arity += arity;
+        let s = target_scalar;
+        let target_tyl = match *expr_tyl {
+            ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(s),
+            ir::TypeLayout::Vector(_, ref x) => ir::TypeLayout::Vector(s, *x),
+            ir::TypeLayout::Matrix(_, ref x, ref y) => ir::TypeLayout::Matrix(s, *x, *y),
+            _ => return Err(TyperError::WrongTypeInConstructor),
+        };
+        let target_type = ir::Type::from_layout(target_tyl).to_rvalue();
+        let cast = match ImplicitConversion::find(&ety, &target_type) {
+            Ok(cast) => cast,
+            Err(()) => return Err(TyperError::WrongTypeInConstructor),
+        };
+        let expr = cast.apply(expr_base);
+        slots.push(ir::ConstructorSlot { arity, expr });
+    }
+    let expected_layout = ty.0.get_num_elements();
+    let ety = ty.to_rvalue();
+    if total_arity == expected_layout {
+        let cons = ir::Expression::Constructor(ety.0 .0.clone(), slots);
+        Ok(TypedExpression::Value(cons, ety))
+    } else {
+        Err(TyperError::ConstructorWrongArgumentCount)
     }
 }
 
