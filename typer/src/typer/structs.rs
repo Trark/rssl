@@ -36,7 +36,7 @@ pub fn parse_rootdefinition_struct(
 /// Build a struct from a struct template
 pub fn build_struct_from_template(
     sd: &ast::StructDefinition,
-    template_args: &[ir::Type],
+    template_args: &[ir::TypeOrConstant],
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
     let struct_def = parse_struct_internal(sd, template_args, context)?;
@@ -46,7 +46,7 @@ pub fn build_struct_from_template(
 /// Process a struct internals
 fn parse_struct_internal(
     sd: &ast::StructDefinition,
-    template_args: &[ir::Type],
+    template_args: &[ir::TypeOrConstant],
     context: &mut Context,
 ) -> TyperResult<ir::StructDefinition> {
     // Register the struct
@@ -63,7 +63,12 @@ fn parse_struct_internal(
 
         // Register template arguments
         for (template_param, template_arg) in sd.template_params.0.iter().zip(template_args) {
-            context.register_typedef(template_param.clone(), template_arg.clone())?;
+            match template_arg {
+                ir::TypeOrConstant::Type(ty) => {
+                    context.register_typedef(template_param.clone(), ty.clone())?
+                }
+                ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+            }
         }
     }
 

@@ -19,11 +19,16 @@ pub enum Expression {
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
-    Call(FunctionId, CallType, Vec<Located<Type>>, Vec<Expression>),
+    Call(
+        FunctionId,
+        CallType,
+        Vec<Located<TypeOrConstant>>,
+        Vec<Expression>,
+    ),
     Constructor(TypeLayout, Vec<ConstructorSlot>),
     Cast(Type, Box<Expression>),
     SizeOf(Type),
-    Intrinsic(Intrinsic, Vec<Located<Type>>, Vec<Expression>),
+    Intrinsic(Intrinsic, Vec<Located<TypeOrConstant>>, Vec<Expression>),
 }
 
 #[derive(PartialEq, Debug, Clone)]

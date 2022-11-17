@@ -8,6 +8,87 @@ fn check_static_primitive_variables() {
 }
 
 #[test]
+fn check_primitive_types() {
+    check_types("float x;");
+    check_types("float1 x;");
+    check_types("float2 x;");
+    check_types("float3 x;");
+    check_types("float4 x;");
+
+    check_types("float1x1 x;");
+    check_types("float2x1 x;");
+    check_types("float3x1 x;");
+    check_types("float4x1 x;");
+
+    check_types("float1x2 x;");
+    check_types("float2x2 x;");
+    check_types("float3x2 x;");
+    check_types("float4x2 x;");
+
+    check_types("float1x3 x;");
+    check_types("float2x3 x;");
+    check_types("float3x3 x;");
+    check_types("float4x3 x;");
+
+    check_types("float1x4 x;");
+    check_types("float2x4 x;");
+    check_types("float3x4 x;");
+    check_types("float4x4 x;");
+
+    check_types("int x;");
+    check_types("int1 x;");
+    check_types("int2 x;");
+    check_types("int3 x;");
+    check_types("int4 x;");
+
+    check_types("uint x;");
+    check_types("uint1 x;");
+    check_types("uint2 x;");
+    check_types("uint3 x;");
+    check_types("uint4 x;");
+
+    check_types("half x;");
+    check_types("half1 x;");
+    check_types("half2 x;");
+    check_types("half3 x;");
+    check_types("half4 x;");
+
+    check_types("vector<float, 1> x;");
+    check_types("vector<float, 2> x;");
+    check_types("vector<float, 3> x;");
+    check_types("vector<float, 4> x;");
+
+    check_types("matrix<uint, 1, 1> x;");
+    check_types("matrix<uint, 2, 1> x;");
+    check_types("matrix<uint, 3, 1> x;");
+    check_types("matrix<uint, 4, 1> x;");
+
+    check_types("matrix<int, 1, 2> x;");
+    check_types("matrix<int, 2, 2> x;");
+    check_types("matrix<int, 3, 2> x;");
+    check_types("matrix<int, 4, 2> x;");
+
+    check_types("matrix<half, 1, 3> x;");
+    check_types("matrix<half, 2, 3> x;");
+    check_types("matrix<half, 3, 3> x;");
+    check_types("matrix<half, 4, 3> x;");
+
+    check_types("matrix<double, 1, 4> x;");
+    check_types("matrix<double, 2, 4> x;");
+    check_types("matrix<double, 3, 4> x;");
+    check_types("matrix<double, 4, 4> x;");
+
+    check_fail("vector<float, 0> x;");
+    check_fail("vector<float, 5> x;");
+    check_fail("matrix<float, 0, 4> x;");
+    check_fail("matrix<float, 4, 0> x;");
+    check_fail("matrix<float, 0, 0> x;");
+    check_fail("matrix<float, 5, 4> x;");
+    check_fail("matrix<float, 4, 5> x;");
+    check_fail("matrix<float, 5, 5> x;");
+}
+
+#[test]
 fn reject_invalid_initialisers() {
     check_fail("static uint3 x = float2(1, 2);");
     check_fail("static float4 c[2] = float4(0, 1, 2, 3);");
@@ -347,6 +428,9 @@ fn check_constructors() {
 
     //  Fails as we expect a single argument
     check_fail("int x = int(7, 6);");
+
+    check_types("vector<int, 2> x = int2(7, 6);");
+    check_types("int2 x = vector<int, 2>(7, 6);");
 }
 
 #[test]
@@ -354,6 +438,8 @@ fn check_fake_constructor() {
     // These are valid but are actually a casted comma expression and not a constructor
     check_types("int x = (int)(7, 6);");
     check_types("int2 x = (int2)(7, 6);");
+    check_types("vector<int, 2> x = (int2)(7, 6);");
+    check_types("int2 x = (vector<int, 2>)(7, 6);");
 }
 
 #[test]

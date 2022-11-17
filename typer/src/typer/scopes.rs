@@ -38,7 +38,7 @@ struct FunctionData {
     overload: FunctionOverload,
     scope: ScopeIndex,
     ast: Option<Rc<ast::FunctionDefinition>>,
-    instantiations: HashMap<Vec<ir::Type>, ir::FunctionId>,
+    instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::FunctionId>,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +54,7 @@ struct StructTemplateData {
     name: Located<String>,
     ast: Rc<ast::StructDefinition>,
     scope: ScopeIndex,
-    instantiations: HashMap<Vec<ir::Type>, ir::StructId>,
+    instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::StructId>,
 }
 
 #[derive(Debug, Clone)]
@@ -271,7 +271,7 @@ impl Context {
     pub fn find_type_id(
         &mut self,
         name: &ast::ScopedIdentifier,
-        template_args: &[ir::Type],
+        template_args: &[ir::TypeOrConstant],
     ) -> TyperResult<ir::Type> {
         let ty = match self.find_identifier(name) {
             Ok(VariableExpression::Type(ty)) => ty,
@@ -429,7 +429,7 @@ impl Context {
     pub fn get_type_of_function_return(
         &self,
         id: ir::FunctionId,
-        template_args: &[Located<ir::Type>],
+        template_args: &[Located<ir::TypeOrConstant>],
     ) -> TyperResult<ExpressionType> {
         let signature = self.get_function_signature(id)?;
         if template_args.is_empty() {
@@ -892,7 +892,7 @@ impl Context {
     pub fn build_function_template(
         &mut self,
         id: ir::FunctionId,
-        template_args: &[Located<ir::Type>],
+        template_args: &[Located<ir::TypeOrConstant>],
     ) -> TyperResult<ir::FunctionId> {
         let data = &self.function_data[id.0 as usize];
         let template_args_no_loc = template_args
@@ -925,10 +925,14 @@ impl Context {
         for (template_param_name, template_param_id) in
             self.scopes[old_scope_id].template_args.clone()
         {
-            self.scopes[new_scope_id].types.insert(
-                template_param_name,
-                template_args[template_param_id.0 as usize].node.clone(),
-            );
+            match &template_args[template_param_id.0 as usize].node {
+                ir::TypeOrConstant::Type(ty) => {
+                    self.scopes[new_scope_id]
+                        .types
+                        .insert(template_param_name, ty.clone());
+                }
+                ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+            }
         }
 
         // If we are a template method then the struct is the same

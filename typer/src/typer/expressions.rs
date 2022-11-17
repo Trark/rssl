@@ -91,14 +91,14 @@ fn parse_identifier(id: &ast::ScopedIdentifier, context: &Context) -> TyperResul
 
 fn find_function_type(
     overloads: &Vec<FunctionOverload>,
-    template_args: &[Located<ir::Type>],
+    template_args: &[Located<ir::TypeOrConstant>],
     param_types: &[ExpressionType],
     call_location: SourceLocation,
 ) -> TyperResult<(FunctionOverload, Vec<ImplicitConversion>)> {
     use crate::casting::VectorRank;
     fn find_overload_casts(
         overload: &FunctionOverload,
-        template_args: &[Located<ir::Type>],
+        template_args: &[Located<ir::TypeOrConstant>],
         param_types: &[ExpressionType],
     ) -> Result<(ir::Type, Vec<ImplicitConversion>), ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
@@ -244,7 +244,7 @@ fn apply_casts(casts: Vec<ImplicitConversion>, values: Vec<ir::Expression>) -> V
 
 fn write_function(
     unresolved: UnresolvedFunction,
-    template_args: &[Located<ir::Type>],
+    template_args: &[Located<ir::TypeOrConstant>],
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,
@@ -286,7 +286,7 @@ fn write_function(
 
 fn write_method(
     unresolved: UnresolvedMethod,
-    template_args: &[Located<ir::Type>],
+    template_args: &[Located<ir::TypeOrConstant>],
     param_types: &[ExpressionType],
     param_values: Vec<ir::Expression>,
     call_location: SourceLocation,

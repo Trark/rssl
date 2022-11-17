@@ -27,7 +27,7 @@ pub struct FunctionSignature {
 
 impl FunctionSignature {
     /// Transforms a signature with template parameters with concrete arguments
-    pub fn apply_templates(mut self, template_args: &[Located<ir::Type>]) -> Self {
+    pub fn apply_templates(mut self, template_args: &[Located<ir::TypeOrConstant>]) -> Self {
         for param_type in &mut self.param_types {
             let ty = param_type.0.clone();
             (*param_type).0 = apply_template_type_substitution(ty, template_args);

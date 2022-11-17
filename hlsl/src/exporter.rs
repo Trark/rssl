@@ -381,6 +381,18 @@ fn export_scalar_type(ty: ir::ScalarType) -> Result<&'static str, ExportError> {
     })
 }
 
+/// Export ir type or constant parameter to HLSL
+fn export_type_or_constant(
+    tc: &ir::TypeOrConstant,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match tc {
+        ir::TypeOrConstant::Type(ty) => export_type(ty, output, context),
+        ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+    }
+}
+
 /// Export ir literal to HLSL
 fn export_literal(literal: &ir::Literal, output: &mut String) -> Result<(), ExportError> {
     match literal {
@@ -1023,17 +1035,17 @@ fn export_invocation_args(
 
 /// Export template argument list to HLSL
 fn export_template_type_args(
-    tys: &[Located<ir::Type>],
+    template_args: &[Located<ir::TypeOrConstant>],
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    if let Some((ty_last, ty_main)) = tys.split_last() {
+    if let Some((ta_last, ta_main)) = template_args.split_last() {
         output.push('<');
-        for ty in ty_main {
-            export_type(ty, output, context)?;
+        for ta in ta_main {
+            export_type_or_constant(ta, output, context)?;
             output.push_str(", ");
         }
-        export_type(ty_last, output, context)?;
+        export_type_or_constant(ta_last, output, context)?;
         output.push('>');
     }
     Ok(())

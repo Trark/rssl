@@ -22,6 +22,78 @@ fn check_static_primitive_variables() {
 }
 
 #[test]
+fn check_primitive_types() {
+    check_rssl_to_hlsl("float x;", "extern float x;\n");
+    check_rssl_to_hlsl("float1 x;", "extern float1 x;\n");
+    check_rssl_to_hlsl("float2 x;", "extern float2 x;\n");
+    check_rssl_to_hlsl("float3 x;", "extern float3 x;\n");
+    check_rssl_to_hlsl("float4 x;", "extern float4 x;\n");
+
+    check_rssl_to_hlsl("float1x1 x;", "extern float1x1 x;\n");
+    check_rssl_to_hlsl("float2x1 x;", "extern float2x1 x;\n");
+    check_rssl_to_hlsl("float3x1 x;", "extern float3x1 x;\n");
+    check_rssl_to_hlsl("float4x1 x;", "extern float4x1 x;\n");
+
+    check_rssl_to_hlsl("float1x2 x;", "extern float1x2 x;\n");
+    check_rssl_to_hlsl("float2x2 x;", "extern float2x2 x;\n");
+    check_rssl_to_hlsl("float3x2 x;", "extern float3x2 x;\n");
+    check_rssl_to_hlsl("float4x2 x;", "extern float4x2 x;\n");
+
+    check_rssl_to_hlsl("float1x3 x;", "extern float1x3 x;\n");
+    check_rssl_to_hlsl("float2x3 x;", "extern float2x3 x;\n");
+    check_rssl_to_hlsl("float3x3 x;", "extern float3x3 x;\n");
+    check_rssl_to_hlsl("float4x3 x;", "extern float4x3 x;\n");
+
+    check_rssl_to_hlsl("float1x4 x;", "extern float1x4 x;\n");
+    check_rssl_to_hlsl("float2x4 x;", "extern float2x4 x;\n");
+    check_rssl_to_hlsl("float3x4 x;", "extern float3x4 x;\n");
+    check_rssl_to_hlsl("float4x4 x;", "extern float4x4 x;\n");
+
+    check_rssl_to_hlsl("int x;", "extern int x;\n");
+    check_rssl_to_hlsl("int1 x;", "extern int1 x;\n");
+    check_rssl_to_hlsl("int2 x;", "extern int2 x;\n");
+    check_rssl_to_hlsl("int3 x;", "extern int3 x;\n");
+    check_rssl_to_hlsl("int4 x;", "extern int4 x;\n");
+
+    check_rssl_to_hlsl("uint x;", "extern uint x;\n");
+    check_rssl_to_hlsl("uint1 x;", "extern uint1 x;\n");
+    check_rssl_to_hlsl("uint2 x;", "extern uint2 x;\n");
+    check_rssl_to_hlsl("uint3 x;", "extern uint3 x;\n");
+    check_rssl_to_hlsl("uint4 x;", "extern uint4 x;\n");
+
+    check_rssl_to_hlsl("half x;", "extern half x;\n");
+    check_rssl_to_hlsl("half1 x;", "extern half1 x;\n");
+    check_rssl_to_hlsl("half2 x;", "extern half2 x;\n");
+    check_rssl_to_hlsl("half3 x;", "extern half3 x;\n");
+    check_rssl_to_hlsl("half4 x;", "extern half4 x;\n");
+
+    check_rssl_to_hlsl("vector<float, 1> x;", "extern float1 x;\n");
+    check_rssl_to_hlsl("vector<float, 2> x;", "extern float2 x;\n");
+    check_rssl_to_hlsl("vector<float, 3> x;", "extern float3 x;\n");
+    check_rssl_to_hlsl("vector<float, 4> x;", "extern float4 x;\n");
+
+    check_rssl_to_hlsl("matrix<uint, 1, 1> x;", "extern uint1x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 2, 1> x;", "extern uint2x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 3, 1> x;", "extern uint3x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 4, 1> x;", "extern uint4x1 x;\n");
+
+    check_rssl_to_hlsl("matrix<int, 1, 2> x;", "extern int1x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 2, 2> x;", "extern int2x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 3, 2> x;", "extern int3x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 4, 2> x;", "extern int4x2 x;\n");
+
+    check_rssl_to_hlsl("matrix<half, 1, 3> x;", "extern half1x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 2, 3> x;", "extern half2x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 3, 3> x;", "extern half3x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 4, 3> x;", "extern half4x3 x;\n");
+
+    check_rssl_to_hlsl("matrix<double, 1, 4> x;", "extern double1x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 2, 4> x;", "extern double2x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 3, 4> x;", "extern double3x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 4, 4> x;", "extern double4x4 x;\n");
+}
+
+#[test]
 fn check_functions() {
     check_rssl_to_hlsl("void f() {}", "void f() {}\n");
     check_rssl_to_hlsl("void f(int x) {}", "void f(int x) {}\n");

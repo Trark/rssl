@@ -11,7 +11,7 @@ pub enum IntrinsicFactory {
 impl IntrinsicFactory {
     pub fn create_intrinsic(
         &self,
-        template_args: &[Located<Type>],
+        template_args: &[Located<TypeOrConstant>],
         param_values: &[Expression],
     ) -> Expression {
         match *self {

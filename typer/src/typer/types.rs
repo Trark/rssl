@@ -1,8 +1,9 @@
 use super::errors::*;
+use super::expressions::parse_expr;
 use super::scopes::*;
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_text::Located;
+use rssl_text::{Located, SourceLocation};
 
 /// Attempt to get an ir type from an ast type
 pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type> {
@@ -53,16 +54,23 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
 pub fn parse_expression_or_type(
     arg: &ast::ExpressionOrType,
     context: &mut Context,
-) -> TyperResult<ir::Type> {
+) -> TyperResult<ir::TypeOrConstant> {
     match arg {
         ast::ExpressionOrType::Type(ast_ty) => {
             let ir_ty = parse_type(ast_ty, context)?;
-            Ok(ir_ty)
+            Ok(ir::TypeOrConstant::Type(ir_ty))
         }
-        ast::ExpressionOrType::Expression(_) => todo!("Non-type arguments"),
-        ast::ExpressionOrType::Either(_, ast_ty) => {
-            let ir_ty = parse_type(ast_ty, context)?;
-            Ok(ir_ty)
+        ast::ExpressionOrType::Expression(ast_expr) => {
+            let ir_const = parse_and_evaluate_constant_expression(ast_expr, context)?;
+            Ok(ir::TypeOrConstant::Constant(ir_const))
+        }
+        ast::ExpressionOrType::Either(ast_expr, ast_ty) => {
+            if let Ok(ir_ty) = parse_type(ast_ty, context) {
+                Ok(ir::TypeOrConstant::Type(ir_ty))
+            } else {
+                let ir_const = parse_and_evaluate_constant_expression(ast_expr, context)?;
+                Ok(ir::TypeOrConstant::Constant(ir_const))
+            }
         }
     }
 }
@@ -166,14 +174,92 @@ fn test_parse_datalayout_str() {
 /// Parse a type layout for a basic data type
 pub fn parse_data_layout(
     name: &ast::ScopedIdentifier,
-    template_args: &[ir::Type],
+    template_args: &[ir::TypeOrConstant],
 ) -> Option<ir::TypeLayout> {
     if let Some(name) = name.try_trivial() {
         if template_args.is_empty() {
             parse_datalayout_str(name.as_str())
         } else {
-            // TODO: vector<> and matrix<>
-            None
+            match name.node.as_str() {
+                "vector" => {
+                    if template_args.len() == 2 {
+                        let s = match template_args[0] {
+                            ir::TypeOrConstant::Type(ir::Type(
+                                ir::TypeLayout::Scalar(s),
+                                modifier,
+                            )) => {
+                                assert_eq!(
+                                    modifier,
+                                    Default::default(),
+                                    "Type modifiers not supported in vector<>"
+                                );
+                                s
+                            }
+                            _ => return None,
+                        };
+
+                        let dim_x = match template_args[1] {
+                            ir::TypeOrConstant::Constant(ir::Constant::UntypedInt(v))
+                            | ir::TypeOrConstant::Constant(ir::Constant::Int(v))
+                            | ir::TypeOrConstant::Constant(ir::Constant::UInt(v))
+                                if (1..=4).contains(&v) =>
+                            {
+                                v
+                            }
+                            _ => return None,
+                        };
+
+                        Some(ir::TypeLayout::Vector(s, dim_x as u32))
+                    } else {
+                        None
+                    }
+                }
+                "matrix" => {
+                    if template_args.len() == 3 {
+                        let s = match template_args[0] {
+                            ir::TypeOrConstant::Type(ir::Type(
+                                ir::TypeLayout::Scalar(s),
+                                modifier,
+                            )) => {
+                                assert_eq!(
+                                    modifier,
+                                    Default::default(),
+                                    "Type modifiers not supported in vector<>"
+                                );
+                                s
+                            }
+                            _ => return None,
+                        };
+
+                        let dim_x = match template_args[1] {
+                            ir::TypeOrConstant::Constant(ir::Constant::UntypedInt(v))
+                            | ir::TypeOrConstant::Constant(ir::Constant::Int(v))
+                            | ir::TypeOrConstant::Constant(ir::Constant::UInt(v))
+                                if (1..=4).contains(&v) =>
+                            {
+                                v
+                            }
+                            _ => return None,
+                        };
+
+                        let dim_y = match template_args[2] {
+                            ir::TypeOrConstant::Constant(ir::Constant::UntypedInt(v))
+                            | ir::TypeOrConstant::Constant(ir::Constant::Int(v))
+                            | ir::TypeOrConstant::Constant(ir::Constant::UInt(v))
+                                if (1..=4).contains(&v) =>
+                            {
+                                v
+                            }
+                            _ => return None,
+                        };
+
+                        Some(ir::TypeLayout::Matrix(s, dim_x as u32, dim_y as u32))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
         }
     } else {
         None
@@ -183,7 +269,7 @@ pub fn parse_data_layout(
 /// Parse the void type
 fn parse_voidtype(
     name: &ast::ScopedIdentifier,
-    template_args: &[ir::Type],
+    template_args: &[ir::TypeOrConstant],
 ) -> Option<ir::TypeLayout> {
     if let Some(name) = name.try_trivial() {
         if name.node == "void" && template_args.is_empty() {
@@ -199,13 +285,13 @@ fn parse_voidtype(
 /// Attempt to turn an ast type into one of the built in object types
 fn parse_object_type(
     name: &ast::ScopedIdentifier,
-    template_args: &[ir::Type],
+    template_args: &[ir::TypeOrConstant],
 ) -> Option<ir::TypeLayout> {
-    let get_data_type = |args: &[ir::Type], default_float4: bool| match args {
-        [ir::Type(ir::TypeLayout::Scalar(st), modifier)] => {
+    let get_data_type = |args: &[ir::TypeOrConstant], default_float4: bool| match args {
+        [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Scalar(st), modifier))] => {
             Some(ir::DataType(ir::DataLayout::Scalar(*st), *modifier))
         }
-        [ir::Type(ir::TypeLayout::Vector(st, x), modifier)] => {
+        [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Vector(st, x), modifier))] => {
             Some(ir::DataType(ir::DataLayout::Vector(*st, *x), *modifier))
         }
         [] if default_float4 => Some(ir::DataType(
@@ -214,19 +300,16 @@ fn parse_object_type(
         )),
         _ => None,
     };
-    let get_structured_type = |args: &[ir::Type]| match args {
-        [ir::Type(ir::TypeLayout::Scalar(st), modifier)] => Some(ir::StructuredType(
-            ir::StructuredLayout::Scalar(*st),
-            *modifier,
-        )),
-        [ir::Type(ir::TypeLayout::Vector(st, x), modifier)] => Some(ir::StructuredType(
-            ir::StructuredLayout::Vector(*st, *x),
-            *modifier,
-        )),
-        [ir::Type(ir::TypeLayout::Struct(id), modifier)] => Some(ir::StructuredType(
-            ir::StructuredLayout::Struct(*id),
-            *modifier,
-        )),
+    let get_structured_type = |args: &[ir::TypeOrConstant]| match args {
+        [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Scalar(st), modifier))] => Some(
+            ir::StructuredType(ir::StructuredLayout::Scalar(*st), *modifier),
+        ),
+        [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Vector(st, x), modifier))] => Some(
+            ir::StructuredType(ir::StructuredLayout::Vector(*st, *x), *modifier),
+        ),
+        [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Struct(id), modifier))] => Some(
+            ir::StructuredType(ir::StructuredLayout::Struct(*id), *modifier),
+        ),
         _ => None,
     };
 
@@ -270,10 +353,13 @@ fn parse_object_type(
 /// Replace instances of a template type parameter in a type with a concrete type
 pub fn apply_template_type_substitution(
     source_type: ir::Type,
-    remap: &[Located<ir::Type>],
+    remap: &[Located<ir::TypeOrConstant>],
 ) -> ir::Type {
     match source_type {
-        ir::Type(ir::TypeLayout::TemplateParam(ref p), _) => remap[p.0 as usize].node.clone(),
+        ir::Type(ir::TypeLayout::TemplateParam(ref p), _) => match &remap[p.0 as usize].node {
+            ir::TypeOrConstant::Type(ty) => ty.clone(),
+            ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+        },
         ir::Type(ir::TypeLayout::Array(tyl, len), modifier) => {
             // Arrays currently can only contain types without modifiers - add default modifier
             let tyl_as_ty = ir::Type::from_layout(*tyl);
@@ -284,4 +370,33 @@ pub fn apply_template_type_substitution(
         }
         t => t,
     }
+}
+
+/// Attempt to get an ir expression from an ast expression then evaluate it as a constant expression
+fn parse_and_evaluate_constant_expression(
+    expr: &Located<ast::Expression>,
+    context: &mut Context,
+) -> TyperResult<ir::Constant> {
+    let ir_expr = parse_expr(expr, context)?;
+    evaluate_constant_expression(&ir_expr.0, expr.location, context)
+}
+
+/// Attempt to evaluate an expression as a constant expression
+fn evaluate_constant_expression(
+    expr: &ir::Expression,
+    source_location: SourceLocation,
+    _: &mut Context,
+) -> TyperResult<ir::Constant> {
+    let c = match *expr {
+        ir::Expression::Literal(ir::Literal::Bool(v)) => ir::Constant::Bool(v),
+        ir::Expression::Literal(ir::Literal::UntypedInt(v)) => ir::Constant::UntypedInt(v),
+        ir::Expression::Literal(ir::Literal::Int(v)) => ir::Constant::Int(v),
+        ir::Expression::Literal(ir::Literal::UInt(v)) => ir::Constant::UInt(v),
+        _ => {
+            return Err(TyperError::ExpressionIsNotConstantExpression(
+                source_location,
+            ))
+        }
+    };
+    Ok(c)
 }

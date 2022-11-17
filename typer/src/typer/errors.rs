@@ -84,6 +84,9 @@ pub enum TyperError {
 
     /// Attempted to index into a non-indexable type
     ArrayIndexMustBeUsedOnArrayType(ir::TypeLayout),
+
+    /// Expression in a constant context could not be evaluated
+    ExpressionIsNotConstantExpression(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -489,6 +492,16 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
             TyperError::ArrayIndexMustBeUsedOnArrayType(_) => write_message(
                 &|f| write!(f, "non-indexable type can not be indexed"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            TyperError::ExpressionIsNotConstantExpression(loc) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "expression could not be evaluated as a constant expression"
+                    )
+                },
+                *loc,
                 Severity::Error,
             ),
         }

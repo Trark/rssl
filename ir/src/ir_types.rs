@@ -77,6 +77,25 @@ pub enum ObjectType {
     ConstantBuffer(StructuredType),
 }
 
+/// A constant value
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub enum Constant {
+    Bool(bool),
+    UntypedInt(u64),
+    Int(u64),
+    UInt(u64),
+}
+
+/// Either a type or a constant
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub enum TypeOrConstant {
+    /// Value is a type
+    Type(Type),
+
+    /// Value is a constant
+    Constant(Constant),
+}
+
 impl From<DataType> for Type {
     fn from(ty: DataType) -> Type {
         let DataType(layout, modifier) = ty;
