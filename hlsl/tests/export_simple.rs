@@ -396,12 +396,18 @@ fn check_statement_while() {
         "void f() {
     while (true)
     {
+        continue;
+        break;
+        discard;
         return;
     }
 }",
         "void f() {
     while (true)
     {
+        continue;
+        break;
+        discard;
         return;
     }
 }

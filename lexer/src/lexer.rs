@@ -657,6 +657,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "return" => Token::Return,
         "break" => Token::Break,
         "continue" => Token::Continue,
+        "discard" => Token::Discard,
 
         "struct" => Token::Struct,
         "enum" => Token::Enum,
@@ -1444,6 +1445,10 @@ fn test_token() {
     assert_eq!(
         token(&b"continue"[..]),
         Ok((&b""[..], from_end(Token::Continue, 8)))
+    );
+    assert_eq!(
+        token(&b"discard"[..]),
+        Ok((&b""[..], from_end(Token::Discard, 7)))
     );
 
     assert_eq!(

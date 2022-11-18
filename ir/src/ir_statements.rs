@@ -21,6 +21,7 @@ pub enum Statement {
     While(Expression, ScopeBlock),
     Break,
     Continue,
+    Discard,
     Return(Option<Expression>),
 }
 

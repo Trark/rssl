@@ -20,6 +20,7 @@ pub enum Statement {
     While(Located<Expression>, Box<Statement>),
     Break,
     Continue,
+    Discard,
     Return(Option<Located<Expression>>),
 }
 

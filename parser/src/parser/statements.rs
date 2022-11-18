@@ -264,6 +264,7 @@ fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
         }
         LexToken(Token::Break, _) => Ok((tail, Statement::Break)),
         LexToken(Token::Continue, _) => Ok((tail, Statement::Continue)),
+        LexToken(Token::Discard, _) => Ok((tail, Statement::Discard)),
         LexToken(Token::Return, _) => match parse_expression(tail) {
             Ok((input, expression_statement)) => {
                 let (input, _) = parse_token(Token::Semicolon)(input)?;

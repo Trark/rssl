@@ -116,6 +116,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
         }
         ast::Statement::Break => Ok(vec![ir::Statement::Break]),
         ast::Statement::Continue => Ok(vec![ir::Statement::Continue]),
+        ast::Statement::Discard => Ok(vec![ir::Statement::Discard]),
         ast::Statement::Return(Some(ref expr)) => {
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             let expected_ety = context.get_current_return_type().to_rvalue();

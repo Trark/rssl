@@ -93,6 +93,7 @@ pub enum Token {
     Return,
     Break,
     Continue,
+    Discard,
 
     Struct,
     Enum,

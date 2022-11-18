@@ -485,6 +485,7 @@ fn export_statement(
         }
         ir::Statement::Break => output.push_str("break;"),
         ir::Statement::Continue => output.push_str("continue;"),
+        ir::Statement::Discard => output.push_str("discard;"),
         ir::Statement::Return(expr_opt) => {
             output.push_str("return");
             if let Some(expr) = expr_opt {
