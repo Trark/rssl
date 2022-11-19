@@ -456,6 +456,7 @@ fn export_statement(
             context.new_line(output);
             enter_scope_block(block_false, context);
             export_scope_block(block_false, output, context)?;
+            context.pop_scope();
         }
         ir::Statement::For(init, cond, inc, block) => {
             enter_scope_block(block, context);
