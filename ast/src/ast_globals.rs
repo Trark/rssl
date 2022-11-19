@@ -21,7 +21,7 @@ pub struct GlobalVariableName {
     pub init: Option<Initializer>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum GlobalSlot {
     ReadSlot(u32),
     ReadWriteSlot(u32),
@@ -36,7 +36,7 @@ pub struct ConstantBuffer {
     pub members: Vec<ConstantVariable>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantSlot(pub u32);
 
 #[derive(PartialEq, Debug, Clone)]
@@ -52,10 +52,10 @@ pub struct ConstantVariableName {
     pub offset: Option<PackOffset>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct PackOffset(pub u32, pub PackSubOffset);
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum PackSubOffset {
     None,
     X,

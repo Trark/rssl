@@ -1,5 +1,6 @@
 /// Error cases for file loading
 #[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub enum IncludeError {
     FileNotFound,
     FileNotText,

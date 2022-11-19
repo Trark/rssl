@@ -9,13 +9,13 @@ impl std::fmt::Debug for Identifier {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FollowedBy {
     Token,
     Whitespace,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum RegisterSlot {
     T(u32),
     U(u32),
@@ -23,7 +23,7 @@ pub enum RegisterSlot {
     S(u32),
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum OffsetSlot {
     T(u32),
     U(u32),

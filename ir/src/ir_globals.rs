@@ -9,17 +9,17 @@ pub struct GlobalVariable {
 }
 
 /// The type of any global declaration
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct GlobalType(pub Type, pub GlobalStorage);
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub id: ConstantBufferId,
     pub slot: Option<GlobalSlot>,
     pub members: Vec<ConstantVariable>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantVariable {
     pub name: String,
     pub typename: Type,

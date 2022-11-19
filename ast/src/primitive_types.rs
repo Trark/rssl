@@ -10,7 +10,7 @@ pub enum ScalarType {
     Double,
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum NumericDimension {
     Scalar,
     Vector(u32),
@@ -34,7 +34,7 @@ pub enum RowOrder {
 }
 
 /// Storage type for global variables
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum GlobalStorage {
     // Input from outside the shader (default)
     Extern,
@@ -47,7 +47,7 @@ pub enum GlobalStorage {
 }
 
 /// Storage type for local variables
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum LocalStorage {
     /// Statically allocated thread-local variable
     Local,
@@ -58,7 +58,7 @@ pub enum LocalStorage {
 }
 
 /// Binding type for parameters
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum InputModifier {
     /// Function input
     In,
@@ -69,7 +69,7 @@ pub enum InputModifier {
 }
 
 /// Modifier applied to a variable interpolated between stages
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum InterpolationModifier {
     NoInterpolation,
     Linear,
@@ -78,7 +78,7 @@ pub enum InterpolationModifier {
     Sample,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Semantic {
     DispatchThreadId,
     GroupId,

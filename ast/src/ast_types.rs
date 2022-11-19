@@ -14,7 +14,7 @@ pub struct Type {
 pub struct TypeLayout(pub ScopedIdentifier, pub Box<[ExpressionOrType]>);
 
 /// Template parameters
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct TemplateParamList(pub Vec<Located<String>>);
 
 impl Type {

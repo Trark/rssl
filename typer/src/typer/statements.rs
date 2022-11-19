@@ -194,7 +194,7 @@ pub fn apply_variable_bind(
         let ir::Type(layout, modifiers) = ty;
 
         let constant_dim = match *dim {
-            Some(ref dim_expr) => match evaluate_constexpr_int(&**dim_expr) {
+            Some(ref dim_expr) => match evaluate_constexpr_int(dim_expr) {
                 Ok(val) => val,
                 Err(()) => {
                     let p = (**dim_expr).clone();

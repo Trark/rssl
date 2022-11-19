@@ -10,6 +10,7 @@ pub struct LexerError {
 
 /// The basic reason for a lex failure
 #[derive(PartialEq, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub enum LexerErrorReason {
     Unknown,
     FailedToParse(Vec<u8>),

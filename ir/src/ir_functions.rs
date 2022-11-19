@@ -9,13 +9,14 @@ pub struct FunctionDefinition {
     pub attributes: Vec<FunctionAttribute>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionReturn {
     pub return_type: Type,
     pub semantic: Option<Semantic>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub struct FunctionParam {
     pub id: VariableId,
     pub param_type: ParamType,
@@ -23,7 +24,7 @@ pub struct FunctionParam {
 }
 
 /// The type of any parameter declaration
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct ParamType(
     pub Type,
     pub InputModifier,

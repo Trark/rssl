@@ -6,6 +6,7 @@ pub struct ScopeBlock(pub Vec<Statement>, pub ScopedDeclarations);
 
 /// Map of declarations in the current scope
 #[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub struct ScopedDeclarations {
     pub variables: HashMap<VariableId, (String, Type)>,
 }
@@ -33,7 +34,7 @@ pub struct VarDef {
 }
 
 /// The type of any local variable declaration
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LocalType(pub Type, pub LocalStorage);
 
 #[derive(PartialEq, Debug, Clone)]

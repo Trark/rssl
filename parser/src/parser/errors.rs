@@ -67,6 +67,7 @@ impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
 
 /// The basic reason for a parse failure
 #[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub enum ParseErrorReason {
     UnexpectedEndOfStream,
     TokensUnconsumed,

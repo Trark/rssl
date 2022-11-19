@@ -33,10 +33,10 @@ use rssl_ir::*;
 // I was going to try to implement nice logic in here, but I honestly have no
 // idea what rules govern these priorities.
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConversionRank(NumericRank, VectorRank);
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum NumericRank {
     Exact,
     Promotion,
@@ -45,7 +45,7 @@ pub enum NumericRank {
     HalfIsASecondClassCitizen,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum VectorRank {
     /// Same dimension
     Exact,
@@ -55,7 +55,7 @@ pub enum VectorRank {
     Contract,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ConversionPriority {
     Better,
     Equal,

@@ -17,7 +17,7 @@ pub struct SymbolTable {
 }
 
 /// When the expression parsing has to end
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Terminator {
     /// Expression has no explicit end point
     Standard,

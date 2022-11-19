@@ -31,7 +31,7 @@ pub enum Expression {
     Intrinsic(Intrinsic, Vec<Located<TypeOrConstant>>, Vec<Expression>),
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum SwizzleSlot {
     X, // x or r
     Y, // y or g
@@ -52,7 +52,7 @@ pub struct ConstructorSlot {
     pub expr: Expression,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum CallType {
     /// Call is for a free function
     FreeFunction,

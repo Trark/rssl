@@ -174,22 +174,19 @@ impl MacroSegment {
     fn split(self, arg: &str, index: u64, segments: &mut Vec<MacroSegment>) {
         match self {
             MacroSegment::Text(text) => {
-                match find_macro(&text, arg) {
-                    Some(sz) => {
-                        let before = &text[..sz];
-                        let after_offset = sz + arg.len();
-                        let after = &text[after_offset..];
-                        assert_eq!(before.to_string() + arg + after, text);
-                        if !before.is_empty() {
-                            segments.push(MacroSegment::Text(before.to_string()));
-                        }
-                        segments.push(MacroSegment::Arg(MacroArg(index)));
-                        if !after.is_empty() {
-                            MacroSegment::Text(after.to_string()).split(arg, index, segments);
-                        }
-                        return;
+                if let Some(sz) = find_macro(&text, arg) {
+                    let before = &text[..sz];
+                    let after_offset = sz + arg.len();
+                    let after = &text[after_offset..];
+                    assert_eq!(before.to_string() + arg + after, text);
+                    if !before.is_empty() {
+                        segments.push(MacroSegment::Text(before.to_string()));
                     }
-                    None => {}
+                    segments.push(MacroSegment::Arg(MacroArg(index)));
+                    if !after.is_empty() {
+                        MacroSegment::Text(after.to_string()).split(arg, index, segments);
+                    }
+                    return;
                 }
                 segments.push(MacroSegment::Text(text))
             }
@@ -309,88 +306,85 @@ impl SubstitutedSegment {
     ) -> Result<(), PreprocessError> {
         match self {
             SubstitutedSegment::Text(text, location) => {
-                match find_macro(&text, &macro_def.0) {
-                    Some(sz) => {
-                        let before = &text[..sz];
-                        let after_offset = sz + macro_def.0.len();
-                        let mut remaining = &text[after_offset..];
+                if let Some(sz) = find_macro(&text, &macro_def.0) {
+                    let before = &text[..sz];
+                    let after_offset = sz + macro_def.0.len();
+                    let mut remaining = &text[after_offset..];
 
-                        // Read macro arguments
-                        let args = if macro_def.1 > 0 {
-                            // Consume the starting bracket
-                            let sz = match remaining.find('(') {
-                                Some(sz) => {
-                                    let gap = remaining[..sz].trim();
-                                    if !gap.is_empty() {
-                                        return Err(PreprocessError::MacroRequiresArguments);
-                                    }
-                                    sz
+                    // Read macro arguments
+                    let args = if macro_def.1 > 0 {
+                        // Consume the starting bracket
+                        let sz = match remaining.find('(') {
+                            Some(sz) => {
+                                let gap = remaining[..sz].trim();
+                                if !gap.is_empty() {
+                                    return Err(PreprocessError::MacroRequiresArguments);
                                 }
-                                None => return Err(PreprocessError::MacroRequiresArguments),
-                            };
-                            remaining = &remaining[(sz + 1)..];
-
-                            // Consume all the arguments
-                            let mut args = vec![];
-                            loop {
-                                let (sz, last) = match (remaining.find(','), remaining.find(')')) {
-                                    (Some(szn), Some(szl)) if szn < szl => (szn, false),
-                                    (_, Some(szl)) => (szl, true),
-                                    (Some(szn), None) => (szn, false),
-                                    (None, None) => {
-                                        return Err(PreprocessError::MacroArgumentsNeverEnd)
-                                    }
-                                };
-                                let arg = remaining[..sz].trim();
-                                args.push(arg);
-                                remaining = &remaining[(sz + 1)..];
-                                if last {
-                                    break;
-                                }
+                                sz
                             }
-                            args
-                        } else {
-                            vec![]
+                            None => return Err(PreprocessError::MacroRequiresArguments),
                         };
-                        let after = remaining;
+                        remaining = &remaining[(sz + 1)..];
 
-                        if args.len() as u64 != macro_def.1 {
-                            return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                        }
-
-                        // Substitute macros inside macro arguments
-                        let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
-                            let mut vec = vec?;
-                            let raw_text = SubstitutedText::new(arg, SourceLocation::UNKNOWN);
-                            let subbed_text = raw_text.apply_all(macro_defs)?;
-                            let final_text = subbed_text.resolve();
-                            vec.push(final_text);
-                            Ok(vec)
-                        })?;
-
-                        let after_location = location.offset((text.len() - after.len()) as u32);
-                        if !before.is_empty() {
-                            output.push(SubstitutedSegment::Text(before.to_string(), location));
-                        }
-                        let mut replaced_text = String::new();
-                        for macro_segment in &macro_def.2 {
-                            match *macro_segment {
-                                MacroSegment::Text(ref text) => replaced_text.push_str(text),
-                                MacroSegment::Arg(MacroArg(ref index)) => {
-                                    replaced_text.push_str(&args[*index as usize])
+                        // Consume all the arguments
+                        let mut args = vec![];
+                        loop {
+                            let (sz, last) = match (remaining.find(','), remaining.find(')')) {
+                                (Some(szn), Some(szl)) if szn < szl => (szn, false),
+                                (_, Some(szl)) => (szl, true),
+                                (Some(szn), None) => (szn, false),
+                                (None, None) => {
+                                    return Err(PreprocessError::MacroArgumentsNeverEnd)
                                 }
+                            };
+                            let arg = remaining[..sz].trim();
+                            args.push(arg);
+                            remaining = &remaining[(sz + 1)..];
+                            if last {
+                                break;
                             }
                         }
-                        if !replaced_text.is_empty() {
-                            output.push(SubstitutedSegment::Replaced(replaced_text, macro_def.3));
-                        }
-                        if !after.is_empty() {
-                            SubstitutedSegment::Text(after.to_string(), after_location)
-                                .apply(macro_def, macro_defs, output)?;
-                        }
-                        return Ok(());
+                        args
+                    } else {
+                        vec![]
+                    };
+                    let after = remaining;
+
+                    if args.len() as u64 != macro_def.1 {
+                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
                     }
-                    None => {}
+
+                    // Substitute macros inside macro arguments
+                    let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
+                        let mut vec = vec?;
+                        let raw_text = SubstitutedText::new(arg, SourceLocation::UNKNOWN);
+                        let subbed_text = raw_text.apply_all(macro_defs)?;
+                        let final_text = subbed_text.resolve();
+                        vec.push(final_text);
+                        Ok(vec)
+                    })?;
+
+                    let after_location = location.offset((text.len() - after.len()) as u32);
+                    if !before.is_empty() {
+                        output.push(SubstitutedSegment::Text(before.to_string(), location));
+                    }
+                    let mut replaced_text = String::new();
+                    for macro_segment in &macro_def.2 {
+                        match *macro_segment {
+                            MacroSegment::Text(ref text) => replaced_text.push_str(text),
+                            MacroSegment::Arg(MacroArg(ref index)) => {
+                                replaced_text.push_str(&args[*index as usize])
+                            }
+                        }
+                    }
+                    if !replaced_text.is_empty() {
+                        output.push(SubstitutedSegment::Replaced(replaced_text, macro_def.3));
+                    }
+                    if !after.is_empty() {
+                        SubstitutedSegment::Text(after.to_string(), after_location)
+                            .apply(macro_def, macro_defs, output)?;
+                    }
+                    return Ok(());
                 }
                 assert!(!text.is_empty());
                 output.push(SubstitutedSegment::Text(text, location))
@@ -899,18 +893,18 @@ fn preprocess_command<'a>(
         let pragma_command = get_macro_line(next).trim();
         if pragma_command == "once" {
             file_loader.mark_as_pragma_once(file_id);
-            return Ok(get_after_single_line(command));
+            Ok(get_after_single_line(command))
         } else {
-            return Err(PreprocessError::UnknownCommand(format!(
+            Err(PreprocessError::UnknownCommand(format!(
                 "#pragma {}",
                 pragma_command
-            )));
+            )))
         }
     } else {
-        return Err(PreprocessError::UnknownCommand(format!(
+        Err(PreprocessError::UnknownCommand(format!(
             "#{}",
             get_macro_line(command)
-        )));
+        )))
     }
 }
 

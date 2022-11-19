@@ -120,9 +120,8 @@ fn find_function_type(
         }
 
         for (required_type, source_type) in signature.param_types.iter().zip(param_types.iter()) {
-            match required_type.2 {
-                Some(_) => return Err(()),
-                None => {}
+            if required_type.2.is_some() {
+                return Err(());
             };
             let ety = required_type.clone().into();
             if let Ok(cast) = ImplicitConversion::find(source_type, &ety) {

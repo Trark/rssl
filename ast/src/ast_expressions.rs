@@ -59,7 +59,7 @@ pub enum ScopedIdentifierBase {
     Absolute,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum UnaryOp {
     PrefixIncrement,
     PrefixDecrement,
@@ -71,7 +71,7 @@ pub enum UnaryOp {
     BitwiseNot,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BinOp {
     Add,
     Subtract,

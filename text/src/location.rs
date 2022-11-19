@@ -183,11 +183,11 @@ struct SourceFile {
 pub struct FileId(u32);
 
 /// A file used as an input
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FileName(pub String);
 
 /// A line number in a file
-#[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Copy, Clone)]
 pub struct Line(pub u32);
 
 impl Line {
@@ -203,7 +203,7 @@ impl Line {
 }
 
 /// The column index in a line
-#[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Copy, Clone)]
 pub struct Column(pub u32);
 
 impl Column {
@@ -219,7 +219,7 @@ impl Column {
 }
 
 /// Fully qualified location
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FileLocation {
     Known(FileName, Line, Column),
     Unknown,
@@ -237,7 +237,7 @@ impl std::fmt::Display for FileLocation {
 }
 
 /// The raw number of bytes from the start of a stream
-#[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Copy, Clone)]
 pub struct StreamLocation(pub u32);
 
 /// Types implementing `Locate` are able to fetch the source location that the node was parsed from

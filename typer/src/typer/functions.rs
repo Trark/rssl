@@ -17,7 +17,7 @@ pub enum Callable {
 pub struct FunctionOverload(pub Callable, pub FunctionSignature);
 
 /// Describes the signature for a function
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionSignature {
     // TODO: Function and parameter names
     pub return_type: ir::FunctionReturn,
@@ -30,7 +30,7 @@ impl FunctionSignature {
     pub fn apply_templates(mut self, template_args: &[Located<ir::TypeOrConstant>]) -> Self {
         for param_type in &mut self.param_types {
             let ty = param_type.0.clone();
-            (*param_type).0 = apply_template_type_substitution(ty, template_args);
+            param_type.0 = apply_template_type_substitution(ty, template_args);
         }
 
         self.return_type.return_type =

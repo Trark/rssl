@@ -10,6 +10,7 @@ pub struct StructDefinition {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub struct StructMember {
     pub name: String,
     pub typename: Type,

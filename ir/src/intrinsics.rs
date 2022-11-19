@@ -1,6 +1,7 @@
 use crate::*;
 
 #[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub enum Intrinsic {
     // Unary operations
     PrefixIncrement,
