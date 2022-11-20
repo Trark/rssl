@@ -13,6 +13,7 @@ pub enum ValueType {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ExpressionType(pub Type, pub ValueType);
 
+/// Trait for turning a type into an [ExpressionType]
 pub trait ToExpressionType {
     fn to_lvalue(self) -> ExpressionType;
     fn to_rvalue(self) -> ExpressionType;

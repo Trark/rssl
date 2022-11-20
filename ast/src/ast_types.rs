@@ -3,6 +3,9 @@ use crate::ExpressionOrType;
 use crate::ScopedIdentifier;
 use rssl_text::{Locate, Located, SourceLocation};
 
+/// A full type name reference
+///
+/// As AST does not have full type information this may trigger ambiguous parse branches in the tree.
 #[derive(PartialEq, Clone)]
 pub struct Type {
     pub layout: TypeLayout,
@@ -10,6 +13,7 @@ pub struct Type {
     pub location: SourceLocation,
 }
 
+/// A type name reference without modifiers
 #[derive(PartialEq, Clone)]
 pub struct TypeLayout(pub ScopedIdentifier, pub Box<[ExpressionOrType]>);
 

@@ -1,6 +1,7 @@
 use rssl_text::*;
 use std::collections::{HashMap, HashSet};
 
+/// An error which occurred when attempting to preprocessa a file
 #[derive(PartialEq, Debug, Clone)]
 pub enum PreprocessError {
     UnknownCommand(String),

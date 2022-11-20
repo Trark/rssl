@@ -1,5 +1,6 @@
 use rssl_text::*;
 
+/// An arbitrary identifier token string
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 pub struct Identifier(pub String);
 
@@ -9,12 +10,14 @@ impl std::fmt::Debug for Identifier {
     }
 }
 
+/// Marker for if a token is followed directly by the next token or if there is whitespace between them
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FollowedBy {
     Token,
     Whitespace,
 }
 
+/// The slot value that is attached to a [Token::Register] value
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum RegisterSlot {
     T(u32),
@@ -23,6 +26,7 @@ pub enum RegisterSlot {
     S(u32),
 }
 
+/// The slot value that is attached to a [Token::PackOffset] value
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum OffsetSlot {
     T(u32),
@@ -30,6 +34,7 @@ pub enum OffsetSlot {
     B(u32),
 }
 
+/// Any token that may appear in an RSSL file
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Eof, // Marks the end of a stream
@@ -122,6 +127,7 @@ pub enum Token {
     ReservedWord(String),
 }
 
+/// A [Token] with source location information attached
 #[derive(PartialEq, Clone)]
 pub struct LexToken(pub Token, pub SourceLocation);
 
@@ -143,6 +149,7 @@ impl std::fmt::Debug for LexToken {
     }
 }
 
+/// A stream of [LexToken]
 #[derive(PartialEq, Debug, Clone)]
 pub struct Tokens {
     pub stream: Vec<LexToken>,

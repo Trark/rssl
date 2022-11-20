@@ -1,5 +1,6 @@
 use crate::*;
 
+/// A global variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariable {
     pub id: GlobalId,
@@ -12,6 +13,7 @@ pub struct GlobalVariable {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct GlobalType(pub Type, pub GlobalStorage);
 
+/// A constant buffer definition
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub id: ConstantBufferId,
@@ -19,6 +21,9 @@ pub struct ConstantBuffer {
     pub members: Vec<ConstantVariable>,
 }
 
+/// A variable definition inside a constant buffer
+///
+/// Not really "variable"...
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantVariable {
     pub name: String,

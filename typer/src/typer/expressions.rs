@@ -543,21 +543,21 @@ fn resolve_arithmetic_types(
                 | ast::BinOp::BitwiseXor => {
                     assert!(
                         ls == ScalarType::Int || ls == ScalarType::UInt,
-                        "hir: non-integer source in bitwise op (lhs)"
+                        "non-integer source in bitwise op (lhs)"
                     );
                     assert!(
                         rs == ScalarType::Int || rs == ScalarType::UInt,
-                        "hir: non-integer source in bitwise op (rhs)"
+                        "non-integer source in bitwise op (rhs)"
                     );
                 }
                 ast::BinOp::BooleanAnd | ast::BinOp::BooleanOr => {
                     assert!(
                         ls == ScalarType::Bool,
-                        "hir: non-boolean source in boolean op (lhs)"
+                        "non-boolean source in boolean op (lhs)"
                     );
                     assert!(
                         rs == ScalarType::Bool,
-                        "hir: non-boolean source in boolean op (rhs)"
+                        "non-boolean source in boolean op (rhs)"
                     );
                 }
                 _ => {}

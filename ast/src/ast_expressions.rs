@@ -1,6 +1,7 @@
 use crate::ast_types::Type;
 use rssl_text::{Locate, Located, SourceLocation};
 
+/// An RSSL expression
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
     Literal(Literal),
@@ -30,6 +31,7 @@ pub enum Expression {
     AmbiguousParseBranch(Vec<ConstrainedExpression>),
 }
 
+/// A literal value for any primitive type
 #[derive(PartialEq, Debug, Clone)]
 pub enum Literal {
     Bool(bool),
@@ -59,6 +61,7 @@ pub enum ScopedIdentifierBase {
     Absolute,
 }
 
+/// Any operator which takes a single expression as an argument
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum UnaryOp {
     PrefixIncrement,
@@ -71,6 +74,7 @@ pub enum UnaryOp {
     BitwiseNot,
 }
 
+/// Any operator which takes two expressions as arguments
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BinOp {
     Add,

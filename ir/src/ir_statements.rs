@@ -1,6 +1,7 @@
 use crate::*;
 use std::collections::HashMap;
 
+/// A block of statements with the local definition types and names
 #[derive(PartialEq, Debug, Clone)]
 pub struct ScopeBlock(pub Vec<Statement>, pub ScopedDeclarations);
 
@@ -11,6 +12,7 @@ pub struct ScopedDeclarations {
     pub variables: HashMap<VariableId, (String, Type)>,
 }
 
+/// A typed RSSL statement
 #[derive(PartialEq, Debug, Clone)]
 pub enum Statement {
     Expression(Expression),
@@ -26,6 +28,7 @@ pub enum Statement {
     Return(Option<Expression>),
 }
 
+/// A local variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct VarDef {
     pub id: VariableId,
@@ -37,6 +40,7 @@ pub struct VarDef {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LocalType(pub Type, pub LocalStorage);
 
+/// An initialiser for a for loop variable
 #[derive(PartialEq, Debug, Clone)]
 pub enum ForInit {
     Empty,
@@ -44,8 +48,8 @@ pub enum ForInit {
     Definitions(Vec<VarDef>),
 }
 
-#[derive(PartialEq, Debug, Clone)]
 /// The node for representing the initial value of a variable
+#[derive(PartialEq, Debug, Clone)]
 pub enum Initializer {
     /// Variable is initialized to the value of an expression
     Expression(Expression),

@@ -59,6 +59,7 @@ pub enum InterpolationModifier {
     Sample,
 }
 
+/// Semantic identifier for linking inputs / outputs
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Semantic {
     DispatchThreadId,

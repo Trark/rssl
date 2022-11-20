@@ -1,6 +1,7 @@
 use crate::*;
 use rssl_text::Located;
 
+/// A typed RSSL expression
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
     Literal(Literal),
@@ -31,6 +32,7 @@ pub enum Expression {
     Intrinsic(Intrinsic, Vec<Located<TypeOrConstant>>, Vec<Expression>),
 }
 
+/// A single part of a swizzle operation
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum SwizzleSlot {
     X, // x or r
@@ -52,6 +54,7 @@ pub struct ConstructorSlot {
     pub expr: Expression,
 }
 
+/// The form of a function invocation
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum CallType {
     /// Call is for a free function

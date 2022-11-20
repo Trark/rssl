@@ -1,12 +1,19 @@
 use crate::*;
 use std::collections::HashMap;
 
+/// Represents a full parsed and type checked source file
 #[derive(PartialEq, Debug, Clone)]
 pub struct Module {
+    /// The original names of all global declarations with are now internal ids
     pub global_declarations: GlobalDeclarations,
+    /// The root definitions in the module
     pub root_definitions: Vec<RootDefinition>,
 }
 
+/// A single top level definition in an RSSL file
+///
+/// While this is called a "root" definition - it may be nested inside namespaces.
+/// We still maintain namespace scoping and definition ordering as it makes exporting to HLSL easier.
 #[derive(PartialEq, Debug, Clone)]
 pub enum RootDefinition {
     Struct(StructDefinition),

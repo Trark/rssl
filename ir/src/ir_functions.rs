@@ -1,5 +1,6 @@
 use crate::*;
 
+/// A definition for a function in RSSL
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionDefinition {
     pub id: FunctionId,
@@ -9,12 +10,14 @@ pub struct FunctionDefinition {
     pub attributes: Vec<FunctionAttribute>,
 }
 
+/// The type of a function return value
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionReturn {
     pub return_type: Type,
     pub semantic: Option<Semantic>,
 }
 
+/// A function parameter definition
 #[derive(PartialEq, Debug, Clone)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct FunctionParam {
@@ -31,6 +34,7 @@ pub struct ParamType(
     pub Option<InterpolationModifier>,
 );
 
+/// An attribute that is applied to a function
 #[derive(PartialEq, Debug, Clone)]
 pub enum FunctionAttribute {
     NumThreads(Expression, Expression, Expression),

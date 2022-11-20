@@ -4,6 +4,7 @@ use crate::ast_types::{TemplateParamList, Type};
 use crate::primitive_types::*;
 use rssl_text::Located;
 
+/// A definition for a function in RSSL
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionDefinition {
     pub name: Located<String>,
@@ -14,12 +15,14 @@ pub struct FunctionDefinition {
     pub attributes: Vec<FunctionAttribute>,
 }
 
+/// The type of a function return value
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionReturn {
     pub return_type: Type,
     pub semantic: Option<Semantic>,
 }
 
+/// A function parameter definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionParam {
     pub name: Located<String>,
@@ -36,6 +39,7 @@ pub struct ParamType(
     pub Option<InterpolationModifier>,
 );
 
+/// An attribute that is applied to a function
 #[derive(PartialEq, Debug, Clone)]
 pub enum FunctionAttribute {
     NumThreads(

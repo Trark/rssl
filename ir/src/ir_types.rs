@@ -4,6 +4,7 @@ use crate::*;
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Type(pub TypeLayout, pub TypeModifier);
 
+/// A type without type modifiers
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum TypeLayout {
     Void,
@@ -80,6 +81,7 @@ pub struct TemplateTypeId(pub u32);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TemplateParamCount(pub u32);
 
+/// A built in object type
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum ObjectType {
     Buffer(DataType),

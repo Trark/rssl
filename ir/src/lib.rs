@@ -1,3 +1,8 @@
+//! # RSSL - Intermediate Representation
+//!
+//! The IR library contains all the definitions for the typed internal representation for RSSL.
+//! The root is a [Module] instance.
+
 mod intrinsics;
 mod ir_expressions;
 mod ir_functions;

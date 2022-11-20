@@ -10,6 +10,7 @@ pub struct TyperExternalError(pub TyperError, pub Context);
 
 pub type TyperResult<T> = Result<T, TyperError>;
 
+/// An error that occurred when trying to type check the input RSSL
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),

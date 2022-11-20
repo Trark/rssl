@@ -1,3 +1,8 @@
+//! # RSSL - Abstract Syntax Tree
+//!
+//! The AST library contains all the definitions for the abstract syntax tree for RSSL.
+//! The root of an AST is a [Module] instance.
+
 mod ast_enums;
 mod ast_expressions;
 mod ast_functions;

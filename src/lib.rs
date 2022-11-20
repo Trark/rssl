@@ -1,3 +1,7 @@
+//! # RSSL
+//!
+//! This is a meta crate that re-exports all the sub libraries
+
 pub use rssl_ast as ast;
 pub use rssl_hlsl as hlsl;
 pub use rssl_ir as ir;

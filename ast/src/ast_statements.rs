@@ -3,6 +3,7 @@ use crate::ast_types::Type;
 use crate::primitive_types::*;
 use rssl_text::Located;
 
+/// An RSSL statement
 #[derive(PartialEq, Debug, Clone)]
 pub enum Statement {
     Empty,
@@ -24,6 +25,7 @@ pub enum Statement {
     Return(Option<Located<Expression>>),
 }
 
+/// An initialiser for a for loop variable
 #[derive(PartialEq, Debug, Clone)]
 pub enum InitStatement {
     Empty,
@@ -31,6 +33,7 @@ pub enum InitStatement {
     Declaration(VarDef),
 }
 
+/// A local variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct VarDef {
     pub local_type: LocalType,
@@ -41,6 +44,7 @@ pub struct VarDef {
 #[derive(PartialEq, Debug, Clone)]
 pub struct LocalType(pub Type, pub LocalStorage);
 
+/// The name part of a local variable definition - to support multiple definitions in a single line
 #[derive(PartialEq, Debug, Clone)]
 pub struct LocalVariableName {
     pub name: Located<String>,
@@ -48,11 +52,12 @@ pub struct LocalVariableName {
     pub init: Option<Initializer>,
 }
 
+/// The type declaration that is attached to the name instead of the type
 #[derive(PartialEq, Debug, Clone, Default)]
 pub struct VariableBind(pub Vec<Option<Located<Expression>>>);
 
-#[derive(PartialEq, Debug, Clone)]
 /// The node for representing the initial value of a variable
+#[derive(PartialEq, Debug, Clone)]
 pub enum Initializer {
     /// Variable is initialized to the value of an expression
     Expression(Located<Expression>),
