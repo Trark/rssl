@@ -56,7 +56,7 @@ fn parse_struct_internal(
         Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
     };
 
-    context.push_scope();
+    context.push_scope_with_name(name);
     if !template_args.is_empty() {
         // Inconsistent number of args not gracefully handled
         assert_eq!(template_args.len(), sd.template_params.0.len());

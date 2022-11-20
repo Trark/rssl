@@ -729,7 +729,13 @@ fn export_subexpression(
                 export_subexpression(object, 2, OperatorSide::Left, output, context)?;
                 output.push('.');
             }
-            output.push_str(context.get_function_name(*id)?);
+            if *ct == ir::CallType::FreeFunction {
+                write!(output, "{}", context.get_function_name_full(*id)?).unwrap();
+            } else {
+                // Assume all method calls (both on an object and internally) have
+                // sufficient qualification that they do not need the full name
+                write!(output, "{}", context.get_function_name(*id)?).unwrap();
+            }
             export_template_type_args(tys.as_slice(), output, context)?;
             export_invocation_args(arguments, output, context)?;
         }
@@ -1175,6 +1181,14 @@ impl ExportContext {
 
     /// Get the name of a function
     fn get_function_name(&self, id: ir::FunctionId) -> Result<&str, ExportError> {
+        match self.names.functions.get(&id) {
+            Some(name) => Ok(name.0.last().unwrap()),
+            None => Err(ExportError::NamelessId),
+        }
+    }
+
+    /// Get the full name of a function
+    fn get_function_name_full(&self, id: ir::FunctionId) -> Result<&ir::ScopedName, ExportError> {
         match self.names.functions.get(&id) {
             Some(name) => Ok(name),
             None => Err(ExportError::NamelessId),

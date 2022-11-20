@@ -28,7 +28,7 @@ pub enum RootDefinition {
 #[derive(PartialEq, Debug, Clone)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct GlobalDeclarations {
-    pub functions: HashMap<FunctionId, String>,
+    pub functions: HashMap<FunctionId, ScopedName>,
     pub globals: HashMap<GlobalId, String>,
     pub structs: HashMap<StructId, ScopedName>,
     pub struct_templates: HashMap<StructTemplateId, String>,

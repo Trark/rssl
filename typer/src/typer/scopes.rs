@@ -35,6 +35,7 @@ pub enum StructMemberValue {
 #[derive(Debug, Clone)]
 struct FunctionData {
     name: Located<String>,
+    full_name: ir::ScopedName,
     overload: FunctionOverload,
     scope: ScopeIndex,
     ast: Option<Rc<ast::FunctionDefinition>>,
@@ -145,6 +146,13 @@ impl Context {
     /// Add a new scope
     pub fn push_scope(&mut self) -> ScopeIndex {
         self.current_scope = self.make_scope(self.current_scope);
+        self.current_scope
+    }
+
+    /// Add a new scope with a name
+    pub fn push_scope_with_name(&mut self, name: &str) -> ScopeIndex {
+        self.current_scope = self.push_scope();
+        self.scopes[self.current_scope].scope_name = Some(name.to_string());
         self.current_scope
     }
 
@@ -531,8 +539,10 @@ impl Context {
         ast: ast::FunctionDefinition,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
+        let full_name = self.get_qualified_name(&name);
         self.function_data.push(FunctionData {
             name,
+            full_name,
             overload: FunctionOverload(Callable::Function(id), signature),
             scope,
             ast: Some(Rc::new(ast)),
@@ -553,8 +563,10 @@ impl Context {
         overload: FunctionOverload,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
+        let full_name = ir::ScopedName(Vec::from([name.node.clone()]));
         self.function_data.push(FunctionData {
             name,
+            full_name,
             overload,
             scope: usize::MAX,
             ast: None,
@@ -607,25 +619,7 @@ impl Context {
         name: Located<String>,
         is_non_template: bool,
     ) -> Result<ir::StructId, ir::Type> {
-        // Build fully qualified name
-        let mut full_name = Vec::from([name.node.clone()]);
-        {
-            let mut scope_index = self.current_scope;
-            loop {
-                let parent_index = self.scopes[scope_index].parent_scope;
-                if let Some(s) = &self.scopes[scope_index].scope_name {
-                    assert_ne!(parent_index, usize::MAX);
-                    full_name.insert(0, s.clone());
-                } else {
-                    assert_eq!(parent_index, usize::MAX);
-                }
-                scope_index = parent_index;
-                if scope_index == usize::MAX {
-                    break;
-                }
-            }
-        }
-        let full_name = ir::ScopedName(full_name);
+        let full_name = self.get_qualified_name(&name);
 
         let data = StructData {
             name,
@@ -697,6 +691,26 @@ impl Context {
         Ok(id)
     }
 
+    /// Build fully qualified name
+    fn get_qualified_name(&self, name: &str) -> ir::ScopedName {
+        let mut full_name = Vec::from([name.to_string()]);
+        let mut scope_index = self.current_scope;
+        loop {
+            let parent_index = self.scopes[scope_index].parent_scope;
+            if let Some(s) = &self.scopes[scope_index].scope_name {
+                assert_ne!(parent_index, usize::MAX);
+                full_name.insert(0, s.clone());
+            } else {
+                assert_eq!(parent_index, usize::MAX);
+            }
+            scope_index = parent_index;
+            if scope_index == usize::MAX {
+                break;
+            }
+        }
+        ir::ScopedName(full_name)
+    }
+
     /// Register a new constant buffer
     pub fn insert_cbuffer(
         &mut self,
@@ -761,11 +775,10 @@ impl Context {
         } else {
             // Make a new scope for the namespace
             let parent_scope = self.current_scope;
-            let scope_index = self.push_scope();
+            let scope_index = self.push_scope_with_name(name);
             self.scopes[parent_scope]
                 .namespaces
                 .insert(name.clone(), scope_index);
-            self.scopes[scope_index].scope_name = Some(name.clone());
         }
     }
 
@@ -961,6 +974,7 @@ impl Context {
         let new_id = ir::FunctionId(self.function_data.len() as u32);
         self.function_data.push(FunctionData {
             name: data.name.clone(),
+            full_name: data.full_name.clone(),
             overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
             scope: new_scope_id,
             ast: None,
@@ -1022,7 +1036,7 @@ impl Context {
         for function_index in 0..self.function_data.len() {
             let id = ir::FunctionId(function_index as u32);
             let data = &self.function_data[function_index];
-            decls.functions.insert(id, data.name.to_string());
+            decls.functions.insert(id, data.full_name.clone());
         }
 
         decls
