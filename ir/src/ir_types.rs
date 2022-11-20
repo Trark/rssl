@@ -18,6 +18,26 @@ pub enum TypeLayout {
     TemplateParam(TemplateTypeId),
 }
 
+/// Basic scalar types
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+pub enum ScalarType {
+    Bool,
+    UntypedInt,
+    Int,
+    UInt,
+    Half,
+    Float,
+    Double,
+}
+
+/// The dimensions of a scalar, vector or matrix data type
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum NumericDimension {
+    Scalar,
+    Vector(u32),
+    Matrix(u32, u32),
+}
+
 /// A type that can be used in structured buffers
 /// These are the both all the data types and user defined structs
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -426,6 +446,20 @@ impl std::fmt::Debug for TypeLayout {
             TypeLayout::Object(ref ot) => write!(f, "{:?}", ot),
             TypeLayout::Array(ref ty, ref len) => write!(f, "{:?}[{}]", ty, len),
             TypeLayout::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
+        }
+    }
+}
+
+impl std::fmt::Debug for ScalarType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ScalarType::Bool => write!(f, "bool"),
+            ScalarType::UntypedInt => write!(f, "integer"),
+            ScalarType::Int => write!(f, "int"),
+            ScalarType::UInt => write!(f, "uint"),
+            ScalarType::Half => write!(f, "half"),
+            ScalarType::Float => write!(f, "float"),
+            ScalarType::Double => write!(f, "double"),
         }
     }
 }

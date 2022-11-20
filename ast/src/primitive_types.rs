@@ -1,22 +1,3 @@
-/// Basic scalar types
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum ScalarType {
-    Bool,
-    UntypedInt,
-    Int,
-    UInt,
-    Half,
-    Float,
-    Double,
-}
-
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum NumericDimension {
-    Scalar,
-    Vector(u32),
-    Matrix(u32, u32),
-}
-
 /// Modifiers that can apply to any type
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub struct TypeModifier {
@@ -149,20 +130,6 @@ impl Default for InputModifier {
 impl Default for LocalStorage {
     fn default() -> LocalStorage {
         LocalStorage::Local
-    }
-}
-
-impl std::fmt::Debug for ScalarType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ScalarType::Bool => write!(f, "bool"),
-            ScalarType::UntypedInt => write!(f, "integer"),
-            ScalarType::Int => write!(f, "int"),
-            ScalarType::UInt => write!(f, "uint"),
-            ScalarType::Half => write!(f, "half"),
-            ScalarType::Float => write!(f, "float"),
-            ScalarType::Double => write!(f, "double"),
-        }
     }
 }
 

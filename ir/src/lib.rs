@@ -10,7 +10,7 @@ mod ir_variables;
 
 pub use rssl_ast::{
     GlobalSlot, GlobalStorage, InputModifier, InterpolationModifier, Literal, LocalStorage,
-    NumericDimension, PackOffset, PackSubOffset, RowOrder, ScalarType, Semantic, TypeModifier,
+    PackOffset, PackSubOffset, RowOrder, Semantic, TypeModifier,
 };
 
 pub use intrinsics::*;
