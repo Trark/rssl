@@ -2,6 +2,13 @@ use rssl_ir as ir;
 use rssl_text::Located;
 use std::fmt::Write;
 
+use crate::*;
+
+pub struct ExportedSource {
+    pub source: String,
+    pub pipeline_description: PipelineDescription,
+}
+
 /// Error result when exporting to HLSL fails
 #[derive(Debug)]
 pub enum ExportError {
@@ -9,14 +16,17 @@ pub enum ExportError {
 }
 
 /// Export ir module to HLSL
-pub fn export_to_hlsl(module: &ir::Module) -> Result<String, ExportError> {
+pub fn export_to_hlsl(module: &ir::Module) -> Result<ExportedSource, ExportError> {
     let mut context = ExportContext::new(module.global_declarations.clone());
     let mut output_string = String::new();
 
     export_root_definitions(&module.root_definitions, &mut output_string, &mut context)?;
     context.new_line(&mut output_string);
 
-    Ok(output_string)
+    Ok(ExportedSource {
+        source: output_string,
+        pipeline_description: context.pipeline_description,
+    })
 }
 
 /// Export ir root definitions to HLSL
@@ -65,9 +75,68 @@ fn export_root_definition(
         }
         ir::RootDefinition::ConstantBuffer(cb) => {
             export_constant_buffer(cb, output, context)?;
+
+            let binding = match cb.slot {
+                Some(ir::GlobalSlot::ReadSlot(slot))
+                | Some(ir::GlobalSlot::ReadWriteSlot(slot))
+                | Some(ir::GlobalSlot::SamplerSlot(slot))
+                | Some(ir::GlobalSlot::ConstantSlot(slot)) => slot,
+                None => u32::MAX,
+            };
+
+            let binding = DescriptorBinding {
+                name: context.get_constant_buffer_name(cb.id)?.to_string(),
+                binding,
+                descriptor_type: DescriptorType::ConstantBuffer,
+            };
+
+            context.register_binding(0, binding);
         }
         ir::RootDefinition::GlobalVariable(decl) => {
             export_global_variable(decl, output, context)?;
+
+            let descriptor_type = match decl.global_type.0 .0 {
+                ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
+                    DescriptorType::ConstantBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer) => {
+                    DescriptorType::ByteBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer) => {
+                    DescriptorType::RwByteBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_)) => {
+                    DescriptorType::StructuredBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
+                    DescriptorType::RwStructuredBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
+                ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_)) => {
+                    DescriptorType::RwTexelBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
+                ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
+                    DescriptorType::RwTexture2d
+                }
+                _ => DescriptorType::PushConstants,
+            };
+
+            let binding = match decl.slot {
+                Some(ir::GlobalSlot::ReadSlot(slot))
+                | Some(ir::GlobalSlot::ReadWriteSlot(slot))
+                | Some(ir::GlobalSlot::SamplerSlot(slot))
+                | Some(ir::GlobalSlot::ConstantSlot(slot)) => slot,
+                None => u32::MAX,
+            };
+
+            let binding = DescriptorBinding {
+                name: context.get_global_name(decl.id)?.to_string(),
+                binding,
+                descriptor_type,
+            };
+
+            context.register_binding(0, binding);
         }
         ir::RootDefinition::Function(decl) => {
             export_function(decl, output, context)?;
@@ -1136,6 +1205,8 @@ struct ExportContext {
     scopes: Vec<ir::ScopedDeclarations>,
 
     indent: u32,
+
+    pipeline_description: PipelineDescription,
 }
 
 impl ExportContext {
@@ -1146,6 +1217,9 @@ impl ExportContext {
             names: global_declarations,
             scopes: Vec::new(),
             indent: 0,
+            pipeline_description: PipelineDescription {
+                bind_groups: Vec::new(),
+            },
         }
     }
 
@@ -1253,5 +1327,21 @@ impl ExportContext {
         for _ in 0..self.indent {
             output.push_str("    ");
         }
+    }
+
+    /// Add a binding to the pipeline layout descriptiono
+    fn register_binding(&mut self, group_index: usize, binding: DescriptorBinding) {
+        if group_index >= self.pipeline_description.bind_groups.len() {
+            self.pipeline_description.bind_groups.resize(
+                group_index + 1,
+                BindGroup {
+                    bindings: Vec::new(),
+                },
+            )
+        }
+
+        self.pipeline_description.bind_groups[group_index]
+            .bindings
+            .push(binding);
     }
 }

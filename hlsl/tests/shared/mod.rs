@@ -43,7 +43,8 @@ pub fn check_rssl_to_hlsl(source_rssl: &str, expected_hlsl: &str) {
     let (ir, _) = parse_from_str(source_rssl);
 
     match rssl_hlsl::export_to_hlsl(&ir) {
-        Ok(output_hlsl) => {
+        Ok(output) => {
+            let output_hlsl = output.source;
             let output_hlsl_lines = output_hlsl.lines();
             let expected_hlsl_lines = expected_hlsl.lines();
             for (output_hlsl_line, expected_hlsl_line) in output_hlsl_lines.zip(expected_hlsl_lines)
