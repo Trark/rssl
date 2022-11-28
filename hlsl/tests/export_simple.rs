@@ -136,6 +136,16 @@ void f() {
     );
 
     check_rssl_to_hlsl(
+        "BufferAddress g_buffer; void f() { g_buffer.Load<uint>(0); }",
+        "extern ByteAddressBuffer g_buffer;
+
+void f() {
+    g_buffer.Load<uint>(0u);
+}
+",
+    );
+
+    check_rssl_to_hlsl(
         "RWStructuredBuffer<uint> g_buffer; void f() { g_buffer[0]; g_buffer[0] = 1; }",
         "extern RWStructuredBuffer<uint> g_buffer;
 

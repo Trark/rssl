@@ -4,7 +4,7 @@
 
 mod exporter;
 
-pub use exporter::export_to_hlsl;
+pub use exporter::{export_to_hlsl, ExportError, ExportedSource};
 
 /// Description of a shader pipeline
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -46,6 +46,13 @@ pub enum DescriptorType {
 
     ByteBuffer,
     RwByteBuffer,
+
+    /// Raw buffer address or ByteBuffer if raw addresses are disabled
+    BufferAddress,
+
+    /// Raw buffer address or RwByteBuffer if raw addresses are disabled
+    RwBufferAddress,
+
     StructuredBuffer,
     RwStructuredBuffer,
     TexelBuffer,

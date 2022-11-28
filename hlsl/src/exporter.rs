@@ -105,6 +105,12 @@ fn export_root_definition(
                 ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer) => {
                     DescriptorType::RwByteBuffer
                 }
+                ir::TypeLayout::Object(ir::ObjectType::BufferAddress) => {
+                    DescriptorType::BufferAddress
+                }
+                ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress) => {
+                    DescriptorType::RwBufferAddress
+                }
                 ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_)) => {
                     DescriptorType::StructuredBuffer
                 }
@@ -400,6 +406,8 @@ fn export_type_layout_for_def(
                 }
                 ir::ObjectType::ByteAddressBuffer => output.push_str("ByteAddressBuffer"),
                 ir::ObjectType::RWByteAddressBuffer => output.push_str("RWByteAddressBuffer"),
+                ir::ObjectType::BufferAddress => output.push_str("ByteAddressBuffer"),
+                ir::ObjectType::RWBufferAddress => output.push_str("RWByteAddressBuffer"),
                 ir::ObjectType::StructuredBuffer(st) => {
                     output.push_str("StructuredBuffer<");
                     export_type(&st.clone().into(), output, context)?;
@@ -932,6 +940,11 @@ fn export_subexpression(
                 RWByteAddressBufferStore3 => Form::Method("Store3"),
                 RWByteAddressBufferStore4 => Form::Method("Store4"),
                 RWByteAddressBufferInterlockedAdd => Form::Method("InterlockedAdd"),
+
+                BufferAddressLoad => Form::Method("Load"),
+
+                RWBufferAddressLoad => Form::Method("Load"),
+                RWBufferAddressStore => Form::Method("Store"),
 
                 Texture2DLoad => Form::Method("Load"),
                 Texture2DSample => Form::Method("Sample"),

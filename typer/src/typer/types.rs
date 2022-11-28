@@ -331,6 +331,12 @@ fn parse_object_type(
         "RWByteAddressBuffer" if template_args.is_empty() => {
             Some(ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer))
         }
+        "BufferAddress" if template_args.is_empty() => {
+            Some(ir::TypeLayout::Object(ir::ObjectType::BufferAddress))
+        }
+        "RWBufferAddress" if template_args.is_empty() => {
+            Some(ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress))
+        }
         "Texture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::Texture2D(
             get_data_type(template_args, true)?,
         ))),

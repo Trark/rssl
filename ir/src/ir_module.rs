@@ -111,12 +111,14 @@ impl Module {
                                 Some(GlobalSlot::ConstantSlot(0))
                             }
                             TypeLayout::Object(ObjectType::ByteAddressBuffer)
+                            | TypeLayout::Object(ObjectType::BufferAddress)
                             | TypeLayout::Object(ObjectType::StructuredBuffer(_))
                             | TypeLayout::Object(ObjectType::Buffer(_))
                             | TypeLayout::Object(ObjectType::Texture2D(_)) => {
                                 Some(GlobalSlot::ReadSlot(0))
                             }
                             TypeLayout::Object(ObjectType::RWByteAddressBuffer)
+                            | TypeLayout::Object(ObjectType::RWBufferAddress)
                             | TypeLayout::Object(ObjectType::RWStructuredBuffer(_))
                             | TypeLayout::Object(ObjectType::RWBuffer(_))
                             | TypeLayout::Object(ObjectType::RWTexture2D(_)) => {

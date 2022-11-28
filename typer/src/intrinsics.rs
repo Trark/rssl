@@ -386,6 +386,17 @@ const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
         &[T_UINT, T_UINT, T_UINT_OUT],
     ),
 ];
+const BUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] =
+    &[("Load", Intrinsic::BufferAddressLoad, 1, &[T_UINT])];
+const RWBUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[
+    ("Load", Intrinsic::RWBufferAddressLoad, 1, &[T_UINT]),
+    (
+        "Store",
+        Intrinsic::RWBufferAddressStore,
+        1,
+        &[T_UINT, T_UINT],
+    ),
+];
 
 pub struct MethodDefinition(
     pub ObjectType,
@@ -422,6 +433,8 @@ pub fn get_method(object: &ObjectType, name: &str) -> Result<MethodDefinition, (
         ObjectType::RWTexture2D(_) => RWTEXTURE2D_INTRINSICS,
         ObjectType::ByteAddressBuffer => BYTEADDRESSBUFFER_INTRINSICS,
         ObjectType::RWByteAddressBuffer => RWBYTEADDRESSBUFFER_INTRINSICS,
+        ObjectType::BufferAddress => BUFFERADDRESS_INTRINSICS,
+        ObjectType::RWBufferAddress => RWBUFFERADDRESS_INTRINSICS,
         _ => return Err(()),
     };
 

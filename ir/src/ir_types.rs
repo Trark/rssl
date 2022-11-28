@@ -90,6 +90,9 @@ pub enum ObjectType {
     ByteAddressBuffer,
     RWByteAddressBuffer,
 
+    BufferAddress,
+    RWBufferAddress,
+
     StructuredBuffer(StructuredType),
     RWStructuredBuffer(StructuredType),
 
@@ -507,6 +510,8 @@ impl std::fmt::Debug for ObjectType {
             RWBuffer(ref dt) => write!(f, "RWBuffer<{:?}>", dt),
             ByteAddressBuffer => write!(f, "ByteAddressBuffer"),
             RWByteAddressBuffer => write!(f, "RWByteAddressBuffer"),
+            BufferAddress => write!(f, "BufferAddress"),
+            RWBufferAddress => write!(f, "RWBufferAddress"),
             StructuredBuffer(ref st) => write!(f, "StructuredBuffer<{:?}>", st),
             RWStructuredBuffer(ref st) => write!(f, "RWStructuredBuffer<{:?}>", st),
             Texture2D(ref dt) => write!(f, "Texture2D<{:?}>", dt),
