@@ -92,13 +92,37 @@ pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<ConstantBuffer> 
 }
 
 /// Parse a register slot for a resource
-fn parse_global_slot(input: &[LexToken]) -> ParseResult<GlobalSlot> {
+fn parse_global_slot(input: &[LexToken]) -> ParseResult<Register> {
     match input {
         [LexToken(Token::Colon, _), LexToken(Token::Register(reg), _), rest @ ..] => match *reg {
-            RegisterSlot::T(slot) => Ok((rest, GlobalSlot::ReadSlot(slot))),
-            RegisterSlot::U(slot) => Ok((rest, GlobalSlot::ReadWriteSlot(slot))),
-            RegisterSlot::S(slot) => Ok((rest, GlobalSlot::SamplerSlot(slot))),
-            RegisterSlot::B(slot) => Ok((rest, GlobalSlot::ConstantSlot(slot))),
+            RegisterSlot::T(slot) => Ok((
+                rest,
+                Register {
+                    slot_type: RegisterType::T,
+                    index: slot,
+                },
+            )),
+            RegisterSlot::U(slot) => Ok((
+                rest,
+                Register {
+                    slot_type: RegisterType::U,
+                    index: slot,
+                },
+            )),
+            RegisterSlot::S(slot) => Ok((
+                rest,
+                Register {
+                    slot_type: RegisterType::S,
+                    index: slot,
+                },
+            )),
+            RegisterSlot::B(slot) => Ok((
+                rest,
+                Register {
+                    slot_type: RegisterType::B,
+                    index: slot,
+                },
+            )),
         },
         _ => ParseErrorReason::wrong_token(input),
     }
@@ -144,7 +168,10 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(7),
                 bind: Default::default(),
-                slot: Some(GlobalSlot::ReadSlot(1)),
+                slot: Some(Register {
+                    slot_type: RegisterType::T,
+                    index: 1,
+                }),
                 init: None,
             }]),
         },
@@ -161,7 +188,10 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(14),
                 bind: Default::default(),
-                slot: Some(GlobalSlot::ReadSlot(1)),
+                slot: Some(Register {
+                    slot_type: RegisterType::T,
+                    index: 1,
+                }),
                 init: None,
             }]),
         },
@@ -188,7 +218,10 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(23),
                 bind: Default::default(),
-                slot: Some(GlobalSlot::ReadSlot(1)),
+                slot: Some(Register {
+                    slot_type: RegisterType::T,
+                    index: 1,
+                }),
                 init: None,
             }]),
         },
@@ -205,7 +238,10 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "g_myBuffer".to_string().loc(29),
                 bind: Default::default(),
-                slot: Some(GlobalSlot::ReadSlot(1)),
+                slot: Some(Register {
+                    slot_type: RegisterType::T,
+                    index: 1,
+                }),
                 init: None,
             }]),
         },

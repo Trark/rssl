@@ -24,7 +24,10 @@ fn test_ast_pass() {
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myOutBuffer".to_string()),
                     bind: Default::default(),
-                    slot: Some(ast::GlobalSlot::ReadSlot(0)),
+                    slot: Some(ast::Register {
+                        slot_type: ast::RegisterType::T,
+                        index: 0,
+                    }),
                     init: None,
                 }],
             }),
@@ -213,7 +216,8 @@ fn test_ast_to_ir() {
                 ),
                 ir::GlobalStorage::Static,
             ),
-            slot: None,
+            lang_slot: None,
+            api_slot: None,
             init: Some(ir::Initializer::Expression(ir::Expression::Literal(
                 ir::Literal::Int(4),
             ))),

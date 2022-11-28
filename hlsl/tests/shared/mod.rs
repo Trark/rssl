@@ -35,6 +35,8 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
         Err(err) => panic!("{}", err.display(&source_manager)),
     };
 
+    let ir = ir.assign_api_bindings(rssl_ir::AssignBindingsParams::default());
+
     (ir, source_manager)
 }
 

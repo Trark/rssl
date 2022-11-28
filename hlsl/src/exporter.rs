@@ -76,21 +76,21 @@ fn export_root_definition(
         ir::RootDefinition::ConstantBuffer(cb) => {
             export_constant_buffer(cb, output, context)?;
 
-            let binding = match cb.slot {
-                Some(ir::GlobalSlot::ReadSlot(slot))
-                | Some(ir::GlobalSlot::ReadWriteSlot(slot))
-                | Some(ir::GlobalSlot::SamplerSlot(slot))
-                | Some(ir::GlobalSlot::ConstantSlot(slot)) => slot,
-                None => u32::MAX,
-            };
+            if let Some(api_slot) = cb.api_slot {
+                let lang_slot = cb
+                    .lang_slot
+                    .expect("Lang slot expected to be present when api slot is present");
+                assert_eq!(lang_slot.set, api_slot.set);
 
-            let binding = DescriptorBinding {
-                name: context.get_constant_buffer_name(cb.id)?.to_string(),
-                binding,
-                descriptor_type: DescriptorType::ConstantBuffer,
-            };
+                let binding = DescriptorBinding {
+                    name: context.get_constant_buffer_name(cb.id)?.to_string(),
+                    lang_binding: lang_slot.index,
+                    api_binding: api_slot.index,
+                    descriptor_type: DescriptorType::ConstantBuffer,
+                };
 
-            context.register_binding(0, binding);
+                context.register_binding(api_slot.set, binding);
+            }
         }
         ir::RootDefinition::GlobalVariable(decl) => {
             export_global_variable(decl, output, context)?;
@@ -128,21 +128,21 @@ fn export_root_definition(
                 _ => DescriptorType::PushConstants,
             };
 
-            let binding = match decl.slot {
-                Some(ir::GlobalSlot::ReadSlot(slot))
-                | Some(ir::GlobalSlot::ReadWriteSlot(slot))
-                | Some(ir::GlobalSlot::SamplerSlot(slot))
-                | Some(ir::GlobalSlot::ConstantSlot(slot)) => slot,
-                None => u32::MAX,
-            };
+            if let Some(api_slot) = decl.api_slot {
+                let lang_slot = decl
+                    .lang_slot
+                    .expect("Lang slot expected to be present when api slot is present");
+                assert_eq!(lang_slot.set, api_slot.set);
 
-            let binding = DescriptorBinding {
-                name: context.get_global_name(decl.id)?.to_string(),
-                binding,
-                descriptor_type,
-            };
+                let binding = DescriptorBinding {
+                    name: context.get_global_name(decl.id)?.to_string(),
+                    lang_binding: lang_slot.index,
+                    api_binding: api_slot.index,
+                    descriptor_type,
+                };
 
-            context.register_binding(0, binding);
+                context.register_binding(api_slot.set, binding);
+            }
         }
         ir::RootDefinition::Function(decl) => {
             export_function(decl, output, context)?;
@@ -181,7 +181,7 @@ fn export_global_variable(
     output.push_str(context.get_global_name(decl.id)?);
     output.push_str(&array_part);
 
-    export_register_annotation(&decl.slot, output)?;
+    export_register_annotation(&decl.api_slot, output)?;
     export_initializer(&decl.init, output, context)?;
 
     output.push(';');
@@ -191,23 +191,19 @@ fn export_global_variable(
 
 /// Export register slot annotation to HLSL
 fn export_register_annotation(
-    slot: &Option<ir::GlobalSlot>,
+    slot: &Option<ir::ApiBinding>,
     output: &mut String,
 ) -> Result<(), ExportError> {
     if let Some(slot) = &slot {
         output.push_str(" : register(");
-        match slot {
-            ir::GlobalSlot::ReadSlot(_) => output.push('t'),
-            ir::GlobalSlot::ReadWriteSlot(_) => output.push('u'),
-            ir::GlobalSlot::SamplerSlot(_) => output.push('s'),
-            ir::GlobalSlot::ConstantSlot(_) => output.push('b'),
+        match slot.slot_type {
+            Some(ir::RegisterType::T) => output.push('t'),
+            Some(ir::RegisterType::U) => output.push('u'),
+            Some(ir::RegisterType::S) => output.push('s'),
+            Some(ir::RegisterType::B) => output.push('b'),
+            None => panic!("Exporter requires register types in api binding metadata"),
         }
-        match slot {
-            ir::GlobalSlot::ReadSlot(i)
-            | ir::GlobalSlot::ReadWriteSlot(i)
-            | ir::GlobalSlot::SamplerSlot(i)
-            | ir::GlobalSlot::ConstantSlot(i) => write!(output, "{}", i).unwrap(),
-        }
+        write!(output, "{}", slot.index).unwrap();
         output.push(')');
     }
 
@@ -1185,7 +1181,7 @@ fn export_constant_buffer(
 ) -> Result<(), ExportError> {
     output.push_str("cbuffer ");
     output.push_str(context.get_constant_buffer_name(decl.id)?);
-    export_register_annotation(&decl.slot, output)?;
+    export_register_annotation(&decl.api_slot, output)?;
 
     context.new_line(output);
     output.push('{');
@@ -1343,7 +1339,8 @@ impl ExportContext {
     }
 
     /// Add a binding to the pipeline layout descriptiono
-    fn register_binding(&mut self, group_index: usize, binding: DescriptorBinding) {
+    fn register_binding(&mut self, group_index: u32, binding: DescriptorBinding) {
+        let group_index = group_index as usize;
         if group_index >= self.pipeline_description.bind_groups.len() {
             self.pipeline_description.bind_groups.resize(
                 group_index + 1,

@@ -19,17 +19,24 @@ pub struct GlobalType(pub Type, pub GlobalStorage);
 pub struct GlobalVariableName {
     pub name: Located<String>,
     pub bind: VariableBind,
-    pub slot: Option<GlobalSlot>,
+    pub slot: Option<Register>,
     pub init: Option<Initializer>,
 }
 
 /// The resource binding slot for a global parameter
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum GlobalSlot {
-    ReadSlot(u32),
-    ReadWriteSlot(u32),
-    SamplerSlot(u32),
-    ConstantSlot(u32),
+pub struct Register {
+    pub slot_type: RegisterType,
+    pub index: u32,
+}
+
+/// The resource binding slot type for a global parameter
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum RegisterType {
+    T,
+    U,
+    S,
+    B,
 }
 
 /// A constant buffer definition

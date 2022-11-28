@@ -31,7 +31,11 @@ pub fn parse_rootdefinition_globalvariable(
         let gv_ir = ir::GlobalVariable {
             id: var_id,
             global_type: gv_type,
-            slot: def.slot.clone(),
+            lang_slot: def.slot.clone().map(|r| ir::LanguageBinding {
+                set: 0,
+                index: r.index,
+            }),
+            api_slot: None,
             init: var_init,
         };
 
@@ -76,7 +80,11 @@ pub fn parse_rootdefinition_constantbuffer(
     };
     let cb_ir = ir::ConstantBuffer {
         id,
-        slot: cb.slot.clone().map(|c| ir::GlobalSlot::ConstantSlot(c.0)),
+        lang_slot: cb
+            .slot
+            .clone()
+            .map(|c| ir::LanguageBinding { set: 0, index: c.0 }),
+        api_slot: None,
         members,
     };
     Ok(ir::RootDefinition::ConstantBuffer(cb_ir))

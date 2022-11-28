@@ -25,8 +25,11 @@ pub struct DescriptorBinding {
     /// Name of the binding
     pub name: String,
 
-    /// Slot index for the binding in the group
-    pub binding: u32,
+    /// Slot index for the binding in the group for the input descriptor
+    pub lang_binding: u32,
+
+    /// Slot index for the binding in the group for the destination api
+    pub api_binding: u32,
 
     /// Type of resource view the binding takes
     pub descriptor_type: DescriptorType,

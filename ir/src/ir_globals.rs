@@ -5,7 +5,8 @@ use crate::*;
 pub struct GlobalVariable {
     pub id: GlobalId,
     pub global_type: GlobalType,
-    pub slot: Option<GlobalSlot>,
+    pub lang_slot: Option<LanguageBinding>,
+    pub api_slot: Option<ApiBinding>,
     pub init: Option<Initializer>,
 }
 
@@ -17,7 +18,8 @@ pub struct GlobalType(pub Type, pub GlobalStorage);
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub id: ConstantBufferId,
-    pub slot: Option<GlobalSlot>,
+    pub lang_slot: Option<LanguageBinding>,
+    pub api_slot: Option<ApiBinding>,
     pub members: Vec<ConstantVariable>,
 }
 
@@ -29,6 +31,29 @@ pub struct ConstantVariable {
     pub name: String,
     pub typename: Type,
     pub offset: Option<PackOffset>,
+}
+
+/// Binding slot from the perspective of language
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub struct LanguageBinding {
+    /// Descriptor set index
+    pub set: u32,
+
+    /// Slot index in set
+    pub index: u32,
+}
+
+/// Binding slot from the perspective of target api
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub struct ApiBinding {
+    /// Descriptor set index
+    pub set: u32,
+
+    /// Slot index in set
+    pub index: u32,
+
+    /// Type of binding or None if we do not care about the type
+    pub slot_type: Option<RegisterType>,
 }
 
 impl From<Type> for GlobalType {
