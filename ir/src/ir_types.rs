@@ -382,8 +382,23 @@ impl TypeLayout {
         }
     }
 
+    /// Returns `true` if the type is an array
     pub fn is_array(&self) -> bool {
         matches!(self, &TypeLayout::Array(_, _))
+    }
+
+    /// Returns `true` if the type is an object
+    pub fn is_object(&self) -> bool {
+        matches!(self, &TypeLayout::Object(_))
+    }
+
+    /// Returns `true` if the type is a buffer address
+    pub fn is_buffer_address(&self) -> bool {
+        matches!(
+            self,
+            &TypeLayout::Object(ObjectType::BufferAddress)
+                | &TypeLayout::Object(ObjectType::RWBufferAddress)
+        )
     }
 }
 

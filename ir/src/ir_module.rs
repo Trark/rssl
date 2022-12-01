@@ -6,8 +6,23 @@ use std::collections::{HashMap, HashSet};
 pub struct Module {
     /// The original names of all global declarations with are now internal ids
     pub global_declarations: GlobalDeclarations,
+
     /// The root definitions in the module
     pub root_definitions: Vec<RootDefinition>,
+
+    /// Flags that change how we build the module
+    pub flags: ModuleFlags,
+
+    /// Generated inline constant buffers
+    pub inline_constant_buffers: Vec<InlineConstantBuffer>,
+}
+
+/// Metadata on config of a [Module]
+#[derive(PartialEq, Eq, Debug, Clone, Default)]
+pub struct ModuleFlags {
+    pub assigned_api_slots: bool,
+    pub requires_buffer_address: bool,
+    pub requires_vk_binding: bool,
 }
 
 /// A single top level definition in an RSSL file
@@ -39,10 +54,26 @@ pub struct GlobalDeclarations {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct ScopedName(pub Vec<String>);
 
+/// A definition of a constant buffer that serves other bindings
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+pub struct InlineConstantBuffer {
+    /// Descriptor set
+    pub set: u32,
+
+    /// Api binding slot
+    pub api_location: u32,
+
+    /// Size of the constant buffer
+    pub size_in_bytes: u32,
+}
+
 /// Parameters for [Module::assign_api_bindings]
 pub struct AssignBindingsParams {
     /// Generate slot type information for bindings
-    require_slot_type: bool,
+    pub require_slot_type: bool,
+
+    /// Build bindings with buffer addresses as constant inputs
+    pub support_buffer_address: bool,
 }
 
 impl Module {
@@ -61,7 +92,7 @@ impl Module {
                     if let Some(LanguageBinding {
                         set: 0,
                         index: slot,
-                    }) = cb.lang_slot
+                    }) = cb.lang_binding
                     {
                         used_values.insert(slot);
                     }
@@ -99,14 +130,14 @@ impl Module {
                 | RootDefinition::StructTemplate(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(cb) => {
-                    if cb.lang_slot.is_none() {
+                    if cb.lang_binding.is_none() {
                         let mut slot = *next_value;
                         while used_values.contains(&slot) {
                             slot += 1;
                         }
                         *next_value = slot + 1;
 
-                        cb.lang_slot = Some(LanguageBinding {
+                        cb.lang_binding = Some(LanguageBinding {
                             set: 0,
                             index: slot,
                         });
@@ -149,17 +180,39 @@ impl Module {
 
     /// Assign api binding locations to all global resources
     pub fn assign_api_bindings(mut self, params: AssignBindingsParams) -> Self {
-        fn process_definition(decl: &mut RootDefinition, params: &AssignBindingsParams) {
+        assert!(!self.flags.assigned_api_slots);
+        self.flags.assigned_api_slots = true;
+        self.flags.requires_buffer_address = params.support_buffer_address;
+        self.flags.requires_vk_binding = !params.require_slot_type || params.support_buffer_address;
+
+        fn process_definition(
+            decl: &mut RootDefinition,
+            params: &AssignBindingsParams,
+            used_slots: &mut HashMap<u32, u32>,
+            inline_size: &mut HashMap<u32, u32>,
+        ) {
             match decl {
                 RootDefinition::Struct(_)
                 | RootDefinition::StructTemplate(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(cb) => {
-                    assert_eq!(cb.api_slot, None);
-                    if let Some(lang_slot) = cb.lang_slot {
-                        cb.api_slot = Some(ApiBinding {
+                    assert_eq!(cb.api_binding, None);
+                    if let Some(lang_slot) = cb.lang_binding {
+                        let index = match used_slots.entry(lang_slot.set) {
+                            std::collections::hash_map::Entry::Occupied(mut o) => {
+                                let slot = *o.get();
+                                *o.get_mut() += 1;
+                                slot
+                            }
+                            std::collections::hash_map::Entry::Vacant(v) => {
+                                v.insert(1);
+                                0
+                            }
+                        };
+
+                        cb.api_binding = Some(ApiBinding {
                             set: lang_slot.set,
-                            index: lang_slot.index,
+                            location: ApiLocation::Index(index),
                             slot_type: if params.require_slot_type {
                                 Some(RegisterType::B)
                             } else {
@@ -171,46 +224,99 @@ impl Module {
                 RootDefinition::GlobalVariable(decl) => {
                     assert_eq!(decl.api_slot, None);
                     if let Some(lang_slot) = decl.lang_slot {
-                        decl.api_slot = Some(ApiBinding {
-                            set: lang_slot.set,
-                            index: lang_slot.index,
-                            slot_type: if params.require_slot_type {
-                                Some(if let TypeLayout::Object(ot) = &decl.global_type.0 .0 {
-                                    match ot {
-                                        ObjectType::Buffer(_)
-                                        | ObjectType::ByteAddressBuffer
-                                        | ObjectType::BufferAddress
-                                        | ObjectType::StructuredBuffer(_)
-                                        | ObjectType::Texture2D(_) => RegisterType::T,
+                        if params.support_buffer_address
+                            && decl.global_type.0 .0.is_buffer_address()
+                        {
+                            let offset = match inline_size.entry(lang_slot.set) {
+                                std::collections::hash_map::Entry::Occupied(mut o) => {
+                                    let slot = *o.get();
+                                    *o.get_mut() += 8;
+                                    slot
+                                }
+                                std::collections::hash_map::Entry::Vacant(v) => {
+                                    v.insert(8);
+                                    0
+                                }
+                            };
 
-                                        ObjectType::RWBuffer(_)
-                                        | ObjectType::RWByteAddressBuffer
-                                        | ObjectType::RWBufferAddress
-                                        | ObjectType::RWStructuredBuffer(_)
-                                        | ObjectType::RWTexture2D(_) => RegisterType::U,
+                            decl.api_slot = Some(ApiBinding {
+                                set: lang_slot.set,
+                                location: ApiLocation::InlineConstant(offset),
+                                slot_type: None,
+                            });
 
-                                        ObjectType::ConstantBuffer(_) => RegisterType::B,
-                                    }
+                            assert_eq!(decl.global_type.1, GlobalStorage::Extern);
+                            decl.global_type.1 = GlobalStorage::Static;
+                        } else {
+                            let index = match used_slots.entry(lang_slot.set) {
+                                std::collections::hash_map::Entry::Occupied(mut o) => {
+                                    let slot = *o.get();
+                                    *o.get_mut() += 1;
+                                    slot
+                                }
+                                std::collections::hash_map::Entry::Vacant(v) => {
+                                    v.insert(1);
+                                    0
+                                }
+                            };
+
+                            decl.api_slot = Some(ApiBinding {
+                                set: lang_slot.set,
+                                location: ApiLocation::Index(index),
+                                slot_type: if params.require_slot_type {
+                                    Some(if let TypeLayout::Object(ot) = &decl.global_type.0 .0 {
+                                        match ot {
+                                            ObjectType::Buffer(_)
+                                            | ObjectType::ByteAddressBuffer
+                                            | ObjectType::BufferAddress
+                                            | ObjectType::StructuredBuffer(_)
+                                            | ObjectType::Texture2D(_) => RegisterType::T,
+
+                                            ObjectType::RWBuffer(_)
+                                            | ObjectType::RWByteAddressBuffer
+                                            | ObjectType::RWBufferAddress
+                                            | ObjectType::RWStructuredBuffer(_)
+                                            | ObjectType::RWTexture2D(_) => RegisterType::U,
+
+                                            ObjectType::ConstantBuffer(_) => RegisterType::B,
+                                        }
+                                    } else {
+                                        panic!("Non-object type has a global resource binding");
+                                    })
                                 } else {
-                                    panic!("Non-object type has a global resource binding");
-                                })
-                            } else {
-                                None
-                            },
-                        });
+                                    None
+                                },
+                            });
+                        }
                     }
                 }
                 RootDefinition::Namespace(_, decls) => {
                     for decl in decls {
-                        process_definition(decl, params);
+                        process_definition(decl, params, used_slots, inline_size);
                     }
                 }
             }
         }
 
+        let mut used_slots = HashMap::new();
+        let mut inline_size = HashMap::new();
         for decl in &mut self.root_definitions {
-            process_definition(decl, &params);
+            process_definition(decl, &params, &mut used_slots, &mut inline_size);
         }
+
+        // Make an inline constant buffer to store bindings that can be stored as constants
+        assert!(self.inline_constant_buffers.is_empty());
+        for (set, size) in inline_size {
+            let binding = *used_slots.get(&set).unwrap_or(&0);
+            self.inline_constant_buffers.push(InlineConstantBuffer {
+                set,
+                api_location: binding,
+                size_in_bytes: size,
+            });
+        }
+
+        // Ensure buffers are in order for consistency
+        self.inline_constant_buffers.sort();
 
         self
     }
@@ -220,6 +326,7 @@ impl Default for AssignBindingsParams {
     fn default() -> Self {
         AssignBindingsParams {
             require_slot_type: true,
+            support_buffer_address: false,
         }
     }
 }

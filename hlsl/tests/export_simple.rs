@@ -510,6 +510,11 @@ fn check_object_types() {
         include_str!("object_types.rssl"),
         include_str!("object_types.hlsl"),
     );
+
+    check_rssl_to_hlsl_vk(
+        include_str!("object_types.rssl"),
+        include_str!("object_types.vk.hlsl"),
+    );
 }
 
 #[test]
@@ -544,5 +549,10 @@ fn check_cluster_expand() {
     check_rssl_to_hlsl(
         include_str!("cluster_expand.rssl"),
         include_str!("cluster_expand.hlsl"),
+    );
+
+    check_rssl_to_hlsl_vk(
+        include_str!("cluster_expand.rssl"),
+        include_str!("cluster_expand.vk.hlsl"),
     );
 }

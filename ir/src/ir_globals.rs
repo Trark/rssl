@@ -18,8 +18,8 @@ pub struct GlobalType(pub Type, pub GlobalStorage);
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub id: ConstantBufferId,
-    pub lang_slot: Option<LanguageBinding>,
-    pub api_slot: Option<ApiBinding>,
+    pub lang_binding: Option<LanguageBinding>,
+    pub api_binding: Option<ApiBinding>,
     pub members: Vec<ConstantVariable>,
 }
 
@@ -39,7 +39,7 @@ pub struct LanguageBinding {
     /// Descriptor set index
     pub set: u32,
 
-    /// Slot index in set
+    /// Binding number into the descriptor set
     pub index: u32,
 }
 
@@ -49,11 +49,21 @@ pub struct ApiBinding {
     /// Descriptor set index
     pub set: u32,
 
-    /// Slot index in set
-    pub index: u32,
+    /// Where the binding is bound to
+    pub location: ApiLocation,
 
     /// Type of binding or None if we do not care about the type
     pub slot_type: Option<RegisterType>,
+}
+
+/// Api location a binding is bound to
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum ApiLocation {
+    /// Binding number into the descriptor set
+    Index(u32),
+
+    /// Byte offset into an inline constant buffer
+    InlineConstant(u32),
 }
 
 impl From<Type> for GlobalType {

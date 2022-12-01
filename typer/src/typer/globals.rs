@@ -80,11 +80,11 @@ pub fn parse_rootdefinition_constantbuffer(
     };
     let cb_ir = ir::ConstantBuffer {
         id,
-        lang_slot: cb
+        lang_binding: cb
             .slot
             .clone()
             .map(|c| ir::LanguageBinding { set: 0, index: c.0 }),
-        api_slot: None,
+        api_binding: None,
         members,
     };
     Ok(ir::RootDefinition::ConstantBuffer(cb_ir))

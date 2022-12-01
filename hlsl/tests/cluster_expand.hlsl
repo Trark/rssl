@@ -30,7 +30,7 @@ uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint offset = cluster.primitive_base + primitive_index_index;
     uint offset_low = offset & ~3u;
     uint byte_pos = offset & 3u;
-    uint word = g_primitiveData.Load(offset_low);
+    uint word = g_primitiveData.Load<uint>(offset_low);
     uint cluster_index = word >> 8u * byte_pos & 255u;
     return cluster_index;
 }
@@ -50,7 +50,7 @@ void CSMAIN(uint3 dispatchThreadID : SV_DispatchThreadID) {
         uint cluster_index = LoadClusterIndex(cluster_data, i);
         if (writeLocation + i < g_constantData.index_buffer_size)
         {
-            g_indexData.Store(4u * (writeLocation + i), dispatchThreadID.x << 8u | cluster_index);
+            g_indexData.Store<uint>(4u * (writeLocation + i), dispatchThreadID.x << 8u | cluster_index);
         }
     }
 }

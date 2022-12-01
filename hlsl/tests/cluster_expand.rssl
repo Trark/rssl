@@ -1,9 +1,9 @@
 
-ByteAddressBuffer g_clusterInstanceData : register(t0);
-ByteAddressBuffer g_clusterData : register(t1);
-ByteAddressBuffer g_primitiveData : register(t2);
+BufferAddress g_clusterInstanceData : register(t0);
+BufferAddress g_clusterData : register(t1);
+BufferAddress g_primitiveData : register(t2);
 
-RWByteAddressBuffer g_indexData : register(u3);
+RWBufferAddress g_indexData : register(t3);
 RWByteAddressBuffer g_indirectBuffer : register(u4);
 
 struct ClusterInstanceData
@@ -36,7 +36,7 @@ uint LoadClusterIndex(
     uint offset = cluster.primitive_base + primitive_index_index;
     uint offset_low = offset & ~0x3u;
     uint byte_pos = offset & 0x3u;
-    uint word = g_primitiveData.Load(offset_low);
+    uint word = g_primitiveData.Load<uint>(offset_low);
     uint cluster_index = (word >> (8 * byte_pos)) & 0xFFu;
     return cluster_index;
 }
@@ -62,7 +62,7 @@ void CSMAIN(
         uint cluster_index = LoadClusterIndex(cluster_data, i);
         if (writeLocation + i < g_constantData.index_buffer_size)
         {
-            g_indexData.Store(4 * (writeLocation + i), (dispatchThreadID.x << 8 | cluster_index));
+            g_indexData.Store<uint>(4 * (writeLocation + i), (dispatchThreadID.x << 8 | cluster_index));
         }
     }
 }

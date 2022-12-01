@@ -42,6 +42,8 @@ fn type_check_internal(ast: &ast::Module, context: &mut Context) -> TyperResult<
     Ok(ir::Module {
         root_definitions,
         global_declarations,
+        flags: Default::default(),
+        inline_constant_buffers: Default::default(),
     })
 }
 

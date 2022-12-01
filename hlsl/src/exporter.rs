@@ -17,8 +17,20 @@ pub enum ExportError {
 
 /// Export ir module to HLSL
 pub fn export_to_hlsl(module: &ir::Module) -> Result<ExportedSource, ExportError> {
-    let mut context = ExportContext::new(module.global_declarations.clone());
+    let mut context = ExportContext::new(module.global_declarations.clone(), module.flags.clone());
     let mut output_string = String::new();
+
+    // Generate binding info
+    for decl in &module.root_definitions {
+        analyse_bindings(decl, &mut context)?;
+    }
+
+    // Create inline constant buffers from bindings
+    generate_inline_constant_buffers(
+        &module.inline_constant_buffers,
+        &mut output_string,
+        &mut context,
+    )?;
 
     export_root_definitions(&module.root_definitions, &mut output_string, &mut context)?;
     context.new_line(&mut output_string);
@@ -27,6 +39,134 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<ExportedSource, ExportError
         source: output_string,
         pipeline_description: context.pipeline_description,
     })
+}
+
+/// Check bindings
+fn analyse_bindings(
+    decl: &ir::RootDefinition,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    match decl {
+        ir::RootDefinition::Struct(_)
+        | ir::RootDefinition::StructTemplate(_)
+        | ir::RootDefinition::Function(_) => {}
+        ir::RootDefinition::ConstantBuffer(cb) => {
+            if let Some(api_slot) = cb.api_binding {
+                let lang_slot = cb
+                    .lang_binding
+                    .expect("Lang slot expected to be present when api slot is present");
+                assert_eq!(lang_slot.set, api_slot.set);
+
+                let binding = DescriptorBinding {
+                    name: context.get_constant_buffer_name(cb.id)?.to_string(),
+                    lang_binding: lang_slot.index,
+                    api_binding: api_slot.location,
+                    descriptor_type: DescriptorType::ConstantBuffer,
+                };
+
+                context.register_binding(api_slot.set, binding);
+            }
+        }
+        ir::RootDefinition::GlobalVariable(decl) => {
+            let descriptor_type = match decl.global_type.0 .0 {
+                ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
+                    DescriptorType::ConstantBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer) => {
+                    DescriptorType::ByteBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer) => {
+                    DescriptorType::RwByteBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::BufferAddress) => {
+                    DescriptorType::BufferAddress
+                }
+                ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress) => {
+                    DescriptorType::RwBufferAddress
+                }
+                ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_)) => {
+                    DescriptorType::StructuredBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
+                    DescriptorType::RwStructuredBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
+                ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_)) => {
+                    DescriptorType::RwTexelBuffer
+                }
+                ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
+                ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
+                    DescriptorType::RwTexture2d
+                }
+                _ => DescriptorType::PushConstants,
+            };
+
+            if let Some(api_slot) = decl.api_slot {
+                let lang_slot = decl
+                    .lang_slot
+                    .expect("Lang slot expected to be present when api slot is present");
+                assert_eq!(lang_slot.set, api_slot.set);
+
+                let binding = DescriptorBinding {
+                    name: context.get_global_name(decl.id)?.to_string(),
+                    lang_binding: lang_slot.index,
+                    api_binding: api_slot.location,
+                    descriptor_type,
+                };
+
+                context.register_binding(api_slot.set, binding);
+            }
+        }
+        ir::RootDefinition::Namespace(_, decls) => {
+            for decl in decls {
+                analyse_bindings(decl, context)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Take the binding definitions and build the inline constant buffers required
+fn generate_inline_constant_buffers(
+    inline_constant_buffers: &[ir::InlineConstantBuffer],
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    for buffer in inline_constant_buffers {
+        let bind_group = &mut context.pipeline_description.bind_groups[buffer.set as usize];
+        let mut found_size = 0;
+
+        write!(output, "struct InlineDescriptor{}\n{{\n", buffer.set).unwrap();
+        for binding in &bind_group.bindings {
+            if let ApiLocation::InlineConstant(offset) = binding.api_binding {
+                assert!(offset + 8 <= buffer.size_in_bytes);
+                writeln!(
+                    output,
+                    "    [[vk::offset({})]] uint64_t {};",
+                    offset, binding.name
+                )
+                .unwrap();
+                found_size += 8;
+            }
+        }
+        assert_eq!(buffer.size_in_bytes, found_size);
+
+        output.push_str("};\n");
+        write!(
+            output,
+            "[[vk::binding({})]] ConstantBuffer<InlineDescriptor{}> g_inlineDescriptor{};",
+            buffer.api_location, buffer.set, buffer.set
+        )
+        .unwrap();
+
+        assert_eq!(bind_group.inline_constants, None);
+        bind_group.inline_constants = Some(InlineConstantBuffer {
+            api_location: buffer.api_location,
+            size_in_bytes: buffer.size_in_bytes,
+        });
+    }
+
+    Ok(())
 }
 
 /// Export ir root definitions to HLSL
@@ -75,74 +215,9 @@ fn export_root_definition(
         }
         ir::RootDefinition::ConstantBuffer(cb) => {
             export_constant_buffer(cb, output, context)?;
-
-            if let Some(api_slot) = cb.api_slot {
-                let lang_slot = cb
-                    .lang_slot
-                    .expect("Lang slot expected to be present when api slot is present");
-                assert_eq!(lang_slot.set, api_slot.set);
-
-                let binding = DescriptorBinding {
-                    name: context.get_constant_buffer_name(cb.id)?.to_string(),
-                    lang_binding: lang_slot.index,
-                    api_binding: api_slot.index,
-                    descriptor_type: DescriptorType::ConstantBuffer,
-                };
-
-                context.register_binding(api_slot.set, binding);
-            }
         }
         ir::RootDefinition::GlobalVariable(decl) => {
             export_global_variable(decl, output, context)?;
-
-            let descriptor_type = match decl.global_type.0 .0 {
-                ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
-                    DescriptorType::ConstantBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer) => {
-                    DescriptorType::ByteBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer) => {
-                    DescriptorType::RwByteBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::BufferAddress) => {
-                    DescriptorType::BufferAddress
-                }
-                ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress) => {
-                    DescriptorType::RwBufferAddress
-                }
-                ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_)) => {
-                    DescriptorType::StructuredBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
-                    DescriptorType::RwStructuredBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
-                ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_)) => {
-                    DescriptorType::RwTexelBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
-                ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
-                    DescriptorType::RwTexture2d
-                }
-                _ => DescriptorType::PushConstants,
-            };
-
-            if let Some(api_slot) = decl.api_slot {
-                let lang_slot = decl
-                    .lang_slot
-                    .expect("Lang slot expected to be present when api slot is present");
-                assert_eq!(lang_slot.set, api_slot.set);
-
-                let binding = DescriptorBinding {
-                    name: context.get_global_name(decl.id)?.to_string(),
-                    lang_binding: lang_slot.index,
-                    api_binding: api_slot.index,
-                    descriptor_type,
-                };
-
-                context.register_binding(api_slot.set, binding);
-            }
         }
         ir::RootDefinition::Function(decl) => {
             export_function(decl, output, context)?;
@@ -167,6 +242,11 @@ fn export_global_variable(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    let is_extern = decl.global_type.1 == ir::GlobalStorage::Extern;
+    if is_extern && context.module_flags.requires_vk_binding {
+        export_vk_binding_annotation(&decl.api_slot, output)?;
+    }
+
     match decl.global_type.1 {
         ir::GlobalStorage::Extern => output.push_str("extern "),
         ir::GlobalStorage::Static => output.push_str("static "),
@@ -178,11 +258,25 @@ fn export_global_variable(
 
     output.push(' ');
 
-    output.push_str(context.get_global_name(decl.id)?);
+    let name = context.get_global_name(decl.id)?;
+    output.push_str(name);
     output.push_str(&array_part);
 
-    export_register_annotation(&decl.api_slot, output)?;
-    export_initializer(&decl.init, output, context)?;
+    if is_extern && !context.module_flags.requires_vk_binding {
+        export_register_annotation(&decl.api_slot, output)?;
+    }
+
+    if let Some(ir::ApiBinding {
+        set,
+        location: ApiLocation::InlineConstant(_),
+        ..
+    }) = decl.api_slot
+    {
+        assert_eq!(decl.init, None);
+        write!(output, " = g_inlineDescriptor{}.{}", set, name).unwrap();
+    } else {
+        export_initializer(&decl.init, output, context)?;
+    }
 
     output.push(';');
 
@@ -203,8 +297,37 @@ fn export_register_annotation(
             Some(ir::RegisterType::B) => output.push('b'),
             None => panic!("Exporter requires register types in api binding metadata"),
         }
-        write!(output, "{}", slot.index).unwrap();
+        match slot.location {
+            ApiLocation::Index(index) => write!(output, "{}", index).unwrap(),
+            ApiLocation::InlineConstant(_) => {
+                panic!("export_register_annotation did not expect an inline constant")
+            }
+        }
         output.push(')');
+    }
+
+    Ok(())
+}
+
+/// Export vk::binding annotation to HLSL
+fn export_vk_binding_annotation(
+    slot: &Option<ir::ApiBinding>,
+    output: &mut String,
+) -> Result<(), ExportError> {
+    if let Some(slot) = &slot {
+        assert_eq!(slot.slot_type, None);
+        match slot.location {
+            ApiLocation::Index(index) => {
+                if slot.set != 0 {
+                    write!(output, "[[vk::binding({}, {})]] ", index, slot.set).unwrap()
+                } else {
+                    write!(output, "[[vk::binding({})]] ", index).unwrap()
+                }
+            }
+            ApiLocation::InlineConstant(_) => {
+                panic!("export_register_annotation did not expect an inline constant")
+            }
+        }
     }
 
     Ok(())
@@ -402,6 +525,11 @@ fn export_type_layout_for_def(
                 }
                 ir::ObjectType::ByteAddressBuffer => output.push_str("ByteAddressBuffer"),
                 ir::ObjectType::RWByteAddressBuffer => output.push_str("RWByteAddressBuffer"),
+                ir::ObjectType::BufferAddress | ir::ObjectType::RWBufferAddress
+                    if context.module_flags.requires_buffer_address =>
+                {
+                    output.push_str("uint64_t")
+                }
                 ir::ObjectType::BufferAddress => output.push_str("ByteAddressBuffer"),
                 ir::ObjectType::RWBufferAddress => output.push_str("RWByteAddressBuffer"),
                 ir::ObjectType::StructuredBuffer(st) => {
@@ -819,6 +947,7 @@ fn export_subexpression(
                 Binary(&'static str),
                 Invoke(&'static str),
                 Method(&'static str),
+                AddressMethod(&'static str, &'static str),
             }
 
             use ir::Intrinsic::*;
@@ -937,10 +1066,10 @@ fn export_subexpression(
                 RWByteAddressBufferStore4 => Form::Method("Store4"),
                 RWByteAddressBufferInterlockedAdd => Form::Method("InterlockedAdd"),
 
-                BufferAddressLoad => Form::Method("Load"),
+                BufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
 
-                RWBufferAddressLoad => Form::Method("Load"),
-                RWBufferAddressStore => Form::Method("Store"),
+                RWBufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
+                RWBufferAddressStore => Form::AddressMethod("Store", "vk::RawBufferStore"),
 
                 Texture2DLoad => Form::Method("Load"),
                 Texture2DSample => Form::Method("Sample"),
@@ -975,7 +1104,37 @@ fn export_subexpression(
                     export_template_type_args(tys.as_slice(), output, context)?;
                     export_invocation_args(exprs, output, context)?;
                 }
-                Form::Method(s) => {
+                Form::AddressMethod(_, s) if context.module_flags.requires_buffer_address => {
+                    assert!(
+                        exprs.len() >= 2,
+                        "Buffer address intrinsic expects at least an address and offset"
+                    );
+
+                    output.push_str(s);
+                    export_template_type_args(tys.as_slice(), output, context)?;
+                    output.push('(');
+                    if let [addr, offset, rest @ ..] = exprs.as_slice() {
+                        export_subexpression(addr, 6, OperatorSide::Left, output, context)?;
+                        output.push_str(" + uint64_t(");
+                        export_subexpression(offset, 17, OperatorSide::Middle, output, context)?;
+                        output.push(')');
+
+                        for expr in rest {
+                            output.push_str(", ");
+                            export_subexpression(
+                                expr,
+                                17,
+                                OperatorSide::CommaList,
+                                output,
+                                context,
+                            )?;
+                        }
+                    } else {
+                        panic!("Incorrect number of arguments in buffer address load");
+                    }
+                    output.push(')');
+                }
+                Form::Method(s) | Form::AddressMethod(s, _) => {
                     assert!(!exprs.is_empty());
                     export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
                     output.push('.');
@@ -1179,9 +1338,14 @@ fn export_constant_buffer(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    if context.module_flags.requires_vk_binding {
+        export_vk_binding_annotation(&decl.api_binding, output)?;
+    }
     output.push_str("cbuffer ");
     output.push_str(context.get_constant_buffer_name(decl.id)?);
-    export_register_annotation(&decl.api_slot, output)?;
+    if !context.module_flags.requires_vk_binding {
+        export_register_annotation(&decl.api_binding, output)?;
+    }
 
     context.new_line(output);
     output.push('{');
@@ -1211,6 +1375,7 @@ fn export_constant_buffer(
 /// Contextual state for exporter
 struct ExportContext {
     names: ir::GlobalDeclarations,
+    module_flags: ir::ModuleFlags,
     scopes: Vec<ir::ScopedDeclarations>,
 
     indent: u32,
@@ -1220,10 +1385,11 @@ struct ExportContext {
 
 impl ExportContext {
     /// Start a new exporter state
-    fn new(global_declarations: ir::GlobalDeclarations) -> Self {
+    fn new(global_declarations: ir::GlobalDeclarations, module_flags: ir::ModuleFlags) -> Self {
         // TODO: Rename declarations so they are unique
         ExportContext {
             names: global_declarations,
+            module_flags,
             scopes: Vec::new(),
             indent: 0,
             pipeline_description: PipelineDescription {
@@ -1338,7 +1504,7 @@ impl ExportContext {
         }
     }
 
-    /// Add a binding to the pipeline layout descriptiono
+    /// Add a binding to the pipeline layout description
     fn register_binding(&mut self, group_index: u32, binding: DescriptorBinding) {
         let group_index = group_index as usize;
         if group_index >= self.pipeline_description.bind_groups.len() {
@@ -1346,6 +1512,7 @@ impl ExportContext {
                 group_index + 1,
                 BindGroup {
                     bindings: Vec::new(),
+                    inline_constants: None,
                 },
             )
         }

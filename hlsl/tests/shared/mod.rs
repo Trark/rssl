@@ -35,14 +35,18 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
         Err(err) => panic!("{}", err.display(&source_manager)),
     };
 
-    let ir = ir.assign_api_bindings(rssl_ir::AssignBindingsParams::default());
-
     (ir, source_manager)
 }
 
 #[track_caller]
-pub fn check_rssl_to_hlsl(source_rssl: &str, expected_hlsl: &str) {
+pub fn check_rssl_to_hlsl_params(
+    source_rssl: &str,
+    expected_hlsl: &str,
+    assign_bindings_params: rssl_ir::AssignBindingsParams,
+) {
     let (ir, _) = parse_from_str(source_rssl);
+
+    let ir = ir.assign_api_bindings(assign_bindings_params);
 
     match rssl_hlsl::export_to_hlsl(&ir) {
         Ok(output) => {
@@ -60,4 +64,25 @@ pub fn check_rssl_to_hlsl(source_rssl: &str, expected_hlsl: &str) {
             panic!("{:?}", err)
         }
     }
+}
+
+#[track_caller]
+pub fn check_rssl_to_hlsl(source_rssl: &str, expected_hlsl: &str) {
+    check_rssl_to_hlsl_params(
+        source_rssl,
+        expected_hlsl,
+        rssl_ir::AssignBindingsParams::default(),
+    )
+}
+
+#[track_caller]
+pub fn check_rssl_to_hlsl_vk(source_rssl: &str, expected_hlsl: &str) {
+    check_rssl_to_hlsl_params(
+        source_rssl,
+        expected_hlsl,
+        rssl_ir::AssignBindingsParams {
+            require_slot_type: false,
+            support_buffer_address: true,
+        },
+    )
 }

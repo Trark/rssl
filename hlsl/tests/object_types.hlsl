@@ -16,7 +16,7 @@ extern StructuredBuffer<S> g_complexStructuredBuffer : register(t8);
 extern RWStructuredBuffer<S> g_complexStructuredBufferOutput : register(u9);
 extern ConstantBuffer<S> g_cb : register(b10);
 
-cbuffer g_cb : register(b10)
+cbuffer g_cb : register(b11)
 {
     S s;
 }

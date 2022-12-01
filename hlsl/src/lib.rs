@@ -6,6 +6,8 @@ mod exporter;
 
 pub use exporter::{export_to_hlsl, ExportError, ExportedSource};
 
+pub use rssl_ir::ApiLocation;
+
 /// Description of a shader pipeline
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PipelineDescription {
@@ -17,6 +19,9 @@ pub struct PipelineDescription {
 pub struct BindGroup {
     /// Bindings of resource views
     pub bindings: Vec<DescriptorBinding>,
+
+    /// Inline constant buffer to support other bindings
+    pub inline_constants: Option<InlineConstantBuffer>,
 }
 
 /// Individual binding of a resource
@@ -29,7 +34,7 @@ pub struct DescriptorBinding {
     pub lang_binding: u32,
 
     /// Slot index for the binding in the group for the destination api
-    pub api_binding: u32,
+    pub api_binding: ApiLocation,
 
     /// Type of resource view the binding takes
     pub descriptor_type: DescriptorType,
@@ -47,7 +52,10 @@ pub enum DescriptorType {
     /// An inline constant buffer - for constants stored in the parameter tables
     InlineConstants,
 
+    /// A ByteAddressBuffer or SSBO resource view
     ByteBuffer,
+
+    /// A RWByteAddressBuffer or SSBO resource view
     RwByteBuffer,
 
     /// Raw buffer address or ByteBuffer if raw addresses are disabled
@@ -56,10 +64,31 @@ pub enum DescriptorType {
     /// Raw buffer address or RwByteBuffer if raw addresses are disabled
     RwBufferAddress,
 
+    /// A StructuredBuffer or SSBO resource view
     StructuredBuffer,
+
+    /// A RWStructuredBuffer or SSBO resource view
     RwStructuredBuffer,
+
+    /// A read-only sampled typed buffer view
     TexelBuffer,
+
+    /// A read-only storage typed buffer view
     RwTexelBuffer,
+
+    /// A read-only sampled 2d texture
     Texture2d,
+
+    /// A read-write storage 2d texture
     RwTexture2d,
+}
+
+/// A definition of a constant buffer that serves other bindings
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+pub struct InlineConstantBuffer {
+    /// Api binding slot
+    pub api_location: u32,
+
+    /// Size of the constant buffer
+    pub size_in_bytes: u32,
 }
