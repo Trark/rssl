@@ -17,7 +17,7 @@ pub enum ExportError {
 
 /// Export ir module to HLSL
 pub fn export_to_hlsl(module: &ir::Module) -> Result<ExportedSource, ExportError> {
-    let mut context = ExportContext::new(module.global_declarations.clone(), module.flags.clone());
+    let mut context = ExportContext::new(module);
     let mut output_string = String::new();
 
     // Generate binding info
@@ -32,7 +32,12 @@ pub fn export_to_hlsl(module: &ir::Module) -> Result<ExportedSource, ExportError
         &mut context,
     )?;
 
-    export_root_definitions(&module.root_definitions, &mut output_string, &mut context)?;
+    export_root_definitions(
+        module,
+        &module.root_definitions,
+        &mut output_string,
+        &mut context,
+    )?;
     context.new_line(&mut output_string);
 
     Ok(ExportedSource {
@@ -171,19 +176,21 @@ fn generate_inline_constant_buffers(
 
 /// Export ir root definitions to HLSL
 fn export_root_definitions(
+    module: &ir::Module,
     decls: &[ir::RootDefinition],
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     let mut last_was_variable = false;
     for decl in decls {
-        export_root_definition(decl, &mut last_was_variable, output, context)?;
+        export_root_definition(module, decl, &mut last_was_variable, output, context)?;
     }
     Ok(())
 }
 
 /// Export ir root definition to HLSL
 fn export_root_definition(
+    module: &ir::Module,
     decl: &ir::RootDefinition,
     last_was_variable: &mut bool,
     output: &mut String,
@@ -207,7 +214,8 @@ fn export_root_definition(
     }
 
     match decl {
-        ir::RootDefinition::Struct(sd) => {
+        ir::RootDefinition::Struct(id) => {
+            let sd = &module.struct_registry[id.0 as usize];
             export_struct(sd, output, context)?;
         }
         ir::RootDefinition::StructTemplate(_) => {
@@ -219,14 +227,15 @@ fn export_root_definition(
         ir::RootDefinition::GlobalVariable(decl) => {
             export_global_variable(decl, output, context)?;
         }
-        ir::RootDefinition::Function(decl) => {
-            export_function(decl, output, context)?;
+        ir::RootDefinition::Function(id) => {
+            let fd = &module.function_registry[id.0 as usize];
+            export_function(fd.as_ref().unwrap(), output, context)?;
         }
         ir::RootDefinition::Namespace(name, decls) => {
             output.push_str("namespace ");
             output.push_str(name);
             output.push_str(" {");
-            export_root_definitions(decls, output, context)?;
+            export_root_definitions(module, decls, output, context)?;
             context.new_line(output);
             context.new_line(output);
             output.push_str("} // namespace ");
@@ -243,7 +252,7 @@ fn export_global_variable(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     let is_extern = decl.global_type.1 == ir::GlobalStorage::Extern;
-    if is_extern && context.module_flags.requires_vk_binding {
+    if is_extern && context.module.flags.requires_vk_binding {
         export_vk_binding_annotation(&decl.api_slot, output)?;
     }
 
@@ -262,7 +271,7 @@ fn export_global_variable(
     output.push_str(name);
     output.push_str(&array_part);
 
-    if is_extern && !context.module_flags.requires_vk_binding {
+    if is_extern && !context.module.flags.requires_vk_binding {
         export_register_annotation(&decl.api_slot, output)?;
     }
 
@@ -526,7 +535,7 @@ fn export_type_layout_for_def(
                 ir::ObjectType::ByteAddressBuffer => output.push_str("ByteAddressBuffer"),
                 ir::ObjectType::RWByteAddressBuffer => output.push_str("RWByteAddressBuffer"),
                 ir::ObjectType::BufferAddress | ir::ObjectType::RWBufferAddress
-                    if context.module_flags.requires_buffer_address =>
+                    if context.module.flags.requires_buffer_address =>
                 {
                     output.push_str("uint64_t")
                 }
@@ -1104,7 +1113,7 @@ fn export_subexpression(
                     export_template_type_args(tys.as_slice(), output, context)?;
                     export_invocation_args(exprs, output, context)?;
                 }
-                Form::AddressMethod(_, s) if context.module_flags.requires_buffer_address => {
+                Form::AddressMethod(_, s) if context.module.flags.requires_buffer_address => {
                     assert!(
                         exprs.len() >= 2,
                         "Buffer address intrinsic expects at least an address and offset"
@@ -1322,7 +1331,10 @@ fn export_struct(
     for method in &decl.methods {
         context.new_line(output);
         context.new_line(output);
-        export_function(method, output, context)?;
+        let fd = context.module.function_registry[method.0 as usize]
+            .as_ref()
+            .unwrap();
+        export_function(fd, output, context)?;
     }
 
     context.pop_indent();
@@ -1338,12 +1350,12 @@ fn export_constant_buffer(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    if context.module_flags.requires_vk_binding {
+    if context.module.flags.requires_vk_binding {
         export_vk_binding_annotation(&decl.api_binding, output)?;
     }
     output.push_str("cbuffer ");
     output.push_str(context.get_constant_buffer_name(decl.id)?);
-    if !context.module_flags.requires_vk_binding {
+    if !context.module.flags.requires_vk_binding {
         export_register_annotation(&decl.api_binding, output)?;
     }
 
@@ -1373,9 +1385,8 @@ fn export_constant_buffer(
 }
 
 /// Contextual state for exporter
-struct ExportContext {
-    names: ir::GlobalDeclarations,
-    module_flags: ir::ModuleFlags,
+struct ExportContext<'m> {
+    module: &'m ir::Module,
     scopes: Vec<ir::ScopedDeclarations>,
 
     indent: u32,
@@ -1383,13 +1394,12 @@ struct ExportContext {
     pipeline_description: PipelineDescription,
 }
 
-impl ExportContext {
+impl<'m> ExportContext<'m> {
     /// Start a new exporter state
-    fn new(global_declarations: ir::GlobalDeclarations, module_flags: ir::ModuleFlags) -> Self {
+    fn new(module: &'m ir::Module) -> Self {
         // TODO: Rename declarations so they are unique
         ExportContext {
-            names: global_declarations,
-            module_flags,
+            module,
             scopes: Vec::new(),
             indent: 0,
             pipeline_description: PipelineDescription {
@@ -1422,7 +1432,7 @@ impl ExportContext {
 
     /// Get the name of a global variable
     fn get_global_name(&self, id: ir::GlobalId) -> Result<&str, ExportError> {
-        match self.names.globals.get(&id) {
+        match self.module.global_declarations.globals.get(&id) {
             Some(name) => Ok(name),
             None => Err(ExportError::NamelessId),
         }
@@ -1430,39 +1440,39 @@ impl ExportContext {
 
     /// Get the name of a function
     fn get_function_name(&self, id: ir::FunctionId) -> Result<&str, ExportError> {
-        match self.names.functions.get(&id) {
-            Some(name) => Ok(name.0.last().unwrap()),
+        match self.module.function_name_registry.get(id.0 as usize) {
+            Some(name) => Ok(name.name.as_str()),
             None => Err(ExportError::NamelessId),
         }
     }
 
     /// Get the full name of a function
     fn get_function_name_full(&self, id: ir::FunctionId) -> Result<&ir::ScopedName, ExportError> {
-        match self.names.functions.get(&id) {
-            Some(name) => Ok(name),
+        match self.module.function_name_registry.get(id.0 as usize) {
+            Some(name) => Ok(&name.full_name),
             None => Err(ExportError::NamelessId),
         }
     }
 
     /// Get the name of a struct
     fn get_struct_name(&self, id: ir::StructId) -> Result<&str, ExportError> {
-        match self.names.structs.get(&id) {
-            Some(name) => Ok(name.0.last().unwrap()),
+        match self.module.struct_registry.get(id.0 as usize) {
+            Some(sd) => Ok(sd.name.as_str()),
             None => Err(ExportError::NamelessId),
         }
     }
 
     /// Get the full name of a struct
     fn get_struct_name_full(&self, id: ir::StructId) -> Result<&ir::ScopedName, ExportError> {
-        match self.names.structs.get(&id) {
-            Some(name) => Ok(name),
+        match self.module.struct_registry.get(id.0 as usize) {
+            Some(sd) => Ok(&sd.full_name),
             None => Err(ExportError::NamelessId),
         }
     }
 
     /// Get the name of a constant buffer
     fn get_constant_buffer_name(&self, id: ir::ConstantBufferId) -> Result<&str, ExportError> {
-        match self.names.constants.get(&id) {
+        match self.module.global_declarations.constants.get(&id) {
             Some(name) => Ok(name),
             None => Err(ExportError::NamelessId),
         }

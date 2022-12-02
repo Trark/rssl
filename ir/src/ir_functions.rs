@@ -1,4 +1,5 @@
 use crate::*;
+use rssl_text::Located;
 
 /// A definition for a function in RSSL
 #[derive(PartialEq, Debug, Clone)]
@@ -8,6 +9,13 @@ pub struct FunctionDefinition {
     pub params: Vec<FunctionParam>,
     pub scope_block: ScopeBlock,
     pub attributes: Vec<FunctionAttribute>,
+}
+
+/// Function name information
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct FunctionNameDefinition {
+    pub name: Located<String>,
+    pub full_name: ScopedName,
 }
 
 /// The type of a function return value

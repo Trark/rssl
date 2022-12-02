@@ -2,11 +2,11 @@ use crate::*;
 use std::collections::HashMap;
 
 /// A block of statements with the local definition types and names
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone, Default, Debug)]
 pub struct ScopeBlock(pub Vec<Statement>, pub ScopedDeclarations);
 
 /// Map of declarations in the current scope
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone, Default, Debug)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct ScopedDeclarations {
     pub variables: HashMap<VariableId, (String, Type)>,

@@ -19,32 +19,26 @@ use scopes::Context;
 pub fn type_check(ast: &ast::Module) -> Result<ir::Module, TyperExternalError> {
     let mut context = Context::new();
 
-    match type_check_internal(ast, &mut context) {
-        Ok(module) => Ok(module),
-        Err(err) => Err(TyperExternalError(err, context)),
-    }
+    if let Err(err) = type_check_internal(ast, &mut context) {
+        return Err(TyperExternalError(err, context));
+    };
+
+    // Remember the names of non-local definitions at the module level
+    context.gather_global_names();
+
+    Ok(context.module)
 }
 
 /// Internal version of type_check when the context is created
-fn type_check_internal(ast: &ast::Module, context: &mut Context) -> TyperResult<ir::Module> {
+fn type_check_internal(ast: &ast::Module, context: &mut Context) -> TyperResult<()> {
     // Convert each root definition in order
-    let mut root_definitions = vec![];
     for def in &ast.root_definitions {
         let mut def_ir = parse_rootdefinition(def, context)?;
-        root_definitions.append(&mut def_ir);
+        context.module.root_definitions.append(&mut def_ir);
     }
 
     assert!(context.is_at_root());
-
-    // Remember the names of non-local definitions at the module level
-    let global_declarations = context.gather_global_names();
-
-    Ok(ir::Module {
-        root_definitions,
-        global_declarations,
-        flags: Default::default(),
-        inline_constant_buffers: Default::default(),
-    })
+    Ok(())
 }
 
 /// Type check a single root definition

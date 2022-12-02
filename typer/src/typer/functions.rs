@@ -104,7 +104,7 @@ pub fn parse_function_body(
     id: ir::FunctionId,
     signature: FunctionSignature,
     context: &mut Context,
-) -> TyperResult<ir::FunctionDefinition> {
+) -> TyperResult<()> {
     context.revisit_function(id);
 
     let return_type = signature.return_type;
@@ -128,20 +128,22 @@ pub fn parse_function_body(
     let body_ir = parse_statement_list(&fd.body, context)?;
     let decls = context.pop_scope_with_locals();
 
-    let fd_ir = ir::FunctionDefinition {
+    let def = ir::FunctionDefinition {
         id,
         returntype: return_type,
         params: func_params,
         scope_block: ir::ScopeBlock(body_ir, decls),
         attributes,
     };
-    Ok(fd_ir)
+
+    context.module.function_registry[id.0 as usize] = Some(def);
+    Ok(())
 }
 
 fn parse_function(
     fd: &ast::FunctionDefinition,
     context: &mut Context,
-) -> TyperResult<ir::FunctionDefinition> {
+) -> TyperResult<ir::FunctionId> {
     let (signature, scope) = parse_function_signature(fd, None, context)?;
 
     // Register the function signature
@@ -149,10 +151,10 @@ fn parse_function(
     context.add_function_to_current_scope(id)?;
 
     if signature.template_params.0 == 0 {
-        parse_function_body(fd, id, signature, context)
+        parse_function_body(fd, id, signature, context)?;
     } else {
         let attributes = parse_function_attributes(&fd.attributes, context)?;
-        Ok(ir::FunctionDefinition {
+        let def = ir::FunctionDefinition {
             id,
             returntype: signature.return_type,
             params: Default::default(),
@@ -163,8 +165,11 @@ fn parse_function(
                 },
             ),
             attributes,
-        })
-    }
+        };
+        context.module.function_registry[id.0 as usize] = Some(def);
+    };
+
+    Ok(id)
 }
 
 fn parse_returntype(

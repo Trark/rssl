@@ -4,6 +4,10 @@ use crate::*;
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Type(pub TypeLayout, pub TypeModifier);
 
+/// Id to a type definition
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct TypeId(pub u32);
+
 /// A type without type modifiers
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum TypeLayout {

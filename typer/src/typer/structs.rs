@@ -21,12 +21,7 @@ pub fn parse_rootdefinition_struct(
             Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
         };
 
-        Ok(ir::RootDefinition::StructTemplate(
-            ir::StructTemplateDefinition {
-                id,
-                ast: sd.clone(),
-            },
-        ))
+        Ok(ir::RootDefinition::StructTemplate(id))
     } else {
         let struct_def = parse_struct_internal(sd, &[], context)?;
         Ok(ir::RootDefinition::Struct(struct_def))
@@ -40,7 +35,7 @@ pub fn build_struct_from_template(
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
     let struct_def = parse_struct_internal(sd, template_args, context)?;
-    Ok(struct_def.id)
+    Ok(struct_def)
 }
 
 /// Process a struct internals
@@ -48,7 +43,7 @@ fn parse_struct_internal(
     sd: &ast::StructDefinition,
     template_args: &[ir::TypeOrConstant],
     context: &mut Context,
-) -> TyperResult<ir::StructDefinition> {
+) -> TyperResult<ir::StructId> {
     // Register the struct
     let name = &sd.name;
     let id = match context.begin_struct(name.clone(), template_args.is_empty()) {
@@ -124,8 +119,8 @@ fn parse_struct_internal(
     let mut methods = Vec::new();
     for (ast_func, id, signature) in methods_to_parse {
         if signature.template_params.0 == 0 {
-            let ir_func = parse_function_body(ast_func, id, signature, context)?;
-            methods.push(ir_func);
+            parse_function_body(ast_func, id, signature, context)?;
+            methods.push(id);
         } else {
             // Do not add the templated method to the tree for now
             // TODO: Template methods in the final output
@@ -134,9 +129,10 @@ fn parse_struct_internal(
 
     context.pop_scope();
 
-    Ok(ir::StructDefinition {
-        id,
-        members,
-        methods,
-    })
+    // TODO: Move earlier than parse when functions are also shuffled to registry
+    // And append instead of replace the definitions
+    let def = &mut context.module.struct_registry[id.0 as usize];
+    def.members = members;
+    def.methods = methods;
+    Ok(id)
 }

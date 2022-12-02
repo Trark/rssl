@@ -3,8 +3,6 @@ use rssl_ir as ir;
 use rssl_text::Located;
 use std::collections::HashMap;
 
-const BASE_FUNCTION_ID: u32 = 164;
-
 fn make_id(name: &str) -> Located<ast::Expression> {
     Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
         name,
@@ -202,52 +200,66 @@ fn test_ast_to_ir() {
         ],
     };
 
-    let static_global_result = rssl_typer::type_check(&static_global_test);
-    let static_global_expected = vec![
-        ir::RootDefinition::GlobalVariable(ir::GlobalVariable {
-            id: ir::GlobalId(0),
-            global_type: ir::GlobalType(
-                ir::Type(
-                    ir::TypeLayout::from_scalar(ir::ScalarType::Int),
-                    ir::TypeModifier {
-                        is_const: true,
-                        ..ir::TypeModifier::default()
-                    },
-                ),
-                ir::GlobalStorage::Static,
-            ),
-            lang_slot: None,
-            api_slot: None,
-            init: Some(ir::Initializer::Expression(ir::Expression::Literal(
-                ir::Literal::Int(4),
-            ))),
-        }),
-        ir::RootDefinition::Function(ir::FunctionDefinition {
-            id: ir::FunctionId(BASE_FUNCTION_ID),
-            returntype: ir::FunctionReturn {
-                return_type: ir::Type::void().into(),
-                semantic: None,
-            },
-            params: Vec::new(),
-            scope_block: ir::ScopeBlock(
-                vec![
-                    ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
-                    ir::Statement::Expression(ir::Expression::Intrinsic(
-                        ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
-                        Vec::new(),
-                        Vec::new(),
-                    )),
-                ],
-                ir::ScopedDeclarations {
-                    variables: HashMap::new(),
-                },
-            ),
-            attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
-        }),
-    ];
-    match static_global_result {
+    match rssl_typer::type_check(&static_global_test) {
         Ok(actual) => {
-            assert_eq!(actual.root_definitions, static_global_expected)
+            let mut base_func_id = 0;
+            for fd in &actual.function_registry {
+                if fd.is_some() {
+                    break;
+                }
+                base_func_id += 1;
+            }
+
+            assert_eq!(
+                actual.root_definitions,
+                Vec::from([
+                    ir::RootDefinition::GlobalVariable(ir::GlobalVariable {
+                        id: ir::GlobalId(0),
+                        global_type: ir::GlobalType(
+                            ir::Type(
+                                ir::TypeLayout::from_scalar(ir::ScalarType::Int),
+                                ir::TypeModifier {
+                                    is_const: true,
+                                    ..ir::TypeModifier::default()
+                                },
+                            ),
+                            ir::GlobalStorage::Static,
+                        ),
+                        lang_slot: None,
+                        api_slot: None,
+                        init: Some(ir::Initializer::Expression(ir::Expression::Literal(
+                            ir::Literal::Int(4),
+                        ))),
+                    }),
+                    ir::RootDefinition::Function(ir::FunctionId(base_func_id))
+                ])
+            );
+
+            assert_eq!(
+                actual.function_registry[base_func_id as usize..],
+                Vec::from([Some(ir::FunctionDefinition {
+                    id: ir::FunctionId(base_func_id),
+                    returntype: ir::FunctionReturn {
+                        return_type: ir::Type::void().into(),
+                        semantic: None,
+                    },
+                    params: Vec::new(),
+                    scope_block: ir::ScopeBlock(
+                        vec![
+                            ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
+                            ir::Statement::Expression(ir::Expression::Intrinsic(
+                                ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
+                                Vec::new(),
+                                Vec::new(),
+                            )),
+                        ],
+                        ir::ScopedDeclarations {
+                            variables: HashMap::new(),
+                        },
+                    ),
+                    attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
+                })])
+            );
         }
         Err(err) => panic!("Failed to type check: {:?}", err),
     }

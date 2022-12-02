@@ -2,10 +2,25 @@ use crate::*;
 use std::collections::{HashMap, HashSet};
 
 /// Represents a full parsed and type checked source file
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone, Default, Debug)]
 pub struct Module {
     /// The original names of all global declarations with are now internal ids
     pub global_declarations: GlobalDeclarations,
+
+    /// Container of all registered types
+    pub type_registry: Vec<TypeLayout>,
+
+    /// Container of all struct types
+    pub struct_registry: Vec<StructDefinition>,
+
+    /// Container of all struct template types
+    pub struct_template_registry: Vec<StructTemplateDefinition>,
+
+    /// Container of all functions
+    pub function_registry: Vec<Option<FunctionDefinition>>,
+
+    /// Container for names of all functions
+    pub function_name_registry: Vec<FunctionNameDefinition>,
 
     /// The root definitions in the module
     pub root_definitions: Vec<RootDefinition>,
@@ -31,22 +46,19 @@ pub struct ModuleFlags {
 /// We still maintain namespace scoping and definition ordering as it makes exporting to HLSL easier.
 #[derive(PartialEq, Debug, Clone)]
 pub enum RootDefinition {
-    Struct(StructDefinition),
-    StructTemplate(StructTemplateDefinition),
+    Struct(StructId),
+    StructTemplate(StructTemplateId),
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),
-    Function(FunctionDefinition),
+    Function(FunctionId),
     Namespace(String, Vec<RootDefinition>),
 }
 
 /// Map of declarations in the global scope
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone, Default, Debug)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct GlobalDeclarations {
-    pub functions: HashMap<FunctionId, ScopedName>,
     pub globals: HashMap<GlobalId, String>,
-    pub structs: HashMap<StructId, ScopedName>,
-    pub struct_templates: HashMap<StructTemplateId, String>,
     pub constants: HashMap<ConstantBufferId, String>,
 }
 

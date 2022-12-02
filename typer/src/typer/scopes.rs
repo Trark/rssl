@@ -15,6 +15,8 @@ use std::rc::Rc;
 /// Stores all ids for types and variables by a module
 #[derive(Debug, Clone)]
 pub struct Context {
+    pub module: ir::Module,
+
     scopes: Vec<ScopeData>,
     current_scope: ScopeIndex,
 
@@ -34,8 +36,6 @@ pub enum StructMemberValue {
 
 #[derive(Debug, Clone)]
 struct FunctionData {
-    name: Located<String>,
-    full_name: ir::ScopedName,
     overload: FunctionOverload,
     scope: ScopeIndex,
     ast: Option<Rc<ast::FunctionDefinition>>,
@@ -44,16 +44,12 @@ struct FunctionData {
 
 #[derive(Debug, Clone)]
 struct StructData {
-    name: Located<String>,
-    full_name: ir::ScopedName,
     members: HashMap<String, ir::Type>,
     methods: HashMap<String, Vec<ir::FunctionId>>,
 }
 
 #[derive(Debug, Clone)]
 struct StructTemplateData {
-    name: Located<String>,
-    ast: Rc<ast::StructDefinition>,
     scope: ScopeIndex,
     instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::StructId>,
 }
@@ -92,6 +88,7 @@ impl Context {
     /// Create a new instance to store type and variable context
     pub fn new() -> Self {
         let mut context = Context {
+            module: Default::default(),
             scopes: Vec::from([ScopeData {
                 parent_scope: usize::MAX,
                 scope_name: None,
@@ -297,7 +294,8 @@ impl Context {
                     Err(TyperError::UnknownType(name.into()))
                 } else {
                     let struct_template_data = &self.struct_template_data[id.0 as usize];
-                    let ast = &struct_template_data.ast.clone();
+                    let struct_template_def = &self.module.struct_template_registry[id.0 as usize];
+                    let ast = &struct_template_def.ast.clone();
 
                     if let Some(id) = struct_template_data.instantiations.get(template_args) {
                         Ok(ir::Type(ir::TypeLayout::Struct(*id), modifier))
@@ -454,7 +452,7 @@ impl Context {
     /// Get the name from a function id
     pub fn get_function_name(&self, id: ir::FunctionId) -> &str {
         assert!(id.0 < self.function_data.len() as u32);
-        &self.function_data[id.0 as usize].name.node
+        &self.module.function_name_registry[id.0 as usize].name.node
     }
 
     /// Get the name from a function
@@ -462,9 +460,9 @@ impl Context {
         match *id {
             Callable::Function(id) => self.get_function_name(id),
             Callable::Intrinsic(_) => {
-                for data in &self.function_data {
+                for (i, data) in self.function_data.iter().enumerate() {
                     if data.overload.0 == *id {
-                        return &data.name;
+                        return &self.module.function_name_registry[i].name;
                     }
                 }
                 "<unknown>"
@@ -475,13 +473,15 @@ impl Context {
     /// Get the name from a struct id
     pub fn get_struct_name(&self, id: ir::StructId) -> &str {
         assert!(id.0 < self.struct_data.len() as u32);
-        &self.struct_data[id.0 as usize].name.node
+        &self.module.struct_registry[id.0 as usize].name.node
     }
 
     /// Get the name from a struct template_id
     pub fn get_struct_template_name(&self, id: ir::StructTemplateId) -> &str {
         assert!(id.0 < self.struct_template_data.len() as u32);
-        &self.struct_template_data[id.0 as usize].name.node
+        &self.module.struct_template_registry[id.0 as usize]
+            .name
+            .node
     }
 
     /// Get the name from a constant buffer id
@@ -499,7 +499,9 @@ impl Context {
     /// Get the source location from a function id
     pub fn get_function_location(&self, id: ir::FunctionId) -> SourceLocation {
         assert!(id.0 < self.function_data.len() as u32);
-        self.function_data[id.0 as usize].name.location
+        self.module.function_name_registry[id.0 as usize]
+            .name
+            .location
     }
 
     /// Get the source location from a type
@@ -507,7 +509,7 @@ impl Context {
         match id.0 {
             ir::TypeLayout::Struct(id) => {
                 assert!(id.0 < self.struct_data.len() as u32);
-                self.struct_data[id.0 as usize].name.location
+                self.module.struct_registry[id.0 as usize].name.location
             }
             _ => SourceLocation::UNKNOWN,
         }
@@ -539,15 +541,22 @@ impl Context {
         ast: ast::FunctionDefinition,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
+        assert_eq!(
+            self.function_data.len(),
+            self.module.function_registry.len()
+        );
         let full_name = self.get_qualified_name(&name);
         self.function_data.push(FunctionData {
-            name,
-            full_name,
             overload: FunctionOverload(Callable::Function(id), signature),
             scope,
             ast: Some(Rc::new(ast)),
             instantiations: HashMap::new(),
         });
+        // Set definition to empty to replace later after it is parsed
+        self.module.function_registry.push(None);
+        self.module
+            .function_name_registry
+            .push(ir::FunctionNameDefinition { name, full_name });
         Ok(id)
     }
 
@@ -563,15 +572,22 @@ impl Context {
         overload: FunctionOverload,
     ) -> TyperResult<ir::FunctionId> {
         let id = ir::FunctionId(self.function_data.len() as u32);
+        assert_eq!(
+            self.function_data.len(),
+            self.module.function_registry.len()
+        );
         let full_name = ir::ScopedName(Vec::from([name.node.clone()]));
         self.function_data.push(FunctionData {
-            name,
-            full_name,
             overload,
             scope: usize::MAX,
             ast: None,
             instantiations: HashMap::new(),
         });
+        // Leave the function definition as empty permanently
+        self.module.function_registry.push(None);
+        self.module
+            .function_name_registry
+            .push(ir::FunctionNameDefinition { name, full_name });
         self.insert_function_in_scope(self.current_scope as usize, id)?;
         Ok(id)
     }
@@ -621,15 +637,24 @@ impl Context {
     ) -> Result<ir::StructId, ir::Type> {
         let full_name = self.get_qualified_name(&name);
 
+        let type_id = ir::TypeId(self.module.type_registry.len() as u32);
+        let id = ir::StructId(self.struct_data.len() as u32);
+        assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
+        self.module.type_registry.push(ir::TypeLayout::Struct(id));
         let data = StructData {
-            name,
-            full_name,
             members: HashMap::new(),
             methods: HashMap::new(),
         };
-        let id = ir::StructId(self.struct_data.len() as u32);
         self.struct_data.push(data);
-        let data = self.struct_data.last().unwrap();
+        self.module.struct_registry.push(ir::StructDefinition {
+            id,
+            type_id,
+            name,
+            full_name,
+            members: Default::default(),
+            methods: Default::default(),
+        });
+        let data = self.module.struct_registry.last().unwrap();
         let type_for_struct = ir::Type::from_layout(ir::TypeLayout::Struct(id));
         if is_non_template {
             match self.scopes[self.current_scope]
@@ -667,15 +692,26 @@ impl Context {
         name: Located<String>,
         ast: ast::StructDefinition,
     ) -> Result<ir::StructTemplateId, ir::Type> {
+        let type_id = ir::TypeId(self.module.type_registry.len() as u32);
+        let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
+        assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
+        self.module
+            .type_registry
+            .push(ir::TypeLayout::StructTemplate(id));
         let data = StructTemplateData {
-            name,
-            ast: Rc::new(ast),
             scope: self.current_scope,
             instantiations: HashMap::new(),
         };
-        let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
         self.struct_template_data.push(data);
-        let data = self.struct_template_data.last().unwrap();
+        self.module
+            .struct_template_registry
+            .push(ir::StructTemplateDefinition {
+                id,
+                type_id,
+                name,
+                ast,
+            });
+        let data = self.module.struct_template_registry.last().unwrap();
         let type_for_struct = ir::Type::from_layout(ir::TypeLayout::StructTemplate(id));
         match self.scopes[self.current_scope]
             .types
@@ -853,14 +889,15 @@ impl Context {
         id: ir::FunctionId,
     ) -> TyperResult<()> {
         let data = &self.function_data[id.0 as usize];
+        let name_data = &self.module.function_name_registry[id.0 as usize];
 
         // Error if a variable of the same name already exists
-        match self.find_variable_in_scope(&self.scopes[scope_index], &data.name.node, 0) {
+        match self.find_variable_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
-                    data.name.clone(),
+                    name_data.name.clone(),
                     ty.to_error_type(),
                     ErrorType::Unknown,
                 ));
@@ -871,7 +908,7 @@ impl Context {
         // Try to add the function
         match self.scopes[scope_index]
             .function_ids
-            .entry(data.name.node.clone())
+            .entry(name_data.name.node.clone())
         {
             Entry::Occupied(mut occupied) => {
                 // Fail if the overload already exists
@@ -883,7 +920,7 @@ impl Context {
                         == data.overload.1.param_types
                     {
                         return Err(TyperError::ValueAlreadyDefined(
-                            data.name.clone(),
+                            name_data.name.clone(),
                             ErrorType::Unknown,
                             ErrorType::Unknown,
                         ));
@@ -972,20 +1009,26 @@ impl Context {
 
         // Push the instantiation as a new function
         let new_id = ir::FunctionId(self.function_data.len() as u32);
+        assert_eq!(
+            self.function_data.len(),
+            self.module.function_registry.len()
+        );
         self.function_data.push(FunctionData {
-            name: data.name.clone(),
-            full_name: data.full_name.clone(),
             overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
             scope: new_scope_id,
             ast: None,
             instantiations: HashMap::new(),
         });
+        self.module.function_registry.push(None);
+        self.module
+            .function_name_registry
+            .push(self.module.function_name_registry[id.0 as usize].clone());
 
         // Move active scope back to outside the template function definition
         let caller_scope_position = self.current_scope;
         self.current_scope = parent_scope_id;
 
-        // Parse the function body - but currently we do not store the result anywhere
+        // Parse the function body and store it in the registry
         let ast = self.get_function_ast(id);
         parse_function_body(&ast, new_id, signature, self)?;
 
@@ -1000,46 +1043,36 @@ impl Context {
     }
 
     /// Make a name map from all non-local ids
-    pub fn gather_global_names(&self) -> ir::GlobalDeclarations {
-        let mut decls = ir::GlobalDeclarations {
-            functions: HashMap::new(),
-            globals: HashMap::new(),
-            structs: HashMap::new(),
-            struct_templates: HashMap::new(),
-            constants: HashMap::new(),
-        };
-
-        for struct_index in 0..self.struct_data.len() {
-            let id = ir::StructId(struct_index as u32);
-            let data = &self.struct_data[struct_index];
-            decls.structs.insert(id, data.full_name.clone());
-        }
-
-        for struct_template_index in 0..self.struct_template_data.len() {
-            let id = ir::StructTemplateId(struct_template_index as u32);
-            let data = &self.struct_template_data[struct_template_index];
-            decls.struct_templates.insert(id, data.name.to_string());
-        }
+    pub fn gather_global_names(&mut self) {
+        assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
+        assert_eq!(
+            self.struct_template_data.len(),
+            self.module.struct_template_registry.len()
+        );
+        assert_eq!(
+            self.function_data.len(),
+            self.module.function_registry.len()
+        );
 
         for cbuffer_index in 0..self.cbuffer_data.len() {
             let id = ir::ConstantBufferId(cbuffer_index as u32);
             let data = &self.cbuffer_data[cbuffer_index];
-            decls.constants.insert(id, data.name.to_string());
+
+            self.module
+                .global_declarations
+                .constants
+                .insert(id, data.name.to_string());
         }
 
         for global_index in 0..self.global_data.len() {
             let id = ir::GlobalId(global_index as u32);
             let data = &self.global_data[global_index];
-            decls.globals.insert(id, data.name.to_string());
-        }
 
-        for function_index in 0..self.function_data.len() {
-            let id = ir::FunctionId(function_index as u32);
-            let data = &self.function_data[function_index];
-            decls.functions.insert(id, data.full_name.clone());
+            self.module
+                .global_declarations
+                .globals
+                .insert(id, data.name.to_string());
         }
-
-        decls
     }
 }
 
