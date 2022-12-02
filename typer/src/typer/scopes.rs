@@ -24,7 +24,6 @@ pub struct Context {
     struct_data: Vec<StructData>,
     struct_template_data: Vec<StructTemplateData>,
     cbuffer_data: Vec<ConstantBufferData>,
-    global_data: Vec<GlobalData>,
 }
 
 pub type ScopeIndex = usize;
@@ -56,14 +55,7 @@ struct StructTemplateData {
 
 #[derive(Debug, Clone)]
 struct ConstantBufferData {
-    name: Located<String>,
     members: HashMap<String, ir::Type>,
-}
-
-#[derive(Debug, Clone)]
-struct GlobalData {
-    name: Located<String>,
-    ty: ir::Type,
 }
 
 #[derive(Debug, Clone)]
@@ -107,7 +99,6 @@ impl Context {
             struct_data: Vec::new(),
             struct_template_data: Vec::new(),
             cbuffer_data: Vec::new(),
-            global_data: Vec::new(),
         };
         for (name, overload) in get_intrinsics() {
             context
@@ -361,8 +352,12 @@ impl Context {
 
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: ir::GlobalId) -> TyperResult<ExpressionType> {
-        assert!(id.0 < self.global_data.len() as u32);
-        Ok(self.global_data[id.0 as usize].ty.clone().to_lvalue())
+        assert!(id.0 < self.module.global_registry.len() as u32);
+        Ok(self.module.global_registry[id.0 as usize]
+            .global_type
+            .0
+            .clone()
+            .to_lvalue())
     }
 
     /// Find the type of a constant buffer member
@@ -487,13 +482,13 @@ impl Context {
     /// Get the name from a constant buffer id
     pub fn get_cbuffer_name(&self, id: ir::ConstantBufferId) -> &str {
         assert!(id.0 < self.cbuffer_data.len() as u32);
-        &self.cbuffer_data[id.0 as usize].name.node
+        &self.module.cbuffer_registry[id.0 as usize].name.node
     }
 
     /// Get the name from a global variable id
     pub fn get_global_name(&self, id: ir::GlobalId) -> &str {
-        assert!(id.0 < self.global_data.len() as u32);
-        &self.global_data[id.0 as usize].name.node
+        assert!(id.0 < self.module.global_registry.len() as u32);
+        &self.module.global_registry[id.0 as usize].name.node
     }
 
     /// Get the source location from a function id
@@ -518,7 +513,7 @@ impl Context {
     /// Get the source location from a constant buffer id
     pub fn get_cbuffer_location(&self, id: ir::ConstantBufferId) -> SourceLocation {
         assert!(id.0 < self.cbuffer_data.len() as u32);
-        self.cbuffer_data[id.0 as usize].name.location
+        self.module.cbuffer_registry[id.0 as usize].name.location
     }
 
     /// Register a local variable
@@ -596,14 +591,22 @@ impl Context {
     pub fn insert_global(
         &mut self,
         name: Located<String>,
-        ty: ir::Type,
+        global_type: ir::GlobalType,
     ) -> TyperResult<ir::GlobalId> {
-        let data = GlobalData { name, ty };
-        let id = ir::GlobalId(self.global_data.len() as u32);
-        self.global_data.push(data);
+        let full_name = self.get_qualified_name(&name);
+        let id = ir::GlobalId(self.module.global_registry.len() as u32);
+        self.module.global_registry.push(ir::GlobalVariable {
+            id,
+            name,
+            full_name,
+            global_type,
+            lang_slot: None,
+            api_slot: None,
+            init: None,
+        });
 
         let scope = &self.scopes[self.current_scope];
-        let data = self.global_data.last().unwrap();
+        let data = self.module.global_registry.last().unwrap();
 
         match self.find_variable_in_scope(scope, &data.name, 0) {
             Some(VariableExpression::Local(_, ref ty))
@@ -612,7 +615,7 @@ impl Context {
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
                     ty.to_error_type(),
-                    data.ty.to_error_type(),
+                    data.global_type.0.to_error_type(),
                 ));
             }
             _ => {}
@@ -753,10 +756,18 @@ impl Context {
         name: Located<String>,
         members: HashMap<String, ir::Type>,
     ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
-        let data = ConstantBufferData { name, members };
+        let data = ConstantBufferData { members };
         let id = ir::ConstantBufferId(self.cbuffer_data.len() as u32);
+        assert_eq!(self.cbuffer_data.len(), self.module.cbuffer_registry.len());
         self.cbuffer_data.push(data);
-        let data = self.cbuffer_data.last().unwrap();
+        self.module.cbuffer_registry.push(ir::ConstantBuffer {
+            id,
+            name,
+            lang_binding: None,
+            api_binding: None,
+            members: Vec::new(),
+        });
+        let data = self.module.cbuffer_registry.last().unwrap();
         match self.scopes[self.current_scope]
             .cbuffer_ids
             .entry(data.name.to_string())
@@ -876,7 +887,10 @@ impl Context {
         if let Some(id) = scope.global_ids.get(name) {
             return Some(VariableExpression::Global(
                 *id,
-                self.global_data[id.0 as usize].ty.clone(),
+                self.module.global_registry[id.0 as usize]
+                    .global_type
+                    .0
+                    .clone(),
             ));
         }
 
@@ -1040,39 +1054,6 @@ impl Context {
         let data = &mut self.function_data[id.0 as usize];
         data.instantiations.insert(template_args_no_loc, new_id);
         Ok(new_id)
-    }
-
-    /// Make a name map from all non-local ids
-    pub fn gather_global_names(&mut self) {
-        assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
-        assert_eq!(
-            self.struct_template_data.len(),
-            self.module.struct_template_registry.len()
-        );
-        assert_eq!(
-            self.function_data.len(),
-            self.module.function_registry.len()
-        );
-
-        for cbuffer_index in 0..self.cbuffer_data.len() {
-            let id = ir::ConstantBufferId(cbuffer_index as u32);
-            let data = &self.cbuffer_data[cbuffer_index];
-
-            self.module
-                .global_declarations
-                .constants
-                .insert(id, data.name.to_string());
-        }
-
-        for global_index in 0..self.global_data.len() {
-            let id = ir::GlobalId(global_index as u32);
-            let data = &self.global_data[global_index];
-
-            self.module
-                .global_declarations
-                .globals
-                .insert(id, data.name.to_string());
-        }
     }
 }
 

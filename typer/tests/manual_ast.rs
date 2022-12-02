@@ -213,27 +213,14 @@ fn test_ast_to_ir() {
             assert_eq!(
                 actual.root_definitions,
                 Vec::from([
-                    ir::RootDefinition::GlobalVariable(ir::GlobalVariable {
-                        id: ir::GlobalId(0),
-                        global_type: ir::GlobalType(
-                            ir::Type(
-                                ir::TypeLayout::from_scalar(ir::ScalarType::Int),
-                                ir::TypeModifier {
-                                    is_const: true,
-                                    ..ir::TypeModifier::default()
-                                },
-                            ),
-                            ir::GlobalStorage::Static,
-                        ),
-                        lang_slot: None,
-                        api_slot: None,
-                        init: Some(ir::Initializer::Expression(ir::Expression::Literal(
-                            ir::Literal::Int(4),
-                        ))),
-                    }),
+                    ir::RootDefinition::GlobalVariable(ir::GlobalId(0)),
                     ir::RootDefinition::Function(ir::FunctionId(base_func_id))
                 ])
             );
+
+            assert_eq!(actual.type_registry, Vec::new());
+            assert_eq!(actual.struct_registry, Vec::new());
+            assert_eq!(actual.struct_template_registry, Vec::new());
 
             assert_eq!(
                 actual.function_registry[base_func_id as usize..],
@@ -260,6 +247,40 @@ fn test_ast_to_ir() {
                     attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
                 })])
             );
+
+            assert_eq!(
+                actual.function_name_registry[base_func_id as usize..],
+                Vec::from([ir::FunctionNameDefinition {
+                    name: Located::none("CSMAIN".to_string()),
+                    full_name: ir::ScopedName(Vec::from(["CSMAIN".to_string()])),
+                }])
+            );
+
+            assert_eq!(
+                actual.global_registry,
+                Vec::from([ir::GlobalVariable {
+                    id: ir::GlobalId(0),
+                    name: Located::none("g_myFour".to_string()),
+                    full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
+                    global_type: ir::GlobalType(
+                        ir::Type(
+                            ir::TypeLayout::from_scalar(ir::ScalarType::Int),
+                            ir::TypeModifier {
+                                is_const: true,
+                                ..ir::TypeModifier::default()
+                            },
+                        ),
+                        ir::GlobalStorage::Static,
+                    ),
+                    lang_slot: None,
+                    api_slot: None,
+                    init: Some(ir::Initializer::Expression(ir::Expression::Literal(
+                        ir::Literal::Int(4),
+                    ))),
+                }])
+            );
+
+            assert_eq!(actual.cbuffer_registry, Vec::new());
         }
         Err(err) => panic!("Failed to type check: {:?}", err),
     }

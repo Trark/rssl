@@ -1,12 +1,28 @@
 use crate::*;
+use rssl_text::Located;
 
 /// A global variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariable {
+    /// Unique identifier for the global variable
     pub id: GlobalId,
+
+    /// Short name for the variable
+    pub name: Located<String>,
+
+    /// Fully qualified name for the varibale
+    pub full_name: ScopedName,
+
+    /// Type for the global variable including global-specific modifiers
     pub global_type: GlobalType,
+
+    /// Binding point from the users perspective
     pub lang_slot: Option<LanguageBinding>,
+
+    /// Binding point from the target APIs perspective
     pub api_slot: Option<ApiBinding>,
+
+    /// Initializer for the global variable
     pub init: Option<Initializer>,
 }
 
@@ -17,9 +33,19 @@ pub struct GlobalType(pub Type, pub GlobalStorage);
 /// A constant buffer definition
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantBuffer {
+    /// Unique identifier for the constant buffer
     pub id: ConstantBufferId,
+
+    /// Short name for the constant buffer
+    pub name: Located<String>,
+
+    /// Binding point from the users perspective
     pub lang_binding: Option<LanguageBinding>,
+
+    /// Binding point from the target APIs perspective
     pub api_binding: Option<ApiBinding>,
+
+    /// Constant buffer member variables
     pub members: Vec<ConstantVariable>,
 }
 

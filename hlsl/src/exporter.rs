@@ -55,7 +55,8 @@ fn analyse_bindings(
         ir::RootDefinition::Struct(_)
         | ir::RootDefinition::StructTemplate(_)
         | ir::RootDefinition::Function(_) => {}
-        ir::RootDefinition::ConstantBuffer(cb) => {
+        ir::RootDefinition::ConstantBuffer(id) => {
+            let cb = &context.module.cbuffer_registry[id.0 as usize];
             if let Some(api_slot) = cb.api_binding {
                 let lang_slot = cb
                     .lang_binding
@@ -72,7 +73,8 @@ fn analyse_bindings(
                 context.register_binding(api_slot.set, binding);
             }
         }
-        ir::RootDefinition::GlobalVariable(decl) => {
+        ir::RootDefinition::GlobalVariable(id) => {
+            let decl = &context.module.global_registry[id.0 as usize];
             let descriptor_type = match decl.global_type.0 .0 {
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
                     DescriptorType::ConstantBuffer
@@ -221,10 +223,12 @@ fn export_root_definition(
         ir::RootDefinition::StructTemplate(_) => {
             todo!("RootDefinition::StructTemplate")
         }
-        ir::RootDefinition::ConstantBuffer(cb) => {
+        ir::RootDefinition::ConstantBuffer(id) => {
+            let cb = &module.cbuffer_registry[id.0 as usize];
             export_constant_buffer(cb, output, context)?;
         }
-        ir::RootDefinition::GlobalVariable(decl) => {
+        ir::RootDefinition::GlobalVariable(id) => {
+            let decl = &module.global_registry[id.0 as usize];
             export_global_variable(decl, output, context)?;
         }
         ir::RootDefinition::Function(id) => {
@@ -1432,8 +1436,8 @@ impl<'m> ExportContext<'m> {
 
     /// Get the name of a global variable
     fn get_global_name(&self, id: ir::GlobalId) -> Result<&str, ExportError> {
-        match self.module.global_declarations.globals.get(&id) {
-            Some(name) => Ok(name),
+        match self.module.global_registry.get(id.0 as usize) {
+            Some(name) => Ok(name.name.as_str()),
             None => Err(ExportError::NamelessId),
         }
     }
@@ -1472,8 +1476,8 @@ impl<'m> ExportContext<'m> {
 
     /// Get the name of a constant buffer
     fn get_constant_buffer_name(&self, id: ir::ConstantBufferId) -> Result<&str, ExportError> {
-        match self.module.global_declarations.constants.get(&id) {
-            Some(name) => Ok(name),
+        match self.module.cbuffer_registry.get(id.0 as usize) {
+            Some(cd) => Ok(cd.name.as_str()),
             None => Err(ExportError::NamelessId),
         }
     }

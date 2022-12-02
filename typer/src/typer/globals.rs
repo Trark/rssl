@@ -25,21 +25,18 @@ pub fn parse_rootdefinition_globalvariable(
         // Insert variable
         let var_name = def.name.clone();
         let input_type = gv_type.0.clone();
-        let var_id = context.insert_global(var_name.clone(), input_type.clone())?;
+        let var_id = context.insert_global(var_name.clone(), gv_type)?;
 
         let var_init = parse_initializer_opt(&def.init, &input_type.0, context)?;
-        let gv_ir = ir::GlobalVariable {
-            id: var_id,
-            global_type: gv_type,
-            lang_slot: def.slot.clone().map(|r| ir::LanguageBinding {
-                set: 0,
-                index: r.index,
-            }),
-            api_slot: None,
-            init: var_init,
-        };
 
-        defs.push(ir::RootDefinition::GlobalVariable(gv_ir));
+        let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
+        gv_ir.lang_slot = def.slot.clone().map(|r| ir::LanguageBinding {
+            set: 0,
+            index: r.index,
+        });
+        gv_ir.init = var_init;
+
+        defs.push(ir::RootDefinition::GlobalVariable(var_id));
     }
 
     Ok(defs)
@@ -78,14 +75,12 @@ pub fn parse_rootdefinition_constantbuffer(
         Ok(id) => id,
         Err(id) => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name, id)),
     };
-    let cb_ir = ir::ConstantBuffer {
-        id,
-        lang_binding: cb
-            .slot
-            .clone()
-            .map(|c| ir::LanguageBinding { set: 0, index: c.0 }),
-        api_binding: None,
-        members,
-    };
-    Ok(ir::RootDefinition::ConstantBuffer(cb_ir))
+    let cb_ir = &mut context.module.cbuffer_registry[id.0 as usize];
+    cb_ir.lang_binding = cb
+        .slot
+        .clone()
+        .map(|c| ir::LanguageBinding { set: 0, index: c.0 });
+    cb_ir.members = members;
+
+    Ok(ir::RootDefinition::ConstantBuffer(id))
 }

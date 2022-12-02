@@ -23,9 +23,6 @@ pub fn type_check(ast: &ast::Module) -> Result<ir::Module, TyperExternalError> {
         return Err(TyperExternalError(err, context));
     };
 
-    // Remember the names of non-local definitions at the module level
-    context.gather_global_names();
-
     Ok(context.module)
 }
 
