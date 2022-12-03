@@ -14,7 +14,7 @@ pub type TyperResult<T> = Result<T, TyperError>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
-    StructAlreadyDefined(Located<String>, ir::Type),
+    StructAlreadyDefined(Located<String>, ir::TypeLayout),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
@@ -23,12 +23,12 @@ pub enum TyperError {
 
     TypeDoesNotHaveMembers(ErrorType),
     /// Failed to find member of a type
-    MemberDoesNotExist(ir::Type, ast::ScopedIdentifier),
-    InvalidSwizzle(ir::Type, String),
+    MemberDoesNotExist(ir::TypeLayout, ast::ScopedIdentifier),
+    InvalidSwizzle(ir::TypeLayout, String),
     /// Member identifier is part of a different type
-    MemberIsForDifferentType(ir::Type, ir::TypeLayout, ast::ScopedIdentifier),
+    MemberIsForDifferentType(ir::TypeLayout, ir::TypeLayout, ast::ScopedIdentifier),
     /// Member identifier does not point to a type member
-    IdentifierIsNotAMember(ir::Type, ast::ScopedIdentifier),
+    IdentifierIsNotAMember(ir::TypeLayout, ast::ScopedIdentifier),
 
     ArrayIndexingNonArrayType,
     ArraySubscriptIndexNotInteger,
@@ -52,12 +52,12 @@ pub enum TyperError {
 
     InvalidCast(ErrorType, ErrorType),
 
-    InitializerExpressionWrongType(ir::Type, ir::Type, SourceLocation),
+    InitializerExpressionWrongType(ir::TypeLayout, ir::TypeLayout, SourceLocation),
     InitializerAggregateDoesNotMatchType,
     InitializerAggregateWrongDimension,
 
     WrongTypeInConstructor,
-    WrongTypeInReturnStatement(ir::Type, ir::Type),
+    WrongTypeInReturnStatement(ir::TypeLayout, ir::TypeLayout),
     FunctionNotCalled,
 
     MutableRequired,
@@ -72,7 +72,7 @@ pub enum TyperError {
     StructMemberDoesNotExist(ir::StructId, String),
 
     /// Identifier in an expression resolved as a type
-    ExpectedExpressionReceivedType(ast::ScopedIdentifier, ir::Type),
+    ExpectedExpressionReceivedType(ast::ScopedIdentifier, ir::TypeLayout),
 
     /// Identifier in a type context resolved as an expression
     ExpectedTypeReceivedExpression(ast::ScopedIdentifier),
@@ -93,9 +93,9 @@ pub enum TyperError {
 #[derive(PartialEq, Debug, Clone)]
 pub enum ErrorType {
     Untyped(ast::Type),
-    Value(ir::Type),
+    Value(ir::TypeLayout),
     Function(Vec<FunctionOverload>),
-    Method(ir::Type, Vec<FunctionOverload>),
+    Method(ir::TypeLayout, Vec<FunctionOverload>),
     Unknown,
 }
 
@@ -112,7 +112,7 @@ pub trait ToErrorType {
     fn to_error_type(&self) -> ErrorType;
 }
 
-impl ToErrorType for ir::Type {
+impl ToErrorType for ir::TypeLayout {
     fn to_error_type(&self) -> ErrorType {
         ErrorType::Value(self.clone())
     }
@@ -266,7 +266,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     write!(
                         f,
                         "accessing member of type '{}' ('{}') on type '{}'",
-                        get_type_layout_string(found_tyl, context),
+                        get_type_string(found_tyl, context),
                         path,
                         get_type_string(sampled_ty, context),
                     )
@@ -518,20 +518,15 @@ fn get_function_location(name: &Callable, context: &Context) -> SourceLocation {
 }
 
 /// Get a string name from a type for error display
-fn get_type_string(ty: &ir::Type, context: &Context) -> String {
-    get_type_layout_string(&ty.0, context)
-}
-
-/// Get a string name from a type layout for error display
-fn get_type_layout_string(tyl: &ir::TypeLayout, context: &Context) -> String {
+fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
     match *tyl {
         ir::TypeLayout::Struct(sid) => get_struct_name(sid, context),
         ir::TypeLayout::Object(ref ot) => format!("{:?}", ot),
         ir::TypeLayout::Array(ref ty, ref len) => {
-            format!("{}[{}]", get_type_layout_string(ty, context), len)
+            format!("{}[{}]", get_type_string(ty, context), len)
         }
         ir::TypeLayout::Modifier(modifier, ref ty) => {
-            format!("{:?}[{}]", modifier, get_type_layout_string(ty, context))
+            format!("{:?}[{}]", modifier, get_type_string(ty, context))
         }
         _ => format!("{:?}", tyl),
     }

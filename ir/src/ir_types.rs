@@ -1,14 +1,10 @@
 use crate::*;
 
-/// The full type when paired with modifiers
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Type(pub TypeLayout);
-
 /// Id to a type definition
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TypeId(pub u32);
 
-/// A type without type modifiers
+/// A type description
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum TypeLayout {
     Void,
@@ -120,23 +116,23 @@ pub enum Constant {
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum TypeOrConstant {
     /// Value is a type
-    Type(Type),
+    Type(TypeLayout),
 
     /// Value is a constant
     Constant(Constant),
 }
 
-impl From<DataType> for Type {
-    fn from(ty: DataType) -> Type {
+impl From<DataType> for TypeLayout {
+    fn from(ty: DataType) -> TypeLayout {
         let DataType(layout, modifier) = ty;
-        Type(layout.into()).combine_modifier(modifier)
+        TypeLayout::from(layout).combine_modifier(modifier)
     }
 }
 
-impl From<StructuredType> for Type {
-    fn from(ty: StructuredType) -> Type {
+impl From<StructuredType> for TypeLayout {
+    fn from(ty: StructuredType) -> TypeLayout {
         let StructuredType(layout, modifier) = ty;
-        Type(layout.into()).combine_modifier(modifier)
+        TypeLayout::from(layout).combine_modifier(modifier)
     }
 }
 
@@ -161,8 +157,8 @@ impl From<StructuredLayout> for TypeLayout {
     }
 }
 
-impl From<Type> for Option<DataType> {
-    fn from(ty: Type) -> Option<DataType> {
+impl From<TypeLayout> for Option<DataType> {
+    fn from(ty: TypeLayout) -> Option<DataType> {
         let (tyl, ty_mod) = ty.extract_modifier();
         Option::<DataLayout>::from(tyl).map(|dtyl| DataType(dtyl, ty_mod))
     }
@@ -179,109 +175,110 @@ impl From<TypeLayout> for Option<DataLayout> {
     }
 }
 
-impl Type {
-    pub fn void() -> Type {
-        Type(TypeLayout::Void)
-    }
-    pub fn from_layout(layout_type: TypeLayout) -> Type {
-        Type(layout_type)
-    }
-    pub fn from_scalar(scalar: ScalarType) -> Type {
-        Type(TypeLayout::from_scalar(scalar))
-    }
-    pub fn from_vector(scalar: ScalarType, x: u32) -> Type {
-        Type(TypeLayout::from_vector(scalar, x))
-    }
-    pub fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> Type {
-        Type(TypeLayout::from_matrix(scalar, x, y))
-    }
-    pub fn from_data(dty: DataType) -> Type {
-        dty.into()
-    }
-    pub fn from_struct(id: StructId) -> Type {
-        Type(TypeLayout::from_struct(id))
-    }
-    pub fn from_structured(sty: StructuredType) -> Type {
-        sty.into()
-    }
-    pub fn from_object(ty: ObjectType) -> Type {
-        Type(TypeLayout::from_object(ty))
+impl TypeLayout {
+    pub const fn void() -> Self {
+        TypeLayout::Void
     }
 
-    pub fn bool() -> Type {
-        Type::from_scalar(ScalarType::Bool)
-    }
-    pub fn booln(dim: u32) -> Type {
-        Type::from_vector(ScalarType::Bool, dim)
-    }
-    pub fn uint() -> Type {
-        Type::from_scalar(ScalarType::UInt)
-    }
-    pub fn uintn(dim: u32) -> Type {
-        Type::from_vector(ScalarType::UInt, dim)
-    }
-    pub fn int() -> Type {
-        Type::from_scalar(ScalarType::Int)
-    }
-    pub fn intn(dim: u32) -> Type {
-        Type::from_vector(ScalarType::Int, dim)
-    }
-    pub fn float() -> Type {
-        Type::from_scalar(ScalarType::Float)
-    }
-    pub fn floatn(dim: u32) -> Type {
-        Type::from_vector(ScalarType::Float, dim)
-    }
-    pub fn double() -> Type {
-        Type::from_scalar(ScalarType::Double)
-    }
-    pub fn doublen(dim: u32) -> Type {
-        Type::from_vector(ScalarType::Double, dim)
+    pub const fn from_scalar(scalar: ScalarType) -> Self {
+        TypeLayout::Scalar(scalar)
     }
 
-    pub fn long() -> Type {
-        Type::from_scalar(ScalarType::Int)
-    }
-    pub fn float4x4() -> Type {
-        Type::from_matrix(ScalarType::Float, 4, 4)
+    pub const fn from_vector(scalar: ScalarType, x: u32) -> Self {
+        TypeLayout::Vector(scalar, x)
     }
 
-    pub fn transform_scalar(self, to_scalar: ScalarType) -> Type {
-        let (tyl, ty_mod) = self.extract_modifier();
-        Type(tyl.transform_scalar(to_scalar)).combine_modifier(ty_mod)
+    pub const fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> Self {
+        TypeLayout::Matrix(scalar, x, y)
     }
 
-    pub fn is_array(&self) -> bool {
-        assert!(!self.0.has_modifiers());
-        self.0.is_array()
+    pub const fn from_struct(id: StructId) -> Self {
+        TypeLayout::Struct(id)
     }
 
-    pub fn is_void(&self) -> bool {
-        assert!(!self.0.has_modifiers());
-        self.0 == TypeLayout::Void
+    pub const fn from_object(ty: ObjectType) -> Self {
+        TypeLayout::Object(ty)
     }
 
-    pub fn is_const(&self) -> bool {
-        self.0.is_const()
+    pub const fn bool() -> Self {
+        Self::from_scalar(ScalarType::Bool)
     }
 
-    /// Split the modifier out of the type
-    pub fn extract_modifier(self) -> (TypeLayout, TypeModifier) {
-        match self.0 {
-            TypeLayout::Modifier(modifier, tyl) => (*tyl, modifier),
-            ty => (ty, TypeModifier::default()),
+    pub const fn booln(dim: u32) -> Self {
+        Self::from_vector(ScalarType::Bool, dim)
+    }
+
+    pub const fn uint() -> Self {
+        Self::from_scalar(ScalarType::UInt)
+    }
+
+    pub const fn uintn(dim: u32) -> Self {
+        Self::from_vector(ScalarType::UInt, dim)
+    }
+
+    pub const fn int() -> Self {
+        Self::from_scalar(ScalarType::Int)
+    }
+
+    pub const fn intn(dim: u32) -> Self {
+        Self::from_vector(ScalarType::Int, dim)
+    }
+
+    pub const fn float() -> Self {
+        Self::from_scalar(ScalarType::Float)
+    }
+
+    pub const fn floatn(dim: u32) -> Self {
+        Self::from_vector(ScalarType::Float, dim)
+    }
+
+    pub const fn double() -> Self {
+        Self::from_scalar(ScalarType::Double)
+    }
+
+    pub const fn doublen(dim: u32) -> Self {
+        Self::from_vector(ScalarType::Double, dim)
+    }
+
+    pub const fn long() -> Self {
+        Self::from_scalar(ScalarType::Int)
+    }
+
+    pub const fn float4x4() -> Self {
+        Self::from_matrix(ScalarType::Float, 4, 4)
+    }
+
+    pub const fn to_scalar(&self) -> Option<ScalarType> {
+        match *self {
+            TypeLayout::Scalar(scalar)
+            | TypeLayout::Vector(scalar, _)
+            | TypeLayout::Matrix(scalar, _, _) => Some(scalar),
+            _ => None,
         }
     }
 
-    /// Recombine the modifier back onto the type
-    ///
-    /// This expects there to not already be a modifier
-    pub fn combine_modifier(self, modifier: TypeModifier) -> Self {
-        assert!(!self.0.has_modifiers());
-        if modifier == TypeModifier::default() {
-            self
-        } else {
-            Type(TypeLayout::Modifier(modifier, Box::new(self.0)))
+    pub const fn to_x(&self) -> Option<u32> {
+        match *self {
+            TypeLayout::Vector(_, ref x) => Some(*x),
+            TypeLayout::Matrix(_, ref x, _) => Some(*x),
+            _ => None,
+        }
+    }
+
+    pub const fn to_y(&self) -> Option<u32> {
+        match *self {
+            TypeLayout::Matrix(_, _, ref y) => Some(*y),
+            _ => None,
+        }
+    }
+
+    pub fn max_dim(r1: Option<u32>, r2: Option<u32>) -> Option<u32> {
+        use std::cmp::max;
+        match (r1, r2) {
+            (Some(x1), Some(x2)) => Some(max(x1, x2)),
+            (Some(x1), None) => Some(x1),
+            (None, Some(x2)) => Some(x2),
+            (None, None) => None,
         }
     }
 
@@ -292,68 +289,14 @@ impl Type {
 
         // Get the more important input type, that serves as the base to
         // calculate the output type from
-        let nd = match TypeLayout::most_significant_dimension(&left_ty, &right_ty) {
+        let nd = match Self::most_significant_dimension(&left_ty, &right_ty) {
             Some(nd) => nd,
             None => panic!("non-arithmetic numeric type in binary operation"),
         };
 
         let st = left_ty.to_scalar().unwrap();
-        assert_eq!(st, right.0.to_scalar().unwrap());
-        Type(TypeLayout::from_data(DataLayout::new(st, nd))).combine_modifier(left_mod)
-    }
-}
-
-impl TypeLayout {
-    pub const fn from_scalar(scalar: ScalarType) -> TypeLayout {
-        TypeLayout::Scalar(scalar)
-    }
-    pub const fn from_vector(scalar: ScalarType, x: u32) -> TypeLayout {
-        TypeLayout::Vector(scalar, x)
-    }
-    pub const fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> TypeLayout {
-        TypeLayout::Matrix(scalar, x, y)
-    }
-    pub fn from_data(ty: DataLayout) -> TypeLayout {
-        TypeLayout::from(ty)
-    }
-    pub const fn from_struct(id: StructId) -> TypeLayout {
-        TypeLayout::Struct(id)
-    }
-    pub fn from_structured(ty: StructuredLayout) -> TypeLayout {
-        TypeLayout::from(ty)
-    }
-    pub const fn from_object(ty: ObjectType) -> TypeLayout {
-        TypeLayout::Object(ty)
-    }
-    pub const fn to_scalar(&self) -> Option<ScalarType> {
-        match *self {
-            TypeLayout::Scalar(scalar)
-            | TypeLayout::Vector(scalar, _)
-            | TypeLayout::Matrix(scalar, _, _) => Some(scalar),
-            _ => None,
-        }
-    }
-    pub const fn to_x(&self) -> Option<u32> {
-        match *self {
-            TypeLayout::Vector(_, ref x) => Some(*x),
-            TypeLayout::Matrix(_, ref x, _) => Some(*x),
-            _ => None,
-        }
-    }
-    pub const fn to_y(&self) -> Option<u32> {
-        match *self {
-            TypeLayout::Matrix(_, _, ref y) => Some(*y),
-            _ => None,
-        }
-    }
-    pub fn max_dim(r1: Option<u32>, r2: Option<u32>) -> Option<u32> {
-        use std::cmp::max;
-        match (r1, r2) {
-            (Some(x1), Some(x2)) => Some(max(x1, x2)),
-            (Some(x1), None) => Some(x1),
-            (None, Some(x2)) => Some(x2),
-            (None, None) => None,
-        }
+        assert_eq!(st, right.to_scalar().unwrap());
+        Self::from(DataLayout::new(st, nd)).combine_modifier(left_mod)
     }
 
     /// Attempt to get the most significant dimension of two data types
@@ -404,17 +347,25 @@ impl TypeLayout {
 
     /// Replaces the scalar type inside a numeric type with the given scalar type
     pub fn transform_scalar(self, to_scalar: ScalarType) -> TypeLayout {
-        match self {
+        let (tyl, ty_mod) = self.extract_modifier();
+        let tyl = match tyl {
             TypeLayout::Scalar(_) => TypeLayout::Scalar(to_scalar),
             TypeLayout::Vector(_, x) => TypeLayout::Vector(to_scalar, x),
             TypeLayout::Matrix(_, x, y) => TypeLayout::Matrix(to_scalar, x, y),
             _ => panic!("non-numeric type in TypeLayout::transform_scalar"),
-        }
+        };
+        tyl.combine_modifier(ty_mod)
     }
 
     /// Returns `true` if the type has modifiers
     pub fn has_modifiers(&self) -> bool {
         matches!(self, TypeLayout::Modifier(_, _))
+    }
+
+    /// Returns `true` if the type is the void type
+    pub fn is_void(&self) -> bool {
+        assert!(!self.has_modifiers());
+        *self == TypeLayout::Void
     }
 
     /// Returns `true` if the type has a const modifier
@@ -428,6 +379,7 @@ impl TypeLayout {
 
     /// Returns `true` if the type is an array
     pub fn is_array(&self) -> bool {
+        assert!(!self.has_modifiers());
         matches!(self, &TypeLayout::Array(_, _))
     }
 
@@ -443,6 +395,31 @@ impl TypeLayout {
             &TypeLayout::Object(ObjectType::BufferAddress)
                 | &TypeLayout::Object(ObjectType::RWBufferAddress)
         )
+    }
+
+    /// Split the modifier out of the type
+    pub fn extract_modifier(self) -> (Self, TypeModifier) {
+        match self {
+            TypeLayout::Modifier(modifier, tyl) => (*tyl, modifier),
+            ty => (ty, TypeModifier::default()),
+        }
+    }
+
+    /// Remove the modifier from the type
+    pub fn remove_modifier(self) -> Self {
+        self.extract_modifier().0
+    }
+
+    /// Recombine the modifier back onto the type
+    ///
+    /// This expects there to not already be a modifier
+    pub fn combine_modifier(self, modifier: TypeModifier) -> Self {
+        assert!(!self.has_modifiers());
+        if modifier == TypeModifier::default() {
+            self
+        } else {
+            TypeLayout::Modifier(modifier, Box::new(self))
+        }
     }
 }
 
@@ -488,12 +465,6 @@ impl DataLayout {
             DataLayout::Vector(_, x) => DataLayout::Vector(to_scalar, x),
             DataLayout::Matrix(_, x, y) => DataLayout::Matrix(to_scalar, x, y),
         }
-    }
-}
-
-impl std::fmt::Debug for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
     }
 }
 

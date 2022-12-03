@@ -69,25 +69,25 @@ impl IntrinsicFactory {
 pub type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamType]);
 pub type IntrinsicDefinition = (&'static str, Intrinsic, u32, &'static [ParamType]);
 
-const T_BOOL_TY: Type = Type(TypeLayout::Scalar(ScalarType::Bool));
-const T_BOOL2_TY: Type = Type(TypeLayout::Vector(ScalarType::Bool, 2));
-const T_BOOL3_TY: Type = Type(TypeLayout::Vector(ScalarType::Bool, 3));
-const T_BOOL4_TY: Type = Type(TypeLayout::Vector(ScalarType::Bool, 4));
-const T_INT_TY: Type = Type(TypeLayout::Scalar(ScalarType::Int));
-const T_INT1_TY: Type = Type(TypeLayout::Vector(ScalarType::Int, 1));
-const T_INT2_TY: Type = Type(TypeLayout::Vector(ScalarType::Int, 2));
-const T_INT3_TY: Type = Type(TypeLayout::Vector(ScalarType::Int, 3));
-const T_INT4_TY: Type = Type(TypeLayout::Vector(ScalarType::Int, 4));
-const T_UINT_TY: Type = Type(TypeLayout::Scalar(ScalarType::UInt));
-const T_UINT2_TY: Type = Type(TypeLayout::Vector(ScalarType::UInt, 2));
-const T_UINT3_TY: Type = Type(TypeLayout::Vector(ScalarType::UInt, 3));
-const T_UINT4_TY: Type = Type(TypeLayout::Vector(ScalarType::UInt, 4));
-const T_FLOAT_TY: Type = Type(TypeLayout::Scalar(ScalarType::Float));
-const T_FLOAT1_TY: Type = Type(TypeLayout::Vector(ScalarType::Float, 1));
-const T_FLOAT2_TY: Type = Type(TypeLayout::Vector(ScalarType::Float, 2));
-const T_FLOAT3_TY: Type = Type(TypeLayout::Vector(ScalarType::Float, 3));
-const T_FLOAT4_TY: Type = Type(TypeLayout::Vector(ScalarType::Float, 4));
-const T_SAMPLER_TY: Type = Type(TypeLayout::SamplerState);
+const T_BOOL_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Bool);
+const T_BOOL2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 2);
+const T_BOOL3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 3);
+const T_BOOL4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 4);
+const T_INT_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Int);
+const T_INT1_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 1);
+const T_INT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 2);
+const T_INT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 3);
+const T_INT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 4);
+const T_UINT_TY: TypeLayout = TypeLayout::Scalar(ScalarType::UInt);
+const T_UINT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::UInt, 2);
+const T_UINT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::UInt, 3);
+const T_UINT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::UInt, 4);
+const T_FLOAT_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Float);
+const T_FLOAT1_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 1);
+const T_FLOAT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 2);
+const T_FLOAT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 3);
+const T_FLOAT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 4);
+const T_SAMPLER_TY: TypeLayout = TypeLayout::SamplerState;
 
 const T_BOOL: ParamType = ParamType(T_BOOL_TY, InputModifier::In, None);
 const T_BOOL2: ParamType = ParamType(T_BOOL2_TY, InputModifier::In, None);
@@ -220,8 +220,8 @@ const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
     ("dot", Intrinsic::Dot, &[T_FLOAT3, T_FLOAT3]),
     ("dot", Intrinsic::Dot, &[T_FLOAT4, T_FLOAT4]),
 
-    ("mul", Intrinsic::Mul, &[ParamType(Type(TypeLayout::Matrix(ScalarType::Float, 3, 3)), InputModifier::In, None), T_FLOAT3]),
-    ("mul",Intrinsic::Mul, &[ParamType(Type(TypeLayout::Matrix(ScalarType::Float, 4, 4)), InputModifier::In, None), T_FLOAT4]),
+    ("mul", Intrinsic::Mul, &[ParamType(TypeLayout::Matrix(ScalarType::Float, 3, 3), InputModifier::In, None), T_FLOAT3]),
+    ("mul", Intrinsic::Mul, &[ParamType(TypeLayout::Matrix(ScalarType::Float, 4, 4), InputModifier::In, None), T_FLOAT4]),
 
     ("f16tof32", Intrinsic::F16ToF32, &[T_UINT]),
     ("f32tof16", Intrinsic::F32ToF16, &[T_FLOAT]),

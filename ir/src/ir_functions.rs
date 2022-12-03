@@ -21,7 +21,7 @@ pub struct FunctionNameDefinition {
 /// The type of a function return value
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionReturn {
-    pub return_type: Type,
+    pub return_type: TypeLayout,
     pub semantic: Option<Semantic>,
 }
 
@@ -37,7 +37,7 @@ pub struct FunctionParam {
 /// The type of any parameter declaration
 #[derive(PartialEq, Eq, Clone)]
 pub struct ParamType(
-    pub Type,
+    pub TypeLayout,
     pub InputModifier,
     pub Option<InterpolationModifier>,
 );
@@ -48,8 +48,8 @@ pub enum FunctionAttribute {
     NumThreads(Expression, Expression, Expression),
 }
 
-impl From<Type> for ParamType {
-    fn from(ty: Type) -> ParamType {
+impl From<TypeLayout> for ParamType {
+    fn from(ty: TypeLayout) -> ParamType {
         ParamType(ty, InputModifier::default(), None)
     }
 }

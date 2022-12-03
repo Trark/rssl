@@ -29,7 +29,7 @@ pub struct Context {
 pub type ScopeIndex = usize;
 
 pub enum StructMemberValue {
-    Variable(ir::Type),
+    Variable(ir::TypeLayout),
     Method(Vec<FunctionOverload>),
 }
 
@@ -43,7 +43,7 @@ struct FunctionData {
 
 #[derive(Debug, Clone)]
 struct StructData {
-    members: HashMap<String, ir::Type>,
+    members: HashMap<String, ir::TypeLayout>,
     methods: HashMap<String, Vec<ir::FunctionId>>,
 }
 
@@ -55,7 +55,7 @@ struct StructTemplateData {
 
 #[derive(Debug, Clone)]
 struct ConstantBufferData {
-    members: HashMap<String, ir::Type>,
+    members: HashMap<String, ir::TypeLayout>,
 }
 
 #[derive(Debug, Clone)]
@@ -66,14 +66,14 @@ struct ScopeData {
     variables: VariableBlock,
 
     function_ids: HashMap<String, Vec<ir::FunctionId>>,
-    types: HashMap<String, ir::Type>,
+    types: HashMap<String, ir::TypeLayout>,
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
     template_args: HashMap<String, ir::TemplateTypeId>,
     namespaces: HashMap<String, ScopeIndex>,
 
     owning_struct: Option<ir::StructId>,
-    function_return_type: Option<ir::Type>,
+    function_return_type: Option<ir::TypeLayout>,
 }
 
 impl Context {
@@ -195,13 +195,13 @@ impl Context {
     }
 
     /// Set the scope as a function scope with the given return type
-    pub fn set_function_return_type(&mut self, return_type: ir::Type) {
+    pub fn set_function_return_type(&mut self, return_type: ir::TypeLayout) {
         assert_eq!(self.scopes[self.current_scope].function_return_type, None);
         self.scopes[self.current_scope].function_return_type = Some(return_type);
     }
 
     /// Get the return type of the current function
-    pub fn get_current_return_type(&self) -> ir::Type {
+    pub fn get_current_return_type(&self) -> ir::TypeLayout {
         match self.search_scopes(|s| s.function_return_type.clone()) {
             Some(ret) => ret,
             None => panic!("Not inside function"),
@@ -249,9 +249,7 @@ impl Context {
 
                 // Try to find a template type name in the searched scope
                 if let Some(id) = scope.template_args.get(&leaf_name.node) {
-                    return Ok(VariableExpression::Type(ir::Type::from_layout(
-                        ir::TypeLayout::TemplateParam(*id),
-                    )));
+                    return Ok(VariableExpression::Type(ir::TypeLayout::TemplateParam(*id)));
                 }
             }
             scope_index = self.scopes[scope_index].parent_scope;
@@ -268,7 +266,7 @@ impl Context {
         &mut self,
         name: &ast::ScopedIdentifier,
         template_args: &[ir::TypeOrConstant],
-    ) -> TyperResult<ir::Type> {
+    ) -> TyperResult<ir::TypeLayout> {
         let ty = match self.find_identifier(name) {
             Ok(VariableExpression::Type(ty)) => ty,
             Ok(_) => return Err(TyperError::ExpectedTypeReceivedExpression(name.clone())),
@@ -291,7 +289,7 @@ impl Context {
                     let ast = &struct_template_def.ast.clone();
 
                     if let Some(id) = struct_template_data.instantiations.get(template_args) {
-                        Ok(ir::Type(ir::TypeLayout::Struct(*id)).combine_modifier(modifier))
+                        Ok(ir::TypeLayout::Struct(*id).combine_modifier(modifier))
                     } else {
                         // Return to scope of the struct definition to build the template
                         let current_scope = self.current_scope;
@@ -310,7 +308,7 @@ impl Context {
                             .instantiations
                             .insert(template_args.to_vec(), sid);
 
-                        Ok(ir::Type(ir::TypeLayout::Struct(sid)).combine_modifier(modifier))
+                        Ok(ir::TypeLayout::Struct(sid).combine_modifier(modifier))
                     }
                 }
             }
@@ -465,7 +463,7 @@ impl Context {
     pub fn insert_variable(
         &mut self,
         name: Located<String>,
-        typename: ir::Type,
+        typename: ir::TypeLayout,
     ) -> TyperResult<ir::VariableId> {
         self.scopes[self.current_scope]
             .variables
@@ -582,7 +580,7 @@ impl Context {
         &mut self,
         name: Located<String>,
         is_non_template: bool,
-    ) -> Result<ir::StructId, ir::Type> {
+    ) -> Result<ir::StructId, ir::TypeLayout> {
         let full_name = self.get_qualified_name(&name);
 
         let type_id = ir::TypeId(self.module.type_registry.len() as u32);
@@ -603,14 +601,13 @@ impl Context {
             methods: Default::default(),
         });
         let data = self.module.struct_registry.last().unwrap();
-        let type_for_struct = ir::Type::from_layout(ir::TypeLayout::Struct(id));
         if is_non_template {
             match self.scopes[self.current_scope]
                 .types
                 .entry(data.name.to_string())
             {
                 Entry::Vacant(v) => {
-                    v.insert(type_for_struct);
+                    v.insert(ir::TypeLayout::Struct(id));
                 }
                 Entry::Occupied(o) => {
                     return Err(o.get().clone());
@@ -624,7 +621,7 @@ impl Context {
     pub fn finish_struct(
         &mut self,
         id: ir::StructId,
-        members: HashMap<String, ir::Type>,
+        members: HashMap<String, ir::TypeLayout>,
         methods: HashMap<String, Vec<ir::FunctionId>>,
     ) {
         let data = &mut self.struct_data[id.0 as usize];
@@ -639,7 +636,7 @@ impl Context {
         &mut self,
         name: Located<String>,
         ast: ast::StructDefinition,
-    ) -> Result<ir::StructTemplateId, ir::Type> {
+    ) -> Result<ir::StructTemplateId, ir::TypeLayout> {
         let type_id = ir::TypeId(self.module.type_registry.len() as u32);
         let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
         assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
@@ -660,13 +657,12 @@ impl Context {
                 ast,
             });
         let data = self.module.struct_template_registry.last().unwrap();
-        let type_for_struct = ir::Type::from_layout(ir::TypeLayout::StructTemplate(id));
         match self.scopes[self.current_scope]
             .types
             .entry(data.name.to_string())
         {
             Entry::Vacant(v) => {
-                v.insert(type_for_struct);
+                v.insert(ir::TypeLayout::StructTemplate(id));
             }
             Entry::Occupied(o) => {
                 return Err(o.get().clone());
@@ -699,7 +695,7 @@ impl Context {
     pub fn insert_cbuffer(
         &mut self,
         name: Located<String>,
-        members: HashMap<String, ir::Type>,
+        members: HashMap<String, ir::TypeLayout>,
     ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
         let data = ConstantBufferData { members };
         let id = ir::ConstantBufferId(self.cbuffer_data.len() as u32);
@@ -726,7 +722,11 @@ impl Context {
     }
 
     /// Register a new typedef
-    pub fn register_typedef(&mut self, name: Located<String>, ty: ir::Type) -> TyperResult<()> {
+    pub fn register_typedef(
+        &mut self,
+        name: Located<String>,
+        ty: ir::TypeLayout,
+    ) -> TyperResult<()> {
         match self.scopes[self.current_scope]
             .types
             .entry(name.to_string())
@@ -1004,7 +1004,7 @@ impl Context {
 
 #[derive(PartialEq, Debug, Clone)]
 struct VariableBlock {
-    pub variables: HashMap<String, (ir::Type, ir::VariableId)>,
+    pub variables: HashMap<String, (ir::TypeLayout, ir::VariableId)>,
     pub next_free_variable_id: ir::VariableId,
 }
 
@@ -1019,7 +1019,7 @@ impl VariableBlock {
     fn insert_variable(
         &mut self,
         name: Located<String>,
-        typename: ir::Type,
+        typename: ir::TypeLayout,
     ) -> TyperResult<ir::VariableId> {
         if let Some(&(ref ty, _)) = self.variables.get(&name.node) {
             return Err(TyperError::ValueAlreadyDefined(
@@ -1063,7 +1063,7 @@ impl VariableBlock {
         panic!("Invalid local variable id: {:?}", var_ref);
     }
 
-    fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::Type)> {
+    fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::TypeLayout)> {
         self.variables
             .iter()
             .fold(HashMap::new(), |mut map, (name, &(ref ty, ref id))| {

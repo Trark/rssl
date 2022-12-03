@@ -134,7 +134,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 Ok(Vec::from([ir::Statement::Return(None)]))
             } else {
                 Err(TyperError::WrongTypeInReturnStatement(
-                    ir::Type::void(),
+                    ir::TypeLayout::void(),
                     expected_type,
                 ))
             }
@@ -159,7 +159,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
         let lv_type = ir::LocalType(lv_tyl, ls);
 
         // Parse the initializer
-        let var_init = parse_initializer_opt(&local_variable.init, &(lv_type.0).0, context)?;
+        let var_init = parse_initializer_opt(&local_variable.init, &lv_type.0, context)?;
 
         // Register the variable
         let var_id = context.insert_variable(var_name.clone(), lv_type.0.clone())?;
@@ -186,10 +186,10 @@ fn parse_localtype(
 
 /// Apply part of type applied to variable name onto the type itself
 pub fn apply_variable_bind(
-    mut ty: ir::Type,
+    mut ty: ir::TypeLayout,
     bind: &ast::VariableBind,
     init: &Option<ast::Initializer>,
-) -> TyperResult<ir::Type> {
+) -> TyperResult<ir::TypeLayout> {
     for dim in &bind.0 {
         let (layout, modifiers) = ty.extract_modifier();
 
@@ -207,8 +207,7 @@ pub fn apply_variable_bind(
             },
         };
 
-        ty = ir::Type(ir::TypeLayout::Array(Box::new(layout), constant_dim))
-            .combine_modifier(modifiers);
+        ty = ir::TypeLayout::Array(Box::new(layout), constant_dim).combine_modifier(modifiers);
     }
 
     Ok(ty)
@@ -258,7 +257,7 @@ fn parse_initializer(
 ) -> TyperResult<ir::Initializer> {
     Ok(match *init {
         ast::Initializer::Expression(ref expr) => {
-            let ety = ir::Type(ir::Type::from_layout(tyl.clone()).extract_modifier().0).to_rvalue();
+            let ety = tyl.clone().remove_modifier().to_rvalue();
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             match ImplicitConversion::find(&expr_ty, &ety) {
                 Ok(rhs_cast) => ir::Initializer::Expression(rhs_cast.apply(expr_ir)),
@@ -279,12 +278,12 @@ fn parse_initializer(
             ) -> TyperResult<Vec<ir::Initializer>> {
                 let mut elements = Vec::with_capacity(inits.len());
                 for init in inits {
-                    let element = parse_initializer(init, &(ety.0).0, context)?;
+                    let element = parse_initializer(init, &ety.0, context)?;
                     elements.push(element);
                 }
                 Ok(elements)
             }
-            let (tyl, _) = ir::Type(tyl.clone()).extract_modifier();
+            let (tyl, _) = tyl.clone().extract_modifier();
             match tyl {
                 ir::TypeLayout::Scalar(_) => {
                     if exprs.len() as u32 != 1 {
@@ -301,7 +300,7 @@ fn parse_initializer(
                         return Err(TyperError::InitializerAggregateWrongDimension);
                     }
 
-                    let ety = ir::Type::from_scalar(*scalar).to_rvalue();
+                    let ety = ir::TypeLayout::from_scalar(*scalar).to_rvalue();
                     let elements = build_elements(&ety, exprs, context)?;
 
                     ir::Initializer::Aggregate(elements)
@@ -311,7 +310,7 @@ fn parse_initializer(
                         return Err(TyperError::InitializerAggregateWrongDimension);
                     }
 
-                    let ety = ir::Type::from_layout(*inner.clone()).to_rvalue();
+                    let ety = (*inner).clone().to_rvalue();
                     let elements = build_elements(&ety, exprs, context)?;
 
                     ir::Initializer::Aggregate(elements)

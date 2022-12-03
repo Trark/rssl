@@ -14,13 +14,13 @@ use rssl_text::{Locate, Located, SourceLocation};
 
 /// Result of a variable query
 pub enum VariableExpression {
-    Local(ir::VariableRef, ir::Type),
-    Member(String, ir::Type),
-    Global(ir::GlobalId, ir::Type),
-    Constant(ir::ConstantBufferId, String, ir::Type),
+    Local(ir::VariableRef, ir::TypeLayout),
+    Member(String, ir::TypeLayout),
+    Global(ir::GlobalId, ir::TypeLayout),
+    Constant(ir::ConstantBufferId, String, ir::TypeLayout),
     Function(UnresolvedFunction),
     Method(UnresolvedFunction),
-    Type(ir::Type),
+    Type(ir::TypeLayout),
 }
 
 /// Set of overloaded functions
@@ -31,7 +31,7 @@ pub struct UnresolvedFunction {
 
 #[derive(PartialEq, Debug, Clone)]
 struct UnresolvedMethod {
-    object_type: ir::Type,
+    object_type: ir::TypeLayout,
     overloads: Vec<FunctionOverload>,
     object_value: ir::Expression,
 }
@@ -100,7 +100,7 @@ fn find_function_type(
         overload: &FunctionOverload,
         template_args: &[Located<ir::TypeOrConstant>],
         param_types: &[ExpressionType],
-    ) -> Result<(ir::Type, Vec<ImplicitConversion>), ()> {
+    ) -> Result<(ir::TypeLayout, Vec<ImplicitConversion>), ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
 
         let mut signature = overload.1.clone();
@@ -335,35 +335,35 @@ fn parse_literal(ast: &ast::Literal) -> TypedExpression {
     match ast {
         ast::Literal::Bool(b) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Bool(*b)),
-            ir::Type::bool().to_rvalue(),
+            ir::TypeLayout::bool().to_rvalue(),
         ),
         ast::Literal::UntypedInt(i) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::UntypedInt(*i)),
-            ir::Type::from_scalar(ir::ScalarType::UntypedInt).to_rvalue(),
+            ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt).to_rvalue(),
         ),
         ast::Literal::Int(i) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Int(*i)),
-            ir::Type::int().to_rvalue(),
+            ir::TypeLayout::int().to_rvalue(),
         ),
         ast::Literal::UInt(i) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::UInt(*i)),
-            ir::Type::uint().to_rvalue(),
+            ir::TypeLayout::uint().to_rvalue(),
         ),
         ast::Literal::Long(i) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Long(*i)),
-            ir::Type::from_scalar(ir::ScalarType::UntypedInt).to_rvalue(),
+            ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt).to_rvalue(),
         ),
         ast::Literal::Half(f) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Half(*f)),
-            ir::Type::float().to_rvalue(),
+            ir::TypeLayout::float().to_rvalue(),
         ),
         ast::Literal::Float(f) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Float(*f)),
-            ir::Type::float().to_rvalue(),
+            ir::TypeLayout::float().to_rvalue(),
         ),
         ast::Literal::Double(f) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Double(*f)),
-            ir::Type::double().to_rvalue(),
+            ir::TypeLayout::double().to_rvalue(),
         ),
     }
 }
@@ -415,16 +415,14 @@ fn parse_expr_unaryop(
                 ast::UnaryOp::Plus => (ir::Intrinsic::Plus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::Minus => (ir::Intrinsic::Minus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::LogicalNot => {
-                    let ty = match expr_ty.0.extract_modifier().0 {
-                        ir::TypeLayout::Scalar(_) => {
-                            ir::Type::from_layout(ir::TypeLayout::Scalar(ir::ScalarType::Bool))
-                        }
+                    let ty = match expr_ty.0.remove_modifier() {
+                        ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(ir::ScalarType::Bool),
                         ir::TypeLayout::Vector(_, x) => {
-                            ir::Type::from_layout(ir::TypeLayout::Vector(ir::ScalarType::Bool, x))
+                            ir::TypeLayout::Vector(ir::ScalarType::Bool, x)
                         }
-                        ir::TypeLayout::Matrix(_, x, y) => ir::Type::from_layout(
-                            ir::TypeLayout::Matrix(ir::ScalarType::Bool, x, y),
-                        ),
+                        ir::TypeLayout::Matrix(_, x, y) => {
+                            ir::TypeLayout::Matrix(ir::ScalarType::Bool, x, y)
+                        }
                         _ => {
                             return Err(TyperError::UnaryOperationWrongTypes(
                                 op.clone(),
@@ -435,7 +433,7 @@ fn parse_expr_unaryop(
                     let ety = ty.to_rvalue();
                     (ir::Intrinsic::LogicalNot, expr_ir, ety)
                 }
-                ast::UnaryOp::BitwiseNot => match (expr_ty.0).0 {
+                ast::UnaryOp::BitwiseNot => match expr_ty.0 {
                     ir::TypeLayout::Scalar(ir::ScalarType::Int)
                     | ir::TypeLayout::Scalar(ir::ScalarType::UInt) => {
                         (ir::Intrinsic::BitwiseNot, expr_ir, expr_ty.0.to_rvalue())
@@ -508,22 +506,20 @@ fn resolve_arithmetic_types(
     right: &ExpressionType,
 ) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::Intrinsic)> {
     use rssl_ir::ScalarType;
-    use rssl_ir::Type;
+    use rssl_ir::TypeLayout;
 
     fn common_real_type(left: ScalarType, right: ScalarType) -> Result<ir::ScalarType, ()> {
         Ok(most_sig_scalar(left, right))
     }
 
     // Calculate the output type from the input type and operation
-    fn output_type(left: Type, right: Type, op: &ast::BinOp) -> ir::Intrinsic {
+    fn output_type(left: TypeLayout, right: TypeLayout, op: &ast::BinOp) -> ir::Intrinsic {
         // Assert input validity
         {
             let ls = left
-                .0
                 .to_scalar()
                 .expect("non-numeric type in binary operation (lhs)");
             let rs = right
-                .0
                 .to_scalar()
                 .expect("non-numeric type in binary operation (rhs)");
             match *op {
@@ -624,12 +620,12 @@ fn resolve_arithmetic_types(
             }
             _ => return Err(()),
         };
-        let candidate_left = Type(ltl.clone());
-        let candidate_right = Type(rtl.clone());
+        let candidate_left = ltl.clone();
+        let candidate_right = rtl.clone();
         let output_type = output_type(candidate_left, candidate_right, op);
-        let elt = ExpressionType(ir::Type(ltl), ir::ValueType::Rvalue);
+        let elt = ExpressionType(ltl, ir::ValueType::Rvalue);
         let lc = ImplicitConversion::find(left, &elt)?;
-        let ert = ExpressionType(ir::Type(rtl), ir::ValueType::Rvalue);
+        let ert = ExpressionType(rtl, ir::ValueType::Rvalue);
         let rc = ImplicitConversion::find(right, &ert)?;
         Ok((lc, rc, output_type))
     }
@@ -683,7 +679,7 @@ fn parse_expr_binop(
         | ast::BinOp::RightShift => {
             if *op == ast::BinOp::LeftShift || *op == ast::BinOp::RightShift {
                 fn is_integer(ety: &ExpressionType) -> bool {
-                    let sty = match (ety.0).0.to_scalar() {
+                    let sty = match ety.0.clone().remove_modifier().to_scalar() {
                         Some(sty) => sty,
                         None => return false,
                     };
@@ -713,8 +709,8 @@ fn parse_expr_binop(
         | ast::BinOp::BitwiseXor
         | ast::BinOp::BooleanAnd
         | ast::BinOp::BooleanOr => {
-            let lhs_tyl = &(lhs_type.0).0;
-            let rhs_tyl = &(rhs_type.0).0;
+            let lhs_tyl = &lhs_type.0;
+            let rhs_tyl = &rhs_type.0;
             let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
                 ir::ScalarType::Bool
             } else {
@@ -742,8 +738,7 @@ fn parse_expr_binop(
             let x = ir::TypeLayout::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
             let y = ir::TypeLayout::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
             let tyl = ir::TypeLayout::from_numeric(scalar, x, y);
-            let out_mod = ir::TypeModifier::default();
-            let ty = ir::Type(tyl).combine_modifier(out_mod).to_rvalue();
+            let ty = tyl.to_rvalue();
             let lhs_cast = match ImplicitConversion::find(&lhs_type, &ty) {
                 Ok(cast) => cast,
                 Err(()) => return err_bad_type,
@@ -844,7 +839,7 @@ fn parse_expr_ternary(
     let (lhs_target_tyl, rhs_target_tyl) = match (st, nd) {
         (Some(st), Some(nd)) => {
             let dtyl = ir::DataLayout::new(st, nd);
-            let tyl = ir::TypeLayout::from_data(dtyl);
+            let tyl = ir::TypeLayout::from(dtyl);
             (tyl.clone(), tyl)
         }
         (Some(st), None) => {
@@ -872,7 +867,7 @@ fn parse_expr_ternary(
         volatile: false,
     };
 
-    let ety_target = ir::Type(comb_tyl).combine_modifier(target_mod).to_rvalue();
+    let ety_target = comb_tyl.combine_modifier(target_mod).to_rvalue();
 
     let left_cast = match ImplicitConversion::find(&lhs_ety, &ety_target) {
         Ok(cast) => cast,
@@ -889,7 +884,7 @@ fn parse_expr_ternary(
     let final_type = left_cast.get_target_type();
 
     // Cast the condition
-    let cond_cast = match ImplicitConversion::find(&cond_ety, &ir::Type::bool().to_rvalue()) {
+    let cond_cast = match ImplicitConversion::find(&cond_ety, &ir::TypeLayout::bool().to_rvalue()) {
         Ok(cast) => cast,
         Err(()) => {
             return Err(TyperError::TernaryConditionRequiresBoolean(
@@ -947,7 +942,7 @@ fn parse_expr_unchecked(
                 | ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
-                    let index = ir::Type::uint().to_rvalue();
+                    let index = ir::TypeLayout::uint().to_rvalue();
                     let cast_to_int_result = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast_to_int_result {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
@@ -959,7 +954,7 @@ fn parse_expr_unchecked(
                     Ok(sub_node)
                 }
                 ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => {
-                    let index = ir::Type::uintn(2).to_rvalue();
+                    let index = ir::TypeLayout::uintn(2).to_rvalue();
                     let cast = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
@@ -971,7 +966,7 @@ fn parse_expr_unchecked(
                     Ok(sub_node)
                 }
                 ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
-                    let index = ir::Type::uintn(2).to_rvalue();
+                    let index = ir::TypeLayout::uintn(2).to_rvalue();
                     let cast = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
@@ -1085,7 +1080,7 @@ fn parse_expr_unchecked(
                     } else {
                         ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
                     };
-                    let ety = ExpressionType(ir::Type(ty).combine_modifier(composite_mod), vt);
+                    let ety = ExpressionType(ty.combine_modifier(composite_mod), vt);
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
@@ -1126,7 +1121,7 @@ fn parse_expr_unchecked(
                     } else {
                         ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
                     };
-                    let ety = ExpressionType(ir::Type(ty).combine_modifier(composite_mod), vt);
+                    let ety = ExpressionType(ty.combine_modifier(composite_mod), vt);
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
@@ -1144,7 +1139,7 @@ fn parse_expr_unchecked(
 
                     match intrinsics::get_method(object_type, member) {
                         Ok(intrinsics::MethodDefinition(object_type, _, method_overloads)) => {
-                            let ty = ir::Type::from_object(object_type);
+                            let ty = ir::TypeLayout::from_object(object_type);
                             let overloads = method_overloads
                                 .iter()
                                 .map(|&(template_types, ref param_types, ref factory)| {
@@ -1219,7 +1214,7 @@ fn parse_expr_unchecked(
             let ir_type = parse_type(ty, context)?;
             Ok(TypedExpression::Value(
                 ir::Expression::SizeOf(ir_type),
-                ir::Type::uint().to_rvalue(),
+                ir::TypeLayout::uint().to_rvalue(),
             ))
         }
         ast::Expression::AmbiguousParseBranch(ref constrained_exprs) => {
@@ -1316,11 +1311,11 @@ fn parse_expr_call(
 
 /// Process types for a constructor invocation
 fn parse_expr_constructor(
-    ty: &ir::Type,
+    ty: &ir::TypeLayout,
     args: &[Located<ast::Expression>],
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
-    let target_scalar = match ty.0 {
+    let target_scalar = match *ty {
         ir::TypeLayout::Scalar(st)
         | ir::TypeLayout::Vector(st, _)
         | ir::TypeLayout::Matrix(st, _, _) => st,
@@ -1345,7 +1340,7 @@ fn parse_expr_constructor(
             ir::TypeLayout::Matrix(_, x, y) => ir::TypeLayout::Matrix(s, x, y),
             _ => return Err(TyperError::WrongTypeInConstructor),
         };
-        let target_type = ir::Type::from_layout(target_tyl).to_rvalue();
+        let target_type = target_tyl.to_rvalue();
         let cast = match ImplicitConversion::find(&ety, &target_type) {
             Ok(cast) => cast,
             Err(()) => return Err(TyperError::WrongTypeInConstructor),
@@ -1353,10 +1348,10 @@ fn parse_expr_constructor(
         let expr = cast.apply(expr_base);
         slots.push(ir::ConstructorSlot { arity, expr });
     }
-    let expected_layout = ty.0.get_num_elements();
+    let expected_layout = ty.get_num_elements();
     let ety = ty.to_rvalue();
     if total_arity == expected_layout {
-        let cons = ir::Expression::Constructor(ety.0 .0.clone(), slots);
+        let cons = ir::Expression::Constructor(ety.0.clone(), slots);
         Ok(TypedExpression::Value(cons, ety))
     } else {
         Err(TyperError::ConstructorWrongArgumentCount)
@@ -1429,14 +1424,14 @@ pub fn parse_expr(
 /// Find the type of a literal
 fn get_literal_type(literal: &ir::Literal) -> ExpressionType {
     (match *literal {
-        ir::Literal::Bool(_) => ir::Type::bool(),
-        ir::Literal::UntypedInt(_) => ir::Type::from_scalar(ir::ScalarType::UntypedInt),
-        ir::Literal::Int(_) => ir::Type::int(),
-        ir::Literal::UInt(_) => ir::Type::uint(),
+        ir::Literal::Bool(_) => ir::TypeLayout::bool(),
+        ir::Literal::UntypedInt(_) => ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt),
+        ir::Literal::Int(_) => ir::TypeLayout::int(),
+        ir::Literal::UInt(_) => ir::TypeLayout::uint(),
         ir::Literal::Long(_) => unimplemented!(),
-        ir::Literal::Half(_) => ir::Type::from_scalar(ir::ScalarType::Half),
-        ir::Literal::Float(_) => ir::Type::float(),
-        ir::Literal::Double(_) => ir::Type::double(),
+        ir::Literal::Half(_) => ir::TypeLayout::from_scalar(ir::ScalarType::Half),
+        ir::Literal::Float(_) => ir::TypeLayout::float(),
+        ir::Literal::Double(_) => ir::TypeLayout::double(),
     })
     .to_rvalue()
 }
@@ -1459,8 +1454,8 @@ fn get_expression_type(
             // Ensure the layouts of each side are the same
             // Value types + modifiers can be different
             assert_eq!(
-                (get_expression_type(expr_left, context)?.0).0,
-                (get_expression_type(expr_right, context)?.0).0
+                (get_expression_type(expr_left, context)?.0).remove_modifier(),
+                (get_expression_type(expr_right, context)?.0).remove_modifier(),
             );
             let ety = get_expression_type(expr_left, context)?;
             Ok(ety.0.to_rvalue())
@@ -1486,39 +1481,37 @@ fn get_expression_type(
                 }
                 _ => return Err(TyperError::InvalidTypeForSwizzle(vec_tyl)),
             };
-            Ok(ExpressionType(ir::Type(tyl).combine_modifier(vec_mod), vt))
+            Ok(ExpressionType(tyl.combine_modifier(vec_mod), vt))
         }
         ir::Expression::ArraySubscript(ref array, _) => {
             let array_ty = get_expression_type(array, context)?;
             // Todo: Modifiers on object type template parameters
-            Ok(match (array_ty.0).0 {
-                ir::TypeLayout::Array(ref element, _) => {
-                    ir::Type::from_layout(*element.clone()).to_lvalue()
-                }
+            Ok(match array_ty.0 {
+                ir::TypeLayout::Array(ref element, _) => (*element).clone().to_lvalue(),
                 ir::TypeLayout::Object(ir::ObjectType::Buffer(data_type)) => {
-                    ir::Type::from_data(data_type.as_const()).to_lvalue()
+                    ir::TypeLayout::from(data_type.as_const()).to_lvalue()
                 }
                 ir::TypeLayout::Object(ir::ObjectType::RWBuffer(data_type)) => {
-                    ir::Type::from_data(data_type).to_lvalue()
+                    ir::TypeLayout::from(data_type).to_lvalue()
                 }
                 ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(structured_type)) => {
-                    ir::Type::from_structured(structured_type.as_const()).to_lvalue()
+                    ir::TypeLayout::from(structured_type.as_const()).to_lvalue()
                 }
                 ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(structured_type)) => {
-                    ir::Type::from_structured(structured_type).to_lvalue()
+                    ir::TypeLayout::from(structured_type).to_lvalue()
                 }
                 ir::TypeLayout::Object(ir::ObjectType::Texture2D(data_type)) => {
-                    ir::Type::from_data(data_type.as_const()).to_lvalue()
+                    ir::TypeLayout::from(data_type.as_const()).to_lvalue()
                 }
                 ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(data_type)) => {
-                    ir::Type::from_data(data_type).to_lvalue()
+                    ir::TypeLayout::from(data_type).to_lvalue()
                 }
                 tyl => return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(tyl)),
             })
         }
         ir::Expression::Member(ref expr, ref name) => {
             let expr_type = get_expression_type(expr, context)?;
-            let id = match (expr_type.0).0 {
+            let id = match expr_type.0 {
                 ir::TypeLayout::Struct(id) => id,
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
                     ir::StructuredLayout::Struct(id),
@@ -1531,11 +1524,9 @@ fn get_expression_type(
         ir::Expression::Call(id, _, ref template_args, _) => {
             context.get_type_of_function_return(id, template_args)
         }
-        ir::Expression::Constructor(ref tyl, _) => {
-            Ok(ir::Type::from_layout(tyl.clone()).to_rvalue())
-        }
+        ir::Expression::Constructor(ref tyl, _) => Ok(tyl.clone().to_rvalue()),
         ir::Expression::Cast(ref ty, _) => Ok(ty.to_rvalue()),
-        ir::Expression::SizeOf(_) => Ok(ir::Type::uint().to_rvalue()),
+        ir::Expression::SizeOf(_) => Ok(ir::TypeLayout::uint().to_rvalue()),
         ir::Expression::Intrinsic(ref intrinsic, ref template_args, ref args) => {
             let mut arg_types = Vec::with_capacity(args.len());
             for arg in args {

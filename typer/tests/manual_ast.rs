@@ -227,7 +227,7 @@ fn test_ast_to_ir() {
                 Vec::from([Some(ir::FunctionDefinition {
                     id: ir::FunctionId(base_func_id),
                     returntype: ir::FunctionReturn {
-                        return_type: ir::Type::void().into(),
+                        return_type: ir::TypeLayout::void().into(),
                         semantic: None,
                     },
                     params: Vec::new(),
@@ -263,11 +263,8 @@ fn test_ast_to_ir() {
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
                     global_type: ir::GlobalType(
-                        ir::Type(ir::TypeLayout::from_scalar(ir::ScalarType::Int))
-                            .combine_modifier(ir::TypeModifier {
-                                is_const: true,
-                                ..ir::TypeModifier::default()
-                            }),
+                        ir::TypeLayout::from_scalar(ir::ScalarType::Int)
+                            .combine_modifier(ir::TypeModifier::const_only()),
                         ir::GlobalStorage::Static,
                     ),
                     lang_slot: None,

@@ -1,4 +1,4 @@
-use crate::ir_types::Type;
+use crate::ir_types::TypeLayout;
 use crate::{FunctionId, ScopedName, StructId, StructTemplateId, TypeId};
 use rssl_text::Located;
 
@@ -32,7 +32,7 @@ pub struct StructMember {
     pub name: String,
 
     /// Type of the member
-    pub typename: Type,
+    pub typename: TypeLayout,
 }
 
 /// A declaration for a struct template which is still in AST form

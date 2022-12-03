@@ -153,9 +153,9 @@ impl Intrinsic {
             }
             LogicalNot => {
                 assert_eq!(param_types.len(), 1);
-                match param_types[0].0 .0 {
-                    TypeLayout::Scalar(_) => Type::bool().to_rvalue(),
-                    TypeLayout::Vector(_, x) => Type::booln(x).to_rvalue(),
+                match param_types[0].0 {
+                    TypeLayout::Scalar(_) => TypeLayout::bool().to_rvalue(),
+                    TypeLayout::Vector(_, x) => TypeLayout::booln(x).to_rvalue(),
                     _ => panic!("invalid logical not intrinsic"),
                 }
             }
@@ -167,11 +167,12 @@ impl Intrinsic {
             Add | Subtract | Multiply | Divide | Modulus | LeftShift | RightShift | BitwiseAnd
             | BitwiseOr | BitwiseXor | BooleanAnd | BooleanOr => {
                 assert_eq!(param_types.len(), 2);
-                Type::most_significant_data_type(&param_types[0].0, &param_types[1].0).to_rvalue()
+                TypeLayout::most_significant_data_type(&param_types[0].0, &param_types[1].0)
+                    .to_rvalue()
             }
             LessThan | LessEqual | GreaterThan | GreaterEqual | Equality | Inequality => {
                 assert_eq!(param_types.len(), 2);
-                Type::most_significant_data_type(&param_types[0].0, &param_types[1].0)
+                TypeLayout::most_significant_data_type(&param_types[0].0, &param_types[1].0)
                     .transform_scalar(ScalarType::Bool)
                     .to_rvalue()
             }
@@ -187,7 +188,7 @@ impl Intrinsic {
             | DeviceMemoryBarrier
             | DeviceMemoryBarrierWithGroupSync
             | GroupMemoryBarrier
-            | GroupMemoryBarrierWithGroupSync => Type::void().to_rvalue(),
+            | GroupMemoryBarrierWithGroupSync => TypeLayout::void().to_rvalue(),
             AsInt => {
                 assert_eq!(param_types.len(), 1);
                 param_types[0]
@@ -214,9 +215,9 @@ impl Intrinsic {
             }
             AsDouble => {
                 assert_eq!(param_types.len(), 2);
-                Type::double().to_rvalue()
+                TypeLayout::double().to_rvalue()
             }
-            All | Any => Type::bool().to_rvalue(),
+            All | Any => TypeLayout::bool().to_rvalue(),
             Abs => {
                 assert_eq!(param_types.len(), 1);
                 param_types[0].0.clone().to_rvalue()
@@ -229,14 +230,14 @@ impl Intrinsic {
                 assert_eq!(param_types.len(), 2);
                 param_types[0].0.clone().to_rvalue()
             }
-            Sincos => Type::void().to_rvalue(),
+            Sincos => TypeLayout::void().to_rvalue(),
             F16ToF32 => {
                 assert_eq!(param_types.len(), 1);
-                Type::float().to_rvalue()
+                TypeLayout::float().to_rvalue()
             }
             F32ToF16 => {
                 assert_eq!(param_types.len(), 1);
-                Type::uint().to_rvalue()
+                TypeLayout::uint().to_rvalue()
             }
             Floor => {
                 assert_eq!(param_types.len(), 1);
@@ -252,7 +253,7 @@ impl Intrinsic {
             }
             Length => {
                 assert_eq!(param_types.len(), 1);
-                Type::float().to_rvalue()
+                TypeLayout::float().to_rvalue()
             }
             Normalize | Saturate => {
                 assert_eq!(param_types.len(), 1);
@@ -268,11 +269,11 @@ impl Intrinsic {
             }
             Cross => {
                 assert_eq!(param_types.len(), 2);
-                Type::floatn(3).to_rvalue()
+                TypeLayout::floatn(3).to_rvalue()
             }
             Distance => {
                 assert_eq!(param_types.len(), 2);
-                Type::float().to_rvalue()
+                TypeLayout::float().to_rvalue()
             }
             Dot => {
                 assert_eq!(param_types.len(), 2);
@@ -282,7 +283,7 @@ impl Intrinsic {
                     TypeLayout::Vector(st, _) => TypeLayout::Scalar(st),
                     _ => panic!("Invalid dot"),
                 };
-                Type(tyl).combine_modifier(modifier).to_rvalue()
+                tyl.combine_modifier(modifier).to_rvalue()
             }
             Mul => {
                 assert_eq!(param_types.len(), 2);
@@ -299,7 +300,7 @@ impl Intrinsic {
                     ) => TypeLayout::Vector(ScalarType::Float, 4),
                     _ => panic!("Invalid mul"),
                 };
-                Type(tyl).combine_modifier(mod1).to_rvalue()
+                tyl.combine_modifier(mod1).to_rvalue()
             }
             Min | Max | Step => {
                 assert_eq!(param_types.len(), 2);
@@ -311,116 +312,118 @@ impl Intrinsic {
             }
             BufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 .0 {
-                    TypeLayout::Object(ObjectType::Buffer(dty)) => Type::from_data(dty).to_rvalue(),
+                match param_types[0].0 {
+                    TypeLayout::Object(ObjectType::Buffer(dty)) => {
+                        TypeLayout::from(dty).to_rvalue()
+                    }
                     _ => panic!("Invalid BufferLoad"),
                 }
             }
             RWBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 .0 {
+                match param_types[0].0 {
                     TypeLayout::Object(ObjectType::RWBuffer(dty)) => {
-                        Type::from_data(dty).to_rvalue()
+                        TypeLayout::from(dty).to_rvalue()
                     }
                     _ => panic!("Invalid RWBufferLoad"),
                 }
             }
             StructuredBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 .0 {
+                match param_types[0].0 {
                     TypeLayout::Object(ObjectType::StructuredBuffer(ref sty)) => {
-                        Type::from_structured(sty.clone()).to_rvalue()
+                        TypeLayout::from(sty.clone()).to_rvalue()
                     }
                     _ => panic!("Invalid StructuredBufferLoad"),
                 }
             }
             RWStructuredBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 .0 {
+                match param_types[0].0 {
                     TypeLayout::Object(ObjectType::RWStructuredBuffer(ref sty)) => {
-                        Type::from_structured(sty.clone()).to_rvalue()
+                        TypeLayout::from(sty.clone()).to_rvalue()
                     }
                     _ => panic!("Invalid RWStructuredBufferLoad"),
                 }
             }
             ByteAddressBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                Type::uint().to_rvalue()
+                TypeLayout::uint().to_rvalue()
             }
             ByteAddressBufferLoad2 => {
                 assert_eq!(param_types.len(), 2);
-                Type::uintn(2).to_rvalue()
+                TypeLayout::uintn(2).to_rvalue()
             }
             ByteAddressBufferLoad3 => {
                 assert_eq!(param_types.len(), 2);
-                Type::uintn(3).to_rvalue()
+                TypeLayout::uintn(3).to_rvalue()
             }
             ByteAddressBufferLoad4 => {
                 assert_eq!(param_types.len(), 2);
-                Type::uintn(4).to_rvalue()
+                TypeLayout::uintn(4).to_rvalue()
             }
             ByteAddressBufferLoadT => {
                 assert_eq!(param_types.len(), 2);
-                Type::from_layout(TypeLayout::TemplateParam(TemplateTypeId(0))).to_rvalue()
+                TypeLayout::TemplateParam(TemplateTypeId(0)).to_rvalue()
             }
             RWByteAddressBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                Type::uint().to_rvalue()
+                TypeLayout::uint().to_rvalue()
             }
             RWByteAddressBufferLoad2 => {
                 assert_eq!(param_types.len(), 2);
-                Type::uintn(2).to_rvalue()
+                TypeLayout::uintn(2).to_rvalue()
             }
             RWByteAddressBufferLoad3 => {
                 assert_eq!(param_types.len(), 2);
-                Type::uintn(3).to_rvalue()
+                TypeLayout::uintn(3).to_rvalue()
             }
             RWByteAddressBufferLoad4 => {
                 assert_eq!(param_types.len(), 2);
-                Type::uintn(4).to_rvalue()
+                TypeLayout::uintn(4).to_rvalue()
             }
             RWByteAddressBufferStore
             | RWByteAddressBufferStore2
             | RWByteAddressBufferStore3
             | RWByteAddressBufferStore4 => {
                 assert_eq!(param_types.len(), 3);
-                Type::void().to_rvalue()
+                TypeLayout::void().to_rvalue()
             }
             RWByteAddressBufferInterlockedAdd => {
                 assert_eq!(param_types.len(), 4);
-                Type::void().to_rvalue()
+                TypeLayout::void().to_rvalue()
             }
             BufferAddressLoad | RWBufferAddressLoad => {
                 assert_eq!(param_types.len(), 2);
-                Type::from_layout(TypeLayout::TemplateParam(TemplateTypeId(0))).to_rvalue()
+                TypeLayout::TemplateParam(TemplateTypeId(0)).to_rvalue()
             }
             RWBufferAddressStore => {
                 assert_eq!(param_types.len(), 3);
-                Type::void().to_rvalue()
+                TypeLayout::void().to_rvalue()
             }
             Texture2DLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 .0 {
+                match param_types[0].0 {
                     TypeLayout::Object(ObjectType::Texture2D(dty)) => {
-                        Type::from_data(dty).to_rvalue()
+                        TypeLayout::from(dty).to_rvalue()
                     }
                     _ => panic!("Invalid Texture2DLoad"),
                 }
             }
             Texture2DSample => {
                 assert_eq!(param_types.len(), 3);
-                match param_types[0].0 .0 {
+                match param_types[0].0 {
                     TypeLayout::Object(ObjectType::RWTexture2D(dty)) => {
-                        Type::from_data(dty).to_rvalue()
+                        TypeLayout::from(dty).to_rvalue()
                     }
                     _ => panic!("Invalid Texture2DSample"),
                 }
             }
             RWTexture2DLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 .0 {
+                match param_types[0].0 {
                     TypeLayout::Object(ObjectType::RWTexture2D(dty)) => {
-                        Type::from_data(dty).to_rvalue()
+                        TypeLayout::from(dty).to_rvalue()
                     }
                     _ => panic!("Invalid RWTexture2DLoad"),
                 }

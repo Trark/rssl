@@ -6,7 +6,7 @@ use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
 /// Attempt to get an ir type from an ast type
-pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type> {
+pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::TypeLayout> {
     let direct_modifier = ty.modifier;
     let (ir_tyl, base_modifier) = parse_typelayout(&ty.layout, context)?.extract_modifier();
     // Matrix ordering not properly handled
@@ -16,11 +16,14 @@ pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type
         row_order: direct_modifier.row_order,
         volatile: base_modifier.volatile || direct_modifier.volatile,
     };
-    Ok(ir::Type(ir_tyl).combine_modifier(modifier))
+    Ok(ir_tyl.combine_modifier(modifier))
 }
 
 /// Attempt to get an ir type layout from an ast type layout
-pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperResult<ir::Type> {
+pub fn parse_typelayout(
+    ty: &ast::TypeLayout,
+    context: &mut Context,
+) -> TyperResult<ir::TypeLayout> {
     Ok(match *ty {
         ast::TypeLayout(ref name, ref args) => {
             // Translate type arguments first
@@ -32,15 +35,15 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
             // Special case all the built in types
 
             if let Some(ty) = parse_voidtype(name, &ir_args) {
-                return Ok(ir::Type::from_layout(ty));
+                return Ok(ty);
             }
 
             if let Some(ty) = parse_data_layout(name, &ir_args) {
-                return Ok(ir::Type::from_layout(ty));
+                return Ok(ty);
             }
 
             if let Some(object_type) = parse_object_type(name, &ir_args) {
-                return Ok(ir::Type::from_layout(object_type));
+                return Ok(object_type);
             }
 
             // Find the type from the scope stack
@@ -184,7 +187,7 @@ pub fn parse_data_layout(
                     // Type modifiers not supported inside arguments
                     if template_args.len() == 2 {
                         let s = match template_args[0] {
-                            ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Scalar(s))) => s,
+                            ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(s)) => s,
                             _ => return None,
                         };
 
@@ -208,7 +211,7 @@ pub fn parse_data_layout(
                     if template_args.len() == 3 {
                         // Type modifiers not supported inside arguments
                         let s = match template_args[0] {
-                            ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Scalar(s))) => s,
+                            ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(s)) => s,
                             _ => return None,
                         };
 
@@ -270,18 +273,16 @@ fn parse_object_type(
 ) -> Option<ir::TypeLayout> {
     fn get_data_type(args: &[ir::TypeOrConstant], default_float4: bool) -> Option<ir::DataType> {
         match args {
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Scalar(st)))] => Some(ir::DataType(
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(st))] => Some(ir::DataType(
                 ir::DataLayout::Scalar(*st),
                 ir::TypeModifier::default(),
             )),
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Vector(st, x)))] => Some(
-                ir::DataType(ir::DataLayout::Vector(*st, *x), ir::TypeModifier::default()),
-            ),
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Modifier(modifier, ty)))] => {
-                match get_data_type(
-                    &[ir::TypeOrConstant::Type(ir::Type::from_layout(*ty.clone()))],
-                    default_float4,
-                ) {
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Vector(st, x))] => Some(ir::DataType(
+                ir::DataLayout::Vector(*st, *x),
+                ir::TypeModifier::default(),
+            )),
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Modifier(modifier, ty))] => {
+                match get_data_type(&[ir::TypeOrConstant::Type(*ty.clone())], default_float4) {
                     Some(ty) => {
                         assert_eq!(ty.1, ir::TypeModifier::default());
                         Some(ir::DataType(ty.0, *modifier))
@@ -299,28 +300,20 @@ fn parse_object_type(
 
     fn get_structured_type(args: &[ir::TypeOrConstant]) -> Option<ir::StructuredType> {
         match args {
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Scalar(st)))] => {
-                Some(ir::StructuredType(
-                    ir::StructuredLayout::Scalar(*st),
-                    ir::TypeModifier::default(),
-                ))
-            }
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Vector(st, x)))] => {
-                Some(ir::StructuredType(
-                    ir::StructuredLayout::Vector(*st, *x),
-                    ir::TypeModifier::default(),
-                ))
-            }
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Struct(id)))] => {
-                Some(ir::StructuredType(
-                    ir::StructuredLayout::Struct(*id),
-                    ir::TypeModifier::default(),
-                ))
-            }
-            [ir::TypeOrConstant::Type(ir::Type(ir::TypeLayout::Modifier(modifier, ty)))] => {
-                match get_structured_type(&[ir::TypeOrConstant::Type(ir::Type::from_layout(
-                    *ty.clone(),
-                ))]) {
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(st))] => Some(ir::StructuredType(
+                ir::StructuredLayout::Scalar(*st),
+                ir::TypeModifier::default(),
+            )),
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Vector(st, x))] => Some(ir::StructuredType(
+                ir::StructuredLayout::Vector(*st, *x),
+                ir::TypeModifier::default(),
+            )),
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Struct(id))] => Some(ir::StructuredType(
+                ir::StructuredLayout::Struct(*id),
+                ir::TypeModifier::default(),
+            )),
+            [ir::TypeOrConstant::Type(ir::TypeLayout::Modifier(modifier, ty))] => {
+                match get_structured_type(&[ir::TypeOrConstant::Type(*ty.clone())]) {
                     Some(ty) => {
                         assert_eq!(ty.1, ir::TypeModifier::default());
                         Some(ir::StructuredType(ty.0, *modifier))
@@ -377,25 +370,21 @@ fn parse_object_type(
 
 /// Replace instances of a template type parameter in a type with a concrete type
 pub fn apply_template_type_substitution(
-    source_type: ir::Type,
+    source_type: ir::TypeLayout,
     remap: &[Located<ir::TypeOrConstant>],
-) -> ir::Type {
+) -> ir::TypeLayout {
     match source_type {
-        ir::Type(ir::TypeLayout::Modifier(modifier, tyl)) => {
-            let tyl_as_ty = ir::Type::from_layout(*tyl);
-            ir::Type(ir::TypeLayout::Modifier(
-                modifier,
-                Box::new(apply_template_type_substitution(tyl_as_ty, remap).0),
-            ))
-        }
-        ir::Type(ir::TypeLayout::TemplateParam(ref p)) => match &remap[p.0 as usize].node {
+        ir::TypeLayout::Modifier(modifier, tyl) => ir::TypeLayout::Modifier(
+            modifier,
+            Box::new(apply_template_type_substitution(*tyl, remap)),
+        ),
+        ir::TypeLayout::TemplateParam(ref p) => match &remap[p.0 as usize].node {
             ir::TypeOrConstant::Type(ty) => ty.clone(),
             ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
         },
-        ir::Type(ir::TypeLayout::Array(tyl, len)) => {
-            let tyl_as_ty = ir::Type::from_layout(*tyl);
-            let inner_ty = apply_template_type_substitution(tyl_as_ty, remap);
-            ir::Type(ir::TypeLayout::Array(Box::new(inner_ty.0), len))
+        ir::TypeLayout::Array(tyl, len) => {
+            let inner_ty = apply_template_type_substitution(*tyl, remap);
+            ir::TypeLayout::Array(Box::new(inner_ty), len)
         }
         t => t,
     }

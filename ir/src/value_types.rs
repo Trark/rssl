@@ -11,7 +11,7 @@ pub enum ValueType {
 /// Type for value intermediates. Doesn't appear in ir tree, but used for
 /// reasoning about intermediates. Doesn't include function intermediates.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct ExpressionType(pub Type, pub ValueType);
+pub struct ExpressionType(pub TypeLayout, pub ValueType);
 
 /// Trait for turning a type into an [ExpressionType]
 pub trait ToExpressionType {
@@ -19,7 +19,7 @@ pub trait ToExpressionType {
     fn to_rvalue(self) -> ExpressionType;
 }
 
-impl ToExpressionType for Type {
+impl ToExpressionType for TypeLayout {
     fn to_lvalue(self) -> ExpressionType {
         ExpressionType(self, ValueType::Lvalue)
     }
@@ -28,7 +28,7 @@ impl ToExpressionType for Type {
     }
 }
 
-impl<'a> ToExpressionType for &'a Type {
+impl<'a> ToExpressionType for &'a TypeLayout {
     fn to_lvalue(self) -> ExpressionType {
         self.clone().to_lvalue()
     }

@@ -75,7 +75,7 @@ fn analyse_bindings(
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &context.module.global_registry[id.0 as usize];
-            let descriptor_type = match decl.global_type.0 .0 {
+            let descriptor_type = match decl.global_type.0 {
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
                     DescriptorType::ConstantBuffer
                 }
@@ -471,7 +471,7 @@ fn export_semantic_annotation(
 
 /// Export ir type to HLSL
 fn export_type(
-    ty: &ir::Type,
+    ty: &ir::TypeLayout,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
@@ -483,12 +483,12 @@ fn export_type(
 
 /// Export ir type to HLSL
 fn export_type_for_def(
-    ty: &ir::Type,
+    ty: &ir::TypeLayout,
     output: &mut String,
     output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    export_type_layout_for_def(&ty.0, output, output_array, context)?;
+    export_type_layout_for_def(ty, output, output_array, context)?;
     Ok(())
 }
 

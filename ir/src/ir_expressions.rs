@@ -27,8 +27,8 @@ pub enum Expression {
         Vec<Expression>,
     ),
     Constructor(TypeLayout, Vec<ConstructorSlot>),
-    Cast(Type, Box<Expression>),
-    SizeOf(Type),
+    Cast(TypeLayout, Box<Expression>),
+    SizeOf(TypeLayout),
     Intrinsic(Intrinsic, Vec<Located<TypeOrConstant>>, Vec<Expression>),
 }
 

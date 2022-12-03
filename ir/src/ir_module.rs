@@ -116,8 +116,8 @@ impl Module {
     }
 
     /// Get the source location from a type
-    pub fn get_type_location(&self, id: &Type) -> SourceLocation {
-        match id.0 {
+    pub fn get_type_location(&self, id: &TypeLayout) -> SourceLocation {
+        match id {
             TypeLayout::Struct(id) => {
                 assert!(id.0 < self.struct_registry.len() as u32);
                 self.struct_registry[id.0 as usize].name.location
@@ -216,9 +216,7 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     if decl.lang_slot.is_none() {
                         // Find the slot type that we are adding
-                        let is_object = matches!(decl.global_type.0 .0, TypeLayout::Object(_));
-
-                        if is_object {
+                        if decl.global_type.0.is_object() {
                             let mut slot = *next_value;
                             while used_values.contains(&slot) {
                                 slot += 1;
@@ -297,9 +295,7 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     assert_eq!(decl.api_slot, None);
                     if let Some(lang_slot) = decl.lang_slot {
-                        if params.support_buffer_address
-                            && decl.global_type.0 .0.is_buffer_address()
-                        {
+                        if params.support_buffer_address && decl.global_type.0.is_buffer_address() {
                             let offset = match inline_size.entry(lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
@@ -337,7 +333,7 @@ impl Module {
                                 set: lang_slot.set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
-                                    Some(if let TypeLayout::Object(ot) = &decl.global_type.0 .0 {
+                                    Some(if let TypeLayout::Object(ot) = &decl.global_type.0 {
                                         match ot {
                                             ObjectType::Buffer(_)
                                             | ObjectType::ByteAddressBuffer

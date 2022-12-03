@@ -27,7 +27,7 @@ pub fn parse_rootdefinition_globalvariable(
         let input_type = gv_type.0.clone();
         let var_id = context.insert_global(var_name.clone(), gv_type)?;
 
-        let var_init = parse_initializer_opt(&def.init, &input_type.0, context)?;
+        let var_init = parse_initializer_opt(&def.init, &input_type, context)?;
 
         let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
         gv_ir.lang_slot = def.slot.clone().map(|r| ir::LanguageBinding {

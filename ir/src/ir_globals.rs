@@ -28,7 +28,7 @@ pub struct GlobalVariable {
 
 /// The type of any global declaration
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct GlobalType(pub Type, pub GlobalStorage);
+pub struct GlobalType(pub TypeLayout, pub GlobalStorage);
 
 /// A constant buffer definition
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -55,7 +55,7 @@ pub struct ConstantBuffer {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantVariable {
     pub name: String,
-    pub typename: Type,
+    pub typename: TypeLayout,
     pub offset: Option<PackOffset>,
 }
 
@@ -92,8 +92,8 @@ pub enum ApiLocation {
     InlineConstant(u32),
 }
 
-impl From<Type> for GlobalType {
-    fn from(ty: Type) -> GlobalType {
+impl From<TypeLayout> for GlobalType {
+    fn from(ty: TypeLayout) -> GlobalType {
         GlobalType(ty, GlobalStorage::default())
     }
 }
