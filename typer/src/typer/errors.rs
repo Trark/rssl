@@ -182,7 +182,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     name.location,
                     Severity::Error,
                 )?;
-                let previous_location = context.get_type_location(previous_type);
+                let previous_location = context.module.get_type_location(previous_type);
                 if previous_location != SourceLocation::UNKNOWN {
                     write_message(
                         &|f| write!(f, "previous definition is here"),
@@ -200,7 +200,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 )?;
                 write_message(
                     &|f| write!(f, "previous definition is here"),
-                    context.get_cbuffer_location(*previous_id),
+                    context.module.get_cbuffer_location(*previous_id),
                     Severity::Note,
                 )
             }
@@ -512,7 +512,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 /// Get the location of a function
 fn get_function_location(name: &Callable, context: &Context) -> SourceLocation {
     match *name {
-        Callable::Function(id) => context.get_function_location(id),
+        Callable::Function(id) => context.module.get_function_location(id),
         Callable::Intrinsic(_) => SourceLocation::UNKNOWN,
     }
 }
@@ -536,5 +536,5 @@ fn get_type_layout_string(tyl: &ir::TypeLayout, context: &Context) -> String {
 
 /// Get a string name from a struct name for error display
 fn get_struct_name(id: ir::StructId, context: &Context) -> String {
-    context.get_struct_name(id).to_string()
+    context.module.get_struct_name(id).to_string()
 }

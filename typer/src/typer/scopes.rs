@@ -7,7 +7,7 @@ use super::types::apply_template_type_substitution;
 use ir::{ExpressionType, ToExpressionType};
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_text::{Located, SourceLocation};
+use rssl_text::Located;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -444,16 +444,10 @@ impl Context {
         }
     }
 
-    /// Get the name from a function id
-    pub fn get_function_name(&self, id: ir::FunctionId) -> &str {
-        assert!(id.0 < self.function_data.len() as u32);
-        &self.module.function_name_registry[id.0 as usize].name.node
-    }
-
     /// Get the name from a function
     pub fn get_function_or_intrinsic_name(&self, id: &Callable) -> &str {
         match *id {
-            Callable::Function(id) => self.get_function_name(id),
+            Callable::Function(id) => self.module.get_function_name(id),
             Callable::Intrinsic(_) => {
                 for (i, data) in self.function_data.iter().enumerate() {
                     if data.overload.0 == *id {
@@ -463,57 +457,6 @@ impl Context {
                 "<unknown>"
             }
         }
-    }
-
-    /// Get the name from a struct id
-    pub fn get_struct_name(&self, id: ir::StructId) -> &str {
-        assert!(id.0 < self.struct_data.len() as u32);
-        &self.module.struct_registry[id.0 as usize].name.node
-    }
-
-    /// Get the name from a struct template_id
-    pub fn get_struct_template_name(&self, id: ir::StructTemplateId) -> &str {
-        assert!(id.0 < self.struct_template_data.len() as u32);
-        &self.module.struct_template_registry[id.0 as usize]
-            .name
-            .node
-    }
-
-    /// Get the name from a constant buffer id
-    pub fn get_cbuffer_name(&self, id: ir::ConstantBufferId) -> &str {
-        assert!(id.0 < self.cbuffer_data.len() as u32);
-        &self.module.cbuffer_registry[id.0 as usize].name.node
-    }
-
-    /// Get the name from a global variable id
-    pub fn get_global_name(&self, id: ir::GlobalId) -> &str {
-        assert!(id.0 < self.module.global_registry.len() as u32);
-        &self.module.global_registry[id.0 as usize].name.node
-    }
-
-    /// Get the source location from a function id
-    pub fn get_function_location(&self, id: ir::FunctionId) -> SourceLocation {
-        assert!(id.0 < self.function_data.len() as u32);
-        self.module.function_name_registry[id.0 as usize]
-            .name
-            .location
-    }
-
-    /// Get the source location from a type
-    pub fn get_type_location(&self, id: &ir::Type) -> SourceLocation {
-        match id.0 {
-            ir::TypeLayout::Struct(id) => {
-                assert!(id.0 < self.struct_data.len() as u32);
-                self.module.struct_registry[id.0 as usize].name.location
-            }
-            _ => SourceLocation::UNKNOWN,
-        }
-    }
-
-    /// Get the source location from a constant buffer id
-    pub fn get_cbuffer_location(&self, id: ir::ConstantBufferId) -> SourceLocation {
-        assert!(id.0 < self.cbuffer_data.len() as u32);
-        self.module.cbuffer_registry[id.0 as usize].name.location
     }
 
     /// Register a local variable

@@ -1,4 +1,5 @@
 use crate::*;
+use rssl_text::SourceLocation;
 use std::collections::{HashMap, HashSet};
 
 /// Represents a full parsed and type checked source file
@@ -84,6 +85,59 @@ pub struct AssignBindingsParams {
 }
 
 impl Module {
+    /// Get the name from a struct id
+    pub fn get_struct_name(&self, id: StructId) -> &str {
+        assert!(id.0 < self.struct_registry.len() as u32);
+        &self.struct_registry[id.0 as usize].name.node
+    }
+
+    /// Get the name from a struct template_id
+    pub fn get_struct_template_name(&self, id: StructTemplateId) -> &str {
+        assert!(id.0 < self.struct_template_registry.len() as u32);
+        &self.struct_template_registry[id.0 as usize].name.node
+    }
+
+    /// Get the name from a function id
+    pub fn get_function_name(&self, id: FunctionId) -> &str {
+        assert!(id.0 < self.function_name_registry.len() as u32);
+        &self.function_name_registry[id.0 as usize].name.node
+    }
+
+    /// Get the name from a global variable id
+    pub fn get_global_name(&self, id: GlobalId) -> &str {
+        assert!(id.0 < self.global_registry.len() as u32);
+        &self.global_registry[id.0 as usize].name.node
+    }
+
+    /// Get the name from a constant buffer id
+    pub fn get_cbuffer_name(&self, id: ConstantBufferId) -> &str {
+        assert!(id.0 < self.cbuffer_registry.len() as u32);
+        &self.cbuffer_registry[id.0 as usize].name.node
+    }
+
+    /// Get the source location from a type
+    pub fn get_type_location(&self, id: &Type) -> SourceLocation {
+        match id.0 {
+            TypeLayout::Struct(id) => {
+                assert!(id.0 < self.struct_registry.len() as u32);
+                self.struct_registry[id.0 as usize].name.location
+            }
+            _ => SourceLocation::UNKNOWN,
+        }
+    }
+
+    /// Get the source location from a function id
+    pub fn get_function_location(&self, id: FunctionId) -> SourceLocation {
+        assert!(id.0 < self.function_name_registry.len() as u32);
+        self.function_name_registry[id.0 as usize].name.location
+    }
+
+    /// Get the source location from a constant buffer id
+    pub fn get_cbuffer_location(&self, id: ConstantBufferId) -> SourceLocation {
+        assert!(id.0 < self.cbuffer_registry.len() as u32);
+        self.cbuffer_registry[id.0 as usize].name.location
+    }
+
     /// Assign slot numbers to resource bindings
     ///
     /// Slots are assigned within a single namespace.
