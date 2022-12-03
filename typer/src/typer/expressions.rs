@@ -592,8 +592,8 @@ fn resolve_arithmetic_types(
         left: &ExpressionType,
         right: &ExpressionType,
     ) -> Result<(ImplicitConversion, ImplicitConversion, ir::Intrinsic), ()> {
-        let &ExpressionType(ir::Type(ref left_l, ref modl), _) = left;
-        let &ExpressionType(ir::Type(ref right_l, ref modr), _) = right;
+        let &ExpressionType(ir::Type(ref left_l, _), _) = left;
+        let &ExpressionType(ir::Type(ref right_l, _), _) = right;
         let (ltl, rtl) = match (left_l, right_l) {
             (&ir::TypeLayout::Scalar(ref ls), &ir::TypeLayout::Scalar(ref rs)) => {
                 let common_scalar = common_real_type(ls, rs)?;
@@ -632,12 +632,7 @@ fn resolve_arithmetic_types(
             }
             _ => return Err(()),
         };
-        let out_mod = ir::TypeModifier {
-            is_const: false,
-            row_order: ir::RowOrder::Column,
-            precise: modl.precise || modr.precise,
-            volatile: false,
-        };
+        let out_mod = ir::TypeModifier::default();
         let candidate_left = Type(ltl.clone(), out_mod);
         let candidate_right = Type(rtl.clone(), out_mod);
         let output_type = output_type(candidate_left, candidate_right, op);
@@ -729,8 +724,6 @@ fn parse_expr_binop(
         | ast::BinOp::BooleanOr => {
             let lhs_tyl = &(lhs_type.0).0;
             let rhs_tyl = &(rhs_type.0).0;
-            let lhs_mod = &(lhs_type.0).1;
-            let rhs_mod = &(rhs_type.0).1;
             let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
                 ir::ScalarType::Bool
             } else {
@@ -758,12 +751,7 @@ fn parse_expr_binop(
             let x = ir::TypeLayout::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
             let y = ir::TypeLayout::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
             let tyl = ir::TypeLayout::from_numeric(scalar, x, y);
-            let out_mod = ir::TypeModifier {
-                is_const: false,
-                row_order: ir::RowOrder::Column,
-                precise: lhs_mod.precise || rhs_mod.precise,
-                volatile: false,
-            };
+            let out_mod = ir::TypeModifier::default();
             let ty = ir::Type(tyl, out_mod).to_rvalue();
             let lhs_cast = match ImplicitConversion::find(&lhs_type, &ty) {
                 Ok(cast) => cast,
@@ -847,7 +835,7 @@ fn parse_expr_ternary(
         rhs_ty.to_error_type(),
     ));
     let ir::Type(lhs_tyl, lhs_mod) = lhs_ty;
-    let ir::Type(rhs_tyl, rhs_mod) = rhs_ty;
+    let ir::Type(rhs_tyl, _) = rhs_ty;
 
     // Attempt to find best scalar match between match arms
     // This will return None for non-numeric types
@@ -892,7 +880,6 @@ fn parse_expr_ternary(
     let target_mod = ir::TypeModifier {
         is_const: false,
         row_order: lhs_mod.row_order, // TODO: ???
-        precise: lhs_mod.precise || rhs_mod.precise,
         volatile: false,
     };
 

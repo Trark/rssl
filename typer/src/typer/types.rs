@@ -14,7 +14,6 @@ pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type
     let modifier = ir::TypeModifier {
         is_const: base_modifier.is_const || direct_modifier.is_const,
         row_order: direct_modifier.row_order,
-        precise: base_modifier.precise || direct_modifier.precise,
         volatile: base_modifier.volatile || direct_modifier.volatile,
     };
     Ok(ir::Type(ir_tyl, modifier))

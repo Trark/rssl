@@ -3,7 +3,6 @@
 pub struct TypeModifier {
     pub is_const: bool,
     pub row_order: RowOrder,
-    pub precise: bool,
     pub volatile: bool,
 }
 
@@ -83,28 +82,19 @@ impl TypeModifier {
         TypeModifier {
             is_const: false,
             row_order: RowOrder::Column,
-            precise: false,
             volatile: false,
         }
     }
 
     /// Test if we do not have any modifiers
     pub fn is_empty(&self) -> bool {
-        !self.is_const && self.row_order == RowOrder::Column && !self.precise && !self.volatile
+        *self == Default::default()
     }
 
     /// Create a modifier which is const
     pub fn const_only() -> TypeModifier {
         TypeModifier {
             is_const: true,
-            ..TypeModifier::default()
-        }
-    }
-
-    /// Remove all modifiers except for precise
-    pub fn keep_precise(&self) -> TypeModifier {
-        TypeModifier {
-            precise: self.precise,
             ..TypeModifier::default()
         }
     }
@@ -168,9 +158,6 @@ impl std::fmt::Debug for InterpolationModifier {
 
 impl std::fmt::Debug for TypeModifier {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        if self.precise {
-            write!(f, "precise ")?;
-        }
         if self.row_order == RowOrder::Row {
             write!(f, "row_major ")?;
         }

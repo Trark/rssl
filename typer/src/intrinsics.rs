@@ -72,7 +72,6 @@ pub type IntrinsicDefinition = (&'static str, Intrinsic, u32, &'static [ParamTyp
 const T_MOD: TypeModifier = TypeModifier {
     is_const: false,
     row_order: RowOrder::Column,
-    precise: false,
     volatile: false,
 };
 
