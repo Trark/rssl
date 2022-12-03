@@ -91,8 +91,7 @@ impl Module {
     pub fn assign_slot_numbers(mut self) -> Self {
         // Search definitions for used slot numbers
         fn search_definition(
-            globals: &[GlobalVariable],
-            cbuffers: &[ConstantBuffer],
+            module: &Module,
             decl: &RootDefinition,
             used_values: &mut HashSet<u32>,
         ) {
@@ -101,7 +100,7 @@ impl Module {
                 | RootDefinition::StructTemplate(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
-                    let cb = &cbuffers[id.0 as usize];
+                    let cb = &module.cbuffer_registry[id.0 as usize];
                     if let Some(LanguageBinding {
                         set: 0,
                         index: slot,
@@ -111,7 +110,7 @@ impl Module {
                     }
                 }
                 RootDefinition::GlobalVariable(id) => {
-                    let decl = &globals[id.0 as usize];
+                    let decl = &module.global_registry[id.0 as usize];
                     if let Some(LanguageBinding {
                         set: 0,
                         index: slot,
@@ -122,7 +121,7 @@ impl Module {
                 }
                 RootDefinition::Namespace(_, decls) => {
                     for decl in decls {
-                        search_definition(globals, cbuffers, decl, used_values)
+                        search_definition(module, decl, used_values)
                     }
                 }
             }
@@ -130,18 +129,12 @@ impl Module {
 
         let mut used_values = HashSet::new();
         for decl in &self.root_definitions {
-            search_definition(
-                &self.global_registry,
-                &self.cbuffer_registry,
-                decl,
-                &mut used_values,
-            )
+            search_definition(&self, decl, &mut used_values)
         }
 
         // Add slot numbers to definitions without them
         fn process_definition(
-            globals: &mut [GlobalVariable],
-            cbuffers: &mut [ConstantBuffer],
+            module: &mut Module,
             decl: &mut RootDefinition,
             used_values: &HashSet<u32>,
             next_value: &mut u32,
@@ -151,7 +144,7 @@ impl Module {
                 | RootDefinition::StructTemplate(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
-                    let cb = &mut cbuffers[id.0 as usize];
+                    let cb = &mut module.cbuffer_registry[id.0 as usize];
                     if cb.lang_binding.is_none() {
                         let mut slot = *next_value;
                         while used_values.contains(&slot) {
@@ -166,7 +159,7 @@ impl Module {
                     }
                 }
                 RootDefinition::GlobalVariable(id) => {
-                    let decl = &mut globals[id.0 as usize];
+                    let decl = &mut module.global_registry[id.0 as usize];
                     if decl.lang_slot.is_none() {
                         // Find the slot type that we are adding
                         let is_object = matches!(decl.global_type.0 .0, TypeLayout::Object(_));
@@ -187,21 +180,15 @@ impl Module {
                 }
                 RootDefinition::Namespace(_, decls) => {
                     for decl in decls {
-                        process_definition(globals, cbuffers, decl, used_values, next_value)
+                        process_definition(module, decl, used_values, next_value)
                     }
                 }
             }
         }
 
         let mut next_value = 0;
-        for decl in &mut self.root_definitions {
-            process_definition(
-                &mut self.global_registry,
-                &mut self.cbuffer_registry,
-                decl,
-                &used_values,
-                &mut next_value,
-            )
+        for decl in &mut self.root_definitions.clone() {
+            process_definition(&mut self, decl, &used_values, &mut next_value)
         }
 
         self
@@ -215,9 +202,8 @@ impl Module {
         self.flags.requires_vk_binding = !params.require_slot_type || params.support_buffer_address;
 
         fn process_definition(
-            globals: &mut [GlobalVariable],
-            cbuffers: &mut [ConstantBuffer],
-            decl: &mut RootDefinition,
+            module: &mut Module,
+            decl: &RootDefinition,
             params: &AssignBindingsParams,
             used_slots: &mut HashMap<u32, u32>,
             inline_size: &mut HashMap<u32, u32>,
@@ -227,7 +213,7 @@ impl Module {
                 | RootDefinition::StructTemplate(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
-                    let cb = &mut cbuffers[id.0 as usize];
+                    let cb = &mut module.cbuffer_registry[id.0 as usize];
                     assert_eq!(cb.api_binding, None);
                     if let Some(lang_slot) = cb.lang_binding {
                         let index = match used_slots.entry(lang_slot.set) {
@@ -254,7 +240,7 @@ impl Module {
                     }
                 }
                 RootDefinition::GlobalVariable(id) => {
-                    let decl = &mut globals[id.0 as usize];
+                    let decl = &mut module.global_registry[id.0 as usize];
                     assert_eq!(decl.api_slot, None);
                     if let Some(lang_slot) = decl.lang_slot {
                         if params.support_buffer_address
@@ -325,14 +311,7 @@ impl Module {
                 }
                 RootDefinition::Namespace(_, decls) => {
                     for decl in decls {
-                        process_definition(
-                            globals,
-                            cbuffers,
-                            decl,
-                            params,
-                            used_slots,
-                            inline_size,
-                        );
+                        process_definition(module, decl, params, used_slots, inline_size);
                     }
                 }
             }
@@ -340,15 +319,8 @@ impl Module {
 
         let mut used_slots = HashMap::new();
         let mut inline_size = HashMap::new();
-        for decl in &mut self.root_definitions {
-            process_definition(
-                &mut self.global_registry,
-                &mut self.cbuffer_registry,
-                decl,
-                &params,
-                &mut used_slots,
-                &mut inline_size,
-            );
+        for decl in &self.root_definitions.clone() {
+            process_definition(&mut self, decl, &params, &mut used_slots, &mut inline_size);
         }
 
         // Make an inline constant buffer to store bindings that can be stored as constants
