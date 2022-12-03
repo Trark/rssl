@@ -199,8 +199,9 @@ impl ValueTypeCast {
 
 impl ModifierCast {
     fn modify(&self, ty: ExpressionType) -> ExpressionType {
-        let ExpressionType(Type(ty, _), vt) = ty;
-        ExpressionType(Type(ty, self.0), vt)
+        let ExpressionType(ty, vt) = ty;
+        let (ty, _) = ty.extract_modifier();
+        ExpressionType(Type(ty).combine_modifier(self.0), vt)
     }
 }
 
@@ -217,88 +218,79 @@ impl ImplicitConversion {
             ),
         };
 
-        let &Type(ref source_l, mods) = source_type;
-        let &Type(ref dest_l, modd) = dest_type;
+        let (source_l, mods) = source_type.clone().extract_modifier();
+        let (dest_l, modd) = dest_type.clone().extract_modifier();
 
-        let dimension_cast = match (source_l, dest_l, dest.1 == Lvalue) {
-            (ref ty1, ref ty2, _) if ty1 == ty2 => None,
+        let dimension_cast = match (&source_l, &dest_l, dest.1 == Lvalue) {
+            (ty1, ty2, _) if ty1 == ty2 => None,
             // Scalar to scalar
-            (&TypeLayout::Scalar(_), &TypeLayout::Scalar(_), false) => None,
+            (TypeLayout::Scalar(_), TypeLayout::Scalar(_), false) => None,
             // Scalar to vector1 of same type (works for lvalues)
-            (&TypeLayout::Scalar(ref s1), &TypeLayout::Vector(ref s2, ref x2), _)
-                if s1 == s2 && *x2 == 1 =>
-            {
+            (TypeLayout::Scalar(s1), TypeLayout::Vector(s2, x2), _) if s1 == s2 && *x2 == 1 => {
                 Some(DimensionCast(
                     NumericDimension::Scalar,
                     NumericDimension::Vector(1),
                 ))
             }
             // vector1 to scalar of same type (works for lvalues)
-            (&TypeLayout::Vector(ref s1, ref x1), &TypeLayout::Scalar(ref s2), _)
-                if s1 == s2 && *x1 == 1 =>
-            {
+            (TypeLayout::Vector(s1, x1), TypeLayout::Scalar(s2), _) if s1 == s2 && *x1 == 1 => {
                 Some(DimensionCast(
                     NumericDimension::Vector(1),
                     NumericDimension::Scalar,
                 ))
             }
             // Scalar to vector (mirror)
-            (&TypeLayout::Scalar(_), &TypeLayout::Vector(_, ref x2), false) => Some(DimensionCast(
+            (TypeLayout::Scalar(_), TypeLayout::Vector(_, x2), false) => Some(DimensionCast(
                 NumericDimension::Scalar,
                 NumericDimension::Vector(*x2),
             )),
             // Single vector to vector (mirror)
-            (&TypeLayout::Vector(_, 1), &TypeLayout::Vector(_, ref x2), false) => Some(
-                DimensionCast(NumericDimension::Vector(1), NumericDimension::Vector(*x2)),
-            ),
+            (TypeLayout::Vector(_, 1), TypeLayout::Vector(_, x2), false) => Some(DimensionCast(
+                NumericDimension::Vector(1),
+                NumericDimension::Vector(*x2),
+            )),
             // Vector first element to scalar
-            (&TypeLayout::Vector(_, ref x1), &TypeLayout::Scalar(_), false) => Some(DimensionCast(
+            (TypeLayout::Vector(_, x1), TypeLayout::Scalar(_), false) => Some(DimensionCast(
                 NumericDimension::Vector(*x1),
                 NumericDimension::Scalar,
             )),
             // Vector same dimension
-            (&TypeLayout::Vector(_, ref x1), &TypeLayout::Vector(_, ref x2), false) if x1 == x2 => {
+            (TypeLayout::Vector(_, x1), TypeLayout::Vector(_, x2), false) if x1 == x2 => None,
+            // Vector cull additional elements
+            (TypeLayout::Vector(_, x1), TypeLayout::Vector(_, x2), false) if x2 < x1 => Some(
+                DimensionCast(NumericDimension::Vector(*x1), NumericDimension::Vector(*x2)),
+            ),
+            // Matrix same dimension
+            (TypeLayout::Matrix(_, x1, y1), TypeLayout::Matrix(_, x2, y2), false)
+                if x1 == x2 && y1 == y2 =>
+            {
                 None
             }
-            // Vector cull additional elements
-            (&TypeLayout::Vector(_, ref x1), &TypeLayout::Vector(_, ref x2), false) if x2 < x1 => {
-                Some(DimensionCast(
-                    NumericDimension::Vector(*x1),
-                    NumericDimension::Vector(*x2),
-                ))
-            }
-            // Matrix same dimension
-            (
-                &TypeLayout::Matrix(_, ref x1, ref y1),
-                &TypeLayout::Matrix(_, ref x2, ref y2),
-                false,
-            ) if x1 == x2 && y1 == y2 => None,
             // Vector <-> Matrix casts not implemented
             // Struct casts only supported for same type structs
             _ => return Err(()),
         };
 
-        let numeric_cast = match (source_l, dest_l) {
-            (ref ty1, ref ty2) if ty1 == ty2 => None,
-            _ => {
-                let source_scalar = match *source_l {
-                    TypeLayout::Scalar(s) => s,
-                    TypeLayout::Vector(s, _) => s,
-                    TypeLayout::Matrix(s, _, _) => s,
-                    _ => return Err(()),
-                };
-                let dest_scalar = match *dest_l {
-                    TypeLayout::Scalar(s) => s,
-                    TypeLayout::Vector(s, _) => s,
-                    TypeLayout::Matrix(s, _, _) => s,
-                    _ => return Err(()),
-                };
-                if source_scalar == dest_scalar {
-                    None
-                } else {
-                    let cast = NumericCast::new(source_scalar, dest_scalar)?;
-                    Some(cast)
-                }
+        let numeric_cast = if source_l == dest_l {
+            None
+        } else {
+            let source_scalar = match source_l {
+                TypeLayout::Scalar(s) => s,
+                TypeLayout::Vector(s, _) => s,
+                TypeLayout::Matrix(s, _, _) => s,
+                _ => return Err(()),
+            };
+            let dest_scalar = match dest_l {
+                TypeLayout::Scalar(s) => s,
+                TypeLayout::Vector(s, _) => s,
+                TypeLayout::Matrix(s, _, _) => s,
+                _ => return Err(()),
+            };
+            if source_scalar == dest_scalar {
+                None
+            } else {
+                let cast = NumericCast::new(source_scalar, dest_scalar)?;
+                Some(cast)
             }
         };
 
@@ -311,11 +303,11 @@ impl ImplicitConversion {
             if dest.1 == Lvalue {
                 if mods.is_const && !modd.is_const {
                     return Err(());
-                };
+                }
                 if mods.volatile && !modd.volatile {
                     return Err(());
-                };
-            };
+                }
+            }
             Some(ModifierCast(modd))
         } else {
             None
@@ -380,7 +372,8 @@ impl ImplicitConversion {
             }
             None => match dim {
                 Some(dim) => {
-                    let ExpressionType(Type(tyl, m), vt) = ty;
+                    let ExpressionType(ty_modified, vt) = ty;
+                    let (tyl, m) = ty_modified.extract_modifier();
                     let scalar = match tyl {
                         TypeLayout::Scalar(scalar) => scalar,
                         TypeLayout::Vector(scalar, _) => scalar,
@@ -392,7 +385,7 @@ impl ImplicitConversion {
                         NumericDimension::Vector(x) => TypeLayout::Vector(scalar, x),
                         NumericDimension::Matrix(x, y) => TypeLayout::Matrix(scalar, x, y),
                     };
-                    ExpressionType(Type(tyl_dim, m), vt)
+                    ExpressionType(Type(tyl_dim).combine_modifier(m), vt)
                 }
                 None => ty,
             },
@@ -414,7 +407,8 @@ impl ImplicitConversion {
         // If the type was an untyped literal int then instead convert the literal type
         // This simplifies the expressions we generate so we don't have to clean it up later
         if let Expression::Literal(Literal::UntypedInt(v)) = expr {
-            match target_type.0 .0 {
+            let (target_ty, _) = target_type.0.clone().extract_modifier();
+            match target_ty {
                 TypeLayout::Scalar(ScalarType::Bool) => {
                     return Expression::Literal(Literal::Bool(v != 0))
                 }
@@ -605,14 +599,13 @@ fn test_const() {
     // Non-const to const rvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::default()).to_rvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_rvalue())
+            &(Type(TypeLayout::from_scalar(Int)).to_rvalue()),
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_rvalue())
         ),
         Ok(ImplicitConversion(
-            ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::default()),
-                Rvalue
-            ),
+            ExpressionType(Type(TypeLayout::from_scalar(Int)), Rvalue),
             None,
             None,
             None,
@@ -621,14 +614,13 @@ fn test_const() {
     );
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::default()).to_lvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_rvalue())
+            &(Type(TypeLayout::from_scalar(Int)).to_lvalue()),
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_rvalue())
         ),
         Ok(ImplicitConversion(
-            ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::default()),
-                Lvalue
-            ),
+            ExpressionType(Type(TypeLayout::from_scalar(Int)), Lvalue),
             Some(ValueTypeCast(Type::int(), Lvalue, Rvalue)),
             None,
             None,
@@ -638,12 +630,16 @@ fn test_const() {
     // Const to const rvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_rvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_rvalue())
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_rvalue()),
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_rvalue())
         ),
         Ok(ImplicitConversion(
             ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Rvalue
             ),
             None,
@@ -654,16 +650,20 @@ fn test_const() {
     );
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_lvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_rvalue())
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_lvalue()),
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_rvalue())
         ),
         Ok(ImplicitConversion(
             ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Lvalue
             ),
             Some(ValueTypeCast(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Lvalue,
                 Rvalue
             )),
@@ -675,12 +675,14 @@ fn test_const() {
     // Const removing from rvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_rvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::default()).to_rvalue())
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_rvalue()),
+            &(Type(TypeLayout::from_scalar(Int)).to_rvalue())
         ),
         Ok(ImplicitConversion(
             ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Rvalue
             ),
             None,
@@ -691,16 +693,18 @@ fn test_const() {
     );
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_lvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::default()).to_rvalue())
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_lvalue()),
+            &(Type(TypeLayout::from_scalar(Int)).to_rvalue())
         ),
         Ok(ImplicitConversion(
             ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Lvalue
             ),
             Some(ValueTypeCast(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Lvalue,
                 Rvalue
             )),
@@ -713,14 +717,13 @@ fn test_const() {
     // Non-const to const lvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::default()).to_lvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_lvalue())
+            &(Type(TypeLayout::from_scalar(Int)).to_lvalue()),
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_lvalue())
         ),
         Ok(ImplicitConversion(
-            ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::default()),
-                Lvalue
-            ),
+            ExpressionType(Type(TypeLayout::from_scalar(Int)), Lvalue),
             None,
             None,
             None,
@@ -730,12 +733,16 @@ fn test_const() {
     // const to const lvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_lvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_lvalue())
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_lvalue()),
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_lvalue())
         ),
         Ok(ImplicitConversion(
             ExpressionType(
-                Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()),
+                Type(TypeLayout::from_scalar(Int)).combine_modifier(TypeModifier::const_only()),
                 Lvalue
             ),
             None,
@@ -747,8 +754,10 @@ fn test_const() {
     // const to non-const lvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::const_only()).to_lvalue()),
-            &(Type(TypeLayout::from_scalar(Int), TypeModifier::default()).to_lvalue())
+            &(Type(TypeLayout::from_scalar(Int))
+                .combine_modifier(TypeModifier::const_only())
+                .to_lvalue()),
+            &(Type(TypeLayout::from_scalar(Int)).to_lvalue())
         ),
         Err(())
     );

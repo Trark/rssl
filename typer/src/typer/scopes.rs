@@ -275,9 +275,11 @@ impl Context {
             Err(err) => return Err(err),
         };
 
+        let (tyl, modifier) = ty.clone().extract_modifier();
+
         // Match template argument counts with type
-        match ty {
-            ir::Type(ir::TypeLayout::StructTemplate(id), modifier) => {
+        match tyl {
+            ir::TypeLayout::StructTemplate(id) => {
                 // Templated type definitions require template arguments
                 // We do not currently support default arguments
                 if template_args.is_empty() {
@@ -289,7 +291,7 @@ impl Context {
                     let ast = &struct_template_def.ast.clone();
 
                     if let Some(id) = struct_template_data.instantiations.get(template_args) {
-                        Ok(ir::Type(ir::TypeLayout::Struct(*id), modifier))
+                        Ok(ir::Type(ir::TypeLayout::Struct(*id)).combine_modifier(modifier))
                     } else {
                         // Return to scope of the struct definition to build the template
                         let current_scope = self.current_scope;
@@ -308,7 +310,7 @@ impl Context {
                             .instantiations
                             .insert(template_args.to_vec(), sid);
 
-                        Ok(ir::Type(ir::TypeLayout::Struct(sid), modifier))
+                        Ok(ir::Type(ir::TypeLayout::Struct(sid)).combine_modifier(modifier))
                     }
                 }
             }

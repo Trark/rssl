@@ -519,7 +519,7 @@ fn get_function_location(name: &Callable, context: &Context) -> SourceLocation {
 
 /// Get a string name from a type for error display
 fn get_type_string(ty: &ir::Type, context: &Context) -> String {
-    format!("{:?}{}", ty.1, get_type_layout_string(&ty.0, context))
+    get_type_layout_string(&ty.0, context)
 }
 
 /// Get a string name from a type layout for error display
@@ -529,6 +529,9 @@ fn get_type_layout_string(tyl: &ir::TypeLayout, context: &Context) -> String {
         ir::TypeLayout::Object(ref ot) => format!("{:?}", ot),
         ir::TypeLayout::Array(ref ty, ref len) => {
             format!("{}[{}]", get_type_layout_string(ty, context), len)
+        }
+        ir::TypeLayout::Modifier(modifier, ref ty) => {
+            format!("{:?}[{}]", modifier, get_type_layout_string(ty, context))
         }
         _ => format!("{:?}", tyl),
     }

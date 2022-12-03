@@ -191,7 +191,7 @@ pub fn apply_variable_bind(
     init: &Option<ast::Initializer>,
 ) -> TyperResult<ir::Type> {
     for dim in &bind.0 {
-        let ir::Type(layout, modifiers) = ty;
+        let (layout, modifiers) = ty.extract_modifier();
 
         let constant_dim = match *dim {
             Some(ref dim_expr) => match evaluate_constexpr_int(dim_expr) {
@@ -207,10 +207,8 @@ pub fn apply_variable_bind(
             },
         };
 
-        ty = ir::Type(
-            ir::TypeLayout::Array(Box::new(layout), constant_dim),
-            modifiers,
-        );
+        ty = ir::Type(ir::TypeLayout::Array(Box::new(layout), constant_dim))
+            .combine_modifier(modifiers);
     }
 
     Ok(ty)
@@ -260,7 +258,7 @@ fn parse_initializer(
 ) -> TyperResult<ir::Initializer> {
     Ok(match *init {
         ast::Initializer::Expression(ref expr) => {
-            let ety = ir::Type::from_layout(tyl.clone()).to_rvalue();
+            let ety = ir::Type(ir::Type::from_layout(tyl.clone()).extract_modifier().0).to_rvalue();
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             match ImplicitConversion::find(&expr_ty, &ety) {
                 Ok(rhs_cast) => ir::Initializer::Expression(rhs_cast.apply(expr_ir)),
@@ -286,7 +284,8 @@ fn parse_initializer(
                 }
                 Ok(elements)
             }
-            match *tyl {
+            let (tyl, _) = ir::Type(tyl.clone()).extract_modifier();
+            match tyl {
                 ir::TypeLayout::Scalar(_) => {
                     if exprs.len() as u32 != 1 {
                         return Err(TyperError::InitializerAggregateWrongDimension);
@@ -295,7 +294,7 @@ fn parse_initializer(
                     // Reparse as if it was a single expression instead of a 1 element aggregate
                     // Meaning '{ x }' is read as if it were 'x'
                     // Will also reduce '{{ x }}' to 'x'
-                    parse_initializer(&exprs[0], tyl, context)?
+                    parse_initializer(&exprs[0], &tyl, context)?
                 }
                 ir::TypeLayout::Vector(ref scalar, ref dim) => {
                     if exprs.len() as u32 != *dim {

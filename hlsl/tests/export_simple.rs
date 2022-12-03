@@ -5,6 +5,11 @@ use shared::*;
 fn check_static_primitive_variables() {
     check_rssl_to_hlsl("int x = 0;", "extern int x = 0;\n");
     check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
+    check_rssl_to_hlsl("static const int x = 1;", "static const int x = 1;\n");
+    check_rssl_to_hlsl(
+        "static const int x = 1.0;",
+        "static const int x = (int)1.0;\n",
+    );
     check_rssl_to_hlsl("extern int x = -1;", "extern int x = (int)-1;\n");
     check_rssl_to_hlsl("static float x[4];", "static float x[4];\n");
     check_rssl_to_hlsl(

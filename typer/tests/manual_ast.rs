@@ -263,13 +263,11 @@ fn test_ast_to_ir() {
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
                     global_type: ir::GlobalType(
-                        ir::Type(
-                            ir::TypeLayout::from_scalar(ir::ScalarType::Int),
-                            ir::TypeModifier {
+                        ir::Type(ir::TypeLayout::from_scalar(ir::ScalarType::Int))
+                            .combine_modifier(ir::TypeModifier {
                                 is_const: true,
                                 ..ir::TypeModifier::default()
-                            },
-                        ),
+                            }),
                         ir::GlobalStorage::Static,
                     ),
                     lang_slot: None,

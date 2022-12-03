@@ -376,31 +376,22 @@ fn parse_expr_unaryop(
     match parse_expr_internal(expr, context)? {
         TypedExpression::Value(expr_ir, expr_ty) => {
             fn enforce_increment_type(ety: &ExpressionType, op: &ast::UnaryOp) -> TyperResult<()> {
-                match *ety {
-                    ExpressionType(_, ir::ValueType::Rvalue) => Err(
+                let ExpressionType(ty, vt) = ety;
+                let (tyl, _) = ty.clone().extract_modifier();
+                match (tyl, vt) {
+                    (_, ir::ValueType::Rvalue) => Err(TyperError::UnaryOperationWrongTypes(
+                        op.clone(),
+                        ErrorType::Unknown,
+                    )),
+                    (ir::TypeLayout::Scalar(ir::ScalarType::Bool), _) => Err(
                         TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
                     ),
-                    ExpressionType(
-                        ir::Type(ir::TypeLayout::Scalar(ir::ScalarType::Bool), _),
-                        _,
-                    ) => Err(TyperError::UnaryOperationWrongTypes(
-                        op.clone(),
-                        ErrorType::Unknown,
-                    )),
-                    ExpressionType(
-                        ir::Type(ir::TypeLayout::Vector(ir::ScalarType::Bool, _), _),
-                        _,
-                    ) => Err(TyperError::UnaryOperationWrongTypes(
-                        op.clone(),
-                        ErrorType::Unknown,
-                    )),
-                    ExpressionType(
-                        ir::Type(ir::TypeLayout::Matrix(ir::ScalarType::Bool, _, _), _),
-                        _,
-                    ) => Err(TyperError::UnaryOperationWrongTypes(
-                        op.clone(),
-                        ErrorType::Unknown,
-                    )),
+                    (ir::TypeLayout::Vector(ir::ScalarType::Bool, _), _) => Err(
+                        TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
+                    ),
+                    (ir::TypeLayout::Matrix(ir::ScalarType::Bool, _, _), _) => Err(
+                        TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
+                    ),
                     _ => Ok(()),
                 }
             }
@@ -424,14 +415,14 @@ fn parse_expr_unaryop(
                 ast::UnaryOp::Plus => (ir::Intrinsic::Plus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::Minus => (ir::Intrinsic::Minus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::LogicalNot => {
-                    let ty = match expr_ty.0 {
-                        ir::Type(ir::TypeLayout::Scalar(_), _) => {
+                    let ty = match expr_ty.0.extract_modifier().0 {
+                        ir::TypeLayout::Scalar(_) => {
                             ir::Type::from_layout(ir::TypeLayout::Scalar(ir::ScalarType::Bool))
                         }
-                        ir::Type(ir::TypeLayout::Vector(_, x), _) => {
+                        ir::TypeLayout::Vector(_, x) => {
                             ir::Type::from_layout(ir::TypeLayout::Vector(ir::ScalarType::Bool, x))
                         }
-                        ir::Type(ir::TypeLayout::Matrix(_, x, y), _) => ir::Type::from_layout(
+                        ir::TypeLayout::Matrix(_, x, y) => ir::Type::from_layout(
                             ir::TypeLayout::Matrix(ir::ScalarType::Bool, x, y),
                         ),
                         _ => {
@@ -469,7 +460,7 @@ fn parse_expr_unaryop(
     }
 }
 
-fn most_sig_scalar(left: &ir::ScalarType, right: &ir::ScalarType) -> ir::ScalarType {
+fn most_sig_scalar(left: ir::ScalarType, right: ir::ScalarType) -> ir::ScalarType {
     use rssl_ir::ScalarType;
 
     // The limited number of hlsl types means these happen to always have one
@@ -486,11 +477,11 @@ fn most_sig_scalar(left: &ir::ScalarType, right: &ir::ScalarType) -> ir::ScalarT
         }
     }
 
-    let left = match *left {
+    let left = match left {
         ScalarType::UntypedInt => ScalarType::Int,
         scalar => scalar,
     };
-    let right = match *right {
+    let right = match right {
         ScalarType::UntypedInt => ScalarType::Int,
         scalar => scalar,
     };
@@ -519,7 +510,7 @@ fn resolve_arithmetic_types(
     use rssl_ir::ScalarType;
     use rssl_ir::Type;
 
-    fn common_real_type(left: &ScalarType, right: &ScalarType) -> Result<ir::ScalarType, ()> {
+    fn common_real_type(left: ScalarType, right: ScalarType) -> Result<ir::ScalarType, ()> {
         Ok(most_sig_scalar(left, right))
     }
 
@@ -592,53 +583,53 @@ fn resolve_arithmetic_types(
         left: &ExpressionType,
         right: &ExpressionType,
     ) -> Result<(ImplicitConversion, ImplicitConversion, ir::Intrinsic), ()> {
-        let &ExpressionType(ir::Type(ref left_l, _), _) = left;
-        let &ExpressionType(ir::Type(ref right_l, _), _) = right;
+        let &ExpressionType(ref left_ty, _) = left;
+        let &ExpressionType(ref right_ty, _) = right;
+        let (left_l, _) = left_ty.clone().extract_modifier();
+        let (right_l, _) = right_ty.clone().extract_modifier();
         let (ltl, rtl) = match (left_l, right_l) {
-            (&ir::TypeLayout::Scalar(ref ls), &ir::TypeLayout::Scalar(ref rs)) => {
+            (ir::TypeLayout::Scalar(ls), ir::TypeLayout::Scalar(rs)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_scalar(common_scalar);
                 let common_right = common_left.clone();
                 (common_left, common_right)
             }
-            (&ir::TypeLayout::Scalar(ref ls), &ir::TypeLayout::Vector(ref rs, ref x2)) => {
+            (ir::TypeLayout::Scalar(ls), ir::TypeLayout::Vector(rs, x2)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_scalar(common_scalar);
-                let common_right = ir::TypeLayout::from_vector(common_scalar, *x2);
+                let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
                 (common_left, common_right)
             }
-            (&ir::TypeLayout::Vector(ref ls, ref x1), &ir::TypeLayout::Scalar(ref rs)) => {
+            (ir::TypeLayout::Vector(ls, x1), ir::TypeLayout::Scalar(rs)) => {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_vector(common_scalar, *x1);
+                let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
                 let common_right = ir::TypeLayout::from_scalar(common_scalar);
                 (common_left, common_right)
             }
-            (&ir::TypeLayout::Vector(ref ls, ref x1), &ir::TypeLayout::Vector(ref rs, ref x2))
-                if x1 == x2 || *x1 == 1 || *x2 == 1 =>
+            (ir::TypeLayout::Vector(ls, x1), ir::TypeLayout::Vector(rs, x2))
+                if x1 == x2 || x1 == 1 || x2 == 1 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_vector(common_scalar, *x1);
-                let common_right = ir::TypeLayout::from_vector(common_scalar, *x2);
+                let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
+                let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
                 (common_left, common_right)
             }
-            (
-                &ir::TypeLayout::Matrix(ref ls, ref x1, ref y1),
-                &ir::TypeLayout::Matrix(ref rs, ref x2, ref y2),
-            ) if x1 == x2 && y1 == y2 => {
+            (ir::TypeLayout::Matrix(ls, x1, y1), ir::TypeLayout::Matrix(rs, x2, y2))
+                if x1 == x2 && y1 == y2 =>
+            {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_matrix(common_scalar, *x2, *y2);
+                let common_left = ir::TypeLayout::from_matrix(common_scalar, x2, y2);
                 let common_right = common_left.clone();
                 (common_left, common_right)
             }
             _ => return Err(()),
         };
-        let out_mod = ir::TypeModifier::default();
-        let candidate_left = Type(ltl.clone(), out_mod);
-        let candidate_right = Type(rtl.clone(), out_mod);
+        let candidate_left = Type(ltl.clone());
+        let candidate_right = Type(rtl.clone());
         let output_type = output_type(candidate_left, candidate_right, op);
-        let elt = ExpressionType(ir::Type(ltl, out_mod), ir::ValueType::Rvalue);
+        let elt = ExpressionType(ir::Type(ltl), ir::ValueType::Rvalue);
         let lc = ImplicitConversion::find(left, &elt)?;
-        let ert = ExpressionType(ir::Type(rtl, out_mod), ir::ValueType::Rvalue);
+        let ert = ExpressionType(ir::Type(rtl), ir::ValueType::Rvalue);
         let rc = ImplicitConversion::find(right, &ert)?;
         Ok((lc, rc, output_type))
     }
@@ -752,7 +743,7 @@ fn parse_expr_binop(
             let y = ir::TypeLayout::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
             let tyl = ir::TypeLayout::from_numeric(scalar, x, y);
             let out_mod = ir::TypeModifier::default();
-            let ty = ir::Type(tyl, out_mod).to_rvalue();
+            let ty = ir::Type(tyl).combine_modifier(out_mod).to_rvalue();
             let lhs_cast = match ImplicitConversion::find(&lhs_type, &ty) {
                 Ok(cast) => cast,
                 Err(()) => return err_bad_type,
@@ -834,15 +825,13 @@ fn parse_expr_ternary(
         lhs_ty.to_error_type(),
         rhs_ty.to_error_type(),
     ));
-    let ir::Type(lhs_tyl, lhs_mod) = lhs_ty;
-    let ir::Type(rhs_tyl, _) = rhs_ty;
+    let (lhs_tyl, lhs_mod) = lhs_ty.extract_modifier();
+    let (rhs_tyl, _) = rhs_ty.extract_modifier();
 
     // Attempt to find best scalar match between match arms
     // This will return None for non-numeric types
     let st = match (lhs_tyl.to_scalar(), rhs_tyl.to_scalar()) {
-        (Some(left_scalar), Some(right_scalar)) => {
-            Some(most_sig_scalar(&left_scalar, &right_scalar))
-        }
+        (Some(left_scalar), Some(right_scalar)) => Some(most_sig_scalar(left_scalar, right_scalar)),
         _ => None,
     };
 
@@ -883,7 +872,7 @@ fn parse_expr_ternary(
         volatile: false,
     };
 
-    let ety_target = ir::Type(comb_tyl, target_mod).to_rvalue();
+    let ety_target = ir::Type(comb_tyl).combine_modifier(target_mod).to_rvalue();
 
     let left_cast = match ImplicitConversion::find(&lhs_ety, &ety_target) {
         Ok(cast) => cast,
@@ -951,8 +940,8 @@ fn parse_expr_unchecked(
                 TypedExpression::Value(subscript_ir, subscript_ty) => (subscript_ir, subscript_ty),
                 _ => return Err(TyperError::ArrayIndexingNonArrayType),
             };
-            let ExpressionType(ir::Type(array_tyl, _), _) = array_ty;
-            let node = match array_tyl {
+            let ExpressionType(ty, _) = array_ty;
+            let node = match ty.extract_modifier().0 {
                 ir::TypeLayout::Array(_, _)
                 | ir::TypeLayout::Object(ir::ObjectType::Buffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_))
@@ -1012,7 +1001,7 @@ fn parse_expr_unchecked(
                 _ => return Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
             };
             let ExpressionType(composite_ty, vt) = composite_ety;
-            let ir::Type(ref composite_tyl, composite_mod) = composite_ty;
+            let (ref composite_tyl, composite_mod) = composite_ty.clone().extract_modifier();
             match *composite_tyl {
                 ir::TypeLayout::Struct(id)
                 | ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
@@ -1028,16 +1017,24 @@ fn parse_expr_unchecked(
                         let mut path = member.clone();
                         path.identifiers.pop();
                         match context.find_identifier(&path) {
-                            Ok(VariableExpression::Type(ir::Type(
-                                ir::TypeLayout::Struct(found_id),
-                                _,
-                            ))) => {
-                                if id != found_id {
-                                    return Err(TyperError::MemberIsForDifferentType(
-                                        composite_ty,
-                                        ir::TypeLayout::Struct(found_id),
-                                        path,
-                                    ));
+                            Ok(VariableExpression::Type(ty)) => {
+                                let (tyl, _) = ty.extract_modifier();
+                                match tyl {
+                                    ir::TypeLayout::Struct(found_id) => {
+                                        if id != found_id {
+                                            return Err(TyperError::MemberIsForDifferentType(
+                                                composite_ty,
+                                                ir::TypeLayout::Struct(found_id),
+                                                path,
+                                            ));
+                                        }
+                                    }
+                                    _ => {
+                                        return Err(TyperError::IdentifierIsNotAMember(
+                                            composite_ty,
+                                            path,
+                                        ))
+                                    }
                                 }
                             }
                             Ok(_) => {
@@ -1088,7 +1085,7 @@ fn parse_expr_unchecked(
                     } else {
                         ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
                     };
-                    let ety = ExpressionType(ir::Type(ty, composite_mod), vt);
+                    let ety = ExpressionType(ir::Type(ty).combine_modifier(composite_mod), vt);
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
@@ -1129,7 +1126,7 @@ fn parse_expr_unchecked(
                     } else {
                         ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
                     };
-                    let ety = ExpressionType(ir::Type(ty, composite_mod), vt);
+                    let ety = ExpressionType(ir::Type(ty).combine_modifier(composite_mod), vt);
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
@@ -1337,14 +1334,15 @@ fn parse_expr_constructor(
             TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
             _ => return Err(TyperError::FunctionNotCalled),
         };
-        let &ExpressionType(ir::Type(ref expr_tyl, _), _) = &ety;
+        let &ExpressionType(ref expr_ty, _) = &ety;
+        let (expr_tyl, _) = expr_ty.clone().extract_modifier();
         let arity = expr_tyl.get_num_elements();
         total_arity += arity;
         let s = target_scalar;
-        let target_tyl = match *expr_tyl {
+        let target_tyl = match expr_tyl {
             ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(s),
-            ir::TypeLayout::Vector(_, ref x) => ir::TypeLayout::Vector(s, *x),
-            ir::TypeLayout::Matrix(_, ref x, ref y) => ir::TypeLayout::Matrix(s, *x, *y),
+            ir::TypeLayout::Vector(_, x) => ir::TypeLayout::Vector(s, x),
+            ir::TypeLayout::Matrix(_, x, y) => ir::TypeLayout::Matrix(s, x, y),
             _ => return Err(TyperError::WrongTypeInConstructor),
         };
         let target_type = ir::Type::from_layout(target_tyl).to_rvalue();
@@ -1475,8 +1473,8 @@ fn get_expression_type(
             Ok(ety)
         }
         ir::Expression::Swizzle(ref vec, ref swizzle) => {
-            let ExpressionType(ir::Type(vec_tyl, vec_mod), vec_vt) =
-                get_expression_type(vec, context)?;
+            let ExpressionType(vec_ty, vec_vt) = get_expression_type(vec, context)?;
+            let (vec_tyl, vec_mod) = vec_ty.extract_modifier();
             let vt = get_swizzle_vt(swizzle, vec_vt);
             let tyl = match vec_tyl {
                 ir::TypeLayout::Scalar(scalar) | ir::TypeLayout::Vector(scalar, _) => {
@@ -1488,7 +1486,7 @@ fn get_expression_type(
                 }
                 _ => return Err(TyperError::InvalidTypeForSwizzle(vec_tyl)),
             };
-            Ok(ExpressionType(ir::Type(tyl, vec_mod), vt))
+            Ok(ExpressionType(ir::Type(tyl).combine_modifier(vec_mod), vt))
         }
         ir::Expression::ArraySubscript(ref array, _) => {
             let array_ty = get_expression_type(array, context)?;

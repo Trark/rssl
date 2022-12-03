@@ -488,7 +488,6 @@ fn export_type_for_def(
     output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    write!(output, "{:?}", ty.1).unwrap();
     export_type_layout_for_def(&ty.0, output, output_array, context)?;
     Ok(())
 }
@@ -575,6 +574,10 @@ fn export_type_layout_for_def(
         ir::TypeLayout::Array(ref ty, ref len) => {
             export_type_layout_for_def(ty, output, output_array, context)?;
             write!(output_array, "[{}]", len).unwrap();
+        }
+        ir::TypeLayout::Modifier(ref modifier, ref ty) => {
+            write!(output, "{:?}", modifier).unwrap();
+            export_type_layout_for_def(ty, output, output_array, context)?;
         }
         _ => todo!("Type layout not implemented: {:?}", tyl),
     };

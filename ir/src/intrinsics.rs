@@ -276,18 +276,18 @@ impl Intrinsic {
             }
             Dot => {
                 assert_eq!(param_types.len(), 2);
-                let Type(tyl, modifier) = param_types[0].0.clone();
+                let (tyl, modifier) = param_types[0].0.clone().extract_modifier();
                 let tyl = match tyl {
                     TypeLayout::Scalar(st) => TypeLayout::Scalar(st),
                     TypeLayout::Vector(st, _) => TypeLayout::Scalar(st),
                     _ => panic!("Invalid dot"),
                 };
-                Type(tyl, modifier).to_rvalue()
+                Type(tyl).combine_modifier(modifier).to_rvalue()
             }
             Mul => {
                 assert_eq!(param_types.len(), 2);
-                let Type(tyl0, _) = param_types[0].0.clone();
-                let Type(tyl1, mod1) = param_types[1].0.clone();
+                let (tyl0, _) = param_types[0].0.clone().extract_modifier();
+                let (tyl1, mod1) = param_types[1].0.clone().extract_modifier();
                 let tyl = match (tyl0, tyl1) {
                     (
                         TypeLayout::Matrix(ScalarType::Float, 3, 3),
@@ -299,7 +299,7 @@ impl Intrinsic {
                     ) => TypeLayout::Vector(ScalarType::Float, 4),
                     _ => panic!("Invalid mul"),
                 };
-                Type(tyl, mod1).to_rvalue()
+                Type(tyl).combine_modifier(mod1).to_rvalue()
             }
             Min | Max | Step => {
                 assert_eq!(param_types.len(), 2);
