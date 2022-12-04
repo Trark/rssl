@@ -76,6 +76,12 @@ fn parse_struct_internal(
         match ast_entry {
             ast::StructEntry::Variable(ast_member) => {
                 let base_type = parse_type(&ast_member.ty, context)?;
+                if base_type.is_void() {
+                    return Err(TyperError::VariableHasIncompleteType(
+                        base_type,
+                        ast_member.ty.location,
+                    ));
+                }
                 for def in &ast_member.defs {
                     let name = def.name.clone();
                     let typename = apply_variable_bind(base_type.clone(), &def.bind, &None)?;

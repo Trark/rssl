@@ -365,8 +365,11 @@ impl TypeLayout {
 
     /// Returns `true` if the type is the void type
     pub fn is_void(&self) -> bool {
-        assert!(!self.has_modifiers());
-        *self == TypeLayout::Void
+        if let TypeLayout::Modifier(_, inner) = self {
+            **inner == TypeLayout::Void
+        } else {
+            *self == TypeLayout::Void
+        }
     }
 
     /// Returns `true` if the type has a const modifier

@@ -88,6 +88,9 @@ pub enum TyperError {
 
     /// Expression in a constant context could not be evaluated
     ExpressionIsNotConstantExpression(SourceLocation),
+
+    /// A variable was declared with an incomplete type
+    VariableHasIncompleteType(ir::TypeLayout, SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -505,6 +508,17 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 *loc,
                 Severity::Error,
             ),
+            TyperError::VariableHasIncompleteType(ty, loc) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "Variable declared with incomplete type '{}'",
+                        get_type_string(ty, context)
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
         }
     }
 }
@@ -526,7 +540,7 @@ fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
             format!("{}[{}]", get_type_string(ty, context), len)
         }
         ir::TypeLayout::Modifier(modifier, ref ty) => {
-            format!("{:?}[{}]", modifier, get_type_string(ty, context))
+            format!("{:?}{}", modifier, get_type_string(ty, context))
         }
         _ => format!("{:?}", tyl),
     }

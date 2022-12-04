@@ -89,6 +89,20 @@ fn check_primitive_types() {
 }
 
 #[test]
+fn check_void() {
+    check_fail("void x;");
+    check_fail("const void x;");
+    check_fail("void f() { void x; }");
+    check_fail("void f() { const void x; }");
+    check_fail("void f(void x) {}");
+    check_fail("void f(const void x) {}");
+    check_fail("cbuffer VoidTest { void x; }");
+    check_fail("cbuffer VoidTest { const void x; }");
+    check_fail("struct VoidTest { void x; };");
+    check_fail("struct VoidTest { const void x; };");
+}
+
+#[test]
 fn reject_invalid_initialisers() {
     check_fail("static uint3 x = float2(1, 2);");
     check_fail("static float4 c[2] = float4(0, 1, 2, 3);");

@@ -47,6 +47,12 @@ fn parse_globaltype(
     context: &mut Context,
 ) -> TyperResult<ir::GlobalType> {
     let ty = parse_type(&global_type.0, context)?;
+    if ty.is_void() {
+        return Err(TyperError::VariableHasIncompleteType(
+            ty,
+            global_type.0.location,
+        ));
+    }
     Ok(ir::GlobalType(ty, global_type.1.clone()))
 }
 
@@ -59,6 +65,12 @@ pub fn parse_rootdefinition_constantbuffer(
     let mut members_map = HashMap::new();
     for member in &cb.members {
         let base_type = parse_type(&member.ty, context)?;
+        if base_type.is_void() {
+            return Err(TyperError::VariableHasIncompleteType(
+                base_type,
+                member.ty.location,
+            ));
+        }
         for def in &member.defs {
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();

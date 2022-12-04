@@ -188,6 +188,12 @@ fn parse_paramtype(
     context: &mut Context,
 ) -> TyperResult<ir::ParamType> {
     let ty = parse_type(&param_type.0, context)?;
+    if ty.is_void() {
+        return Err(TyperError::VariableHasIncompleteType(
+            ty,
+            param_type.0.location,
+        ));
+    }
     Ok(ir::ParamType(
         ty,
         param_type.1.clone(),

@@ -181,6 +181,12 @@ fn parse_localtype(
     context: &mut Context,
 ) -> TyperResult<ir::LocalType> {
     let ty = parse_type(&local_type.0, context)?;
+    if ty.is_void() {
+        return Err(TyperError::VariableHasIncompleteType(
+            ty,
+            local_type.0.location,
+        ));
+    }
     Ok(ir::LocalType(ty, local_type.1.clone()))
 }
 
