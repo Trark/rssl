@@ -75,7 +75,7 @@ fn analyse_bindings(
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &context.module.global_registry[id.0 as usize];
-            let descriptor_type = match decl.global_type.0 {
+            let descriptor_type = match decl.global_type.0.clone().remove_modifier() {
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
                     DescriptorType::ConstantBuffer
                 }
