@@ -1,0 +1,8 @@
+const Buffer<float4> g_input : register(t0);
+const RWBuffer<float4> g_output : register(u1);
+
+void test() {
+    const float4 s1 = g_input.Load(0);
+    const float4 s2 = g_output.Load(0);
+    g_output[2] = g_output[1] = g_input[1];
+}

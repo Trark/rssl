@@ -550,6 +550,51 @@ void f() {
 }
 
 #[test]
+fn check_byte_buffer() {
+    check_rssl_to_hlsl(
+        include_str!("byte_buffer.rssl"),
+        include_str!("byte_buffer.hlsl"),
+    );
+}
+
+#[test]
+fn check_buffer_address() {
+    check_rssl_to_hlsl(
+        include_str!("buffer_address.rssl"),
+        include_str!("buffer_address.hlsl"),
+    );
+
+    check_rssl_to_hlsl_vk(
+        include_str!("buffer_address.rssl"),
+        include_str!("buffer_address.vk.hlsl"),
+    );
+}
+
+#[test]
+fn check_structured_buffer() {
+    check_rssl_to_hlsl(
+        include_str!("structured_buffer.rssl"),
+        include_str!("structured_buffer.hlsl"),
+    );
+}
+
+#[test]
+fn check_texel_buffer() {
+    check_rssl_to_hlsl(
+        include_str!("texel_buffer.rssl"),
+        include_str!("texel_buffer.hlsl"),
+    );
+}
+
+#[test]
+fn check_texture2d() {
+    check_rssl_to_hlsl(
+        include_str!("texture2d.rssl"),
+        include_str!("texture2d.hlsl"),
+    );
+}
+
+#[test]
 fn check_semantics() {
     check_rssl_to_hlsl(
         "float4 main(uint id : SV_VertexID) : SV_Position { return 0; }",

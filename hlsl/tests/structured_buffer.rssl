@@ -1,0 +1,13 @@
+struct MyStruct
+{
+    const uint m;
+};
+
+const StructuredBuffer<MyStruct> g_input : register(t0);
+const RWStructuredBuffer<MyStruct> g_output : register(u1);
+
+void test() {
+    const MyStruct s1 = g_input.Load(0);
+    const MyStruct s2 = g_output.Load(0);
+    g_output[2] = g_output[1] = g_input[1];
+}

@@ -1,0 +1,13 @@
+const BufferAddress g_input : register(t0);
+const RWBufferAddress g_output : register(u1);
+
+struct MyStruct
+{
+    uint m;
+};
+
+void test() {
+    const MyStruct s1 = g_input.Load<MyStruct>(0);
+    const MyStruct s2 = g_output.Load<MyStruct>(0);
+    g_output.Store<MyStruct>(4, s1);
+}
