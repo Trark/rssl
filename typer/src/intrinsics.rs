@@ -88,6 +88,7 @@ const T_FLOAT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 2);
 const T_FLOAT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 3);
 const T_FLOAT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 4);
 const T_SAMPLER_TY: TypeLayout = TypeLayout::Object(ObjectType::SamplerState);
+const T_TEMPLATE0_TY: TypeLayout = TypeLayout::TemplateParam(TemplateTypeId(0));
 
 const T_BOOL: ParamType = ParamType(T_BOOL_TY, InputModifier::In, None);
 const T_BOOL2: ParamType = ParamType(T_BOOL2_TY, InputModifier::In, None);
@@ -113,6 +114,7 @@ const T_FLOAT2_OUT: ParamType = ParamType(T_FLOAT2_TY, InputModifier::Out, None)
 const T_FLOAT3_OUT: ParamType = ParamType(T_FLOAT3_TY, InputModifier::Out, None);
 const T_FLOAT4_OUT: ParamType = ParamType(T_FLOAT4_TY, InputModifier::Out, None);
 const T_SAMPLER: ParamType = ParamType(T_SAMPLER_TY, InputModifier::In, None);
+const T_TEMPLATE0: ParamType = ParamType(T_TEMPLATE0_TY, InputModifier::In, None);
 
 #[rustfmt::skip]
 const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
@@ -387,7 +389,7 @@ const RWBUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[
         "Store",
         Intrinsic::RWBufferAddressStore,
         1,
-        &[T_UINT, T_UINT],
+        &[T_UINT, T_TEMPLATE0],
     ),
 ];
 
