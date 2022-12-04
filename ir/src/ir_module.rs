@@ -351,6 +351,8 @@ impl Module {
                                                 | ObjectType::RWTexture2D(_) => RegisterType::U,
 
                                                 ObjectType::ConstantBuffer(_) => RegisterType::B,
+
+                                                ObjectType::SamplerState => RegisterType::S,
                                             }
                                         } else {
                                             panic!("Non-object type has a global resource binding");

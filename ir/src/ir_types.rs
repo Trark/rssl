@@ -13,7 +13,6 @@ pub enum TypeLayout {
     Matrix(ScalarType, u32, u32),
     Struct(StructId),
     StructTemplate(StructTemplateId),
-    SamplerState,
     Object(ObjectType),
     Array(Box<TypeLayout>, u64),
     TemplateParam(TemplateTypeId),
@@ -101,6 +100,8 @@ pub enum ObjectType {
     RWTexture2D(DataType),
 
     ConstantBuffer(StructuredType),
+
+    SamplerState,
 }
 
 /// A constant value
@@ -477,7 +478,6 @@ impl std::fmt::Debug for TypeLayout {
             TypeLayout::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
             TypeLayout::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
             TypeLayout::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
-            TypeLayout::SamplerState => write!(f, "SamplerState"),
             TypeLayout::Object(ref ot) => write!(f, "{:?}", ot),
             TypeLayout::Array(ref ty, ref len) => write!(f, "{:?}[{}]", ty, len),
             TypeLayout::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
@@ -548,6 +548,7 @@ impl std::fmt::Debug for ObjectType {
             Texture2D(ref dt) => write!(f, "Texture2D<{:?}>", dt),
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{:?}>", dt),
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{:?}>", st),
+            SamplerState => write!(f, "SamplerState"),
         }
     }
 }

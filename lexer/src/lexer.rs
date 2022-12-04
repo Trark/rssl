@@ -681,7 +681,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "typename" => Token::Typename,
 
         // Unimplemented keywords
-        "SamplerState" | "packoffset" | "case" | "default" => Token::ReservedWord(id.0),
+        "packoffset" | "case" | "default" => Token::ReservedWord(id.0),
 
         // Reserved keywords for future use
         "auto" | "catch" | "char" | "class" | "const_cast" | "delete" | "dynamic_cast"

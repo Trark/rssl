@@ -471,7 +471,7 @@ fn test_implicitconversion() {
 
     assert_eq!(
         ImplicitConversion::find(
-            &TypeLayout::SamplerState.to_lvalue(),
+            &TypeLayout::Object(ObjectType::SamplerState).to_lvalue(),
             &TypeLayout::uint().to_lvalue()
         ),
         Err(())

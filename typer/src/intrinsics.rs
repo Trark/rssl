@@ -87,7 +87,7 @@ const T_FLOAT1_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 1);
 const T_FLOAT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 2);
 const T_FLOAT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 3);
 const T_FLOAT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 4);
-const T_SAMPLER_TY: TypeLayout = TypeLayout::SamplerState;
+const T_SAMPLER_TY: TypeLayout = TypeLayout::Object(ObjectType::SamplerState);
 
 const T_BOOL: ParamType = ParamType(T_BOOL_TY, InputModifier::In, None);
 const T_BOOL2: ParamType = ParamType(T_BOOL2_TY, InputModifier::In, None);

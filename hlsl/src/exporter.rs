@@ -569,6 +569,9 @@ fn export_type_layout_for_def(
                     export_type(&st.clone().into(), output, context)?;
                     output.push('>');
                 }
+                ir::ObjectType::SamplerState => {
+                    output.push_str("SamplerState");
+                }
             };
         }
         ir::TypeLayout::Array(ref ty, ref len) => {

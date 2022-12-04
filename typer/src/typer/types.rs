@@ -364,6 +364,7 @@ fn parse_object_type(
         "RWStructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(
             get_structured_type(template_args)?,
         ))),
+        "SamplerState" => Some(ir::TypeLayout::Object(ir::ObjectType::SamplerState)),
         _ => None,
     }
 }
