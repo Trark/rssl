@@ -333,25 +333,29 @@ impl Module {
                                 set: lang_slot.set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
-                                    Some(if let TypeLayout::Object(ot) = &decl.global_type.0 {
-                                        match ot {
-                                            ObjectType::Buffer(_)
-                                            | ObjectType::ByteAddressBuffer
-                                            | ObjectType::BufferAddress
-                                            | ObjectType::StructuredBuffer(_)
-                                            | ObjectType::Texture2D(_) => RegisterType::T,
+                                    Some(
+                                        if let TypeLayout::Object(ot) =
+                                            &decl.global_type.0.clone().remove_modifier()
+                                        {
+                                            match ot {
+                                                ObjectType::Buffer(_)
+                                                | ObjectType::ByteAddressBuffer
+                                                | ObjectType::BufferAddress
+                                                | ObjectType::StructuredBuffer(_)
+                                                | ObjectType::Texture2D(_) => RegisterType::T,
 
-                                            ObjectType::RWBuffer(_)
-                                            | ObjectType::RWByteAddressBuffer
-                                            | ObjectType::RWBufferAddress
-                                            | ObjectType::RWStructuredBuffer(_)
-                                            | ObjectType::RWTexture2D(_) => RegisterType::U,
+                                                ObjectType::RWBuffer(_)
+                                                | ObjectType::RWByteAddressBuffer
+                                                | ObjectType::RWBufferAddress
+                                                | ObjectType::RWStructuredBuffer(_)
+                                                | ObjectType::RWTexture2D(_) => RegisterType::U,
 
-                                            ObjectType::ConstantBuffer(_) => RegisterType::B,
-                                        }
-                                    } else {
-                                        panic!("Non-object type has a global resource binding");
-                                    })
+                                                ObjectType::ConstantBuffer(_) => RegisterType::B,
+                                            }
+                                        } else {
+                                            panic!("Non-object type has a global resource binding");
+                                        },
+                                    )
                                 } else {
                                     None
                                 },
