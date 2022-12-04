@@ -249,7 +249,8 @@ impl TypeLayout {
         Self::from_matrix(ScalarType::Float, 4, 4)
     }
 
-    pub const fn to_scalar(&self) -> Option<ScalarType> {
+    pub fn to_scalar(&self) -> Option<ScalarType> {
+        assert!(!self.has_modifiers());
         match *self {
             TypeLayout::Scalar(scalar)
             | TypeLayout::Vector(scalar, _)
@@ -258,7 +259,8 @@ impl TypeLayout {
         }
     }
 
-    pub const fn to_x(&self) -> Option<u32> {
+    pub fn to_x(&self) -> Option<u32> {
+        assert!(!self.has_modifiers());
         match *self {
             TypeLayout::Vector(_, ref x) => Some(*x),
             TypeLayout::Matrix(_, ref x, _) => Some(*x),
@@ -266,7 +268,8 @@ impl TypeLayout {
         }
     }
 
-    pub const fn to_y(&self) -> Option<u32> {
+    pub fn to_y(&self) -> Option<u32> {
+        assert!(!self.has_modifiers());
         match *self {
             TypeLayout::Matrix(_, _, ref y) => Some(*y),
             _ => None,
@@ -286,7 +289,7 @@ impl TypeLayout {
     /// Get the most significant type from two data types
     pub fn most_significant_data_type(left: &Self, right: &Self) -> Self {
         let (left_ty, left_mod) = left.clone().extract_modifier();
-        let (right_ty, _) = left.clone().extract_modifier();
+        let (right_ty, _) = right.clone().extract_modifier();
 
         // Get the more important input type, that serves as the base to
         // calculate the output type from
@@ -302,6 +305,8 @@ impl TypeLayout {
 
     /// Attempt to get the most significant dimension of two data types
     pub fn most_significant_dimension(lhs: &Self, rhs: &Self) -> Option<NumericDimension> {
+        assert!(!lhs.has_modifiers());
+        assert!(!rhs.has_modifiers());
         use std::cmp::max;
         use std::cmp::min;
         use TypeLayout::*;
@@ -325,7 +330,8 @@ impl TypeLayout {
         }
     }
 
-    pub const fn get_num_elements(&self) -> u32 {
+    pub fn get_num_elements(&self) -> u32 {
+        assert!(!self.has_modifiers());
         match (self.to_x(), self.to_y()) {
             (Some(x1), Some(x2)) => x1 * x2,
             (Some(x1), None) => x1,
@@ -389,6 +395,7 @@ impl TypeLayout {
 
     /// Returns `true` if the type is an object
     pub fn is_object(&self) -> bool {
+        assert!(!self.has_modifiers());
         matches!(self, &TypeLayout::Object(_))
     }
 
