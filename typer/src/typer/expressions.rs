@@ -1315,11 +1315,16 @@ fn parse_expr_constructor(
     args: &[Located<ast::Expression>],
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
-    let target_scalar = match *ty {
+    let error_location = args
+        .get(0)
+        .map(|e| e.location)
+        .unwrap_or(SourceLocation::UNKNOWN);
+    let ty = ty.clone().remove_modifier();
+    let target_scalar = match ty {
         ir::TypeLayout::Scalar(st)
         | ir::TypeLayout::Vector(st, _)
         | ir::TypeLayout::Matrix(st, _, _) => st,
-        _ => return Err(TyperError::ConstructorWrongArgumentCount),
+        _ => return Err(TyperError::ConstructorWrongArgumentCount(error_location)),
     };
     let mut slots: Vec<ir::ConstructorSlot> = vec![];
     let mut total_arity = 0;
@@ -1354,7 +1359,7 @@ fn parse_expr_constructor(
         let cons = ir::Expression::Constructor(ety.0.clone(), slots);
         Ok(TypedExpression::Value(cons, ety))
     } else {
-        Err(TyperError::ConstructorWrongArgumentCount)
+        Err(TyperError::ConstructorWrongArgumentCount(error_location))
     }
 }
 

@@ -42,7 +42,7 @@ pub enum TyperError {
         SourceLocation,
         bool,
     ),
-    ConstructorWrongArgumentCount,
+    ConstructorWrongArgumentCount(SourceLocation),
 
     UnaryOperationWrongTypes(ast::UnaryOp, ErrorType),
     BinaryOperationWrongTypes(ast::BinOp, ErrorType, ErrorType),
@@ -365,9 +365,9 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 }
                 Ok(())
             }
-            TyperError::ConstructorWrongArgumentCount => write_message(
+            TyperError::ConstructorWrongArgumentCount(loc) => write_message(
                 &|f| write!(f, "wrong number of arguments to constructor"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
             TyperError::UnaryOperationWrongTypes(_, _) => write_message(
