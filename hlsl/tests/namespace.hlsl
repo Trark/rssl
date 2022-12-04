@@ -9,8 +9,8 @@ struct S
     }
 };
 
-extern StructuredBuffer<N1::S> g_buffer1;
-extern StructuredBuffer<N1::S> g_buffer2;
+StructuredBuffer<N1::S> g_buffer1;
+StructuredBuffer<N1::S> g_buffer2;
 
 void f() {}
 
@@ -23,8 +23,8 @@ struct S
     uint x;
 };
 
-extern StructuredBuffer<N2::S> g_buffer1;
-extern StructuredBuffer<N2::S> g_buffer2;
+StructuredBuffer<N2::S> g_buffer1;
+StructuredBuffer<N2::S> g_buffer2;
 
 void f() {
     N1::f();
@@ -32,13 +32,13 @@ void f() {
 
 } // namespace N2
 
-extern StructuredBuffer<N1::S> g_buffer1;
-extern StructuredBuffer<N2::S> g_buffer2;
+StructuredBuffer<N1::S> g_buffer1;
+StructuredBuffer<N2::S> g_buffer2;
 
 namespace N1 {
 
-extern StructuredBuffer<N1::S> g_buffer3;
-extern StructuredBuffer<N1::S> g_buffer4;
+StructuredBuffer<N1::S> g_buffer3;
+StructuredBuffer<N1::S> g_buffer4;
 
 void g() {
     N1::f();

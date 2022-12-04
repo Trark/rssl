@@ -1,5 +1,5 @@
-extern const ByteAddressBuffer g_input : register(t0);
-extern const RWByteAddressBuffer g_output : register(u1);
+ByteAddressBuffer g_input : register(t0);
+RWByteAddressBuffer g_output : register(u1);
 
 struct MyStruct
 {

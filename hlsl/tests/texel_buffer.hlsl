@@ -1,5 +1,5 @@
-extern const Buffer<float4> g_input : register(t0);
-extern const RWBuffer<float4> g_output : register(u1);
+Buffer<float4> g_input : register(t0);
+RWBuffer<float4> g_output : register(u1);
 
 void test() {
     const float4 s1 = g_input.Load(0);

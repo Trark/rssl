@@ -3,14 +3,14 @@ use shared::*;
 
 #[test]
 fn check_static_primitive_variables() {
-    check_rssl_to_hlsl("int x = 0;", "extern int x = 0;\n");
+    check_rssl_to_hlsl("int x = 0;", "int x = 0;\n");
     check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
     check_rssl_to_hlsl("static const int x = 1;", "static const int x = 1;\n");
     check_rssl_to_hlsl(
         "static const int x = 1.0;",
         "static const int x = (int)1.0;\n",
     );
-    check_rssl_to_hlsl("extern int x = -1;", "extern int x = (int)-1;\n");
+    check_rssl_to_hlsl("extern int x = -1;", "int x = (int)-1;\n");
     check_rssl_to_hlsl("static float x[4];", "static float x[4];\n");
     check_rssl_to_hlsl(
         "static float x[4] = { 0.0, 1.0, 2.0, 3.0 };",
@@ -28,74 +28,74 @@ fn check_static_primitive_variables() {
 
 #[test]
 fn check_primitive_types() {
-    check_rssl_to_hlsl("float x;", "extern float x;\n");
-    check_rssl_to_hlsl("float1 x;", "extern float1 x;\n");
-    check_rssl_to_hlsl("float2 x;", "extern float2 x;\n");
-    check_rssl_to_hlsl("float3 x;", "extern float3 x;\n");
-    check_rssl_to_hlsl("float4 x;", "extern float4 x;\n");
+    check_rssl_to_hlsl("float x;", "float x;\n");
+    check_rssl_to_hlsl("float1 x;", "float1 x;\n");
+    check_rssl_to_hlsl("float2 x;", "float2 x;\n");
+    check_rssl_to_hlsl("float3 x;", "float3 x;\n");
+    check_rssl_to_hlsl("float4 x;", "float4 x;\n");
 
-    check_rssl_to_hlsl("float1x1 x;", "extern float1x1 x;\n");
-    check_rssl_to_hlsl("float2x1 x;", "extern float2x1 x;\n");
-    check_rssl_to_hlsl("float3x1 x;", "extern float3x1 x;\n");
-    check_rssl_to_hlsl("float4x1 x;", "extern float4x1 x;\n");
+    check_rssl_to_hlsl("float1x1 x;", "float1x1 x;\n");
+    check_rssl_to_hlsl("float2x1 x;", "float2x1 x;\n");
+    check_rssl_to_hlsl("float3x1 x;", "float3x1 x;\n");
+    check_rssl_to_hlsl("float4x1 x;", "float4x1 x;\n");
 
-    check_rssl_to_hlsl("float1x2 x;", "extern float1x2 x;\n");
-    check_rssl_to_hlsl("float2x2 x;", "extern float2x2 x;\n");
-    check_rssl_to_hlsl("float3x2 x;", "extern float3x2 x;\n");
-    check_rssl_to_hlsl("float4x2 x;", "extern float4x2 x;\n");
+    check_rssl_to_hlsl("float1x2 x;", "float1x2 x;\n");
+    check_rssl_to_hlsl("float2x2 x;", "float2x2 x;\n");
+    check_rssl_to_hlsl("float3x2 x;", "float3x2 x;\n");
+    check_rssl_to_hlsl("float4x2 x;", "float4x2 x;\n");
 
-    check_rssl_to_hlsl("float1x3 x;", "extern float1x3 x;\n");
-    check_rssl_to_hlsl("float2x3 x;", "extern float2x3 x;\n");
-    check_rssl_to_hlsl("float3x3 x;", "extern float3x3 x;\n");
-    check_rssl_to_hlsl("float4x3 x;", "extern float4x3 x;\n");
+    check_rssl_to_hlsl("float1x3 x;", "float1x3 x;\n");
+    check_rssl_to_hlsl("float2x3 x;", "float2x3 x;\n");
+    check_rssl_to_hlsl("float3x3 x;", "float3x3 x;\n");
+    check_rssl_to_hlsl("float4x3 x;", "float4x3 x;\n");
 
-    check_rssl_to_hlsl("float1x4 x;", "extern float1x4 x;\n");
-    check_rssl_to_hlsl("float2x4 x;", "extern float2x4 x;\n");
-    check_rssl_to_hlsl("float3x4 x;", "extern float3x4 x;\n");
-    check_rssl_to_hlsl("float4x4 x;", "extern float4x4 x;\n");
+    check_rssl_to_hlsl("float1x4 x;", "float1x4 x;\n");
+    check_rssl_to_hlsl("float2x4 x;", "float2x4 x;\n");
+    check_rssl_to_hlsl("float3x4 x;", "float3x4 x;\n");
+    check_rssl_to_hlsl("float4x4 x;", "float4x4 x;\n");
 
-    check_rssl_to_hlsl("int x;", "extern int x;\n");
-    check_rssl_to_hlsl("int1 x;", "extern int1 x;\n");
-    check_rssl_to_hlsl("int2 x;", "extern int2 x;\n");
-    check_rssl_to_hlsl("int3 x;", "extern int3 x;\n");
-    check_rssl_to_hlsl("int4 x;", "extern int4 x;\n");
+    check_rssl_to_hlsl("int x;", "int x;\n");
+    check_rssl_to_hlsl("int1 x;", "int1 x;\n");
+    check_rssl_to_hlsl("int2 x;", "int2 x;\n");
+    check_rssl_to_hlsl("int3 x;", "int3 x;\n");
+    check_rssl_to_hlsl("int4 x;", "int4 x;\n");
 
-    check_rssl_to_hlsl("uint x;", "extern uint x;\n");
-    check_rssl_to_hlsl("uint1 x;", "extern uint1 x;\n");
-    check_rssl_to_hlsl("uint2 x;", "extern uint2 x;\n");
-    check_rssl_to_hlsl("uint3 x;", "extern uint3 x;\n");
-    check_rssl_to_hlsl("uint4 x;", "extern uint4 x;\n");
+    check_rssl_to_hlsl("uint x;", "uint x;\n");
+    check_rssl_to_hlsl("uint1 x;", "uint1 x;\n");
+    check_rssl_to_hlsl("uint2 x;", "uint2 x;\n");
+    check_rssl_to_hlsl("uint3 x;", "uint3 x;\n");
+    check_rssl_to_hlsl("uint4 x;", "uint4 x;\n");
 
-    check_rssl_to_hlsl("half x;", "extern half x;\n");
-    check_rssl_to_hlsl("half1 x;", "extern half1 x;\n");
-    check_rssl_to_hlsl("half2 x;", "extern half2 x;\n");
-    check_rssl_to_hlsl("half3 x;", "extern half3 x;\n");
-    check_rssl_to_hlsl("half4 x;", "extern half4 x;\n");
+    check_rssl_to_hlsl("half x;", "half x;\n");
+    check_rssl_to_hlsl("half1 x;", "half1 x;\n");
+    check_rssl_to_hlsl("half2 x;", "half2 x;\n");
+    check_rssl_to_hlsl("half3 x;", "half3 x;\n");
+    check_rssl_to_hlsl("half4 x;", "half4 x;\n");
 
-    check_rssl_to_hlsl("vector<float, 1> x;", "extern float1 x;\n");
-    check_rssl_to_hlsl("vector<float, 2> x;", "extern float2 x;\n");
-    check_rssl_to_hlsl("vector<float, 3> x;", "extern float3 x;\n");
-    check_rssl_to_hlsl("vector<float, 4> x;", "extern float4 x;\n");
+    check_rssl_to_hlsl("vector<float, 1> x;", "float1 x;\n");
+    check_rssl_to_hlsl("vector<float, 2> x;", "float2 x;\n");
+    check_rssl_to_hlsl("vector<float, 3> x;", "float3 x;\n");
+    check_rssl_to_hlsl("vector<float, 4> x;", "float4 x;\n");
 
-    check_rssl_to_hlsl("matrix<uint, 1, 1> x;", "extern uint1x1 x;\n");
-    check_rssl_to_hlsl("matrix<uint, 2, 1> x;", "extern uint2x1 x;\n");
-    check_rssl_to_hlsl("matrix<uint, 3, 1> x;", "extern uint3x1 x;\n");
-    check_rssl_to_hlsl("matrix<uint, 4, 1> x;", "extern uint4x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 1, 1> x;", "uint1x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 2, 1> x;", "uint2x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 3, 1> x;", "uint3x1 x;\n");
+    check_rssl_to_hlsl("matrix<uint, 4, 1> x;", "uint4x1 x;\n");
 
-    check_rssl_to_hlsl("matrix<int, 1, 2> x;", "extern int1x2 x;\n");
-    check_rssl_to_hlsl("matrix<int, 2, 2> x;", "extern int2x2 x;\n");
-    check_rssl_to_hlsl("matrix<int, 3, 2> x;", "extern int3x2 x;\n");
-    check_rssl_to_hlsl("matrix<int, 4, 2> x;", "extern int4x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 1, 2> x;", "int1x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 2, 2> x;", "int2x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 3, 2> x;", "int3x2 x;\n");
+    check_rssl_to_hlsl("matrix<int, 4, 2> x;", "int4x2 x;\n");
 
-    check_rssl_to_hlsl("matrix<half, 1, 3> x;", "extern half1x3 x;\n");
-    check_rssl_to_hlsl("matrix<half, 2, 3> x;", "extern half2x3 x;\n");
-    check_rssl_to_hlsl("matrix<half, 3, 3> x;", "extern half3x3 x;\n");
-    check_rssl_to_hlsl("matrix<half, 4, 3> x;", "extern half4x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 1, 3> x;", "half1x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 2, 3> x;", "half2x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 3, 3> x;", "half3x3 x;\n");
+    check_rssl_to_hlsl("matrix<half, 4, 3> x;", "half4x3 x;\n");
 
-    check_rssl_to_hlsl("matrix<double, 1, 4> x;", "extern double1x4 x;\n");
-    check_rssl_to_hlsl("matrix<double, 2, 4> x;", "extern double2x4 x;\n");
-    check_rssl_to_hlsl("matrix<double, 3, 4> x;", "extern double3x4 x;\n");
-    check_rssl_to_hlsl("matrix<double, 4, 4> x;", "extern double4x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 1, 4> x;", "double1x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 2, 4> x;", "double2x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 3, 4> x;", "double3x4 x;\n");
+    check_rssl_to_hlsl("matrix<double, 4, 4> x;", "double4x4 x;\n");
 }
 
 #[test]
@@ -526,7 +526,7 @@ fn check_object_types() {
 fn check_object_intrinsics() {
     check_rssl_to_hlsl(
         "ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",
-        "extern ByteAddressBuffer g_buffer;
+        "ByteAddressBuffer g_buffer;
 
 void f() {
     g_buffer.Load(0u);
@@ -536,7 +536,7 @@ void f() {
 
     check_rssl_to_hlsl(
         "const ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",
-        "extern const ByteAddressBuffer g_buffer;
+        "ByteAddressBuffer g_buffer;
 
 void f() {
     g_buffer.Load(0u);
@@ -546,7 +546,7 @@ void f() {
 
     check_rssl_to_hlsl(
         "BufferAddress g_buffer; void f() { g_buffer.Load<uint>(0); }",
-        "extern ByteAddressBuffer g_buffer;
+        "ByteAddressBuffer g_buffer;
 
 void f() {
     g_buffer.Load<uint>(0u);
@@ -556,7 +556,7 @@ void f() {
 
     check_rssl_to_hlsl(
         "RWStructuredBuffer<uint> g_buffer; void f() { g_buffer[0]; g_buffer[0] = 1; }",
-        "extern RWStructuredBuffer<uint> g_buffer;
+        "RWStructuredBuffer<uint> g_buffer;
 
 void f() {
     g_buffer[0u];

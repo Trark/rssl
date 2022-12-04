@@ -3,8 +3,8 @@ struct MyStruct
     const uint m;
 };
 
-extern const StructuredBuffer<MyStruct> g_input : register(t0);
-extern const RWStructuredBuffer<MyStruct> g_output : register(u1);
+StructuredBuffer<MyStruct> g_input : register(t0);
+RWStructuredBuffer<MyStruct> g_output : register(u1);
 
 void test() {
     const MyStruct s1 = g_input.Load(0);

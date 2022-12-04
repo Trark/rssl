@@ -394,8 +394,14 @@ impl TypeLayout {
 
     /// Returns `true` if the type is a buffer address
     pub fn is_buffer_address(&self) -> bool {
+        let ty = if let TypeLayout::Modifier(_, inner) = self {
+            &**inner
+        } else {
+            self
+        };
+
         matches!(
-            self,
+            ty,
             &TypeLayout::Object(ObjectType::BufferAddress)
                 | &TypeLayout::Object(ObjectType::RWBufferAddress)
         )
@@ -423,6 +429,30 @@ impl TypeLayout {
             self
         } else {
             TypeLayout::Modifier(modifier, Box::new(self))
+        }
+    }
+
+    /// Add the const modifier
+    pub fn make_const(mut self) -> Self {
+        if let TypeLayout::Modifier(modifier, _) = &mut self {
+            modifier.is_const = true;
+            self
+        } else {
+            TypeLayout::Modifier(TypeModifier::const_only(), Box::new(self))
+        }
+    }
+
+    /// Remove the const modifier
+    pub fn remove_const(self) -> Self {
+        if let TypeLayout::Modifier(mut modifier, inner) = self {
+            modifier.is_const = false;
+            if modifier == TypeModifier::default() {
+                *inner
+            } else {
+                TypeLayout::Modifier(modifier, inner)
+            }
+        } else {
+            self
         }
     }
 }

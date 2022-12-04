@@ -46,13 +46,19 @@ fn parse_globaltype(
     global_type: &ast::GlobalType,
     context: &mut Context,
 ) -> TyperResult<ir::GlobalType> {
-    let ty = parse_type(&global_type.0, context)?;
+    let mut ty = parse_type(&global_type.0, context)?;
     if ty.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             global_type.0.location,
         ));
     }
+
+    // All extern variables are implicitly const
+    if global_type.1 == ir::GlobalStorage::Extern {
+        ty = ty.make_const();
+    }
+
     Ok(ir::GlobalType(ty, global_type.1.clone()))
 }
 

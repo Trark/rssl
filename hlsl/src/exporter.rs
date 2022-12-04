@@ -260,14 +260,16 @@ fn export_global_variable(
         export_vk_binding_annotation(&decl.api_slot, output)?;
     }
 
+    let mut type_layout = decl.global_type.0.clone();
+
     match decl.global_type.1 {
-        ir::GlobalStorage::Extern => output.push_str("extern "),
+        ir::GlobalStorage::Extern => type_layout = type_layout.remove_const(),
         ir::GlobalStorage::Static => output.push_str("static "),
         ir::GlobalStorage::GroupShared => output.push_str("groupshared "),
     }
 
     let mut array_part = String::new();
-    export_type_for_def(&decl.global_type.0, output, &mut array_part, context)?;
+    export_type_for_def(&type_layout, output, &mut array_part, context)?;
 
     output.push(' ');
 
