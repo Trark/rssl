@@ -131,32 +131,15 @@ fn check_expressions() {
     );
 
     check_rssl_to_hlsl(
-        "ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",
-        "extern ByteAddressBuffer g_buffer;
-
-void f() {
-    g_buffer.Load(0u);
-}
-",
-    );
-
-    check_rssl_to_hlsl(
-        "BufferAddress g_buffer; void f() { g_buffer.Load<uint>(0); }",
-        "extern ByteAddressBuffer g_buffer;
-
-void f() {
-    g_buffer.Load<uint>(0u);
-}
-",
-    );
-
-    check_rssl_to_hlsl(
-        "RWStructuredBuffer<uint> g_buffer; void f() { g_buffer[0]; g_buffer[0] = 1; }",
-        "extern RWStructuredBuffer<uint> g_buffer;
-
-void f() {
-    g_buffer[0u];
-    g_buffer[0u] = 1u;
+        "void f() {
+    uint a[2];
+    a[0];
+    a[0] = a[1];
+}",
+        "void f() {
+    uint a[2];
+    a[0u];
+    a[0u] = a[1u];
 }
 ",
     );
@@ -519,6 +502,50 @@ fn check_object_types() {
     check_rssl_to_hlsl_vk(
         include_str!("object_types.rssl"),
         include_str!("object_types.vk.hlsl"),
+    );
+}
+
+#[test]
+fn check_object_intrinsics() {
+    check_rssl_to_hlsl(
+        "ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",
+        "extern ByteAddressBuffer g_buffer;
+
+void f() {
+    g_buffer.Load(0u);
+}
+",
+    );
+
+    check_rssl_to_hlsl(
+        "const ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",
+        "extern const ByteAddressBuffer g_buffer;
+
+void f() {
+    g_buffer.Load(0u);
+}
+",
+    );
+
+    check_rssl_to_hlsl(
+        "BufferAddress g_buffer; void f() { g_buffer.Load<uint>(0); }",
+        "extern ByteAddressBuffer g_buffer;
+
+void f() {
+    g_buffer.Load<uint>(0u);
+}
+",
+    );
+
+    check_rssl_to_hlsl(
+        "RWStructuredBuffer<uint> g_buffer; void f() { g_buffer[0]; g_buffer[0] = 1; }",
+        "extern RWStructuredBuffer<uint> g_buffer;
+
+void f() {
+    g_buffer[0u];
+    g_buffer[0u] = 1u;
+}
+",
     );
 }
 
