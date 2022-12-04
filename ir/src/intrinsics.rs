@@ -312,7 +312,7 @@ impl Intrinsic {
             }
             BufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 {
+                match param_types[0].0.clone().remove_modifier() {
                     TypeLayout::Object(ObjectType::Buffer(dty)) => {
                         TypeLayout::from(dty).to_rvalue()
                     }
@@ -321,7 +321,7 @@ impl Intrinsic {
             }
             RWBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 {
+                match param_types[0].0.clone().remove_modifier() {
                     TypeLayout::Object(ObjectType::RWBuffer(dty)) => {
                         TypeLayout::from(dty).to_rvalue()
                     }
@@ -330,7 +330,7 @@ impl Intrinsic {
             }
             StructuredBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 {
+                match param_types[0].0.clone().remove_modifier() {
                     TypeLayout::Object(ObjectType::StructuredBuffer(ref sty)) => {
                         TypeLayout::from(sty.clone()).to_rvalue()
                     }
@@ -339,7 +339,7 @@ impl Intrinsic {
             }
             RWStructuredBufferLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 {
+                match param_types[0].0.clone().remove_modifier() {
                     TypeLayout::Object(ObjectType::RWStructuredBuffer(ref sty)) => {
                         TypeLayout::from(sty.clone()).to_rvalue()
                     }
@@ -403,7 +403,7 @@ impl Intrinsic {
             }
             Texture2DLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 {
+                match param_types[0].0.clone().remove_modifier() {
                     TypeLayout::Object(ObjectType::Texture2D(dty)) => {
                         TypeLayout::from(dty).to_rvalue()
                     }
@@ -412,8 +412,8 @@ impl Intrinsic {
             }
             Texture2DSample => {
                 assert_eq!(param_types.len(), 3);
-                match param_types[0].0 {
-                    TypeLayout::Object(ObjectType::RWTexture2D(dty)) => {
+                match param_types[0].0.clone().remove_modifier() {
+                    TypeLayout::Object(ObjectType::Texture2D(dty)) => {
                         TypeLayout::from(dty).to_rvalue()
                     }
                     _ => panic!("Invalid Texture2DSample"),
@@ -421,7 +421,7 @@ impl Intrinsic {
             }
             RWTexture2DLoad => {
                 assert_eq!(param_types.len(), 2);
-                match param_types[0].0 {
+                match param_types[0].0.clone().remove_modifier() {
                     TypeLayout::Object(ObjectType::RWTexture2D(dty)) => {
                         TypeLayout::from(dty).to_rvalue()
                     }

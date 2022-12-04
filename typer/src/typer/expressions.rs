@@ -936,7 +936,7 @@ fn parse_expr_unchecked(
                 _ => return Err(TyperError::ArrayIndexingNonArrayType),
             };
             let ExpressionType(ty, _) = array_ty;
-            let node = match ty.extract_modifier().0 {
+            let node = match ty.remove_modifier() {
                 ir::TypeLayout::Array(_, _)
                 | ir::TypeLayout::Object(ir::ObjectType::Buffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_))
@@ -1486,7 +1486,7 @@ fn get_expression_type(
         ir::Expression::ArraySubscript(ref array, _) => {
             let array_ty = get_expression_type(array, context)?;
             // Todo: Modifiers on object type template parameters
-            Ok(match array_ty.0 {
+            Ok(match array_ty.0.remove_modifier() {
                 ir::TypeLayout::Array(ref element, _) => (*element).clone().to_lvalue(),
                 ir::TypeLayout::Object(ir::ObjectType::Buffer(data_type)) => {
                     ir::TypeLayout::from(data_type.as_const()).to_lvalue()
@@ -1511,7 +1511,7 @@ fn get_expression_type(
         }
         ir::Expression::Member(ref expr, ref name) => {
             let expr_type = get_expression_type(expr, context)?;
-            let id = match expr_type.0 {
+            let id = match expr_type.0.remove_modifier() {
                 ir::TypeLayout::Struct(id) => id,
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
                     ir::StructuredLayout::Struct(id),
