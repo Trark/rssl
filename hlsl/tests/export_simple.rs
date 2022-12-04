@@ -458,6 +458,23 @@ void main() {
 }
 
 #[test]
+fn check_intrinsic_functions() {
+    // Check various intrinsic functions
+    // As these are basically the same between RSSL and HLSL and there are no resources
+    // We expect the source file and output files to be the same
+
+    check_rssl_to_hlsl(
+        include_str!("intrinsic_functions.rssl"),
+        include_str!("intrinsic_functions.rssl"),
+    );
+
+    check_rssl_to_hlsl_vk(
+        include_str!("intrinsic_functions.rssl"),
+        include_str!("intrinsic_functions.rssl"),
+    );
+}
+
+#[test]
 fn check_constant_buffer() {
     check_rssl_to_hlsl(
         "cbuffer GlobalConstants
