@@ -216,7 +216,7 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     if decl.lang_slot.is_none() {
                         // Find the slot type that we are adding
-                        if decl.global_type.0.is_object() {
+                        if decl.global_type.0.clone().remove_modifier().is_object() {
                             let mut slot = *next_value;
                             while used_values.contains(&slot) {
                                 slot += 1;
