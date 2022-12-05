@@ -218,7 +218,13 @@ fn test_ast_to_ir() {
                 ])
             );
 
-            assert_eq!(actual.type_registry, Vec::new());
+            let mut expected_types = ir::TypeRegistry::default();
+            expected_types.register_type(ir::TypeLayout::Modifier(
+                ir::TypeModifier::const_only(),
+                Box::new(ir::TypeLayout::Scalar(ir::ScalarType::Int)),
+            ));
+
+            assert_eq!(actual.type_registry, expected_types);
             assert_eq!(actual.struct_registry, Vec::new());
             assert_eq!(actual.struct_template_registry, Vec::new());
 
@@ -262,11 +268,7 @@ fn test_ast_to_ir() {
                     id: ir::GlobalId(0),
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
-                    global_type: ir::GlobalType(
-                        ir::TypeLayout::from_scalar(ir::ScalarType::Int)
-                            .combine_modifier(ir::TypeModifier::const_only()),
-                        ir::GlobalStorage::Static,
-                    ),
+                    global_type: ir::GlobalType(ir::TypeId(1), ir::GlobalStorage::Static,),
                     lang_slot: None,
                     api_slot: None,
                     init: Some(ir::Initializer::Expression(ir::Expression::Literal(

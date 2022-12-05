@@ -4,6 +4,29 @@ use crate::*;
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TypeId(pub u32);
 
+/// Container of all registered types
+#[derive(PartialEq, Eq, Clone, Default, Debug)]
+pub struct TypeRegistry {
+    layouts: Vec<TypeLayout>,
+    layers: Vec<TypeLayer>,
+}
+
+/// The description of a type represented by a type id.
+/// This is a single layer of the definition which links to the next type id for complex types.
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub enum TypeLayer {
+    Void,
+    Scalar(ScalarType),
+    Vector(ScalarType, u32),
+    Matrix(ScalarType, u32, u32),
+    Struct(StructId),
+    StructTemplate(StructTemplateId),
+    Object(ObjectType),
+    Array(TypeId, u64),
+    TemplateParam(TemplateTypeId),
+    Modifier(TypeModifier, TypeId),
+}
+
 /// A type description
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum TypeLayout {
@@ -17,6 +40,50 @@ pub enum TypeLayout {
     Array(Box<TypeLayout>, u64),
     TemplateParam(TemplateTypeId),
     Modifier(TypeModifier, Box<TypeLayout>),
+}
+
+impl TypeRegistry {
+    /// Get or create the type id from a type layout
+    pub fn register_type(&mut self, type_layout: TypeLayout) -> TypeId {
+        let full_layout = type_layout.clone();
+
+        let layer = match type_layout {
+            TypeLayout::Void => TypeLayer::Void,
+            TypeLayout::Scalar(st) => TypeLayer::Scalar(st),
+            TypeLayout::Vector(st, x) => TypeLayer::Vector(st, x),
+            TypeLayout::Matrix(st, x, y) => TypeLayer::Matrix(st, x, y),
+            TypeLayout::Struct(id) => TypeLayer::Struct(id),
+            TypeLayout::StructTemplate(id) => TypeLayer::StructTemplate(id),
+            // TODO: Deal with recursive StructuredType/DataType
+            TypeLayout::Object(ot) => TypeLayer::Object(ot),
+            TypeLayout::Array(inner, len) => {
+                TypeLayer::Array(self.register_type((*inner).clone()), len)
+            }
+            TypeLayout::TemplateParam(id) => TypeLayer::TemplateParam(id),
+            TypeLayout::Modifier(modifier, inner) => {
+                TypeLayer::Modifier(modifier, self.register_type((*inner).clone()))
+            }
+        };
+
+        // Search for an existing registration of the type
+        for (i, existing) in self.layers.iter().enumerate() {
+            if layer == *existing {
+                assert_eq!(full_layout, self.layouts[i]);
+                return TypeId(i as u32);
+            }
+        }
+
+        // Make a new entry
+        let id = TypeId(self.layouts.len() as u32);
+        self.layouts.push(full_layout);
+        self.layers.push(layer);
+        id
+    }
+
+    /// Get the type layout for an type id
+    pub fn get_type_layout(&self, id: TypeId) -> &TypeLayout {
+        &self.layouts[id.0 as usize]
+    }
 }
 
 /// Basic scalar types
@@ -505,6 +572,23 @@ impl DataLayout {
             DataLayout::Scalar(_) => DataLayout::Scalar(to_scalar),
             DataLayout::Vector(_, x) => DataLayout::Vector(to_scalar, x),
             DataLayout::Matrix(_, x, y) => DataLayout::Matrix(to_scalar, x, y),
+        }
+    }
+}
+
+impl std::fmt::Debug for TypeLayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            TypeLayer::Void => write!(f, "void"),
+            TypeLayer::Scalar(ref st) => write!(f, "{:?}", st),
+            TypeLayer::Vector(ref st, ref x) => write!(f, "{:?}{}", st, x),
+            TypeLayer::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
+            TypeLayer::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
+            TypeLayer::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
+            TypeLayer::Object(ref ot) => write!(f, "{:?}", ot),
+            TypeLayer::Array(ref ty, ref len) => write!(f, "type<{:?}>[{}]", ty, len),
+            TypeLayer::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
+            TypeLayer::Modifier(ref modifier, ref ty) => write!(f, "{:?}type<{:?}>", modifier, ty),
         }
     }
 }

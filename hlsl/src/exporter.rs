@@ -75,7 +75,12 @@ fn analyse_bindings(
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &context.module.global_registry[id.0 as usize];
-            let descriptor_type = match decl.global_type.0.clone().remove_modifier() {
+            let type_layout = context
+                .module
+                .type_registry
+                .get_type_layout(decl.global_type.0)
+                .clone();
+            let descriptor_type = match type_layout.remove_modifier() {
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
                     DescriptorType::ConstantBuffer
                 }
@@ -260,7 +265,11 @@ fn export_global_variable(
         export_vk_binding_annotation(&decl.api_slot, output)?;
     }
 
-    let mut type_layout = decl.global_type.0.clone();
+    let mut type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(decl.global_type.0)
+        .clone();
 
     match decl.global_type.1 {
         ir::GlobalStorage::Extern => type_layout = type_layout.remove_const(),

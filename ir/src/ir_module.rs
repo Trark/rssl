@@ -5,8 +5,8 @@ use std::collections::{HashMap, HashSet};
 /// Represents a full parsed and type checked source file
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct Module {
-    /// Container of all registered types
-    pub type_registry: Vec<TypeLayout>,
+    /// Container of all registered types in the module
+    pub type_registry: TypeRegistry,
 
     /// Container of all struct types
     pub struct_registry: Vec<StructDefinition>,
@@ -216,7 +216,8 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     if decl.lang_slot.is_none() {
                         // Find the slot type that we are adding
-                        if decl.global_type.0.clone().remove_modifier().is_object() {
+                        let tyl = module.type_registry.get_type_layout(decl.global_type.0);
+                        if tyl.clone().remove_modifier().is_object() {
                             let mut slot = *next_value;
                             while used_values.contains(&slot) {
                                 slot += 1;
@@ -295,7 +296,8 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     assert_eq!(decl.api_slot, None);
                     if let Some(lang_slot) = decl.lang_slot {
-                        if params.support_buffer_address && decl.global_type.0.is_buffer_address() {
+                        let tyl = module.type_registry.get_type_layout(decl.global_type.0);
+                        if params.support_buffer_address && tyl.is_buffer_address() {
                             let offset = match inline_size.entry(lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
@@ -333,9 +335,11 @@ impl Module {
                                 set: lang_slot.set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
+                                    let tyl =
+                                        module.type_registry.get_type_layout(decl.global_type.0);
                                     Some(
                                         if let TypeLayout::Object(ot) =
-                                            &decl.global_type.0.clone().remove_modifier()
+                                            &tyl.clone().remove_modifier()
                                         {
                                             match ot {
                                                 ObjectType::Buffer(_)

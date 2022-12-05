@@ -353,11 +353,9 @@ impl Context {
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: ir::GlobalId) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.module.global_registry.len() as u32);
-        Ok(self.module.global_registry[id.0 as usize]
-            .global_type
-            .0
-            .clone()
-            .to_lvalue())
+        let type_id = self.module.global_registry[id.0 as usize].global_type.0;
+        let type_layout = self.module.type_registry.get_type_layout(type_id);
+        Ok(type_layout.to_lvalue())
     }
 
     /// Find the type of a constant buffer member
@@ -555,10 +553,14 @@ impl Context {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
+                let type_layout = self
+                    .module
+                    .type_registry
+                    .get_type_layout(data.global_type.0);
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
                     ty.to_error_type(),
-                    data.global_type.0.to_error_type(),
+                    type_layout.to_error_type(),
                 ));
             }
             _ => {}
@@ -583,10 +585,12 @@ impl Context {
     ) -> Result<ir::StructId, ir::TypeLayout> {
         let full_name = self.get_qualified_name(&name);
 
-        let type_id = ir::TypeId(self.module.type_registry.len() as u32);
         let id = ir::StructId(self.struct_data.len() as u32);
         assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
-        self.module.type_registry.push(ir::TypeLayout::Struct(id));
+        let type_id = self
+            .module
+            .type_registry
+            .register_type(ir::TypeLayout::Struct(id));
         let data = StructData {
             members: HashMap::new(),
             methods: HashMap::new(),
@@ -637,12 +641,12 @@ impl Context {
         name: Located<String>,
         ast: ast::StructDefinition,
     ) -> Result<ir::StructTemplateId, ir::TypeLayout> {
-        let type_id = ir::TypeId(self.module.type_registry.len() as u32);
         let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
         assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
-        self.module
+        let type_id = self
+            .module
             .type_registry
-            .push(ir::TypeLayout::StructTemplate(id));
+            .register_type(ir::TypeLayout::StructTemplate(id));
         let data = StructTemplateData {
             scope: self.current_scope,
             instantiations: HashMap::new(),
@@ -830,13 +834,9 @@ impl Context {
         }
 
         if let Some(id) = scope.global_ids.get(name) {
-            return Some(VariableExpression::Global(
-                *id,
-                self.module.global_registry[id.0 as usize]
-                    .global_type
-                    .0
-                    .clone(),
-            ));
+            let type_id = self.module.global_registry[id.0 as usize].global_type.0;
+            let type_layout = self.module.type_registry.get_type_layout(type_id).clone();
+            return Some(VariableExpression::Global(*id, type_layout));
         }
 
         None
