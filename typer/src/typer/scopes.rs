@@ -353,7 +353,7 @@ impl Context {
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: ir::GlobalId) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.module.global_registry.len() as u32);
-        let type_id = self.module.global_registry[id.0 as usize].global_type.0;
+        let type_id = self.module.global_registry[id.0 as usize].type_id;
         let type_layout = self.module.type_registry.get_type_layout(type_id);
         Ok(type_layout.to_lvalue())
     }
@@ -532,7 +532,8 @@ impl Context {
     pub fn insert_global(
         &mut self,
         name: Located<String>,
-        global_type: ir::GlobalType,
+        type_id: ir::TypeId,
+        storage_class: ir::GlobalStorage,
     ) -> TyperResult<ir::GlobalId> {
         let full_name = self.get_qualified_name(&name);
         let id = ir::GlobalId(self.module.global_registry.len() as u32);
@@ -540,7 +541,8 @@ impl Context {
             id,
             name,
             full_name,
-            global_type,
+            type_id,
+            storage_class,
             lang_slot: None,
             api_slot: None,
             init: None,
@@ -553,10 +555,7 @@ impl Context {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
-                let type_layout = self
-                    .module
-                    .type_registry
-                    .get_type_layout(data.global_type.0);
+                let type_layout = self.module.type_registry.get_type_layout(data.type_id);
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
                     ty.to_error_type(),
@@ -834,7 +833,7 @@ impl Context {
         }
 
         if let Some(id) = scope.global_ids.get(name) {
-            let type_id = self.module.global_registry[id.0 as usize].global_type.0;
+            let type_id = self.module.global_registry[id.0 as usize].type_id;
             let type_layout = self.module.type_registry.get_type_layout(type_id).clone();
             return Some(VariableExpression::Global(*id, type_layout));
         }

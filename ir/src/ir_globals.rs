@@ -13,8 +13,11 @@ pub struct GlobalVariable {
     /// Fully qualified name for the varibale
     pub full_name: ScopedName,
 
-    /// Type for the global variable including global-specific modifiers
-    pub global_type: GlobalType,
+    /// Type for the global variable
+    pub type_id: TypeId,
+
+    /// Storage class for the global variable
+    pub storage_class: GlobalStorage,
 
     /// Binding point from the users perspective
     pub lang_slot: Option<LanguageBinding>,
@@ -25,10 +28,6 @@ pub struct GlobalVariable {
     /// Initializer for the global variable
     pub init: Option<Initializer>,
 }
-
-/// The type of any global declaration
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct GlobalType(pub TypeId, pub GlobalStorage);
 
 /// A constant buffer definition
 #[derive(PartialEq, Eq, Debug, Clone)]

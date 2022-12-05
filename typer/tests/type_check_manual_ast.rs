@@ -268,7 +268,8 @@ fn test_ast_to_ir() {
                     id: ir::GlobalId(0),
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
-                    global_type: ir::GlobalType(ir::TypeId(1), ir::GlobalStorage::Static,),
+                    type_id: ir::TypeId(1),
+                    storage_class: ir::GlobalStorage::Static,
                     lang_slot: None,
                     api_slot: None,
                     init: Some(ir::Initializer::Expression(ir::Expression::Literal(

@@ -17,21 +17,20 @@ pub fn parse_rootdefinition_globalvariable(
 
     for def in &gv.defs {
         // Resolve type
-        let ir::GlobalType(lty, gs) = var_type.clone();
+        let (lty, gs) = var_type.clone();
         let lty = context.module.type_registry.get_type_layout(lty).clone();
         let bind = &def.bind;
         let gv_tyl = apply_variable_bind(lty, bind, &def.init)?;
-        let gv_tyl = context.module.type_registry.register_type(gv_tyl);
-        let gv_type = ir::GlobalType(gv_tyl, gs);
+        let type_id = context.module.type_registry.register_type(gv_tyl);
 
         // Insert variable
         let var_name = def.name.clone();
         let input_type = context
             .module
             .type_registry
-            .get_type_layout(gv_type.0)
+            .get_type_layout(type_id)
             .clone();
-        let var_id = context.insert_global(var_name.clone(), gv_type)?;
+        let var_id = context.insert_global(var_name.clone(), type_id, gs)?;
 
         let var_init = parse_initializer_opt(&def.init, &input_type, context)?;
 
@@ -51,7 +50,7 @@ pub fn parse_rootdefinition_globalvariable(
 fn parse_globaltype(
     global_type: &ast::GlobalType,
     context: &mut Context,
-) -> TyperResult<ir::GlobalType> {
+) -> TyperResult<(ir::TypeId, ir::GlobalStorage)> {
     let mut ty = parse_type(&global_type.0, context)?;
     if ty.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
@@ -67,7 +66,7 @@ fn parse_globaltype(
 
     let ty = context.module.type_registry.register_type(ty);
 
-    Ok(ir::GlobalType(ty, global_type.1.clone()))
+    Ok((ty, global_type.1.clone()))
 }
 
 pub fn parse_rootdefinition_constantbuffer(

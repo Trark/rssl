@@ -216,7 +216,7 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     if decl.lang_slot.is_none() {
                         // Find the slot type that we are adding
-                        let tyl = module.type_registry.get_type_layout(decl.global_type.0);
+                        let tyl = module.type_registry.get_type_layout(decl.type_id);
                         if tyl.clone().remove_modifier().is_object() {
                             let mut slot = *next_value;
                             while used_values.contains(&slot) {
@@ -296,7 +296,7 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     assert_eq!(decl.api_slot, None);
                     if let Some(lang_slot) = decl.lang_slot {
-                        let tyl = module.type_registry.get_type_layout(decl.global_type.0);
+                        let tyl = module.type_registry.get_type_layout(decl.type_id);
                         if params.support_buffer_address && tyl.is_buffer_address() {
                             let offset = match inline_size.entry(lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
@@ -316,8 +316,8 @@ impl Module {
                                 slot_type: None,
                             });
 
-                            assert_eq!(decl.global_type.1, GlobalStorage::Extern);
-                            decl.global_type.1 = GlobalStorage::Static;
+                            assert_eq!(decl.storage_class, GlobalStorage::Extern);
+                            decl.storage_class = GlobalStorage::Static;
                         } else {
                             let index = match used_slots.entry(lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
@@ -335,8 +335,7 @@ impl Module {
                                 set: lang_slot.set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
-                                    let tyl =
-                                        module.type_registry.get_type_layout(decl.global_type.0);
+                                    let tyl = module.type_registry.get_type_layout(decl.type_id);
                                     Some(
                                         if let TypeLayout::Object(ot) =
                                             &tyl.clone().remove_modifier()

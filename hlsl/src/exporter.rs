@@ -78,7 +78,7 @@ fn analyse_bindings(
             let type_layout = context
                 .module
                 .type_registry
-                .get_type_layout(decl.global_type.0)
+                .get_type_layout(decl.type_id)
                 .clone();
             let descriptor_type = match type_layout.remove_modifier() {
                 ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
@@ -260,7 +260,7 @@ fn export_global_variable(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    let is_extern = decl.global_type.1 == ir::GlobalStorage::Extern;
+    let is_extern = decl.storage_class == ir::GlobalStorage::Extern;
     if is_extern && context.module.flags.requires_vk_binding {
         export_vk_binding_annotation(&decl.api_slot, output)?;
     }
@@ -268,10 +268,10 @@ fn export_global_variable(
     let mut type_layout = context
         .module
         .type_registry
-        .get_type_layout(decl.global_type.0)
+        .get_type_layout(decl.type_id)
         .clone();
 
-    match decl.global_type.1 {
+    match decl.storage_class {
         ir::GlobalStorage::Extern => type_layout = type_layout.remove_const(),
         ir::GlobalStorage::Static => output.push_str("static "),
         ir::GlobalStorage::GroupShared => output.push_str("groupshared "),
