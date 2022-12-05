@@ -11,31 +11,34 @@ pub fn parse_rootdefinition_globalvariable(
     gv: &ast::GlobalVariable,
     context: &mut Context,
 ) -> TyperResult<Vec<ir::RootDefinition>> {
-    let var_type = parse_globaltype(&gv.global_type, context)?;
+    let (base_id, storage_class) = parse_globaltype(&gv.global_type, context)?;
+
+    let base_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(base_id)
+        .clone();
 
     let mut defs = vec![];
+    for global_variable in &gv.defs {
+        // Resolve type bind
+        let type_layout = apply_variable_bind(
+            base_type_layout.clone(),
+            &global_variable.bind,
+            &global_variable.init,
+        )?;
 
-    for def in &gv.defs {
-        // Resolve type
-        let (lty, gs) = var_type.clone();
-        let lty = context.module.type_registry.get_type_layout(lty).clone();
-        let bind = &def.bind;
-        let gv_tyl = apply_variable_bind(lty, bind, &def.init)?;
-        let type_id = context.module.type_registry.register_type(gv_tyl);
+        // Parse the initializer
+        let var_init = parse_initializer_opt(&global_variable.init, &type_layout, context)?;
+
+        // Register the type
+        let type_id = context.module.type_registry.register_type(type_layout);
 
         // Insert variable
-        let var_name = def.name.clone();
-        let input_type = context
-            .module
-            .type_registry
-            .get_type_layout(type_id)
-            .clone();
-        let var_id = context.insert_global(var_name.clone(), type_id, gs)?;
-
-        let var_init = parse_initializer_opt(&def.init, &input_type, context)?;
+        let var_id = context.insert_global(global_variable.name.clone(), type_id, storage_class)?;
 
         let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
-        gv_ir.lang_slot = def.slot.clone().map(|r| ir::LanguageBinding {
+        gv_ir.lang_slot = global_variable.slot.clone().map(|r| ir::LanguageBinding {
             set: 0,
             index: r.index,
         });
@@ -66,7 +69,7 @@ fn parse_globaltype(
 
     let ty = context.module.type_registry.register_type(ty);
 
-    Ok((ty, global_type.1.clone()))
+    Ok((ty, global_type.1))
 }
 
 pub fn parse_rootdefinition_constantbuffer(

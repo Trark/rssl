@@ -144,37 +144,38 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
 
 /// Process a variable definition
 fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir::VarDef>> {
-    let base_type = parse_localtype(&ast.local_type, context)?;
+    let (base_id, storage_class) = parse_localtype(&ast.local_type, context)?;
+
+    let base_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(base_id)
+        .clone();
 
     // Build multiple output VarDefs for each variable inside the source VarDef
     let mut vardefs = vec![];
     for local_variable in &ast.defs {
-        // Get variable name
-        let var_name = &local_variable.name.clone();
-
         // Build type from ast type + bind
-        let ir::LocalType(lty, ls) = base_type.clone();
-        let bind = &local_variable.bind;
-        let lty = context.module.type_registry.get_type_layout(lty).clone();
-        let lv_tyl = apply_variable_bind(lty, bind, &local_variable.init)?;
-        let type_id = context.module.type_registry.register_type(lv_tyl);
-        let lv_type = ir::LocalType(type_id, ls);
-
-        // Register the variable
-        let var_id = context.insert_variable(var_name.clone(), lv_type.0)?;
+        let type_layout = apply_variable_bind(
+            base_type_layout.clone(),
+            &local_variable.bind,
+            &local_variable.init,
+        )?;
 
         // Parse the initializer
-        let lv_tyl = context
-            .module
-            .type_registry
-            .get_type_layout(type_id)
-            .clone();
-        let var_init = parse_initializer_opt(&local_variable.init, &lv_tyl, context)?;
+        let var_init = parse_initializer_opt(&local_variable.init, &type_layout, context)?;
+
+        // Register the type
+        let type_id = context.module.type_registry.register_type(type_layout);
+
+        // Register the variable
+        let var_id = context.insert_variable(local_variable.name.clone(), type_id)?;
 
         // Add the variables creation node
         vardefs.push(ir::VarDef {
             id: var_id,
-            local_type: lv_type,
+            type_id,
+            storage_class,
             init: var_init,
         });
     }
@@ -186,7 +187,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
 fn parse_localtype(
     local_type: &ast::LocalType,
     context: &mut Context,
-) -> TyperResult<ir::LocalType> {
+) -> TyperResult<(ir::TypeId, ir::LocalStorage)> {
     let ty = parse_type(&local_type.0, context)?;
     if ty.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
@@ -197,7 +198,7 @@ fn parse_localtype(
 
     let ty = context.module.type_registry.register_type(ty);
 
-    Ok(ir::LocalType(ty, local_type.1.clone()))
+    Ok((ty, local_type.1))
 }
 
 /// Apply part of type applied to variable name onto the type itself

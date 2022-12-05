@@ -14,7 +14,7 @@ pub enum RowOrder {
 }
 
 /// Storage type for global variables
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum GlobalStorage {
     // Input from outside the shader (default)
     Extern,
@@ -27,7 +27,7 @@ pub enum GlobalStorage {
 }
 
 /// Storage type for local variables
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum LocalStorage {
     /// Statically allocated thread-local variable
     Local,

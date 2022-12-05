@@ -31,14 +31,18 @@ pub enum Statement {
 /// A local variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct VarDef {
+    /// Unique identifier for the local variable within the current scope
     pub id: VariableId,
-    pub local_type: LocalType,
+
+    /// Type for the local variable
+    pub type_id: TypeId,
+
+    /// Storage class for the local variable
+    pub storage_class: LocalStorage,
+
+    /// Initializer for the local variable
     pub init: Option<Initializer>,
 }
-
-/// The type of any local variable declaration
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct LocalType(pub TypeId, pub LocalStorage);
 
 /// An initialiser for a for loop variable
 #[derive(PartialEq, Debug, Clone)]

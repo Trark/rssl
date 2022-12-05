@@ -736,15 +736,12 @@ fn export_variable_definition(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    match def.local_type.1 {
+    match def.storage_class {
         ir::LocalStorage::Local => {}
         ir::LocalStorage::Static => output.push_str("static "),
     }
     let mut array_part = String::new();
-    let type_layout = context
-        .module
-        .type_registry
-        .get_type_layout(def.local_type.0);
+    let type_layout = context.module.type_registry.get_type_layout(def.type_id);
     export_type_for_def(type_layout, output, &mut array_part, context)?;
     export_variable_definition_no_type(def, &array_part, output, context)
 }
@@ -800,10 +797,7 @@ fn export_for_init(
             // Extract type information from first definition to ensure later definitions match
             let mut head_core_part = String::new();
             let mut head_array_part = String::new();
-            let head_type_layout = context
-                .module
-                .type_registry
-                .get_type_layout(head.local_type.0);
+            let head_type_layout = context.module.type_registry.get_type_layout(head.type_id);
             export_type_for_def(
                 head_type_layout,
                 &mut head_core_part,
@@ -817,10 +811,7 @@ fn export_for_init(
                 // Extract type information from the non-first definition
                 let mut cur_core_part = String::new();
                 let mut cur_array_part = String::new();
-                let element_type_layout = context
-                    .module
-                    .type_registry
-                    .get_type_layout(def.local_type.0);
+                let element_type_layout = context.module.type_registry.get_type_layout(def.type_id);
                 export_type_for_def(
                     element_type_layout,
                     &mut cur_core_part,
