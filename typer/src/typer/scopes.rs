@@ -43,7 +43,7 @@ struct FunctionData {
 
 #[derive(Debug, Clone)]
 struct StructData {
-    members: HashMap<String, ir::TypeLayout>,
+    members: HashMap<String, ir::TypeId>,
     methods: HashMap<String, Vec<ir::FunctionId>>,
 }
 
@@ -380,7 +380,10 @@ impl Context {
     ) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.struct_data.len() as u32);
         match self.struct_data[id.0 as usize].members.get(name) {
-            Some(ty) => Ok(ty.to_lvalue()),
+            Some(ty) => {
+                let type_layout = self.module.type_registry.get_type_layout(*ty);
+                Ok(type_layout.to_lvalue())
+            }
             None => Err(TyperError::StructMemberDoesNotExist(id, name.to_string())),
         }
     }
@@ -394,7 +397,8 @@ impl Context {
         assert!(id.0 < self.struct_data.len() as u32);
         if let Some(ty) = self.struct_data[id.0 as usize].members.get(name) {
             assert!(!self.struct_data[id.0 as usize].methods.contains_key(name));
-            return Ok(StructMemberValue::Variable(ty.clone()));
+            let type_layout = self.module.type_registry.get_type_layout(*ty);
+            return Ok(StructMemberValue::Variable(type_layout.clone()));
         }
 
         if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
@@ -624,7 +628,7 @@ impl Context {
     pub fn finish_struct(
         &mut self,
         id: ir::StructId,
-        members: HashMap<String, ir::TypeLayout>,
+        members: HashMap<String, ir::TypeId>,
         methods: HashMap<String, Vec<ir::FunctionId>>,
     ) {
         let data = &mut self.struct_data[id.0 as usize];

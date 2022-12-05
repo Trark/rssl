@@ -84,9 +84,10 @@ fn parse_struct_internal(
                 }
                 for def in &ast_member.defs {
                     let name = def.name.clone();
-                    let typename = apply_variable_bind(base_type.clone(), &def.bind, &None)?;
-                    member_map.insert(name.clone(), typename.clone());
-                    members.push(ir::StructMember { name, typename });
+                    let type_layout = apply_variable_bind(base_type.clone(), &def.bind, &None)?;
+                    let type_id = context.module.type_registry.register_type(type_layout);
+                    member_map.insert(name.clone(), type_id);
+                    members.push(ir::StructMember { name, type_id });
                 }
             }
             ast::StructEntry::Method(ast_func) => {

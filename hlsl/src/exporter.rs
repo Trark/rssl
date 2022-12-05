@@ -1345,7 +1345,8 @@ fn export_struct(
     for member in &decl.members {
         context.new_line(output);
         let mut array_part = String::new();
-        export_type_for_def(&member.typename, output, &mut array_part, context)?;
+        let type_layout = context.module.type_registry.get_type_layout(member.type_id);
+        export_type_for_def(type_layout, output, &mut array_part, context)?;
         output.push(' ');
         output.push_str(&member.name);
         output.push_str(&array_part);
