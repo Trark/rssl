@@ -96,6 +96,7 @@ pub enum TyperError {
 #[derive(PartialEq, Debug, Clone)]
 pub enum ErrorType {
     Untyped(ast::Type),
+    ValueId(ir::TypeId),
     Value(ir::TypeLayout),
     Function(Vec<FunctionOverload>),
     Method(ir::TypeLayout, Vec<FunctionOverload>),
@@ -113,6 +114,12 @@ impl From<&ast::ScopedIdentifier> for ErrorType {
 
 pub trait ToErrorType {
     fn to_error_type(&self) -> ErrorType;
+}
+
+impl ToErrorType for ir::TypeId {
+    fn to_error_type(&self) -> ErrorType {
+        ErrorType::ValueId(*self)
+    }
 }
 
 impl ToErrorType for ir::TypeLayout {

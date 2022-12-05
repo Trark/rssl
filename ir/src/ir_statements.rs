@@ -9,7 +9,7 @@ pub struct ScopeBlock(pub Vec<Statement>, pub ScopedDeclarations);
 #[derive(PartialEq, Clone, Default, Debug)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct ScopedDeclarations {
-    pub variables: HashMap<VariableId, (String, TypeLayout)>,
+    pub variables: HashMap<VariableId, (String, TypeId)>,
 }
 
 /// A typed RSSL statement
@@ -38,7 +38,7 @@ pub struct VarDef {
 
 /// The type of any local variable declaration
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct LocalType(pub TypeLayout, pub LocalStorage);
+pub struct LocalType(pub TypeId, pub LocalStorage);
 
 /// An initialiser for a for loop variable
 #[derive(PartialEq, Debug, Clone)]
@@ -55,10 +55,4 @@ pub enum Initializer {
     Expression(Expression),
     /// Variable is initialized in parts (composite types and arrays)
     Aggregate(Vec<Initializer>),
-}
-
-impl From<TypeLayout> for LocalType {
-    fn from(ty: TypeLayout) -> LocalType {
-        LocalType(ty, LocalStorage::default())
-    }
 }

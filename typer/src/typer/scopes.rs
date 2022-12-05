@@ -347,7 +347,7 @@ impl Context {
         }
         self.scopes[scope_index]
             .variables
-            .get_type_of_variable(var_ref)
+            .get_type_of_variable(&self.module, var_ref)
     }
 
     /// Find the type of a global variable
@@ -461,11 +461,11 @@ impl Context {
     pub fn insert_variable(
         &mut self,
         name: Located<String>,
-        typename: ir::TypeLayout,
+        type_id: ir::TypeId,
     ) -> TyperResult<ir::VariableId> {
         self.scopes[self.current_scope]
             .variables
-            .insert_variable(name, typename)
+            .insert_variable(name, type_id)
     }
 
     /// Register a function overload
@@ -806,7 +806,7 @@ impl Context {
         name: &str,
         scopes_up: u32,
     ) -> Option<VariableExpression> {
-        if let Some(ve) = scope.variables.find_variable(name, scopes_up) {
+        if let Some(ve) = scope.variables.find_variable(name, &self.module, scopes_up) {
             return Some(ve);
         }
 
@@ -1003,7 +1003,7 @@ impl Context {
 
 #[derive(PartialEq, Debug, Clone)]
 struct VariableBlock {
-    pub variables: HashMap<String, (ir::TypeLayout, ir::VariableId)>,
+    pub variables: HashMap<String, (ir::TypeId, ir::VariableId)>,
     pub next_free_variable_id: ir::VariableId,
 }
 
@@ -1018,55 +1018,66 @@ impl VariableBlock {
     fn insert_variable(
         &mut self,
         name: Located<String>,
-        typename: ir::TypeLayout,
+        type_id: ir::TypeId,
     ) -> TyperResult<ir::VariableId> {
         if let Some(&(ref ty, _)) = self.variables.get(&name.node) {
             return Err(TyperError::ValueAlreadyDefined(
                 name,
                 ty.to_error_type(),
-                typename.to_error_type(),
+                type_id.to_error_type(),
             ));
         };
         match self.variables.entry(name.node.clone()) {
             Entry::Occupied(occupied) => Err(TyperError::ValueAlreadyDefined(
                 name,
                 occupied.get().0.to_error_type(),
-                typename.to_error_type(),
+                type_id.to_error_type(),
             )),
             Entry::Vacant(vacant) => {
                 let id = self.next_free_variable_id;
                 self.next_free_variable_id = ir::VariableId(self.next_free_variable_id.0 + 1);
-                vacant.insert((typename, id));
+                vacant.insert((type_id, id));
                 Ok(id)
             }
         }
     }
 
-    fn find_variable(&self, name: &str, scopes_up: u32) -> Option<VariableExpression> {
+    fn find_variable(
+        &self,
+        name: &str,
+        module: &ir::Module,
+        scopes_up: u32,
+    ) -> Option<VariableExpression> {
         match self.variables.get(name) {
             Some(&(ref ty, ref id)) => {
                 let var = ir::VariableRef(*id, ir::ScopeRef(scopes_up));
-                Some(VariableExpression::Local(var, ty.clone()))
+                let type_layout = module.type_registry.get_type_layout(*ty);
+                Some(VariableExpression::Local(var, type_layout.clone()))
             }
             None => None,
         }
     }
 
-    fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
+    fn get_type_of_variable(
+        &self,
+        module: &ir::Module,
+        var_ref: ir::VariableRef,
+    ) -> TyperResult<ExpressionType> {
         let ir::VariableRef(ref id, _) = var_ref;
         for &(ref var_ty, ref var_id) in self.variables.values() {
             if id == var_id {
-                return Ok(var_ty.to_lvalue());
+                let type_layout = module.type_registry.get_type_layout(*var_ty);
+                return Ok(type_layout.to_lvalue());
             }
         }
         panic!("Invalid local variable id: {:?}", var_ref);
     }
 
-    fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::TypeLayout)> {
+    fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::TypeId)> {
         self.variables
             .iter()
             .fold(HashMap::new(), |mut map, (name, &(ref ty, ref id))| {
-                map.insert(*id, (name.clone(), ty.clone()));
+                map.insert(*id, (name.clone(), *ty));
                 map
             })
     }

@@ -155,14 +155,21 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
         // Build type from ast type + bind
         let ir::LocalType(lty, ls) = base_type.clone();
         let bind = &local_variable.bind;
+        let lty = context.module.type_registry.get_type_layout(lty).clone();
         let lv_tyl = apply_variable_bind(lty, bind, &local_variable.init)?;
-        let lv_type = ir::LocalType(lv_tyl, ls);
-
-        // Parse the initializer
-        let var_init = parse_initializer_opt(&local_variable.init, &lv_type.0, context)?;
+        let type_id = context.module.type_registry.register_type(lv_tyl);
+        let lv_type = ir::LocalType(type_id, ls);
 
         // Register the variable
-        let var_id = context.insert_variable(var_name.clone(), lv_type.0.clone())?;
+        let var_id = context.insert_variable(var_name.clone(), lv_type.0)?;
+
+        // Parse the initializer
+        let lv_tyl = context
+            .module
+            .type_registry
+            .get_type_layout(type_id)
+            .clone();
+        let var_init = parse_initializer_opt(&local_variable.init, &lv_tyl, context)?;
 
         // Add the variables creation node
         vardefs.push(ir::VarDef {
@@ -187,6 +194,9 @@ fn parse_localtype(
             local_type.0.location,
         ));
     }
+
+    let ty = context.module.type_registry.register_type(ty);
+
     Ok(ir::LocalType(ty, local_type.1.clone()))
 }
 

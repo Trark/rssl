@@ -112,7 +112,11 @@ pub fn parse_function_body(
     let func_params = {
         let mut vec = Vec::new();
         for (var_type, ast_param) in signature.param_types.into_iter().zip(&fd.params) {
-            let var_id = context.insert_variable(ast_param.name.clone(), var_type.0.clone())?;
+            let var_type_id = context
+                .module
+                .type_registry
+                .register_type(var_type.0.clone());
+            let var_id = context.insert_variable(ast_param.name.clone(), var_type_id)?;
             vec.push(ir::FunctionParam {
                 id: var_id,
                 param_type: var_type,

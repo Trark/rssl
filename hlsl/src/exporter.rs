@@ -741,7 +741,11 @@ fn export_variable_definition(
         ir::LocalStorage::Static => output.push_str("static "),
     }
     let mut array_part = String::new();
-    export_type_for_def(&def.local_type.0, output, &mut array_part, context)?;
+    let type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(def.local_type.0);
+    export_type_for_def(type_layout, output, &mut array_part, context)?;
     export_variable_definition_no_type(def, &array_part, output, context)
 }
 
@@ -796,8 +800,12 @@ fn export_for_init(
             // Extract type information from first definition to ensure later definitions match
             let mut head_core_part = String::new();
             let mut head_array_part = String::new();
+            let head_type_layout = context
+                .module
+                .type_registry
+                .get_type_layout(head.local_type.0);
             export_type_for_def(
-                &head.local_type.0,
+                head_type_layout,
                 &mut head_core_part,
                 &mut head_array_part,
                 context,
@@ -809,8 +817,12 @@ fn export_for_init(
                 // Extract type information from the non-first definition
                 let mut cur_core_part = String::new();
                 let mut cur_array_part = String::new();
+                let element_type_layout = context
+                    .module
+                    .type_registry
+                    .get_type_layout(def.local_type.0);
                 export_type_for_def(
-                    &def.local_type.0,
+                    element_type_layout,
                     &mut cur_core_part,
                     &mut cur_array_part,
                     context,
