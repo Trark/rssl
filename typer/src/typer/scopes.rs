@@ -55,7 +55,7 @@ struct StructTemplateData {
 
 #[derive(Debug, Clone)]
 struct ConstantBufferData {
-    members: HashMap<String, ir::TypeLayout>,
+    members: HashMap<String, ir::TypeId>,
 }
 
 #[derive(Debug, Clone)]
@@ -366,7 +366,10 @@ impl Context {
     ) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.cbuffer_data.len() as u32);
         match self.cbuffer_data[id.0 as usize].members.get(name) {
-            Some(ty) => Ok(ty.to_lvalue()),
+            Some(ty) => {
+                let type_layout = self.module.type_registry.get_type_layout(*ty);
+                Ok(type_layout.to_lvalue())
+            }
             None => Err(TyperError::ConstantDoesNotExist(id, name.to_string())),
         }
     }
@@ -702,7 +705,7 @@ impl Context {
     pub fn insert_cbuffer(
         &mut self,
         name: Located<String>,
-        members: HashMap<String, ir::TypeLayout>,
+        members: HashMap<String, ir::TypeId>,
     ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
         let data = ConstantBufferData { members };
         let id = ir::ConstantBufferId(self.cbuffer_data.len() as u32);
@@ -827,10 +830,11 @@ impl Context {
         for id in scope.cbuffer_ids.values() {
             for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
                 if member_name == name {
+                    let type_layout = self.module.type_registry.get_type_layout(*ty);
                     return Some(VariableExpression::Constant(
                         *id,
                         name.to_string(),
-                        ty.clone(),
+                        type_layout.clone(),
                     ));
                 }
             }

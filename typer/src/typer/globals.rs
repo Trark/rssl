@@ -91,10 +91,11 @@ pub fn parse_rootdefinition_constantbuffer(
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
             let var_type = apply_variable_bind(base_type.clone(), &def.bind, &None)?;
-            members_map.insert(var_name.clone(), var_type.clone());
+            let type_id = context.module.type_registry.register_type(var_type);
+            members_map.insert(var_name.clone(), type_id);
             members.push(ir::ConstantVariable {
                 name: var_name,
-                typename: var_type,
+                type_id,
                 offset: var_offset,
             });
         }

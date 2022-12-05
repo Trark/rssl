@@ -53,8 +53,13 @@ pub struct ConstantBuffer {
 /// Not really "variable"...
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantVariable {
+    /// Name of the member
     pub name: String,
-    pub typename: TypeLayout,
+
+    /// Type of the constant buffer member
+    pub type_id: TypeId,
+
+    /// Packing information
     pub offset: Option<PackOffset>,
 }
 
