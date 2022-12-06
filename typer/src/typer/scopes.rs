@@ -100,9 +100,9 @@ impl Context {
             struct_template_data: Vec::new(),
             cbuffer_data: Vec::new(),
         };
-        for (name, overload) in get_intrinsics() {
+        for (name, intrinsic, overload) in get_intrinsics() {
             context
-                .insert_intrinsic(Located::none(name.clone()), overload)
+                .insert_intrinsic(name.clone(), intrinsic, overload)
                 .expect("Failed to add intrinsic");
         }
         context
@@ -511,15 +511,19 @@ impl Context {
     /// Register an intrinsic
     fn insert_intrinsic(
         &mut self,
-        name: Located<String>,
+        name: String,
+        intrinsic: ir::Intrinsic,
         overload: FunctionOverload,
     ) -> TyperResult<ir::FunctionId> {
         // All intrinsic functions are in root namespace
-        let full_name = ir::ScopedName(Vec::from([name.node.clone()]));
+        let full_name = ir::ScopedName(Vec::from([name.clone()]));
 
         // Register the intrinsic as a function
         let id = self.module.function_registry.register_function(
-            ir::FunctionNameDefinition { name, full_name },
+            ir::FunctionNameDefinition {
+                name: Located::none(name),
+                full_name,
+            },
             overload.1.clone(),
         );
 
@@ -537,8 +541,9 @@ impl Context {
         // Register the functioon into the root scope
         self.insert_function_in_scope(self.current_scope as usize, id)?;
 
-        // Leave the function definition as empty permanently in the registry
-        // Currently we don't register anything intrinisic specific
+        self.module
+            .function_registry
+            .set_intrinsic_data(id, intrinsic);
 
         Ok(id)
     }
@@ -1105,7 +1110,7 @@ impl VariableBlock {
 }
 
 /// Create a map of all the intrinsic functions we need to parse
-fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
+fn get_intrinsics() -> Vec<(String, ir::Intrinsic, FunctionOverload)> {
     use crate::intrinsics::*;
     let funcs = get_intrinsics();
 
@@ -1125,7 +1130,7 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
                 param_types,
             },
         );
-        overloads.push((name.to_string(), overload));
+        overloads.push((name.to_string(), intrinsic.clone(), overload));
     }
     overloads
 }

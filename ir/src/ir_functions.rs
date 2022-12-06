@@ -7,6 +7,7 @@ pub struct FunctionRegistry {
     signatures: Vec<FunctionSignature>,
     names: Vec<FunctionNameDefinition>,
     implementations: Vec<Option<FunctionImplementation>>,
+    intrinsic_data: Vec<Option<Intrinsic>>,
 }
 
 /// Function name information
@@ -79,6 +80,7 @@ impl FunctionRegistry {
 
         // Default the implementation block to the missing state
         self.implementations.push(None);
+        self.intrinsic_data.push(None);
 
         id
     }
@@ -86,37 +88,45 @@ impl FunctionRegistry {
     /// Set the function implementation for a registered function declaration
     pub fn set_implementation(&mut self, id: FunctionId, implementation: FunctionImplementation) {
         assert_eq!(self.implementations[id.0 as usize], None);
+        assert_eq!(self.intrinsic_data[id.0 as usize], None);
         self.implementations[id.0 as usize] = Some(implementation);
+    }
+
+    /// Set the function as an intrinsic
+    pub fn set_intrinsic_data(&mut self, id: FunctionId, intrinsic: Intrinsic) {
+        assert_eq!(self.implementations[id.0 as usize], None);
+        assert_eq!(self.intrinsic_data[id.0 as usize], None);
+        self.intrinsic_data[id.0 as usize] = Some(intrinsic);
     }
 
     /// Get the signature from a function id
     pub fn get_function_signature(&self, id: FunctionId) -> &FunctionSignature {
-        assert!(id.0 < self.names.len() as u32);
         &self.signatures[id.0 as usize]
     }
 
     /// Get the name from a function id
     pub fn get_function_name(&self, id: FunctionId) -> &str {
-        assert!(id.0 < self.names.len() as u32);
         &self.names[id.0 as usize].name.node
     }
 
     /// Get the name definition from a function id
     pub fn get_function_name_definition(&self, id: FunctionId) -> &FunctionNameDefinition {
-        assert!(id.0 < self.names.len() as u32);
         &self.names[id.0 as usize]
     }
 
     /// Get the source location from a function id
     pub fn get_function_location(&self, id: FunctionId) -> SourceLocation {
-        assert!(id.0 < self.names.len() as u32);
         self.names[id.0 as usize].name.location
     }
 
     /// Get the implementation from a function id
     pub fn get_function_implementation(&self, id: FunctionId) -> &Option<FunctionImplementation> {
-        assert!(id.0 < self.names.len() as u32);
         &self.implementations[id.0 as usize]
+    }
+
+    /// Get the implementation from a function id
+    pub fn get_intrinsic_data(&self, id: FunctionId) -> &Option<Intrinsic> {
+        &self.intrinsic_data[id.0 as usize]
     }
 }
 
