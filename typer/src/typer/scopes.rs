@@ -20,7 +20,7 @@ pub struct Context {
     scopes: Vec<ScopeData>,
     current_scope: ScopeIndex,
 
-    function_data: Vec<FunctionData>,
+    function_data: HashMap<ir::FunctionId, FunctionData>,
     struct_data: Vec<StructData>,
     struct_template_data: Vec<StructTemplateData>,
     cbuffer_data: Vec<ConstantBufferData>,
@@ -95,7 +95,7 @@ impl Context {
                 function_return_type: None,
             }]),
             current_scope: 0,
-            function_data: Vec::new(),
+            function_data: HashMap::new(),
             struct_data: Vec::new(),
             struct_template_data: Vec::new(),
             cbuffer_data: Vec::new(),
@@ -177,7 +177,7 @@ impl Context {
     /// Enter a scope again
     /// We must be in the same parent scope as before when calling this function
     pub fn revisit_function(&mut self, id: ir::FunctionId) {
-        self.revisit_scope(self.function_data[id.0 as usize].scope)
+        self.revisit_scope(self.function_data[&id].scope)
     }
 
     /// Set the current scope to be within the given struct
@@ -407,7 +407,7 @@ impl Context {
         if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
             let mut overloads = Vec::with_capacity(methods.len());
             for method_id in methods {
-                overloads.push(self.function_data[method_id.0 as usize].overload.clone());
+                overloads.push(self.function_data[method_id].overload.clone());
             }
             return Ok(StructMemberValue::Method(overloads));
         }
@@ -420,18 +420,12 @@ impl Context {
         &self,
         id: ir::FunctionId,
     ) -> TyperResult<&ir::FunctionSignature> {
-        assert!(id.0 < self.function_data.len() as u32);
-        Ok(&self.function_data[id.0 as usize].overload.1)
+        Ok(self.module.function_registry.get_function_signature(id))
     }
 
     /// Find the source ast of a function
     pub fn get_function_ast(&self, id: ir::FunctionId) -> Rc<ast::FunctionDefinition> {
-        assert!(id.0 < self.function_data.len() as u32);
-        self.function_data[id.0 as usize]
-            .ast
-            .as_ref()
-            .unwrap()
-            .clone()
+        self.function_data[&id].ast.as_ref().unwrap().clone()
     }
 
     /// Find the return type of a function
@@ -457,12 +451,9 @@ impl Context {
         match *id {
             Callable::Function(id) => self.module.get_function_name(id),
             Callable::Intrinsic(_) => {
-                for (i, data) in self.function_data.iter().enumerate() {
+                for (func_id, data) in &self.function_data {
                     if data.overload.0 == *id {
-                        return self
-                            .module
-                            .function_registry
-                            .get_function_name(ir::FunctionId(i as u32));
+                        return self.module.function_registry.get_function_name(*func_id);
                     }
                 }
                 "<unknown>"
@@ -499,13 +490,15 @@ impl Context {
         );
 
         // Set function data used by scope management
-        assert_eq!(self.function_data.len(), id.0 as usize);
-        self.function_data.push(FunctionData {
-            overload: FunctionOverload(Callable::Function(id), signature),
-            scope,
-            ast: Some(Rc::new(ast)),
-            instantiations: HashMap::new(),
-        });
+        self.function_data.insert(
+            id,
+            FunctionData {
+                overload: FunctionOverload(Callable::Function(id), signature),
+                scope,
+                ast: Some(Rc::new(ast)),
+                instantiations: HashMap::new(),
+            },
+        );
 
         Ok(id)
     }
@@ -531,13 +524,15 @@ impl Context {
         );
 
         // Intrinsics do not have much useful data beyond the signature
-        assert_eq!(self.function_data.len(), id.0 as usize);
-        self.function_data.push(FunctionData {
-            overload,
-            scope: usize::MAX,
-            ast: None,
-            instantiations: HashMap::new(),
-        });
+        self.function_data.insert(
+            id,
+            FunctionData {
+                overload,
+                scope: usize::MAX,
+                ast: None,
+                instantiations: HashMap::new(),
+            },
+        );
 
         // Register the functioon into the root scope
         self.insert_function_in_scope(self.current_scope as usize, id)?;
@@ -833,7 +828,7 @@ impl Context {
         if let Some(ids) = scope.function_ids.get(name) {
             let mut overloads = Vec::with_capacity(ids.len());
             for id in ids {
-                overloads.push(self.function_data[id.0 as usize].overload.clone());
+                overloads.push(self.function_data[id].overload.clone());
             }
             return Some(VariableExpression::Function(UnresolvedFunction {
                 overloads,
@@ -867,11 +862,11 @@ impl Context {
         scope_index: usize,
         id: ir::FunctionId,
     ) -> TyperResult<()> {
-        let data = &self.function_data[id.0 as usize];
         let name_data = &self
             .module
             .function_registry
             .get_function_name_definition(id);
+        let signature = &self.module.function_registry.get_function_signature(id);
 
         // Error if a variable of the same name already exists
         match self.find_variable_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
@@ -895,11 +890,8 @@ impl Context {
             Entry::Occupied(mut occupied) => {
                 // Fail if the overload already exists
                 for existing_id in occupied.get() {
-                    if self.function_data[existing_id.0 as usize]
-                        .overload
-                        .1
-                        .param_types
-                        == data.overload.1.param_types
+                    if self.function_data[existing_id].overload.1.param_types
+                        == signature.param_types
                     {
                         return Err(TyperError::ValueAlreadyDefined(
                             name_data.name.clone(),
@@ -926,7 +918,7 @@ impl Context {
         id: ir::FunctionId,
         template_args: &[Located<ir::TypeOrConstant>],
     ) -> TyperResult<ir::FunctionId> {
-        let data = &self.function_data[id.0 as usize];
+        let data = &self.function_data[&id];
         let template_args_no_loc = template_args
             .iter()
             .map(|t| t.node.clone())
@@ -941,7 +933,7 @@ impl Context {
         let new_scope_id = self.make_scope(parent_scope_id);
 
         // Reborrow data after mutating scopes (false requirement in this case as function array is not touched)
-        let data = &self.function_data[id.0 as usize];
+        let data = &self.function_data[&id];
 
         // There should be no local variables on the template scope
         assert!(self.scopes[old_scope_id].variables.variables.is_empty());
@@ -1001,13 +993,15 @@ impl Context {
 
         let signature = self.module.function_registry.get_function_signature(new_id);
 
-        assert_eq!(self.function_data.len(), new_id.0 as usize);
-        self.function_data.push(FunctionData {
-            overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
-            scope: new_scope_id,
-            ast: None,
-            instantiations: HashMap::new(),
-        });
+        self.function_data.insert(
+            new_id,
+            FunctionData {
+                overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
+                scope: new_scope_id,
+                ast: None,
+                instantiations: HashMap::new(),
+            },
+        );
 
         // Move active scope back to outside the template function definition
         let caller_scope_position = self.current_scope;
@@ -1022,7 +1016,7 @@ impl Context {
         self.current_scope = caller_scope_position;
 
         // Save the new function in the instantiations map and return
-        let data = &mut self.function_data[id.0 as usize];
+        let data = self.function_data.get_mut(&id).unwrap();
         data.instantiations.insert(template_args_no_loc, new_id);
         Ok(new_id)
     }
