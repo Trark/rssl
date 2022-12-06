@@ -1,14 +1,12 @@
 use crate::*;
-use rssl_text::Located;
+use rssl_text::{Located, SourceLocation};
 
-/// A definition for a function in RSSL
-#[derive(PartialEq, Debug, Clone)]
-pub struct FunctionDefinition {
-    pub id: FunctionId,
-    pub returntype: FunctionReturn,
-    pub params: Vec<FunctionParam>,
-    pub scope_block: ScopeBlock,
-    pub attributes: Vec<FunctionAttribute>,
+/// Container of all registered functions
+#[derive(PartialEq, Clone, Default, Debug)]
+pub struct FunctionRegistry {
+    signatures: Vec<FunctionSignature>,
+    names: Vec<FunctionNameDefinition>,
+    implementations: Vec<Option<FunctionImplementation>>,
 }
 
 /// Function name information
@@ -16,6 +14,22 @@ pub struct FunctionDefinition {
 pub struct FunctionNameDefinition {
     pub name: Located<String>,
     pub full_name: ScopedName,
+}
+
+/// Describes the signature for a function
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct FunctionSignature {
+    pub return_type: FunctionReturn,
+    pub template_params: TemplateParamCount,
+    pub param_types: Vec<ParamType>,
+}
+
+/// A definition for a function in RSSL
+#[derive(PartialEq, Debug, Clone)]
+pub struct FunctionImplementation {
+    pub params: Vec<FunctionParam>,
+    pub scope_block: ScopeBlock,
+    pub attributes: Vec<FunctionAttribute>,
 }
 
 /// The type of a function return value
@@ -46,6 +60,64 @@ pub struct ParamType(
 #[derive(PartialEq, Debug, Clone)]
 pub enum FunctionAttribute {
     NumThreads(Expression, Expression, Expression),
+}
+
+impl FunctionRegistry {
+    /// Register a new function with the module
+    pub fn register_function(
+        &mut self,
+        name_def: FunctionNameDefinition,
+        signature: FunctionSignature,
+    ) -> FunctionId {
+        let id = FunctionId(self.names.len() as u32);
+
+        // Store the signature for the function
+        self.signatures.push(signature);
+
+        // Store the names for the function
+        self.names.push(name_def);
+
+        // Default the implementation block to the missing state
+        self.implementations.push(None);
+
+        id
+    }
+
+    /// Set the function implementation for a registered function declaration
+    pub fn set_implementation(&mut self, id: FunctionId, implementation: FunctionImplementation) {
+        assert_eq!(self.implementations[id.0 as usize], None);
+        self.implementations[id.0 as usize] = Some(implementation);
+    }
+
+    /// Get the signature from a function id
+    pub fn get_function_signature(&self, id: FunctionId) -> &FunctionSignature {
+        assert!(id.0 < self.names.len() as u32);
+        &self.signatures[id.0 as usize]
+    }
+
+    /// Get the name from a function id
+    pub fn get_function_name(&self, id: FunctionId) -> &str {
+        assert!(id.0 < self.names.len() as u32);
+        &self.names[id.0 as usize].name.node
+    }
+
+    /// Get the name definition from a function id
+    pub fn get_function_name_definition(&self, id: FunctionId) -> &FunctionNameDefinition {
+        assert!(id.0 < self.names.len() as u32);
+        &self.names[id.0 as usize]
+    }
+
+    /// Get the source location from a function id
+    pub fn get_function_location(&self, id: FunctionId) -> SourceLocation {
+        assert!(id.0 < self.names.len() as u32);
+        self.names[id.0 as usize].name.location
+    }
+
+    /// Get the implementation from a function id
+    pub fn get_function_implementation(&self, id: FunctionId) -> &Option<FunctionImplementation> {
+        assert!(id.0 < self.names.len() as u32);
+        &self.implementations[id.0 as usize]
+    }
 }
 
 impl From<TypeLayout> for ParamType {

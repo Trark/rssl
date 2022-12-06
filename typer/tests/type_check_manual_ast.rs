@@ -202,19 +202,19 @@ fn test_ast_to_ir() {
 
     match rssl_typer::type_check(&static_global_test) {
         Ok(actual) => {
-            let mut base_func_id = 0;
-            for fd in &actual.function_registry {
-                if fd.is_some() {
+            let mut base_func_id = ir::FunctionId(u32::MAX);
+            for def in &actual.root_definitions {
+                if let ir::RootDefinition::Function(id) = def {
+                    base_func_id = *id;
                     break;
                 }
-                base_func_id += 1;
             }
 
             assert_eq!(
                 actual.root_definitions,
                 Vec::from([
                     ir::RootDefinition::GlobalVariable(ir::GlobalId(0)),
-                    ir::RootDefinition::Function(ir::FunctionId(base_func_id))
+                    ir::RootDefinition::Function(base_func_id)
                 ])
             );
 
@@ -229,13 +229,24 @@ fn test_ast_to_ir() {
             assert_eq!(actual.struct_template_registry, Vec::new());
 
             assert_eq!(
-                actual.function_registry[base_func_id as usize..],
-                Vec::from([Some(ir::FunctionDefinition {
-                    id: ir::FunctionId(base_func_id),
-                    returntype: ir::FunctionReturn {
+                *actual
+                    .function_registry
+                    .get_function_signature(base_func_id),
+                ir::FunctionSignature {
+                    return_type: ir::FunctionReturn {
                         return_type: ir::TypeLayout::void().into(),
                         semantic: None,
                     },
+                    template_params: ir::TemplateParamCount(0),
+                    param_types: Vec::new(),
+                }
+            );
+
+            assert_eq!(
+                *actual
+                    .function_registry
+                    .get_function_implementation(base_func_id),
+                Some(ir::FunctionImplementation {
                     params: Vec::new(),
                     scope_block: ir::ScopeBlock(
                         vec![
@@ -251,15 +262,17 @@ fn test_ast_to_ir() {
                         },
                     ),
                     attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],
-                })])
+                })
             );
 
             assert_eq!(
-                actual.function_name_registry[base_func_id as usize..],
-                Vec::from([ir::FunctionNameDefinition {
+                *actual
+                    .function_registry
+                    .get_function_name_definition(base_func_id),
+                ir::FunctionNameDefinition {
                     name: Located::none("CSMAIN".to_string()),
                     full_name: ir::ScopedName(Vec::from(["CSMAIN".to_string()])),
-                }])
+                }
             );
 
             assert_eq!(

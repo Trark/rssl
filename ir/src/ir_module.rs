@@ -14,11 +14,8 @@ pub struct Module {
     /// Container of all struct template types
     pub struct_template_registry: Vec<StructTemplateDefinition>,
 
-    /// Container of all functions
-    pub function_registry: Vec<Option<FunctionDefinition>>,
-
-    /// Container for names of all functions
-    pub function_name_registry: Vec<FunctionNameDefinition>,
+    /// Container of all registered functions in the module
+    pub function_registry: FunctionRegistry,
 
     /// Container for all global variables
     pub global_registry: Vec<GlobalVariable>,
@@ -99,8 +96,7 @@ impl Module {
 
     /// Get the name from a function id
     pub fn get_function_name(&self, id: FunctionId) -> &str {
-        assert!(id.0 < self.function_name_registry.len() as u32);
-        &self.function_name_registry[id.0 as usize].name.node
+        self.function_registry.get_function_name(id)
     }
 
     /// Get the name from a global variable id
@@ -128,8 +124,7 @@ impl Module {
 
     /// Get the source location from a function id
     pub fn get_function_location(&self, id: FunctionId) -> SourceLocation {
-        assert!(id.0 < self.function_name_registry.len() as u32);
-        self.function_name_registry[id.0 as usize].name.location
+        self.function_registry.get_function_location(id)
     }
 
     /// Get the source location from a constant buffer id

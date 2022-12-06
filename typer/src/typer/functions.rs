@@ -14,20 +14,16 @@ pub enum Callable {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct FunctionOverload(pub Callable, pub FunctionSignature);
+pub struct FunctionOverload(pub Callable, pub ir::FunctionSignature);
 
-/// Describes the signature for a function
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct FunctionSignature {
-    // TODO: Function and parameter names
-    pub return_type: ir::FunctionReturn,
-    pub template_params: ir::TemplateParamCount,
-    pub param_types: Vec<ir::ParamType>,
+/// Trait for applying template arguments onto another type
+pub trait ApplyTemplates {
+    /// Transforms a signature with template parameters with concrete arguments
+    fn apply_templates(self, template_args: &[Located<ir::TypeOrConstant>]) -> Self;
 }
 
-impl FunctionSignature {
-    /// Transforms a signature with template parameters with concrete arguments
-    pub fn apply_templates(mut self, template_args: &[Located<ir::TypeOrConstant>]) -> Self {
+impl ApplyTemplates for ir::FunctionSignature {
+    fn apply_templates(mut self, template_args: &[Located<ir::TypeOrConstant>]) -> Self {
         for param_type in &mut self.param_types {
             let ty = param_type.0.clone();
             param_type.0 = apply_template_type_substitution(ty, template_args);
@@ -54,7 +50,7 @@ pub fn parse_function_signature(
     fd: &ast::FunctionDefinition,
     object_type: Option<ir::StructId>,
     context: &mut Context,
-) -> TyperResult<(FunctionSignature, ScopeIndex)> {
+) -> TyperResult<(ir::FunctionSignature, ScopeIndex)> {
     // We being the scope now so we can use template arguments inside parameter types
     let scope = context.push_scope();
 
@@ -89,7 +85,7 @@ pub fn parse_function_signature(
     context.pop_scope();
 
     Ok((
-        FunctionSignature {
+        ir::FunctionSignature {
             return_type,
             template_params: ir::TemplateParamCount(template_param_count),
             param_types,
@@ -102,12 +98,10 @@ pub fn parse_function_signature(
 pub fn parse_function_body(
     fd: &ast::FunctionDefinition,
     id: ir::FunctionId,
-    signature: FunctionSignature,
+    signature: ir::FunctionSignature,
     context: &mut Context,
 ) -> TyperResult<()> {
     context.revisit_function(id);
-
-    let return_type = signature.return_type;
 
     let func_params = {
         let mut vec = Vec::new();
@@ -132,15 +126,14 @@ pub fn parse_function_body(
     let body_ir = parse_statement_list(&fd.body, context)?;
     let decls = context.pop_scope_with_locals();
 
-    let def = ir::FunctionDefinition {
-        id,
-        returntype: return_type,
+    let def = ir::FunctionImplementation {
         params: func_params,
         scope_block: ir::ScopeBlock(body_ir, decls),
         attributes,
     };
 
-    context.module.function_registry[id.0 as usize] = Some(def);
+    context.module.function_registry.set_implementation(id, def);
+
     Ok(())
 }
 
@@ -158,9 +151,7 @@ fn parse_function(
         parse_function_body(fd, id, signature, context)?;
     } else {
         let attributes = parse_function_attributes(&fd.attributes, context)?;
-        let def = ir::FunctionDefinition {
-            id,
-            returntype: signature.return_type,
+        let def = ir::FunctionImplementation {
             params: Default::default(),
             scope_block: ir::ScopeBlock(
                 Default::default(),
@@ -170,7 +161,7 @@ fn parse_function(
             ),
             attributes,
         };
-        context.module.function_registry[id.0 as usize] = Some(def);
+        context.module.function_registry.set_implementation(id, def);
     };
 
     Ok(id)

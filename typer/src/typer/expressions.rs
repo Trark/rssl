@@ -1,5 +1,5 @@
 use super::errors::*;
-use super::functions::{Callable, FunctionOverload, FunctionSignature};
+use super::functions::{ApplyTemplates, Callable, FunctionOverload};
 use super::scopes::*;
 use super::types::{
     apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
@@ -251,7 +251,7 @@ fn write_function(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
-    let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
+    let (FunctionOverload(name, ir::FunctionSignature { return_type, .. }), casts) =
         find_function_type(
             &unresolved.overloads,
             template_args,
@@ -292,7 +292,7 @@ fn write_method(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
-    let (FunctionOverload(name, FunctionSignature { return_type, .. }), casts) =
+    let (FunctionOverload(name, ir::FunctionSignature { return_type, .. }), casts) =
         find_function_type(
             &unresolved.overloads,
             template_args,
@@ -1151,7 +1151,7 @@ fn parse_expr_unchecked(
                                     };
                                     FunctionOverload(
                                         Callable::Intrinsic(factory.clone()),
-                                        FunctionSignature {
+                                        ir::FunctionSignature {
                                             return_type,
                                             template_params: template_types,
                                             param_types: param_types.clone(),

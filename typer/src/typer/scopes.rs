@@ -1,7 +1,7 @@
 use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
-use super::functions::{parse_function_body, Callable, FunctionOverload, FunctionSignature};
+use super::functions::{parse_function_body, ApplyTemplates, Callable, FunctionOverload};
 use super::structs::build_struct_from_template;
 use super::types::apply_template_type_substitution;
 use ir::{ExpressionType, ToExpressionType};
@@ -416,7 +416,10 @@ impl Context {
     }
 
     /// Find the signature of a function
-    pub fn get_function_signature(&self, id: ir::FunctionId) -> TyperResult<&FunctionSignature> {
+    pub fn get_function_signature(
+        &self,
+        id: ir::FunctionId,
+    ) -> TyperResult<&ir::FunctionSignature> {
         assert!(id.0 < self.function_data.len() as u32);
         Ok(&self.function_data[id.0 as usize].overload.1)
     }
@@ -456,7 +459,10 @@ impl Context {
             Callable::Intrinsic(_) => {
                 for (i, data) in self.function_data.iter().enumerate() {
                     if data.overload.0 == *id {
-                        return &self.module.function_name_registry[i].name;
+                        return self
+                            .module
+                            .function_registry
+                            .get_function_name(ir::FunctionId(i as u32));
                     }
                 }
                 "<unknown>"
@@ -479,27 +485,28 @@ impl Context {
     pub fn register_function(
         &mut self,
         name: Located<String>,
-        signature: FunctionSignature,
+        signature: ir::FunctionSignature,
         scope: ScopeIndex,
         ast: ast::FunctionDefinition,
     ) -> TyperResult<ir::FunctionId> {
-        let id = ir::FunctionId(self.function_data.len() as u32);
-        assert_eq!(
-            self.function_data.len(),
-            self.module.function_registry.len()
-        );
+        // Find the fully qualified name based on the current scope
         let full_name = self.get_qualified_name(&name);
+
+        // Register the function with the module
+        let id = self.module.function_registry.register_function(
+            ir::FunctionNameDefinition { name, full_name },
+            signature.clone(),
+        );
+
+        // Set function data used by scope management
+        assert_eq!(self.function_data.len(), id.0 as usize);
         self.function_data.push(FunctionData {
             overload: FunctionOverload(Callable::Function(id), signature),
             scope,
             ast: Some(Rc::new(ast)),
             instantiations: HashMap::new(),
         });
-        // Set definition to empty to replace later after it is parsed
-        self.module.function_registry.push(None);
-        self.module
-            .function_name_registry
-            .push(ir::FunctionNameDefinition { name, full_name });
+
         Ok(id)
     }
 
@@ -514,24 +521,30 @@ impl Context {
         name: Located<String>,
         overload: FunctionOverload,
     ) -> TyperResult<ir::FunctionId> {
-        let id = ir::FunctionId(self.function_data.len() as u32);
-        assert_eq!(
-            self.function_data.len(),
-            self.module.function_registry.len()
-        );
+        // All intrinsic functions are in root namespace
         let full_name = ir::ScopedName(Vec::from([name.node.clone()]));
+
+        // Register the intrinsic as a function
+        let id = self.module.function_registry.register_function(
+            ir::FunctionNameDefinition { name, full_name },
+            overload.1.clone(),
+        );
+
+        // Intrinsics do not have much useful data beyond the signature
+        assert_eq!(self.function_data.len(), id.0 as usize);
         self.function_data.push(FunctionData {
             overload,
             scope: usize::MAX,
             ast: None,
             instantiations: HashMap::new(),
         });
-        // Leave the function definition as empty permanently
-        self.module.function_registry.push(None);
-        self.module
-            .function_name_registry
-            .push(ir::FunctionNameDefinition { name, full_name });
+
+        // Register the functioon into the root scope
         self.insert_function_in_scope(self.current_scope as usize, id)?;
+
+        // Leave the function definition as empty permanently in the registry
+        // Currently we don't register anything intrinisic specific
+
         Ok(id)
     }
 
@@ -855,7 +868,10 @@ impl Context {
         id: ir::FunctionId,
     ) -> TyperResult<()> {
         let data = &self.function_data[id.0 as usize];
-        let name_data = &self.module.function_name_registry[id.0 as usize];
+        let name_data = &self
+            .module
+            .function_registry
+            .get_function_name_definition(id);
 
         // Error if a variable of the same name already exists
         match self.find_variable_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
@@ -974,21 +990,24 @@ impl Context {
         );
 
         // Push the instantiation as a new function
-        let new_id = ir::FunctionId(self.function_data.len() as u32);
-        assert_eq!(
-            self.function_data.len(),
-            self.module.function_registry.len()
-        );
+        let function_name = self
+            .module
+            .function_registry
+            .get_function_name_definition(id);
+        let new_id = self
+            .module
+            .function_registry
+            .register_function(function_name.clone(), signature);
+
+        let signature = self.module.function_registry.get_function_signature(new_id);
+
+        assert_eq!(self.function_data.len(), new_id.0 as usize);
         self.function_data.push(FunctionData {
             overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
             scope: new_scope_id,
             ast: None,
             instantiations: HashMap::new(),
         });
-        self.module.function_registry.push(None);
-        self.module
-            .function_name_registry
-            .push(self.module.function_name_registry[id.0 as usize].clone());
 
         // Move active scope back to outside the template function definition
         let caller_scope_position = self.current_scope;
@@ -996,7 +1015,7 @@ impl Context {
 
         // Parse the function body and store it in the registry
         let ast = self.get_function_ast(id);
-        parse_function_body(&ast, new_id, signature, self)?;
+        parse_function_body(&ast, new_id, signature.clone(), self)?;
 
         // Return active scope
         assert_eq!(self.current_scope, parent_scope_id);
@@ -1106,7 +1125,7 @@ fn get_intrinsics() -> Vec<(String, FunctionOverload)> {
         let param_types = params.to_vec();
         let overload = FunctionOverload(
             Callable::Intrinsic(factory.clone()),
-            FunctionSignature {
+            ir::FunctionSignature {
                 return_type,
                 template_params: ir::TemplateParamCount(0),
                 param_types,

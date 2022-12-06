@@ -237,8 +237,7 @@ fn export_root_definition(
             export_global_variable(decl, output, context)?;
         }
         ir::RootDefinition::Function(id) => {
-            let fd = &module.function_registry[id.0 as usize];
-            export_function(fd.as_ref().unwrap(), output, context)?;
+            export_function(*id, output, context)?;
         }
         ir::RootDefinition::Namespace(name, decls) => {
             output.push_str("namespace ");
@@ -359,18 +358,26 @@ fn export_vk_binding_annotation(
 
 /// Export ir function to HLSL
 fn export_function(
-    decl: &ir::FunctionDefinition,
+    id: ir::FunctionId,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    let sig = context.module.function_registry.get_function_signature(id);
+    let decl = context
+        .module
+        .function_registry
+        .get_function_implementation(id)
+        .as_ref()
+        .unwrap();
+
     for attribute in &decl.attributes {
         export_function_attribute(attribute, output, context)?;
     }
 
-    export_type(&decl.returntype.return_type, output, context)?;
+    export_type(&sig.return_type.return_type, output, context)?;
     output.push(' ');
 
-    output.push_str(context.get_function_name(decl.id)?);
+    output.push_str(context.get_function_name(id)?);
 
     // Scope also contains the names of parameters
     context.push_scope(decl.scope_block.1.clone());
@@ -388,7 +395,7 @@ fn export_function(
 
     output.push(')');
 
-    export_semantic_annotation(&decl.returntype.semantic, output)?;
+    export_semantic_annotation(&sig.return_type.semantic, output)?;
 
     output.push_str(" {");
     for statement in &decl.scope_block.0 {
@@ -1356,10 +1363,7 @@ fn export_struct(
     for method in &decl.methods {
         context.new_line(output);
         context.new_line(output);
-        let fd = context.module.function_registry[method.0 as usize]
-            .as_ref()
-            .unwrap();
-        export_function(fd, output, context)?;
+        export_function(*method, output, context)?;
     }
 
     context.pop_indent();
@@ -1466,18 +1470,16 @@ impl<'m> ExportContext<'m> {
 
     /// Get the name of a function
     fn get_function_name(&self, id: ir::FunctionId) -> Result<&str, ExportError> {
-        match self.module.function_name_registry.get(id.0 as usize) {
-            Some(name) => Ok(name.name.as_str()),
-            None => Err(ExportError::NamelessId),
-        }
+        Ok(self.module.function_registry.get_function_name(id))
     }
 
     /// Get the full name of a function
     fn get_function_name_full(&self, id: ir::FunctionId) -> Result<&ir::ScopedName, ExportError> {
-        match self.module.function_name_registry.get(id.0 as usize) {
-            Some(name) => Ok(&name.full_name),
-            None => Err(ExportError::NamelessId),
-        }
+        Ok(&self
+            .module
+            .function_registry
+            .get_function_name_definition(id)
+            .full_name)
     }
 
     /// Get the name of a struct
