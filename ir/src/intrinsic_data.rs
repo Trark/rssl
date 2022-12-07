@@ -327,17 +327,17 @@ const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
         "Sample",
         Intrinsic::Texture2DSample,
         0,
-        T_FLOAT4_TY,
+        T_OBJECT_ARG_TY,
         &[T_SAMPLER, T_FLOAT2],
     ),
-    ("Load", Intrinsic::Texture2DLoad, 0, T_FLOAT4_TY, &[T_INT3]),
+    ("Load", Intrinsic::Texture2DLoad, 0, T_OBJECT_ARG_TY, &[T_INT3]),
 ];
 
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[(
     "Load",
     Intrinsic::RWTexture2DLoad,
     0,
-    T_FLOAT4_TY,
+    T_OBJECT_ARG_TY,
     &[T_INT2],
 )];
 
