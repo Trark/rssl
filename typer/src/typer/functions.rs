@@ -183,11 +183,7 @@ fn parse_paramtype(
             param_type.0.location,
         ));
     }
-    Ok(ir::ParamType(
-        ty,
-        param_type.1.clone(),
-        param_type.2.clone(),
-    ))
+    Ok(ir::ParamType(ty, param_type.1, param_type.2.clone()))
 }
 
 /// Process all function attributes

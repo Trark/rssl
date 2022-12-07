@@ -38,7 +38,7 @@ pub enum LocalStorage {
 }
 
 /// Binding type for parameters
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum InputModifier {
     /// Function input
     In,

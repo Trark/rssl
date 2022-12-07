@@ -1,14 +1,16 @@
 use crate::*;
 
-type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamType]);
+type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamDef]);
 
 type IntrinsicDefinition = (
     &'static str,
     Intrinsic,
     u32,
     TypeLayout,
-    &'static [ParamType],
+    &'static [ParamDef],
 );
+
+struct ParamDef(pub TypeLayout, pub InputModifier);
 
 use TypeLayout::Void;
 
@@ -34,31 +36,31 @@ const T_SAMPLER_TY: TypeLayout = TypeLayout::Object(ObjectType::SamplerState);
 const T_TEMPLATE0_TY: TypeLayout = TypeLayout::TemplateParam(TemplateTypeId(0));
 const T_OBJECT_ARG_TY: TypeLayout = TypeLayout::TemplateParam(TemplateTypeId(u32::MAX));
 
-const T_BOOL: ParamType = ParamType(T_BOOL_TY, InputModifier::In, None);
-const T_BOOL2: ParamType = ParamType(T_BOOL2_TY, InputModifier::In, None);
-const T_BOOL3: ParamType = ParamType(T_BOOL3_TY, InputModifier::In, None);
-const T_BOOL4: ParamType = ParamType(T_BOOL4_TY, InputModifier::In, None);
-const T_INT: ParamType = ParamType(T_INT_TY, InputModifier::In, None);
-const T_INT1: ParamType = ParamType(T_INT1_TY, InputModifier::In, None);
-const T_INT2: ParamType = ParamType(T_INT2_TY, InputModifier::In, None);
-const T_INT3: ParamType = ParamType(T_INT3_TY, InputModifier::In, None);
-const T_INT4: ParamType = ParamType(T_INT4_TY, InputModifier::In, None);
-const T_UINT: ParamType = ParamType(T_UINT_TY, InputModifier::In, None);
-const T_UINT2: ParamType = ParamType(T_UINT2_TY, InputModifier::In, None);
-const T_UINT3: ParamType = ParamType(T_UINT3_TY, InputModifier::In, None);
-const T_UINT4: ParamType = ParamType(T_UINT4_TY, InputModifier::In, None);
-const T_UINT_OUT: ParamType = ParamType(T_UINT_TY, InputModifier::Out, None);
-const T_FLOAT: ParamType = ParamType(T_FLOAT_TY, InputModifier::In, None);
-const T_FLOAT1: ParamType = ParamType(T_FLOAT1_TY, InputModifier::In, None);
-const T_FLOAT2: ParamType = ParamType(T_FLOAT2_TY, InputModifier::In, None);
-const T_FLOAT3: ParamType = ParamType(T_FLOAT3_TY, InputModifier::In, None);
-const T_FLOAT4: ParamType = ParamType(T_FLOAT4_TY, InputModifier::In, None);
-const T_FLOAT_OUT: ParamType = ParamType(T_FLOAT_TY, InputModifier::Out, None);
-const T_FLOAT2_OUT: ParamType = ParamType(T_FLOAT2_TY, InputModifier::Out, None);
-const T_FLOAT3_OUT: ParamType = ParamType(T_FLOAT3_TY, InputModifier::Out, None);
-const T_FLOAT4_OUT: ParamType = ParamType(T_FLOAT4_TY, InputModifier::Out, None);
-const T_SAMPLER: ParamType = ParamType(T_SAMPLER_TY, InputModifier::In, None);
-const T_TEMPLATE0: ParamType = ParamType(T_TEMPLATE0_TY, InputModifier::In, None);
+const T_BOOL: ParamDef = ParamDef(T_BOOL_TY, InputModifier::In);
+const T_BOOL2: ParamDef = ParamDef(T_BOOL2_TY, InputModifier::In);
+const T_BOOL3: ParamDef = ParamDef(T_BOOL3_TY, InputModifier::In);
+const T_BOOL4: ParamDef = ParamDef(T_BOOL4_TY, InputModifier::In);
+const T_INT: ParamDef = ParamDef(T_INT_TY, InputModifier::In);
+const T_INT1: ParamDef = ParamDef(T_INT1_TY, InputModifier::In);
+const T_INT2: ParamDef = ParamDef(T_INT2_TY, InputModifier::In);
+const T_INT3: ParamDef = ParamDef(T_INT3_TY, InputModifier::In);
+const T_INT4: ParamDef = ParamDef(T_INT4_TY, InputModifier::In);
+const T_UINT: ParamDef = ParamDef(T_UINT_TY, InputModifier::In);
+const T_UINT2: ParamDef = ParamDef(T_UINT2_TY, InputModifier::In);
+const T_UINT3: ParamDef = ParamDef(T_UINT3_TY, InputModifier::In);
+const T_UINT4: ParamDef = ParamDef(T_UINT4_TY, InputModifier::In);
+const T_UINT_OUT: ParamDef = ParamDef(T_UINT_TY, InputModifier::Out);
+const T_FLOAT: ParamDef = ParamDef(T_FLOAT_TY, InputModifier::In);
+const T_FLOAT1: ParamDef = ParamDef(T_FLOAT1_TY, InputModifier::In);
+const T_FLOAT2: ParamDef = ParamDef(T_FLOAT2_TY, InputModifier::In);
+const T_FLOAT3: ParamDef = ParamDef(T_FLOAT3_TY, InputModifier::In);
+const T_FLOAT4: ParamDef = ParamDef(T_FLOAT4_TY, InputModifier::In);
+const T_FLOAT_OUT: ParamDef = ParamDef(T_FLOAT_TY, InputModifier::Out);
+const T_FLOAT2_OUT: ParamDef = ParamDef(T_FLOAT2_TY, InputModifier::Out);
+const T_FLOAT3_OUT: ParamDef = ParamDef(T_FLOAT3_TY, InputModifier::Out);
+const T_FLOAT4_OUT: ParamDef = ParamDef(T_FLOAT4_TY, InputModifier::Out);
+const T_SAMPLER: ParamDef = ParamDef(T_SAMPLER_TY, InputModifier::In);
+const T_TEMPLATE0: ParamDef = ParamDef(T_TEMPLATE0_TY, InputModifier::In);
 
 #[rustfmt::skip]
 const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
@@ -166,8 +168,8 @@ const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
     ("dot", Intrinsic::Dot, &[T_FLOAT3, T_FLOAT3]),
     ("dot", Intrinsic::Dot, &[T_FLOAT4, T_FLOAT4]),
 
-    ("mul", Intrinsic::Mul, &[ParamType(TypeLayout::Matrix(ScalarType::Float, 3, 3), InputModifier::In, None), T_FLOAT3]),
-    ("mul", Intrinsic::Mul, &[ParamType(TypeLayout::Matrix(ScalarType::Float, 4, 4), InputModifier::In, None), T_FLOAT4]),
+    ("mul", Intrinsic::Mul, &[ParamDef(TypeLayout::Matrix(ScalarType::Float, 3, 3), InputModifier::In), T_FLOAT3]),
+    ("mul", Intrinsic::Mul, &[ParamDef(TypeLayout::Matrix(ScalarType::Float, 4, 4), InputModifier::In), T_FLOAT4]),
 
     ("f16tof32", Intrinsic::F16ToF32, &[T_UINT]),
     ("f32tof16", Intrinsic::F32ToF16, &[T_FLOAT]),
@@ -263,10 +265,16 @@ const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
 /// Create a collection of all the intrinsic functions
 pub fn get_intrinsics() -> Vec<(String, Intrinsic, FunctionSignature)> {
     let mut overloads = Vec::with_capacity(INTRINSICS.len());
-    for &(ref name, ref intrinsic, params) in INTRINSICS {
+    for &(ref name, ref intrinsic, param_types) in INTRINSICS {
+        // Fetch and remap the param types
+        let param_types = param_types
+            .iter()
+            .map(|p| ParamType(p.0.clone(), p.1, None))
+            .collect::<Vec<_>>();
+
         // Generate the return type
-        let mut expr_types = Vec::with_capacity(params.len());
-        for param_type in params {
+        let mut expr_types = Vec::with_capacity(param_types.len());
+        for param_type in &param_types {
             expr_types.push(param_type.clone().into());
         }
         let return_type = intrinsic.get_return_type(&expr_types).0;
@@ -279,7 +287,7 @@ pub fn get_intrinsics() -> Vec<(String, Intrinsic, FunctionSignature)> {
         let sig = FunctionSignature {
             return_type,
             template_params: TemplateParamCount(0),
-            param_types: params.to_vec(),
+            param_types,
         };
 
         overloads.push((name.to_string(), intrinsic.clone(), sig));
@@ -512,15 +520,22 @@ pub fn get_methods(object: &ObjectType) -> Vec<MethodDefinition> {
         // Fetch and remap the param types
         let param_types = param_types
             .iter()
-            .map(|p| {
-                let mut p = p.clone();
-                p.0 = remap_inner(p.0);
-                p
-            })
+            .map(|p| ParamType(remap_inner(p.0.clone()), p.1, None))
             .collect::<Vec<_>>();
 
         // Fetch and remap the return type
         let return_type = remap_inner(return_type.clone());
+
+        // Check generated return type for consistency
+        {
+            let mut expr_types = Vec::with_capacity(param_types.len());
+            expr_types.push(TypeLayout::Object(object.clone()).to_rvalue());
+            for param_type in &param_types {
+                expr_types.push(param_type.clone().into());
+            }
+            let generated_return_type = intrinsic.get_return_type(&expr_types).0;
+            assert_eq!(return_type, generated_return_type);
+        }
 
         methods.push(MethodDefinition {
             name: method_name.to_string(),
