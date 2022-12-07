@@ -79,7 +79,7 @@ impl Context {
     /// Create a new instance to store type and variable context
     pub fn new() -> Self {
         let mut context = Context {
-            module: Default::default(),
+            module: ir::Module::create(),
             scopes: Vec::from([ScopeData {
                 parent_scope: usize::MAX,
                 scope_name: None,
@@ -99,11 +99,22 @@ impl Context {
             struct_template_data: Vec::new(),
             cbuffer_data: Vec::new(),
         };
-        for (name, intrinsic, signature) in get_intrinsics() {
+
+        for i in 0..context.module.function_registry.get_function_count() {
+            let id = ir::FunctionId(i);
+
+            assert!(context
+                .module
+                .function_registry
+                .get_intrinsic_data(id)
+                .is_some());
+
+            // Register the functioon into the root scope
             context
-                .insert_intrinsic(name.clone(), intrinsic, signature)
-                .expect("Failed to add intrinsic");
+                .insert_function_in_scope(context.current_scope as usize, id)
+                .unwrap();
         }
+
         context
     }
 
@@ -494,35 +505,6 @@ impl Context {
     /// Add a registered function to the active scope
     pub fn add_function_to_current_scope(&mut self, id: ir::FunctionId) -> TyperResult<()> {
         self.insert_function_in_scope(self.current_scope as usize, id)
-    }
-
-    /// Register an intrinsic
-    fn insert_intrinsic(
-        &mut self,
-        name: String,
-        intrinsic: ir::Intrinsic,
-        signature: ir::FunctionSignature,
-    ) -> TyperResult<ir::FunctionId> {
-        // All intrinsic functions are in root namespace
-        let full_name = ir::ScopedName(Vec::from([name.clone()]));
-
-        // Register the intrinsic as a function
-        let id = self.module.function_registry.register_function(
-            ir::FunctionNameDefinition {
-                name: Located::none(name),
-                full_name,
-            },
-            signature,
-        );
-
-        // Register the functioon into the root scope
-        self.insert_function_in_scope(self.current_scope as usize, id)?;
-
-        self.module
-            .function_registry
-            .set_intrinsic_data(id, intrinsic);
-
-        Ok(id)
     }
 
     /// Register a new global variable
@@ -1084,36 +1066,6 @@ impl VariableBlock {
                 map
             })
     }
-}
-
-/// Create a map of all the intrinsic functions we need to parse
-fn get_intrinsics() -> Vec<(String, ir::Intrinsic, ir::FunctionSignature)> {
-    use crate::intrinsics::*;
-    let funcs = get_intrinsics();
-
-    let mut overloads = Vec::with_capacity(funcs.len());
-    for &(ref name, ref intrinsic, params) in funcs {
-        // Generate the return type
-        let mut expr_types = Vec::with_capacity(params.len());
-        for param_type in params {
-            expr_types.push(param_type.clone().into());
-        }
-        let return_type = intrinsic.get_return_type(&expr_types).0;
-        let return_type = ir::FunctionReturn {
-            return_type,
-            semantic: None,
-        };
-
-        // Make the signature
-        let sig = ir::FunctionSignature {
-            return_type,
-            template_params: ir::TemplateParamCount(0),
-            param_types: params.to_vec(),
-        };
-
-        overloads.push((name.to_string(), intrinsic.clone(), sig));
-    }
-    overloads
 }
 
 impl Default for Context {

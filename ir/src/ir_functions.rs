@@ -99,6 +99,11 @@ impl FunctionRegistry {
         self.intrinsic_data[id.0 as usize] = Some(intrinsic);
     }
 
+    /// Get the total number of registered functions
+    pub fn get_function_count(&self) -> u32 {
+        self.names.len() as u32
+    }
+
     /// Get the signature from a function id
     pub fn get_function_signature(&self, id: FunctionId) -> &FunctionSignature {
         &self.signatures[id.0 as usize]

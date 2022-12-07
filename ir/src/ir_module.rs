@@ -1,5 +1,5 @@
 use crate::*;
-use rssl_text::SourceLocation;
+use rssl_text::{Located, SourceLocation};
 use std::collections::{HashMap, HashSet};
 
 /// Represents a full parsed and type checked source file
@@ -82,6 +82,29 @@ pub struct AssignBindingsParams {
 }
 
 impl Module {
+    /// Create a new module
+    pub fn create() -> Self {
+        let mut module = Module::default();
+
+        for (name, intrinsic, signature) in intrinsic_data::get_intrinsics() {
+            // All intrinsic functions are in root namespace
+            let full_name = ScopedName::unscoped(name.clone());
+
+            // Register the intrinsic as a function
+            let id = module.function_registry.register_function(
+                FunctionNameDefinition {
+                    name: Located::none(name),
+                    full_name,
+                },
+                signature,
+            );
+
+            module.function_registry.set_intrinsic_data(id, intrinsic);
+        }
+
+        module
+    }
+
     /// Get the name from a struct id
     pub fn get_struct_name(&self, id: StructId) -> &str {
         assert!(id.0 < self.struct_registry.len() as u32);

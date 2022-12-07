@@ -5,7 +5,6 @@ use super::types::{
     apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
 };
 use crate::casting::{ConversionPriority, ImplicitConversion};
-use crate::intrinsics;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::ExpressionType;
@@ -264,7 +263,7 @@ fn write_function(
 
     if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
         Ok(TypedExpression::Value(
-            intrinsics::create_intrinsic(intrinsic, template_args, &param_values),
+            create_intrinsic(intrinsic, template_args, &param_values),
             return_type,
         ))
     } else {
@@ -306,7 +305,7 @@ fn write_method(
 
     if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
         Ok(TypedExpression::Value(
-            intrinsics::create_intrinsic(intrinsic, template_args, &param_values),
+            create_intrinsic(intrinsic, template_args, &param_values),
             return_type,
         ))
     } else {
@@ -327,6 +326,19 @@ fn write_method(
             return_type,
         ))
     }
+}
+
+/// Make an intrinsic expression node
+fn create_intrinsic(
+    intrinsic: &ir::Intrinsic,
+    template_args: &[Located<ir::TypeOrConstant>],
+    param_values: &[ir::Expression],
+) -> ir::Expression {
+    let mut exprs = Vec::with_capacity(param_values.len());
+    for param_value in param_values {
+        exprs.push(param_value.clone());
+    }
+    ir::Expression::Intrinsic(intrinsic.clone(), template_args.to_vec(), exprs)
 }
 
 fn parse_literal(ast: &ast::Literal) -> TypedExpression {
