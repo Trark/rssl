@@ -1,14 +1,28 @@
 use crate::*;
+use rssl_text::Located;
 
 /// Id to a type definition
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TypeId(pub u32);
 
+/// Id to an intrinsic object definition
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct ObjectId(pub u32);
+
 /// Container of all registered types
 #[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub struct TypeRegistry {
+    /// Full type tree information for each type id
     layouts: Vec<TypeLayout>,
+
+    /// Direct type information for each type id
     layers: Vec<TypeLayer>,
+
+    /// Layout information for a registered object type
+    object_layouts: Vec<ObjectType>,
+
+    /// Functions for a registered object type
+    object_functions: Vec<Vec<FunctionId>>,
 }
 
 /// The description of a type represented by a type id.
@@ -80,9 +94,60 @@ impl TypeRegistry {
         id
     }
 
-    /// Get the type layout for an type id
+    /// Get the type layout for a type id
     pub fn get_type_layout(&self, id: TypeId) -> &TypeLayout {
         &self.layouts[id.0 as usize]
+    }
+
+    /// Get the object type layout for an object id
+    pub fn get_object_layout(&self, id: ObjectId) -> &ObjectType {
+        &self.object_layouts[id.0 as usize]
+    }
+
+    /// Get the intrinsic functions for an object id
+    pub fn get_object_functions(&self, id: ObjectId) -> &Vec<FunctionId> {
+        &self.object_functions[id.0 as usize]
+    }
+}
+
+impl Module {
+    /// Get or create the object id from an object type
+    pub fn register_object(&mut self, object_type: ObjectType) -> ObjectId {
+        // Search for an existing registration of the object
+        for (i, existing) in self.type_registry.object_layouts.iter().enumerate() {
+            if object_type == *existing {
+                return ObjectId(i as u32);
+            }
+        }
+
+        // Make a new entry
+        let id = ObjectId(self.type_registry.object_layouts.len() as u32);
+        self.type_registry.object_layouts.push(object_type);
+
+        // Gather the intrinsic functions
+        let mut functions = Vec::new();
+        for def in intrinsic_data::get_methods(self.type_registry.get_object_layout(id)) {
+            // Register the function
+            let func_id = self.function_registry.register_function(
+                FunctionNameDefinition {
+                    name: Located::none(def.name.clone()),
+                    full_name: ScopedName::unscoped(def.name),
+                },
+                def.signature,
+            );
+
+            // Set the intrinsic that is represented by this function registration
+            self.function_registry
+                .set_intrinsic_data(func_id, def.intrinsic);
+
+            // Add it to the list of functions for this type
+            functions.push(func_id);
+        }
+
+        // Set the list of functions for this type
+        self.type_registry.object_functions.push(functions);
+
+        id
     }
 }
 

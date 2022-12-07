@@ -395,6 +395,13 @@ impl Module {
     }
 }
 
+impl ScopedName {
+    /// Create a scoped name with no scoping
+    pub fn unscoped(name: String) -> Self {
+        ScopedName(Vec::from([name]))
+    }
+}
+
 impl Default for AssignBindingsParams {
     fn default() -> Self {
         AssignBindingsParams {

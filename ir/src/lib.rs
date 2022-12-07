@@ -3,6 +3,7 @@
 //! The IR library contains all the definitions for the typed internal representation for RSSL.
 //! The root is a [Module] instance.
 
+pub(crate) mod intrinsic_data;
 mod intrinsics;
 mod ir_expressions;
 mod ir_functions;

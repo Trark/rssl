@@ -1137,38 +1137,47 @@ fn parse_expr_unchecked(
                         }
                     };
 
-                    match intrinsics::get_method(object_type, member) {
-                        Ok(intrinsics::MethodDefinition(object_type, _, method_overloads)) => {
-                            let ty = ir::TypeLayout::from_object(object_type);
-                            let overloads = method_overloads
-                                .iter()
-                                .map(|&(template_types, ref param_types, ref factory)| {
-                                    let return_type = ir::FunctionReturn {
-                                        return_type: factory
-                                            .get_method_return_type(ty.clone().to_rvalue())
-                                            .0,
-                                        semantic: None,
-                                    };
-                                    FunctionOverload(
-                                        Callable::Intrinsic(factory.clone()),
-                                        ir::FunctionSignature {
-                                            return_type,
-                                            template_params: template_types,
-                                            param_types: param_types.clone(),
-                                        },
-                                    )
-                                })
-                                .collect::<Vec<_>>();
-                            Ok(TypedExpression::Method(UnresolvedMethod {
-                                object_type: ty,
-                                overloads,
-                                object_value: composite_ir,
-                            }))
+                    // Get the object id or register it if it was not already seen
+                    let obj_id = context.module.register_object(object_type.clone());
+
+                    let mut overloads = Vec::new();
+                    for func_id in context.module.type_registry.get_object_functions(obj_id) {
+                        if context.module.function_registry.get_function_name(*func_id)
+                            == member.node
+                        {
+                            let intrinsic = context
+                                .module
+                                .function_registry
+                                .get_intrinsic_data(*func_id)
+                                .as_ref()
+                                .unwrap()
+                                .clone();
+
+                            let callable = Callable::Intrinsic(
+                                intrinsics::IntrinsicFactory::Method(intrinsic, *func_id),
+                            );
+
+                            let signature = context
+                                .module
+                                .function_registry
+                                .get_function_signature(*func_id)
+                                .clone();
+
+                            overloads.push(FunctionOverload(callable, signature))
                         }
-                        Err(()) => Err(TyperError::MemberDoesNotExist(
+                    }
+
+                    if overloads.is_empty() {
+                        Err(TyperError::MemberDoesNotExist(
                             composite_ty,
                             error_name.clone(),
-                        )),
+                        ))
+                    } else {
+                        Ok(TypedExpression::Method(UnresolvedMethod {
+                            object_type: composite_tyl.clone(),
+                            overloads,
+                            object_value: composite_ir,
+                        }))
                     }
                 }
                 // Todo: Matrix components + Object members

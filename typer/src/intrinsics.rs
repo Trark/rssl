@@ -5,7 +5,7 @@ use rssl_text::Located;
 #[derive(PartialEq, Debug, Clone)]
 pub enum IntrinsicFactory {
     Function(Intrinsic, &'static [ParamType]),
-    Method(Intrinsic, &'static [ParamType]),
+    Method(Intrinsic, rssl_ir::FunctionId),
 }
 
 impl IntrinsicFactory {
@@ -14,24 +14,18 @@ impl IntrinsicFactory {
         template_args: &[Located<TypeOrConstant>],
         param_values: &[Expression],
     ) -> Expression {
-        match *self {
+        let i = match *self {
             IntrinsicFactory::Function(ref i, param_types) => {
                 assert_eq!(param_values.len(), param_types.len());
-                let mut exprs = Vec::with_capacity(param_values.len());
-                for param_value in param_values {
-                    exprs.push(param_value.clone());
-                }
-                Expression::Intrinsic(i.clone(), template_args.to_vec(), exprs)
+                i
             }
-            IntrinsicFactory::Method(ref i, param_types) => {
-                assert_eq!(param_values.len(), param_types.len() + 1);
-                let mut exprs = Vec::with_capacity(param_values.len());
-                for param_value in param_values {
-                    exprs.push(param_value.clone());
-                }
-                Expression::Intrinsic(i.clone(), template_args.to_vec(), exprs)
-            }
+            IntrinsicFactory::Method(ref i, _) => i,
+        };
+        let mut exprs = Vec::with_capacity(param_values.len());
+        for param_value in param_values {
+            exprs.push(param_value.clone());
         }
+        Expression::Intrinsic(i.clone(), template_args.to_vec(), exprs)
     }
 
     pub fn get_return_type(&self) -> ExpressionType {
@@ -48,26 +42,9 @@ impl IntrinsicFactory {
             }
         }
     }
-
-    pub fn get_method_return_type(&self, object_type: ExpressionType) -> ExpressionType {
-        match *self {
-            IntrinsicFactory::Function(..) => {
-                panic!("get_method_return_type called on non-method")
-            }
-            IntrinsicFactory::Method(ref i, param_types) => {
-                let mut expr_types = Vec::with_capacity(param_types.len() + 1);
-                expr_types.push(object_type);
-                for param_type in param_types {
-                    expr_types.push(param_type.clone().into());
-                }
-                i.get_return_type(&expr_types)
-            }
-        }
-    }
 }
 
 pub type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamType]);
-pub type IntrinsicDefinition = (&'static str, Intrinsic, u32, &'static [ParamType]);
 
 const T_BOOL_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Bool);
 const T_BOOL2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 2);
@@ -87,8 +64,6 @@ const T_FLOAT1_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 1);
 const T_FLOAT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 2);
 const T_FLOAT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 3);
 const T_FLOAT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 4);
-const T_SAMPLER_TY: TypeLayout = TypeLayout::Object(ObjectType::SamplerState);
-const T_TEMPLATE0_TY: TypeLayout = TypeLayout::TemplateParam(TemplateTypeId(0));
 
 const T_BOOL: ParamType = ParamType(T_BOOL_TY, InputModifier::In, None);
 const T_BOOL2: ParamType = ParamType(T_BOOL2_TY, InputModifier::In, None);
@@ -103,7 +78,6 @@ const T_UINT: ParamType = ParamType(T_UINT_TY, InputModifier::In, None);
 const T_UINT2: ParamType = ParamType(T_UINT2_TY, InputModifier::In, None);
 const T_UINT3: ParamType = ParamType(T_UINT3_TY, InputModifier::In, None);
 const T_UINT4: ParamType = ParamType(T_UINT4_TY, InputModifier::In, None);
-const T_UINT_OUT: ParamType = ParamType(T_UINT_TY, InputModifier::Out, None);
 const T_FLOAT: ParamType = ParamType(T_FLOAT_TY, InputModifier::In, None);
 const T_FLOAT1: ParamType = ParamType(T_FLOAT1_TY, InputModifier::In, None);
 const T_FLOAT2: ParamType = ParamType(T_FLOAT2_TY, InputModifier::In, None);
@@ -113,8 +87,6 @@ const T_FLOAT_OUT: ParamType = ParamType(T_FLOAT_TY, InputModifier::Out, None);
 const T_FLOAT2_OUT: ParamType = ParamType(T_FLOAT2_TY, InputModifier::Out, None);
 const T_FLOAT3_OUT: ParamType = ParamType(T_FLOAT3_TY, InputModifier::Out, None);
 const T_FLOAT4_OUT: ParamType = ParamType(T_FLOAT4_TY, InputModifier::Out, None);
-const T_SAMPLER: ParamType = ParamType(T_SAMPLER_TY, InputModifier::In, None);
-const T_TEMPLATE0: ParamType = ParamType(T_TEMPLATE0_TY, InputModifier::In, None);
 
 #[rustfmt::skip]
 const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
@@ -318,120 +290,4 @@ const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
 
 pub fn get_intrinsics() -> &'static [IntrinsicDefinitionNoTemplates] {
     INTRINSICS
-}
-
-const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[("Load", Intrinsic::BufferLoad, 0, &[T_INT])];
-const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::RWBufferLoad, 0, &[T_INT])];
-const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::StructuredBufferLoad, 0, &[T_INT])];
-const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::RWStructuredBufferLoad, 0, &[T_INT])];
-const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
-    (
-        "Sample",
-        Intrinsic::Texture2DSample,
-        0,
-        &[T_SAMPLER, T_FLOAT2],
-    ),
-    ("Load", Intrinsic::Texture2DLoad, 0, &[T_INT3]),
-];
-const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::RWTexture2DLoad, 0, &[T_INT2])];
-const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
-    ("Load", Intrinsic::ByteAddressBufferLoad, 0, &[T_UINT]),
-    ("Load2", Intrinsic::ByteAddressBufferLoad2, 0, &[T_UINT]),
-    ("Load3", Intrinsic::ByteAddressBufferLoad3, 0, &[T_UINT]),
-    ("Load4", Intrinsic::ByteAddressBufferLoad4, 0, &[T_UINT]),
-    ("Load", Intrinsic::ByteAddressBufferLoadT, 1, &[T_UINT]),
-];
-const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
-    ("Load", Intrinsic::RWByteAddressBufferLoad, 0, &[T_UINT]),
-    ("Load2", Intrinsic::RWByteAddressBufferLoad2, 0, &[T_UINT]),
-    ("Load3", Intrinsic::RWByteAddressBufferLoad3, 0, &[T_UINT]),
-    ("Load4", Intrinsic::RWByteAddressBufferLoad4, 0, &[T_UINT]),
-    (
-        "Store",
-        Intrinsic::RWByteAddressBufferStore,
-        0,
-        &[T_UINT, T_UINT],
-    ),
-    (
-        "Store2",
-        Intrinsic::RWByteAddressBufferStore2,
-        0,
-        &[T_UINT, T_UINT2],
-    ),
-    (
-        "Store3",
-        Intrinsic::RWByteAddressBufferStore3,
-        0,
-        &[T_UINT, T_UINT3],
-    ),
-    (
-        "Store4",
-        Intrinsic::RWByteAddressBufferStore4,
-        0,
-        &[T_UINT, T_UINT4],
-    ),
-    (
-        "InterlockedAdd",
-        Intrinsic::RWByteAddressBufferInterlockedAdd,
-        0,
-        &[T_UINT, T_UINT, T_UINT_OUT],
-    ),
-];
-const BUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::BufferAddressLoad, 1, &[T_UINT])];
-const RWBUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[
-    ("Load", Intrinsic::RWBufferAddressLoad, 1, &[T_UINT]),
-    (
-        "Store",
-        Intrinsic::RWBufferAddressStore,
-        1,
-        &[T_UINT, T_TEMPLATE0],
-    ),
-];
-
-pub struct MethodDefinition(
-    pub ObjectType,
-    pub String,
-    pub Vec<(TemplateParamCount, Vec<ParamType>, IntrinsicFactory)>,
-);
-
-pub fn get_method(object: &ObjectType, name: &str) -> Result<MethodDefinition, ()> {
-    type FmResult = Result<MethodDefinition, ()>;
-    fn find_method(object: &ObjectType, defs: &[IntrinsicDefinition], name: &str) -> FmResult {
-        let mut methods = vec![];
-        for &(method_name, ref intrinsic, template_param_count, param_types) in defs {
-            if method_name == name {
-                methods.push((
-                    TemplateParamCount(template_param_count),
-                    param_types.to_vec(),
-                    IntrinsicFactory::Method(intrinsic.clone(), param_types),
-                ));
-            };
-        }
-        if !methods.is_empty() {
-            Ok(MethodDefinition(object.clone(), name.to_string(), methods))
-        } else {
-            Err(())
-        }
-    }
-
-    let methods = match *object {
-        ObjectType::Buffer(_) => BUFFER_INTRINSICS,
-        ObjectType::RWBuffer(_) => RWBUFFER_INTRINSICS,
-        ObjectType::StructuredBuffer(_) => STRUCTUREDBUFFER_INTRINSICS,
-        ObjectType::RWStructuredBuffer(_) => RWSTRUCTUREDBUFFER_INTRINSICS,
-        ObjectType::Texture2D(_) => TEXTURE2D_INTRINSICS,
-        ObjectType::RWTexture2D(_) => RWTEXTURE2D_INTRINSICS,
-        ObjectType::ByteAddressBuffer => BYTEADDRESSBUFFER_INTRINSICS,
-        ObjectType::RWByteAddressBuffer => RWBYTEADDRESSBUFFER_INTRINSICS,
-        ObjectType::BufferAddress => BUFFERADDRESS_INTRINSICS,
-        ObjectType::RWBufferAddress => RWBUFFERADDRESS_INTRINSICS,
-        _ => return Err(()),
-    };
-
-    find_method(object, methods, name)
 }
