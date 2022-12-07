@@ -1,47 +1,17 @@
 use rssl_ir::*;
 use rssl_text::Located;
 
-/// Creates intrinsic nodes from argument expressions
-#[derive(PartialEq, Debug, Clone)]
-pub enum IntrinsicFactory {
-    Function(Intrinsic, &'static [ParamType]),
-    Method(Intrinsic, rssl_ir::FunctionId),
-}
-
-impl IntrinsicFactory {
-    pub fn create_intrinsic(
-        &self,
-        template_args: &[Located<TypeOrConstant>],
-        param_values: &[Expression],
-    ) -> Expression {
-        let i = match *self {
-            IntrinsicFactory::Function(ref i, param_types) => {
-                assert_eq!(param_values.len(), param_types.len());
-                i
-            }
-            IntrinsicFactory::Method(ref i, _) => i,
-        };
-        let mut exprs = Vec::with_capacity(param_values.len());
-        for param_value in param_values {
-            exprs.push(param_value.clone());
-        }
-        Expression::Intrinsic(i.clone(), template_args.to_vec(), exprs)
+/// Make an intrinsic expression node
+pub fn create_intrinsic(
+    intrinsic: &Intrinsic,
+    template_args: &[Located<TypeOrConstant>],
+    param_values: &[Expression],
+) -> Expression {
+    let mut exprs = Vec::with_capacity(param_values.len());
+    for param_value in param_values {
+        exprs.push(param_value.clone());
     }
-
-    pub fn get_return_type(&self) -> ExpressionType {
-        match *self {
-            IntrinsicFactory::Function(ref i, param_types) => {
-                let mut expr_types = Vec::with_capacity(param_types.len());
-                for param_type in param_types {
-                    expr_types.push(param_type.clone().into());
-                }
-                i.get_return_type(&expr_types)
-            }
-            IntrinsicFactory::Method(..) => {
-                panic!("get_return_type called on method")
-            }
-        }
-    }
+    Expression::Intrinsic(intrinsic.clone(), template_args.to_vec(), exprs)
 }
 
 pub type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamType]);

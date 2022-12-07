@@ -7,14 +7,8 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::Located;
 
-#[derive(PartialEq, Debug, Clone)]
-pub enum Callable {
-    Function(ir::FunctionId),
-    Intrinsic(crate::intrinsics::IntrinsicFactory),
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct FunctionOverload(pub Callable, pub ir::FunctionSignature);
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct FunctionOverload(pub ir::FunctionId, pub ir::FunctionSignature);
 
 /// Trait for applying template arguments onto another type
 pub trait ApplyTemplates {

@@ -1,7 +1,7 @@
 use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
-use super::functions::{parse_function_body, ApplyTemplates, Callable, FunctionOverload};
+use super::functions::{parse_function_body, ApplyTemplates, FunctionOverload};
 use super::structs::build_struct_from_template;
 use super::types::apply_template_type_substitution;
 use ir::{ExpressionType, ToExpressionType};
@@ -35,7 +35,6 @@ pub enum StructMemberValue {
 
 #[derive(Debug, Clone)]
 struct FunctionData {
-    overload: FunctionOverload,
     scope: ScopeIndex,
     ast: Option<Rc<ast::FunctionDefinition>>,
     instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::FunctionId>,
@@ -100,9 +99,9 @@ impl Context {
             struct_template_data: Vec::new(),
             cbuffer_data: Vec::new(),
         };
-        for (name, intrinsic, overload) in get_intrinsics() {
+        for (name, intrinsic, signature) in get_intrinsics() {
             context
-                .insert_intrinsic(name.clone(), intrinsic, overload)
+                .insert_intrinsic(name.clone(), intrinsic, signature)
                 .expect("Failed to add intrinsic");
         }
         context
@@ -407,7 +406,12 @@ impl Context {
         if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
             let mut overloads = Vec::with_capacity(methods.len());
             for method_id in methods {
-                overloads.push(self.function_data[method_id].overload.clone());
+                let signature = self
+                    .module
+                    .function_registry
+                    .get_function_signature(*method_id);
+                let overload = FunctionOverload(*method_id, signature.clone());
+                overloads.push(overload);
             }
             return Ok(StructMemberValue::Method(overloads));
         }
@@ -446,21 +450,6 @@ impl Context {
         }
     }
 
-    /// Get the name from a function
-    pub fn get_function_or_intrinsic_name(&self, id: &Callable) -> &str {
-        match *id {
-            Callable::Function(id) => self.module.get_function_name(id),
-            Callable::Intrinsic(_) => {
-                for (func_id, data) in &self.function_data {
-                    if data.overload.0 == *id {
-                        return self.module.function_registry.get_function_name(*func_id);
-                    }
-                }
-                "<unknown>"
-            }
-        }
-    }
-
     /// Register a local variable
     pub fn insert_variable(
         &mut self,
@@ -484,16 +473,15 @@ impl Context {
         let full_name = self.get_qualified_name(&name);
 
         // Register the function with the module
-        let id = self.module.function_registry.register_function(
-            ir::FunctionNameDefinition { name, full_name },
-            signature.clone(),
-        );
+        let id = self
+            .module
+            .function_registry
+            .register_function(ir::FunctionNameDefinition { name, full_name }, signature);
 
         // Set function data used by scope management
         self.function_data.insert(
             id,
             FunctionData {
-                overload: FunctionOverload(Callable::Function(id), signature),
                 scope,
                 ast: Some(Rc::new(ast)),
                 instantiations: HashMap::new(),
@@ -513,7 +501,7 @@ impl Context {
         &mut self,
         name: String,
         intrinsic: ir::Intrinsic,
-        overload: FunctionOverload,
+        signature: ir::FunctionSignature,
     ) -> TyperResult<ir::FunctionId> {
         // All intrinsic functions are in root namespace
         let full_name = ir::ScopedName(Vec::from([name.clone()]));
@@ -524,18 +512,7 @@ impl Context {
                 name: Located::none(name),
                 full_name,
             },
-            overload.1.clone(),
-        );
-
-        // Intrinsics do not have much useful data beyond the signature
-        self.function_data.insert(
-            id,
-            FunctionData {
-                overload,
-                scope: usize::MAX,
-                ast: None,
-                instantiations: HashMap::new(),
-            },
+            signature,
         );
 
         // Register the functioon into the root scope
@@ -833,7 +810,8 @@ impl Context {
         if let Some(ids) = scope.function_ids.get(name) {
             let mut overloads = Vec::with_capacity(ids.len());
             for id in ids {
-                overloads.push(self.function_data[id].overload.clone());
+                let signature = self.module.function_registry.get_function_signature(*id);
+                overloads.push(FunctionOverload(*id, signature.clone()));
             }
             return Some(VariableExpression::Function(UnresolvedFunction {
                 overloads,
@@ -895,9 +873,11 @@ impl Context {
             Entry::Occupied(mut occupied) => {
                 // Fail if the overload already exists
                 for existing_id in occupied.get() {
-                    if self.function_data[existing_id].overload.1.param_types
-                        == signature.param_types
-                    {
+                    let existing_signature = self
+                        .module
+                        .function_registry
+                        .get_function_signature(*existing_id);
+                    if existing_signature.param_types == signature.param_types {
                         return Err(TyperError::ValueAlreadyDefined(
                             name_data.name.clone(),
                             ErrorType::Unknown,
@@ -937,9 +917,6 @@ impl Context {
         let parent_scope_id = self.scopes[old_scope_id].parent_scope;
         let new_scope_id = self.make_scope(parent_scope_id);
 
-        // Reborrow data after mutating scopes (false requirement in this case as function array is not touched)
-        let data = &self.function_data[&id];
-
         // There should be no local variables on the template scope
         assert!(self.scopes[old_scope_id].variables.variables.is_empty());
 
@@ -968,7 +945,8 @@ impl Context {
         self.scopes[new_scope_id].owning_struct = self.scopes[old_scope_id].owning_struct;
 
         // Function signature requires applying template substitution
-        let signature = data.overload.1.clone().apply_templates(template_args);
+        let base_signature = self.module.function_registry.get_function_signature(id);
+        let signature = base_signature.clone().apply_templates(template_args);
 
         // Return type can be retrieved from the signature
         self.scopes[new_scope_id].function_return_type =
@@ -1001,7 +979,6 @@ impl Context {
         self.function_data.insert(
             new_id,
             FunctionData {
-                overload: FunctionOverload(Callable::Function(new_id), signature.clone()),
                 scope: new_scope_id,
                 ast: None,
                 instantiations: HashMap::new(),
@@ -1110,27 +1087,31 @@ impl VariableBlock {
 }
 
 /// Create a map of all the intrinsic functions we need to parse
-fn get_intrinsics() -> Vec<(String, ir::Intrinsic, FunctionOverload)> {
+fn get_intrinsics() -> Vec<(String, ir::Intrinsic, ir::FunctionSignature)> {
     use crate::intrinsics::*;
     let funcs = get_intrinsics();
 
     let mut overloads = Vec::with_capacity(funcs.len());
     for &(ref name, ref intrinsic, params) in funcs {
-        let factory = IntrinsicFactory::Function(intrinsic.clone(), params);
+        // Generate the return type
+        let mut expr_types = Vec::with_capacity(params.len());
+        for param_type in params {
+            expr_types.push(param_type.clone().into());
+        }
+        let return_type = intrinsic.get_return_type(&expr_types).0;
         let return_type = ir::FunctionReturn {
-            return_type: factory.get_return_type().0,
+            return_type,
             semantic: None,
         };
-        let param_types = params.to_vec();
-        let overload = FunctionOverload(
-            Callable::Intrinsic(factory.clone()),
-            ir::FunctionSignature {
-                return_type,
-                template_params: ir::TemplateParamCount(0),
-                param_types,
-            },
-        );
-        overloads.push((name.to_string(), intrinsic.clone(), overload));
+
+        // Make the signature
+        let sig = ir::FunctionSignature {
+            return_type,
+            template_params: ir::TemplateParamCount(0),
+            param_types: params.to_vec(),
+        };
+
+        overloads.push((name.to_string(), intrinsic.clone(), sig));
     }
     overloads
 }

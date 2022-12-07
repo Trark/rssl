@@ -1,5 +1,5 @@
 use super::errors::*;
-use super::functions::{ApplyTemplates, Callable, FunctionOverload};
+use super::functions::{ApplyTemplates, FunctionOverload};
 use super::scopes::*;
 use super::types::{
     apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
@@ -24,7 +24,7 @@ pub enum VariableExpression {
 }
 
 /// Set of overloaded functions
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct UnresolvedFunction {
     pub overloads: Vec<FunctionOverload>,
 }
@@ -251,7 +251,7 @@ fn write_function(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
-    let (FunctionOverload(name, ir::FunctionSignature { return_type, .. }), casts) =
+    let (FunctionOverload(id, ir::FunctionSignature { return_type, .. }), casts) =
         find_function_type(
             &unresolved.overloads,
             template_args,
@@ -262,24 +262,23 @@ fn write_function(
     let param_values = apply_casts(casts, param_values);
     let return_type = return_type.return_type.to_rvalue();
 
-    match name {
-        Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
-            factory.create_intrinsic(template_args, &param_values),
+    if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
+        Ok(TypedExpression::Value(
+            intrinsics::create_intrinsic(intrinsic, template_args, &param_values),
             return_type,
-        )),
-        Callable::Function(id) => {
-            let id = if !template_args.is_empty() {
-                // Now we have to make the actual instance of that template
-                context.build_function_template(id, template_args)?
-            } else {
-                id
-            };
-            // TODO: Call will not need template args if we can encode it all in id
-            Ok(TypedExpression::Value(
-                ir::Expression::Call(id, call_type, template_args.to_vec(), param_values),
-                return_type,
-            ))
-        }
+        ))
+    } else {
+        let id = if !template_args.is_empty() {
+            // Now we have to make the actual instance of that template
+            context.build_function_template(id, template_args)?
+        } else {
+            id
+        };
+        // TODO: Call will not need template args if we can encode it all in id
+        Ok(TypedExpression::Value(
+            ir::Expression::Call(id, call_type, template_args.to_vec(), param_values),
+            return_type,
+        ))
     }
 }
 
@@ -292,7 +291,7 @@ fn write_method(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
-    let (FunctionOverload(name, ir::FunctionSignature { return_type, .. }), casts) =
+    let (FunctionOverload(id, ir::FunctionSignature { return_type, .. }), casts) =
         find_function_type(
             &unresolved.overloads,
             template_args,
@@ -305,29 +304,28 @@ fn write_method(
     param_values.insert(0, unresolved.object_value);
     let return_type = return_type.return_type.to_rvalue();
 
-    match name {
-        Callable::Intrinsic(factory) => Ok(TypedExpression::Value(
-            factory.create_intrinsic(template_args, &param_values),
+    if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
+        Ok(TypedExpression::Value(
+            intrinsics::create_intrinsic(intrinsic, template_args, &param_values),
             return_type,
-        )),
-        Callable::Function(id) => {
-            let id = if !template_args.is_empty() {
-                // Now we have to make the actual instance of that template
-                context.build_function_template(id, template_args)?
-            } else {
-                id
-            };
-            // TODO: Call will not need template args if we can encode it all in id
-            Ok(TypedExpression::Value(
-                ir::Expression::Call(
-                    id,
-                    ir::CallType::MethodExternal,
-                    template_args.to_vec(),
-                    param_values,
-                ),
-                return_type,
-            ))
-        }
+        ))
+    } else {
+        let id = if !template_args.is_empty() {
+            // Now we have to make the actual instance of that template
+            context.build_function_template(id, template_args)?
+        } else {
+            id
+        };
+        // TODO: Call will not need template args if we can encode it all in id
+        Ok(TypedExpression::Value(
+            ir::Expression::Call(
+                id,
+                ir::CallType::MethodExternal,
+                template_args.to_vec(),
+                param_values,
+            ),
+            return_type,
+        ))
     }
 }
 
@@ -1145,25 +1143,13 @@ fn parse_expr_unchecked(
                         if context.module.function_registry.get_function_name(*func_id)
                             == member.node
                         {
-                            let intrinsic = context
-                                .module
-                                .function_registry
-                                .get_intrinsic_data(*func_id)
-                                .as_ref()
-                                .unwrap()
-                                .clone();
-
-                            let callable = Callable::Intrinsic(
-                                intrinsics::IntrinsicFactory::Method(intrinsic, *func_id),
-                            );
-
                             let signature = context
                                 .module
                                 .function_registry
                                 .get_function_signature(*func_id)
                                 .clone();
 
-                            overloads.push(FunctionOverload(callable, signature))
+                            overloads.push(FunctionOverload(*func_id, signature))
                         }
                     }
 

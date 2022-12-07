@@ -1,4 +1,3 @@
-use super::functions::Callable;
 use super::functions::FunctionOverload;
 use super::scopes::Context;
 use rssl_ast as ast;
@@ -322,7 +321,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 call_location,
                 ambiguous_success,
             ) => {
-                let func_name = context.get_function_or_intrinsic_name(&overloads[0].0);
+                let func_name = context.module.get_function_name(overloads[0].0);
                 write_message(
                     &|f| {
                         if *ambiguous_success {
@@ -342,7 +341,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     Severity::Error,
                 )?;
                 for overload in overloads {
-                    let location = get_function_location(&overload.0, context);
+                    let location = get_function_location(overload.0, context);
                     write_message(
                         &|f| {
                             write!(
@@ -531,11 +530,8 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
 }
 
 /// Get the location of a function
-fn get_function_location(name: &Callable, context: &Context) -> SourceLocation {
-    match *name {
-        Callable::Function(id) => context.module.get_function_location(id),
-        Callable::Intrinsic(_) => SourceLocation::UNKNOWN,
-    }
+fn get_function_location(id: ir::FunctionId, context: &Context) -> SourceLocation {
+    context.module.get_function_location(id)
 }
 
 /// Get a string name from a type for error display
