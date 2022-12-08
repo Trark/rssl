@@ -971,10 +971,14 @@ fn export_subexpression(
             output.push_str(name)
         }
         ir::Expression::Call(id, ct, tys, exprs) => {
-            export_user_call(*id, ct, tys, exprs, output, context)?;
+            if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(*id) {
+                export_intrinsic_function(intrinsic, tys, exprs, prec, output, context)?;
+            } else {
+                export_user_call(*id, ct, tys, exprs, output, context)?;
+            }
         }
-        ir::Expression::Intrinsic(intrinsic, tys, exprs) => {
-            export_intrinsic(intrinsic, tys, exprs, prec, output, context)?;
+        ir::Expression::IntrinsicOp(intrinsic, tys, exprs) => {
+            export_intrinsic_op(intrinsic, tys, exprs, prec, output, context)?;
         }
     }
     if requires_paren {
@@ -1001,8 +1005,8 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
         ir::Expression::SizeOf(_) => 3,
         ir::Expression::Member(_, _) => 2,
         ir::Expression::Call(_, _, _, _) => 2,
-        ir::Expression::Intrinsic(intrinsic, _, _) => {
-            use ir::Intrinsic::*;
+        ir::Expression::IntrinsicOp(intrinsic, _, _) => {
+            use ir::IntrinsicOp::*;
             match &intrinsic {
                 PrefixIncrement => 3,
                 PrefixDecrement => 3,
@@ -1037,8 +1041,6 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
                 ProductAssignment => 16,
                 QuotientAssignment => 16,
                 RemainderAssignment => 16,
-
-                _ => 2,
             }
         }
     }
@@ -1086,8 +1088,8 @@ fn export_user_call(
     Ok(())
 }
 
-/// Write out an intrinsic expression
-fn export_intrinsic(
+/// Write out an intrinsic function expression
+fn export_intrinsic_function(
     intrinsic: &ir::Intrinsic,
     tys: &Vec<Located<ir::TypeOrConstant>>,
     exprs: &Vec<ir::Expression>,
@@ -1096,9 +1098,6 @@ fn export_intrinsic(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     enum Form {
-        Unary(&'static str),
-        UnaryPostfix(&'static str),
-        Binary(&'static str),
         Invoke(&'static str),
         Method(&'static str),
         AddressMethod(&'static str, &'static str),
@@ -1106,40 +1105,6 @@ fn export_intrinsic(
 
     use ir::Intrinsic::*;
     let form = match &intrinsic {
-        PrefixIncrement => Form::Unary("++"),
-        PrefixDecrement => Form::Unary("--"),
-        PostfixIncrement => Form::UnaryPostfix("++"),
-        PostfixDecrement => Form::UnaryPostfix("--"),
-        Plus => Form::Unary("+"),
-        Minus => Form::Unary("-"),
-        LogicalNot => Form::Unary("!"),
-        BitwiseNot => Form::Unary("~"),
-
-        Add => Form::Binary("+"),
-        Subtract => Form::Binary("-"),
-        Multiply => Form::Binary("*"),
-        Divide => Form::Binary("/"),
-        Modulus => Form::Binary("%"),
-        LeftShift => Form::Binary("<<"),
-        RightShift => Form::Binary(">>"),
-        BitwiseAnd => Form::Binary("&"),
-        BitwiseOr => Form::Binary("|"),
-        BitwiseXor => Form::Binary("^"),
-        BooleanAnd => Form::Binary("&&"),
-        BooleanOr => Form::Binary("||"),
-        LessThan => Form::Binary("<"),
-        LessEqual => Form::Binary("<="),
-        GreaterThan => Form::Binary(">"),
-        GreaterEqual => Form::Binary(">="),
-        Equality => Form::Binary("=="),
-        Inequality => Form::Binary("!="),
-        Assignment => Form::Binary("="),
-        SumAssignment => Form::Binary("+="),
-        DifferenceAssignment => Form::Binary("-="),
-        ProductAssignment => Form::Binary("*="),
-        QuotientAssignment => Form::Binary("/="),
-        RemainderAssignment => Form::Binary("%="),
-
         AllMemoryBarrier => Form::Invoke("AllMemoryBarrier"),
         AllMemoryBarrierWithGroupSync => Form::Invoke("AllMemoryBarrierWithGroupSync"),
         DeviceMemoryBarrier => Form::Invoke("DeviceMemoryBarrier"),
@@ -1230,27 +1195,6 @@ fn export_intrinsic(
     };
 
     match form {
-        Form::Unary(s) => {
-            assert!(tys.is_empty());
-            assert_eq!(exprs.len(), 1);
-            output.push_str(s);
-            export_subexpression(&exprs[0], prec, OperatorSide::Right, output, context)?;
-        }
-        Form::UnaryPostfix(s) => {
-            assert!(tys.is_empty());
-            assert_eq!(exprs.len(), 1);
-            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
-            output.push_str(s);
-        }
-        Form::Binary(s) => {
-            assert!(tys.is_empty());
-            assert_eq!(exprs.len(), 2);
-            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
-            output.push(' ');
-            output.push_str(s);
-            output.push(' ');
-            export_subexpression(&exprs[1], prec, OperatorSide::Right, output, context)?;
-        }
         Form::Invoke(s) => {
             output.push_str(s);
             export_template_type_args(tys.as_slice(), output, context)?;
@@ -1287,6 +1231,84 @@ fn export_intrinsic(
             output.push_str(s);
             export_template_type_args(tys.as_slice(), output, context)?;
             export_invocation_args(&exprs[1..], output, context)?;
+        }
+    }
+    Ok(())
+}
+
+/// Write out an intrinsic operator expression
+fn export_intrinsic_op(
+    intrinsic: &ir::IntrinsicOp,
+    tys: &Vec<Located<ir::TypeOrConstant>>,
+    exprs: &Vec<ir::Expression>,
+    prec: u32,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    enum Form {
+        Unary(&'static str),
+        UnaryPostfix(&'static str),
+        Binary(&'static str),
+    }
+
+    use ir::IntrinsicOp::*;
+    let form = match &intrinsic {
+        PrefixIncrement => Form::Unary("++"),
+        PrefixDecrement => Form::Unary("--"),
+        PostfixIncrement => Form::UnaryPostfix("++"),
+        PostfixDecrement => Form::UnaryPostfix("--"),
+        Plus => Form::Unary("+"),
+        Minus => Form::Unary("-"),
+        LogicalNot => Form::Unary("!"),
+        BitwiseNot => Form::Unary("~"),
+
+        Add => Form::Binary("+"),
+        Subtract => Form::Binary("-"),
+        Multiply => Form::Binary("*"),
+        Divide => Form::Binary("/"),
+        Modulus => Form::Binary("%"),
+        LeftShift => Form::Binary("<<"),
+        RightShift => Form::Binary(">>"),
+        BitwiseAnd => Form::Binary("&"),
+        BitwiseOr => Form::Binary("|"),
+        BitwiseXor => Form::Binary("^"),
+        BooleanAnd => Form::Binary("&&"),
+        BooleanOr => Form::Binary("||"),
+        LessThan => Form::Binary("<"),
+        LessEqual => Form::Binary("<="),
+        GreaterThan => Form::Binary(">"),
+        GreaterEqual => Form::Binary(">="),
+        Equality => Form::Binary("=="),
+        Inequality => Form::Binary("!="),
+        Assignment => Form::Binary("="),
+        SumAssignment => Form::Binary("+="),
+        DifferenceAssignment => Form::Binary("-="),
+        ProductAssignment => Form::Binary("*="),
+        QuotientAssignment => Form::Binary("/="),
+        RemainderAssignment => Form::Binary("%="),
+    };
+
+    match form {
+        Form::Unary(s) => {
+            assert!(tys.is_empty());
+            assert_eq!(exprs.len(), 1);
+            output.push_str(s);
+            export_subexpression(&exprs[0], prec, OperatorSide::Right, output, context)?;
+        }
+        Form::UnaryPostfix(s) => {
+            assert!(tys.is_empty());
+            assert_eq!(exprs.len(), 1);
+            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
+            output.push_str(s);
+        }
+        Form::Binary(s) => {
+            assert!(tys.is_empty());
+            assert_eq!(exprs.len(), 2);
+            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
+            output.push(' ');
+            output.push_str(s);
+            output.push(' ');
+            export_subexpression(&exprs[1], prec, OperatorSide::Right, output, context)?;
         }
     }
     Ok(())

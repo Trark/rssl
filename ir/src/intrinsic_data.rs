@@ -273,19 +273,6 @@ pub fn add_intrinsics(module: &mut Module) {
             .map(|p| ParamType(module.type_registry.register_type(p.0.clone()), p.1, None))
             .collect::<Vec<_>>();
 
-        // Check generated return type for consistency
-        {
-            let mut expr_types = Vec::with_capacity(param_types.len());
-            for param_type_def in param_type_defs {
-                expr_types.push(ExpressionType(
-                    param_type_def.0.clone(),
-                    param_type_def.1.into(),
-                ));
-            }
-            let generated_return_type = intrinsic.get_return_type(&expr_types).0;
-            assert_eq!(*return_type, generated_return_type);
-        }
-
         // Register the return type
         let return_type = FunctionReturn {
             return_type: module.type_registry.register_type(return_type.clone()),
@@ -553,20 +540,6 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
 
         // Fetch and remap the return type
         let return_type_layout = remap_inner(return_type.clone());
-
-        // Check generated return type for consistency
-        {
-            let mut expr_types = Vec::with_capacity(param_types.len());
-            expr_types.push(TypeLayout::Object(object.clone()).to_rvalue());
-            for param_type_def in param_type_defs {
-                expr_types.push(ExpressionType(
-                    param_type_def.0.clone(),
-                    param_type_def.1.into(),
-                ));
-            }
-            let generated_return_type = intrinsic.get_return_type(&expr_types).0;
-            assert_eq!(return_type_layout, generated_return_type);
-        }
 
         methods.push(MethodDefinition {
             name: method_name.to_string(),

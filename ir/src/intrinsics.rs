@@ -1,9 +1,8 @@
 use crate::*;
 
-/// An intrinsic built in function
-#[derive(PartialEq, Debug, Clone)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-pub enum Intrinsic {
+/// An intrinsic built in operator
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum IntrinsicOp {
     // Unary operations
     PrefixIncrement,
     PrefixDecrement,
@@ -39,7 +38,11 @@ pub enum Intrinsic {
     ProductAssignment,
     QuotientAssignment,
     RemainderAssignment,
+}
 
+/// An intrinsic built in function
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum Intrinsic {
     // Synchronization
     AllMemoryBarrier,
     AllMemoryBarrierWithGroupSync,
@@ -139,9 +142,9 @@ pub enum Intrinsic {
     RWTexture2DLoad,
 }
 
-impl Intrinsic {
+impl IntrinsicOp {
     pub fn get_return_type(&self, param_types: &[ExpressionType]) -> ExpressionType {
-        use Intrinsic::*;
+        use IntrinsicOp::*;
         match *self {
             PrefixIncrement | PrefixDecrement => {
                 assert_eq!(param_types.len(), 1);
@@ -182,251 +185,6 @@ impl Intrinsic {
                 assert_eq!(param_types[0].0, param_types[1].0);
                 assert_eq!(param_types[0].1, ValueType::Lvalue);
                 param_types[0].clone()
-            }
-            AllMemoryBarrier
-            | AllMemoryBarrierWithGroupSync
-            | DeviceMemoryBarrier
-            | DeviceMemoryBarrierWithGroupSync
-            | GroupMemoryBarrier
-            | GroupMemoryBarrierWithGroupSync => TypeLayout::void().to_rvalue(),
-            AsInt => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0]
-                    .0
-                    .clone()
-                    .transform_scalar(ScalarType::Int)
-                    .to_rvalue()
-            }
-            AsUInt => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0]
-                    .0
-                    .clone()
-                    .transform_scalar(ScalarType::UInt)
-                    .to_rvalue()
-            }
-            AsFloat => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0]
-                    .0
-                    .clone()
-                    .transform_scalar(ScalarType::Float)
-                    .to_rvalue()
-            }
-            AsDouble => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::double().to_rvalue()
-            }
-            All | Any => TypeLayout::bool().to_rvalue(),
-            Abs => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0].0.clone().to_rvalue()
-            }
-            Acos | Asin | Cos | Exp | Sin | Sqrt => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0].0.clone().to_rvalue()
-            }
-            Pow => {
-                assert_eq!(param_types.len(), 2);
-                param_types[0].0.clone().to_rvalue()
-            }
-            Sincos => TypeLayout::void().to_rvalue(),
-            F16ToF32 => {
-                assert_eq!(param_types.len(), 1);
-                TypeLayout::float().to_rvalue()
-            }
-            F32ToF16 => {
-                assert_eq!(param_types.len(), 1);
-                TypeLayout::uint().to_rvalue()
-            }
-            Floor => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0].0.clone().to_rvalue()
-            }
-            IsNaN => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0]
-                    .0
-                    .clone()
-                    .transform_scalar(ScalarType::Bool)
-                    .to_rvalue()
-            }
-            Length => {
-                assert_eq!(param_types.len(), 1);
-                TypeLayout::float().to_rvalue()
-            }
-            Normalize | Saturate => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0].0.clone().to_rvalue()
-            }
-            Sign => {
-                assert_eq!(param_types.len(), 1);
-                param_types[0]
-                    .0
-                    .clone()
-                    .transform_scalar(ScalarType::Int)
-                    .to_rvalue()
-            }
-            Cross => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::floatn(3).to_rvalue()
-            }
-            Distance => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::float().to_rvalue()
-            }
-            Dot => {
-                assert_eq!(param_types.len(), 2);
-                let (tyl, modifier) = param_types[0].0.clone().extract_modifier();
-                let tyl = match tyl {
-                    TypeLayout::Scalar(st) => TypeLayout::Scalar(st),
-                    TypeLayout::Vector(st, _) => TypeLayout::Scalar(st),
-                    _ => panic!("Invalid dot"),
-                };
-                tyl.combine_modifier(modifier).to_rvalue()
-            }
-            Mul => {
-                assert_eq!(param_types.len(), 2);
-                let (tyl0, _) = param_types[0].0.clone().extract_modifier();
-                let (tyl1, mod1) = param_types[1].0.clone().extract_modifier();
-                let tyl = match (tyl0, tyl1) {
-                    (
-                        TypeLayout::Matrix(ScalarType::Float, 3, 3),
-                        TypeLayout::Vector(ScalarType::Float, 3),
-                    ) => TypeLayout::Vector(ScalarType::Float, 3),
-                    (
-                        TypeLayout::Matrix(ScalarType::Float, 4, 4),
-                        TypeLayout::Vector(ScalarType::Float, 4),
-                    ) => TypeLayout::Vector(ScalarType::Float, 4),
-                    _ => panic!("Invalid mul"),
-                };
-                tyl.combine_modifier(mod1).to_rvalue()
-            }
-            Min | Max | Step => {
-                assert_eq!(param_types.len(), 2);
-                param_types[0].0.clone().to_rvalue()
-            }
-            Clamp | Lerp | SmoothStep => {
-                assert_eq!(param_types.len(), 3);
-                param_types[0].0.clone().to_rvalue()
-            }
-            BufferLoad => {
-                assert_eq!(param_types.len(), 2);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::Buffer(dty)) => {
-                        TypeLayout::from(dty).to_rvalue()
-                    }
-                    _ => panic!("Invalid BufferLoad"),
-                }
-            }
-            RWBufferLoad => {
-                assert_eq!(param_types.len(), 2);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::RWBuffer(dty)) => {
-                        TypeLayout::from(dty).to_rvalue()
-                    }
-                    _ => panic!("Invalid RWBufferLoad"),
-                }
-            }
-            StructuredBufferLoad => {
-                assert_eq!(param_types.len(), 2);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::StructuredBuffer(ref sty)) => {
-                        TypeLayout::from(sty.clone()).to_rvalue()
-                    }
-                    _ => panic!("Invalid StructuredBufferLoad"),
-                }
-            }
-            RWStructuredBufferLoad => {
-                assert_eq!(param_types.len(), 2);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::RWStructuredBuffer(ref sty)) => {
-                        TypeLayout::from(sty.clone()).to_rvalue()
-                    }
-                    _ => panic!("Invalid RWStructuredBufferLoad"),
-                }
-            }
-            ByteAddressBufferLoad => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uint().to_rvalue()
-            }
-            ByteAddressBufferLoad2 => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uintn(2).to_rvalue()
-            }
-            ByteAddressBufferLoad3 => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uintn(3).to_rvalue()
-            }
-            ByteAddressBufferLoad4 => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uintn(4).to_rvalue()
-            }
-            ByteAddressBufferLoadT => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::TemplateParam(TemplateTypeId(0)).to_rvalue()
-            }
-            RWByteAddressBufferLoad => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uint().to_rvalue()
-            }
-            RWByteAddressBufferLoad2 => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uintn(2).to_rvalue()
-            }
-            RWByteAddressBufferLoad3 => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uintn(3).to_rvalue()
-            }
-            RWByteAddressBufferLoad4 => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::uintn(4).to_rvalue()
-            }
-            RWByteAddressBufferStore
-            | RWByteAddressBufferStore2
-            | RWByteAddressBufferStore3
-            | RWByteAddressBufferStore4 => {
-                assert_eq!(param_types.len(), 3);
-                TypeLayout::void().to_rvalue()
-            }
-            RWByteAddressBufferInterlockedAdd => {
-                assert_eq!(param_types.len(), 4);
-                TypeLayout::void().to_rvalue()
-            }
-            BufferAddressLoad | RWBufferAddressLoad => {
-                assert_eq!(param_types.len(), 2);
-                TypeLayout::TemplateParam(TemplateTypeId(0)).to_rvalue()
-            }
-            RWBufferAddressStore => {
-                assert_eq!(param_types.len(), 3);
-                TypeLayout::void().to_rvalue()
-            }
-            Texture2DLoad => {
-                assert_eq!(param_types.len(), 2);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::Texture2D(dty)) => {
-                        TypeLayout::from(dty).to_rvalue()
-                    }
-                    _ => panic!("Invalid Texture2DLoad"),
-                }
-            }
-            Texture2DSample => {
-                assert_eq!(param_types.len(), 3);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::Texture2D(dty)) => {
-                        TypeLayout::from(dty).to_rvalue()
-                    }
-                    _ => panic!("Invalid Texture2DSample"),
-                }
-            }
-            RWTexture2DLoad => {
-                assert_eq!(param_types.len(), 2);
-                match param_types[0].0.clone().remove_modifier() {
-                    TypeLayout::Object(ObjectType::RWTexture2D(dty)) => {
-                        TypeLayout::from(dty).to_rvalue()
-                    }
-                    _ => panic!("Invalid RWTexture2DLoad"),
-                }
             }
         }
     }

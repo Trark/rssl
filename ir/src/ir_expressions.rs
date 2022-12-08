@@ -29,7 +29,7 @@ pub enum Expression {
     Constructor(TypeId, Vec<ConstructorSlot>),
     Cast(TypeId, Box<Expression>),
     SizeOf(TypeId),
-    Intrinsic(Intrinsic, Vec<Located<TypeOrConstant>>, Vec<Expression>),
+    IntrinsicOp(IntrinsicOp, Vec<Located<TypeOrConstant>>, Vec<Expression>),
 }
 
 /// A single part of a swizzle operation

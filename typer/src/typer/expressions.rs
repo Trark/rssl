@@ -278,9 +278,14 @@ fn write_function(
         .get_type_layout(return_type.return_type);
     let return_type = return_type_layout.to_rvalue();
 
-    if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
+    if context
+        .module
+        .function_registry
+        .get_intrinsic_data(id)
+        .is_some()
+    {
         Ok(TypedExpression::Value(
-            create_intrinsic(intrinsic, template_args, &param_values),
+            create_intrinsic(id, ir::CallType::FreeFunction, template_args, &param_values),
             return_type,
         ))
     } else {
@@ -327,9 +332,19 @@ fn write_method(
         .clone();
     let return_type = return_type_layout.to_rvalue();
 
-    if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
+    if context
+        .module
+        .function_registry
+        .get_intrinsic_data(id)
+        .is_some()
+    {
         Ok(TypedExpression::Value(
-            create_intrinsic(intrinsic, template_args, &param_values),
+            create_intrinsic(
+                id,
+                ir::CallType::MethodExternal,
+                template_args,
+                &param_values,
+            ),
             return_type,
         ))
     } else {
@@ -354,7 +369,8 @@ fn write_method(
 
 /// Make an intrinsic expression node
 fn create_intrinsic(
-    intrinsic: &ir::Intrinsic,
+    id: ir::FunctionId,
+    call_type: ir::CallType,
     template_args: &[Located<ir::TypeOrConstant>],
     param_values: &[ir::Expression],
 ) -> ir::Expression {
@@ -362,7 +378,7 @@ fn create_intrinsic(
     for param_value in param_values {
         exprs.push(param_value.clone());
     }
-    ir::Expression::Intrinsic(intrinsic.clone(), template_args.to_vec(), exprs)
+    ir::Expression::Call(id, call_type, template_args.to_vec(), exprs)
 }
 
 fn parse_literal(ast: &ast::Literal) -> TypedExpression {
@@ -432,22 +448,22 @@ fn parse_expr_unaryop(
             let (intrinsic, eir, ety) = match *op {
                 ast::UnaryOp::PrefixIncrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (ir::Intrinsic::PrefixIncrement, expr_ir, expr_ty)
+                    (ir::IntrinsicOp::PrefixIncrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PrefixDecrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (ir::Intrinsic::PrefixDecrement, expr_ir, expr_ty)
+                    (ir::IntrinsicOp::PrefixDecrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PostfixIncrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (ir::Intrinsic::PostfixIncrement, expr_ir, expr_ty)
+                    (ir::IntrinsicOp::PostfixIncrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PostfixDecrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (ir::Intrinsic::PostfixDecrement, expr_ir, expr_ty)
+                    (ir::IntrinsicOp::PostfixDecrement, expr_ir, expr_ty)
                 }
-                ast::UnaryOp::Plus => (ir::Intrinsic::Plus, expr_ir, expr_ty.0.to_rvalue()),
-                ast::UnaryOp::Minus => (ir::Intrinsic::Minus, expr_ir, expr_ty.0.to_rvalue()),
+                ast::UnaryOp::Plus => (ir::IntrinsicOp::Plus, expr_ir, expr_ty.0.to_rvalue()),
+                ast::UnaryOp::Minus => (ir::IntrinsicOp::Minus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::LogicalNot => {
                     let ty = match expr_ty.0.remove_modifier() {
                         ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(ir::ScalarType::Bool),
@@ -465,12 +481,12 @@ fn parse_expr_unaryop(
                         }
                     };
                     let ety = ty.to_rvalue();
-                    (ir::Intrinsic::LogicalNot, expr_ir, ety)
+                    (ir::IntrinsicOp::LogicalNot, expr_ir, ety)
                 }
                 ast::UnaryOp::BitwiseNot => match expr_ty.0 {
                     ir::TypeLayout::Scalar(ir::ScalarType::Int)
                     | ir::TypeLayout::Scalar(ir::ScalarType::UInt) => {
-                        (ir::Intrinsic::BitwiseNot, expr_ir, expr_ty.0.to_rvalue())
+                        (ir::IntrinsicOp::BitwiseNot, expr_ir, expr_ty.0.to_rvalue())
                     }
                     _ => {
                         return Err(TyperError::UnaryOperationWrongTypes(
@@ -481,7 +497,7 @@ fn parse_expr_unaryop(
                 },
             };
             Ok(TypedExpression::Value(
-                ir::Expression::Intrinsic(intrinsic, Vec::new(), Vec::from([eir])),
+                ir::Expression::IntrinsicOp(intrinsic, Vec::new(), Vec::from([eir])),
                 ety,
             ))
         }
@@ -538,7 +554,7 @@ fn resolve_arithmetic_types(
     binop: &ast::BinOp,
     left: &ExpressionType,
     right: &ExpressionType,
-) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::Intrinsic)> {
+) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp)> {
     use rssl_ir::ScalarType;
     use rssl_ir::TypeLayout;
 
@@ -547,7 +563,7 @@ fn resolve_arithmetic_types(
     }
 
     // Calculate the output type from the input type and operation
-    fn output_type(left: TypeLayout, right: TypeLayout, op: &ast::BinOp) -> ir::Intrinsic {
+    fn output_type(left: TypeLayout, right: TypeLayout, op: &ast::BinOp) -> ir::IntrinsicOp {
         // Assert input validity
         {
             let ls = left
@@ -586,24 +602,24 @@ fn resolve_arithmetic_types(
         }
 
         match *op {
-            ast::BinOp::Add => ir::Intrinsic::Add,
-            ast::BinOp::Subtract => ir::Intrinsic::Subtract,
-            ast::BinOp::Multiply => ir::Intrinsic::Multiply,
-            ast::BinOp::Divide => ir::Intrinsic::Divide,
-            ast::BinOp::Modulus => ir::Intrinsic::Modulus,
-            ast::BinOp::LeftShift => ir::Intrinsic::LeftShift,
-            ast::BinOp::RightShift => ir::Intrinsic::RightShift,
-            ast::BinOp::BitwiseAnd => ir::Intrinsic::BitwiseAnd,
-            ast::BinOp::BitwiseOr => ir::Intrinsic::BitwiseOr,
-            ast::BinOp::BitwiseXor => ir::Intrinsic::BitwiseXor,
-            ast::BinOp::LessThan => ir::Intrinsic::LessThan,
-            ast::BinOp::LessEqual => ir::Intrinsic::LessEqual,
-            ast::BinOp::GreaterThan => ir::Intrinsic::GreaterThan,
-            ast::BinOp::GreaterEqual => ir::Intrinsic::GreaterEqual,
-            ast::BinOp::Equality => ir::Intrinsic::Equality,
-            ast::BinOp::Inequality => ir::Intrinsic::Inequality,
-            ast::BinOp::BooleanAnd => ir::Intrinsic::BooleanAnd,
-            ast::BinOp::BooleanOr => ir::Intrinsic::BooleanOr,
+            ast::BinOp::Add => ir::IntrinsicOp::Add,
+            ast::BinOp::Subtract => ir::IntrinsicOp::Subtract,
+            ast::BinOp::Multiply => ir::IntrinsicOp::Multiply,
+            ast::BinOp::Divide => ir::IntrinsicOp::Divide,
+            ast::BinOp::Modulus => ir::IntrinsicOp::Modulus,
+            ast::BinOp::LeftShift => ir::IntrinsicOp::LeftShift,
+            ast::BinOp::RightShift => ir::IntrinsicOp::RightShift,
+            ast::BinOp::BitwiseAnd => ir::IntrinsicOp::BitwiseAnd,
+            ast::BinOp::BitwiseOr => ir::IntrinsicOp::BitwiseOr,
+            ast::BinOp::BitwiseXor => ir::IntrinsicOp::BitwiseXor,
+            ast::BinOp::LessThan => ir::IntrinsicOp::LessThan,
+            ast::BinOp::LessEqual => ir::IntrinsicOp::LessEqual,
+            ast::BinOp::GreaterThan => ir::IntrinsicOp::GreaterThan,
+            ast::BinOp::GreaterEqual => ir::IntrinsicOp::GreaterEqual,
+            ast::BinOp::Equality => ir::IntrinsicOp::Equality,
+            ast::BinOp::Inequality => ir::IntrinsicOp::Inequality,
+            ast::BinOp::BooleanAnd => ir::IntrinsicOp::BooleanAnd,
+            ast::BinOp::BooleanOr => ir::IntrinsicOp::BooleanOr,
             _ => panic!("unexpected binop in resolve_arithmetic_types"),
         }
     }
@@ -612,7 +628,7 @@ fn resolve_arithmetic_types(
         op: &ast::BinOp,
         left: &ExpressionType,
         right: &ExpressionType,
-    ) -> Result<(ImplicitConversion, ImplicitConversion, ir::Intrinsic), ()> {
+    ) -> Result<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp), ()> {
         let &ExpressionType(ref left_ty, _) = left;
         let &ExpressionType(ref right_ty, _) = right;
         let (left_l, _) = left_ty.clone().extract_modifier();
@@ -731,7 +747,7 @@ fn parse_expr_binop(
             let rhs_final = rhs_cast.apply(&mut context.module, rhs_ir);
             let output_type = output_intrinsic
                 .get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
-            let node = ir::Expression::Intrinsic(
+            let node = ir::Expression::IntrinsicOp(
                 output_intrinsic,
                 Vec::new(),
                 Vec::from([lhs_final, rhs_final]),
@@ -785,16 +801,17 @@ fn parse_expr_binop(
             let lhs_final = lhs_cast.apply(&mut context.module, lhs_ir);
             let rhs_final = rhs_cast.apply(&mut context.module, rhs_ir);
             let i = match *op {
-                ast::BinOp::BitwiseAnd => ir::Intrinsic::BitwiseAnd,
-                ast::BinOp::BitwiseOr => ir::Intrinsic::BitwiseOr,
-                ast::BinOp::BitwiseXor => ir::Intrinsic::BitwiseXor,
-                ast::BinOp::BooleanAnd => ir::Intrinsic::BooleanAnd,
-                ast::BinOp::BooleanOr => ir::Intrinsic::BooleanOr,
+                ast::BinOp::BitwiseAnd => ir::IntrinsicOp::BitwiseAnd,
+                ast::BinOp::BitwiseOr => ir::IntrinsicOp::BitwiseOr,
+                ast::BinOp::BitwiseXor => ir::IntrinsicOp::BitwiseXor,
+                ast::BinOp::BooleanAnd => ir::IntrinsicOp::BooleanAnd,
+                ast::BinOp::BooleanOr => ir::IntrinsicOp::BooleanOr,
                 _ => unreachable!(),
             };
             let output_type =
                 i.get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
-            let node = ir::Expression::Intrinsic(i, Vec::new(), Vec::from([lhs_final, rhs_final]));
+            let node =
+                ir::Expression::IntrinsicOp(i, Vec::new(), Vec::from([lhs_final, rhs_final]));
             Ok(TypedExpression::Value(node, output_type))
         }
         ast::BinOp::Assignment
@@ -814,17 +831,17 @@ fn parse_expr_binop(
                 Ok(rhs_cast) => {
                     let rhs_final = rhs_cast.apply(&mut context.module, rhs_ir);
                     let i = match *op {
-                        ast::BinOp::Assignment => ir::Intrinsic::Assignment,
-                        ast::BinOp::SumAssignment => ir::Intrinsic::SumAssignment,
-                        ast::BinOp::DifferenceAssignment => ir::Intrinsic::DifferenceAssignment,
-                        ast::BinOp::ProductAssignment => ir::Intrinsic::ProductAssignment,
-                        ast::BinOp::QuotientAssignment => ir::Intrinsic::QuotientAssignment,
-                        ast::BinOp::RemainderAssignment => ir::Intrinsic::RemainderAssignment,
+                        ast::BinOp::Assignment => ir::IntrinsicOp::Assignment,
+                        ast::BinOp::SumAssignment => ir::IntrinsicOp::SumAssignment,
+                        ast::BinOp::DifferenceAssignment => ir::IntrinsicOp::DifferenceAssignment,
+                        ast::BinOp::ProductAssignment => ir::IntrinsicOp::ProductAssignment,
+                        ast::BinOp::QuotientAssignment => ir::IntrinsicOp::QuotientAssignment,
+                        ast::BinOp::RemainderAssignment => ir::IntrinsicOp::RemainderAssignment,
                         _ => unreachable!(),
                     };
                     let output_type = i.get_return_type(&[lhs_type, rhs_cast.get_target_type()]);
                     let node =
-                        ir::Expression::Intrinsic(i, Vec::new(), Vec::from([lhs_ir, rhs_final]));
+                        ir::Expression::IntrinsicOp(i, Vec::new(), Vec::from([lhs_ir, rhs_final]));
                     Ok(TypedExpression::Value(node, output_type))
                 }
                 Err(()) => err_bad_type,
@@ -1570,7 +1587,7 @@ fn get_expression_type(
             Ok(context.module.type_registry.get_type_layout(ty).to_rvalue())
         }
         ir::Expression::SizeOf(_) => Ok(ir::TypeLayout::uint().to_rvalue()),
-        ir::Expression::Intrinsic(ref intrinsic, ref template_args, ref args) => {
+        ir::Expression::IntrinsicOp(ref intrinsic, ref template_args, ref args) => {
             let mut arg_types = Vec::with_capacity(args.len());
             for arg in args {
                 arg_types.push(get_expression_type(arg, context)?);

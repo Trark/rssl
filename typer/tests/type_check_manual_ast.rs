@@ -248,6 +248,17 @@ fn test_ast_to_ir() {
                 }
             );
 
+            let mut intrinsic_func_id = None;
+            for i in 0..actual.function_registry.get_function_count() {
+                let id = ir::FunctionId(i as u32);
+                if let Some(ir::Intrinsic::GroupMemoryBarrierWithGroupSync) =
+                    actual.function_registry.get_intrinsic_data(id)
+                {
+                    intrinsic_func_id = Some(id);
+                }
+            }
+            let intrinsic_func_id = intrinsic_func_id.unwrap();
+
             assert_eq!(
                 *actual
                     .function_registry
@@ -257,8 +268,9 @@ fn test_ast_to_ir() {
                     scope_block: ir::ScopeBlock(
                         vec![
                             ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
-                            ir::Statement::Expression(ir::Expression::Intrinsic(
-                                ir::Intrinsic::GroupMemoryBarrierWithGroupSync,
+                            ir::Statement::Expression(ir::Expression::Call(
+                                intrinsic_func_id,
+                                ir::CallType::FreeFunction,
                                 Vec::new(),
                                 Vec::new(),
                             )),
