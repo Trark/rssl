@@ -971,229 +971,10 @@ fn export_subexpression(
             output.push_str(name)
         }
         ir::Expression::Call(id, ct, tys, exprs) => {
-            let (object, arguments) = match ct {
-                ir::CallType::FreeFunction | ir::CallType::MethodInternal => {
-                    (None, exprs.as_slice())
-                }
-                ir::CallType::MethodExternal => (Some(&exprs[0]), &exprs[1..]),
-            };
-            if let Some(object) = object {
-                export_subexpression(object, 2, OperatorSide::Left, output, context)?;
-                output.push('.');
-            }
-            if *ct == ir::CallType::FreeFunction {
-                write!(output, "{}", context.get_function_name_full(*id)?).unwrap();
-            } else {
-                // Assume all method calls (both on an object and internally) have
-                // sufficient qualification that they do not need the full name
-                write!(output, "{}", context.get_function_name(*id)?).unwrap();
-            }
-            export_template_type_args(tys.as_slice(), output, context)?;
-            export_invocation_args(arguments, output, context)?;
+            export_user_call(*id, ct, tys, exprs, output, context)?;
         }
         ir::Expression::Intrinsic(intrinsic, tys, exprs) => {
-            enum Form {
-                Unary(&'static str),
-                UnaryPostfix(&'static str),
-                Binary(&'static str),
-                Invoke(&'static str),
-                Method(&'static str),
-                AddressMethod(&'static str, &'static str),
-            }
-
-            use ir::Intrinsic::*;
-            let form = match &intrinsic {
-                PrefixIncrement => Form::Unary("++"),
-                PrefixDecrement => Form::Unary("--"),
-                PostfixIncrement => Form::UnaryPostfix("++"),
-                PostfixDecrement => Form::UnaryPostfix("--"),
-                Plus => Form::Unary("+"),
-                Minus => Form::Unary("-"),
-                LogicalNot => Form::Unary("!"),
-                BitwiseNot => Form::Unary("~"),
-
-                Add => Form::Binary("+"),
-                Subtract => Form::Binary("-"),
-                Multiply => Form::Binary("*"),
-                Divide => Form::Binary("/"),
-                Modulus => Form::Binary("%"),
-                LeftShift => Form::Binary("<<"),
-                RightShift => Form::Binary(">>"),
-                BitwiseAnd => Form::Binary("&"),
-                BitwiseOr => Form::Binary("|"),
-                BitwiseXor => Form::Binary("^"),
-                BooleanAnd => Form::Binary("&&"),
-                BooleanOr => Form::Binary("||"),
-                LessThan => Form::Binary("<"),
-                LessEqual => Form::Binary("<="),
-                GreaterThan => Form::Binary(">"),
-                GreaterEqual => Form::Binary(">="),
-                Equality => Form::Binary("=="),
-                Inequality => Form::Binary("!="),
-                Assignment => Form::Binary("="),
-                SumAssignment => Form::Binary("+="),
-                DifferenceAssignment => Form::Binary("-="),
-                ProductAssignment => Form::Binary("*="),
-                QuotientAssignment => Form::Binary("/="),
-                RemainderAssignment => Form::Binary("%="),
-
-                AllMemoryBarrier => Form::Invoke("AllMemoryBarrier"),
-                AllMemoryBarrierWithGroupSync => Form::Invoke("AllMemoryBarrierWithGroupSync"),
-                DeviceMemoryBarrier => Form::Invoke("DeviceMemoryBarrier"),
-                DeviceMemoryBarrierWithGroupSync => {
-                    Form::Invoke("DeviceMemoryBarrierWithGroupSync")
-                }
-                GroupMemoryBarrier => Form::Invoke("GroupMemoryBarrier"),
-                GroupMemoryBarrierWithGroupSync => Form::Invoke("GroupMemoryBarrierWithGroupSync"),
-
-                AsInt => Form::Invoke("asint"),
-                AsUInt => Form::Invoke("asuint"),
-                AsFloat => Form::Invoke("asfloat"),
-                AsDouble => Form::Invoke("asdouble"),
-
-                All => Form::Invoke("all"),
-                Any => Form::Invoke("any"),
-
-                Abs => Form::Invoke("abs"),
-
-                // Transcendental functions
-                Acos => Form::Invoke("acos"),
-                Asin => Form::Invoke("asin"),
-                Cos => Form::Invoke("cos"),
-                Sin => Form::Invoke("sin"),
-                Exp => Form::Invoke("exp"),
-                Sqrt => Form::Invoke("sqrt"),
-                Pow => Form::Invoke("pow"),
-                Sincos => Form::Invoke("sincos"),
-
-                F16ToF32 => Form::Invoke("f16tof32"),
-                F32ToF16 => Form::Invoke("f32tof16"),
-
-                Floor => Form::Invoke("floor"),
-
-                IsNaN => Form::Invoke("isnan"),
-
-                Length => Form::Invoke("length"),
-                Normalize => Form::Invoke("normalize"),
-
-                Saturate => Form::Invoke("saturate"),
-
-                Sign => Form::Invoke("sign"),
-
-                Cross => Form::Invoke("cross"),
-                Distance => Form::Invoke("distance"),
-                Dot => Form::Invoke("dot"),
-
-                Mul => Form::Invoke("mul"),
-
-                Min => Form::Invoke("min"),
-                Max => Form::Invoke("max"),
-
-                Step => Form::Invoke("step"),
-
-                Clamp => Form::Invoke("clamp"),
-                Lerp => Form::Invoke("lerp"),
-                SmoothStep => Form::Invoke("smoothstep"),
-
-                BufferLoad => Form::Method("Load"),
-                RWBufferLoad => Form::Method("Load"),
-
-                StructuredBufferLoad => Form::Method("Load"),
-                RWStructuredBufferLoad => Form::Method("Load"),
-
-                ByteAddressBufferLoad => Form::Method("Load"),
-                ByteAddressBufferLoad2 => Form::Method("Load2"),
-                ByteAddressBufferLoad3 => Form::Method("Load3"),
-                ByteAddressBufferLoad4 => Form::Method("Load4"),
-                ByteAddressBufferLoadT => Form::Method("Load"),
-
-                RWByteAddressBufferLoad => Form::Method("Load"),
-                RWByteAddressBufferLoad2 => Form::Method("Load2"),
-                RWByteAddressBufferLoad3 => Form::Method("Load3"),
-                RWByteAddressBufferLoad4 => Form::Method("Load4"),
-                RWByteAddressBufferStore => Form::Method("Store"),
-                RWByteAddressBufferStore2 => Form::Method("Store2"),
-                RWByteAddressBufferStore3 => Form::Method("Store3"),
-                RWByteAddressBufferStore4 => Form::Method("Store4"),
-                RWByteAddressBufferInterlockedAdd => Form::Method("InterlockedAdd"),
-
-                BufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
-
-                RWBufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
-                RWBufferAddressStore => Form::AddressMethod("Store", "vk::RawBufferStore"),
-
-                Texture2DLoad => Form::Method("Load"),
-                Texture2DSample => Form::Method("Sample"),
-
-                RWTexture2DLoad => Form::Method("Load"),
-            };
-
-            match form {
-                Form::Unary(s) => {
-                    assert!(tys.is_empty());
-                    assert_eq!(exprs.len(), 1);
-                    output.push_str(s);
-                    export_subexpression(&exprs[0], prec, OperatorSide::Right, output, context)?;
-                }
-                Form::UnaryPostfix(s) => {
-                    assert!(tys.is_empty());
-                    assert_eq!(exprs.len(), 1);
-                    export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
-                    output.push_str(s);
-                }
-                Form::Binary(s) => {
-                    assert!(tys.is_empty());
-                    assert_eq!(exprs.len(), 2);
-                    export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
-                    output.push(' ');
-                    output.push_str(s);
-                    output.push(' ');
-                    export_subexpression(&exprs[1], prec, OperatorSide::Right, output, context)?;
-                }
-                Form::Invoke(s) => {
-                    output.push_str(s);
-                    export_template_type_args(tys.as_slice(), output, context)?;
-                    export_invocation_args(exprs, output, context)?;
-                }
-                Form::AddressMethod(_, s) if context.module.flags.requires_buffer_address => {
-                    assert!(
-                        exprs.len() >= 2,
-                        "Buffer address intrinsic expects at least an address and offset"
-                    );
-
-                    output.push_str(s);
-                    export_template_type_args(tys.as_slice(), output, context)?;
-                    output.push('(');
-                    if let [addr, offset, rest @ ..] = exprs.as_slice() {
-                        export_subexpression(addr, 6, OperatorSide::Left, output, context)?;
-                        output.push_str(" + uint64_t(");
-                        export_subexpression(offset, 17, OperatorSide::Middle, output, context)?;
-                        output.push(')');
-
-                        for expr in rest {
-                            output.push_str(", ");
-                            export_subexpression(
-                                expr,
-                                17,
-                                OperatorSide::CommaList,
-                                output,
-                                context,
-                            )?;
-                        }
-                    } else {
-                        panic!("Incorrect number of arguments in buffer address load");
-                    }
-                    output.push(')');
-                }
-                Form::Method(s) | Form::AddressMethod(s, _) => {
-                    assert!(!exprs.is_empty());
-                    export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
-                    output.push('.');
-                    output.push_str(s);
-                    export_template_type_args(tys.as_slice(), output, context)?;
-                    export_invocation_args(&exprs[1..], output, context)?;
-                }
-            }
+            export_intrinsic(intrinsic, tys, exprs, prec, output, context)?;
         }
     }
     if requires_paren {
@@ -1274,6 +1055,241 @@ fn get_precedence_associativity(prec: u32) -> Associativity {
 
         _ => Associativity::None,
     }
+}
+
+/// Write out a call expression for a user function
+fn export_user_call(
+    id: ir::FunctionId,
+    ct: &ir::CallType,
+    tys: &Vec<Located<ir::TypeOrConstant>>,
+    exprs: &Vec<ir::Expression>,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    let (object, arguments) = match ct {
+        ir::CallType::FreeFunction | ir::CallType::MethodInternal => (None, exprs.as_slice()),
+        ir::CallType::MethodExternal => (Some(&exprs[0]), &exprs[1..]),
+    };
+    if let Some(object) = object {
+        export_subexpression(object, 2, OperatorSide::Left, output, context)?;
+        output.push('.');
+    }
+    if *ct == ir::CallType::FreeFunction {
+        write!(output, "{}", context.get_function_name_full(id)?).unwrap();
+    } else {
+        // Assume all method calls (both on an object and internally) have
+        // sufficient qualification that they do not need the full name
+        write!(output, "{}", context.get_function_name(id)?).unwrap();
+    }
+    export_template_type_args(tys.as_slice(), output, context)?;
+    export_invocation_args(arguments, output, context)?;
+    Ok(())
+}
+
+/// Write out an intrinsic expression
+fn export_intrinsic(
+    intrinsic: &ir::Intrinsic,
+    tys: &Vec<Located<ir::TypeOrConstant>>,
+    exprs: &Vec<ir::Expression>,
+    prec: u32,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    enum Form {
+        Unary(&'static str),
+        UnaryPostfix(&'static str),
+        Binary(&'static str),
+        Invoke(&'static str),
+        Method(&'static str),
+        AddressMethod(&'static str, &'static str),
+    }
+
+    use ir::Intrinsic::*;
+    let form = match &intrinsic {
+        PrefixIncrement => Form::Unary("++"),
+        PrefixDecrement => Form::Unary("--"),
+        PostfixIncrement => Form::UnaryPostfix("++"),
+        PostfixDecrement => Form::UnaryPostfix("--"),
+        Plus => Form::Unary("+"),
+        Minus => Form::Unary("-"),
+        LogicalNot => Form::Unary("!"),
+        BitwiseNot => Form::Unary("~"),
+
+        Add => Form::Binary("+"),
+        Subtract => Form::Binary("-"),
+        Multiply => Form::Binary("*"),
+        Divide => Form::Binary("/"),
+        Modulus => Form::Binary("%"),
+        LeftShift => Form::Binary("<<"),
+        RightShift => Form::Binary(">>"),
+        BitwiseAnd => Form::Binary("&"),
+        BitwiseOr => Form::Binary("|"),
+        BitwiseXor => Form::Binary("^"),
+        BooleanAnd => Form::Binary("&&"),
+        BooleanOr => Form::Binary("||"),
+        LessThan => Form::Binary("<"),
+        LessEqual => Form::Binary("<="),
+        GreaterThan => Form::Binary(">"),
+        GreaterEqual => Form::Binary(">="),
+        Equality => Form::Binary("=="),
+        Inequality => Form::Binary("!="),
+        Assignment => Form::Binary("="),
+        SumAssignment => Form::Binary("+="),
+        DifferenceAssignment => Form::Binary("-="),
+        ProductAssignment => Form::Binary("*="),
+        QuotientAssignment => Form::Binary("/="),
+        RemainderAssignment => Form::Binary("%="),
+
+        AllMemoryBarrier => Form::Invoke("AllMemoryBarrier"),
+        AllMemoryBarrierWithGroupSync => Form::Invoke("AllMemoryBarrierWithGroupSync"),
+        DeviceMemoryBarrier => Form::Invoke("DeviceMemoryBarrier"),
+        DeviceMemoryBarrierWithGroupSync => Form::Invoke("DeviceMemoryBarrierWithGroupSync"),
+        GroupMemoryBarrier => Form::Invoke("GroupMemoryBarrier"),
+        GroupMemoryBarrierWithGroupSync => Form::Invoke("GroupMemoryBarrierWithGroupSync"),
+
+        AsInt => Form::Invoke("asint"),
+        AsUInt => Form::Invoke("asuint"),
+        AsFloat => Form::Invoke("asfloat"),
+        AsDouble => Form::Invoke("asdouble"),
+
+        All => Form::Invoke("all"),
+        Any => Form::Invoke("any"),
+
+        Abs => Form::Invoke("abs"),
+
+        // Transcendental functions
+        Acos => Form::Invoke("acos"),
+        Asin => Form::Invoke("asin"),
+        Cos => Form::Invoke("cos"),
+        Sin => Form::Invoke("sin"),
+        Exp => Form::Invoke("exp"),
+        Sqrt => Form::Invoke("sqrt"),
+        Pow => Form::Invoke("pow"),
+        Sincos => Form::Invoke("sincos"),
+
+        F16ToF32 => Form::Invoke("f16tof32"),
+        F32ToF16 => Form::Invoke("f32tof16"),
+
+        Floor => Form::Invoke("floor"),
+
+        IsNaN => Form::Invoke("isnan"),
+
+        Length => Form::Invoke("length"),
+        Normalize => Form::Invoke("normalize"),
+
+        Saturate => Form::Invoke("saturate"),
+
+        Sign => Form::Invoke("sign"),
+
+        Cross => Form::Invoke("cross"),
+        Distance => Form::Invoke("distance"),
+        Dot => Form::Invoke("dot"),
+
+        Mul => Form::Invoke("mul"),
+
+        Min => Form::Invoke("min"),
+        Max => Form::Invoke("max"),
+
+        Step => Form::Invoke("step"),
+
+        Clamp => Form::Invoke("clamp"),
+        Lerp => Form::Invoke("lerp"),
+        SmoothStep => Form::Invoke("smoothstep"),
+
+        BufferLoad => Form::Method("Load"),
+        RWBufferLoad => Form::Method("Load"),
+
+        StructuredBufferLoad => Form::Method("Load"),
+        RWStructuredBufferLoad => Form::Method("Load"),
+
+        ByteAddressBufferLoad => Form::Method("Load"),
+        ByteAddressBufferLoad2 => Form::Method("Load2"),
+        ByteAddressBufferLoad3 => Form::Method("Load3"),
+        ByteAddressBufferLoad4 => Form::Method("Load4"),
+        ByteAddressBufferLoadT => Form::Method("Load"),
+
+        RWByteAddressBufferLoad => Form::Method("Load"),
+        RWByteAddressBufferLoad2 => Form::Method("Load2"),
+        RWByteAddressBufferLoad3 => Form::Method("Load3"),
+        RWByteAddressBufferLoad4 => Form::Method("Load4"),
+        RWByteAddressBufferStore => Form::Method("Store"),
+        RWByteAddressBufferStore2 => Form::Method("Store2"),
+        RWByteAddressBufferStore3 => Form::Method("Store3"),
+        RWByteAddressBufferStore4 => Form::Method("Store4"),
+        RWByteAddressBufferInterlockedAdd => Form::Method("InterlockedAdd"),
+
+        BufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
+
+        RWBufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
+        RWBufferAddressStore => Form::AddressMethod("Store", "vk::RawBufferStore"),
+
+        Texture2DLoad => Form::Method("Load"),
+        Texture2DSample => Form::Method("Sample"),
+
+        RWTexture2DLoad => Form::Method("Load"),
+    };
+
+    match form {
+        Form::Unary(s) => {
+            assert!(tys.is_empty());
+            assert_eq!(exprs.len(), 1);
+            output.push_str(s);
+            export_subexpression(&exprs[0], prec, OperatorSide::Right, output, context)?;
+        }
+        Form::UnaryPostfix(s) => {
+            assert!(tys.is_empty());
+            assert_eq!(exprs.len(), 1);
+            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
+            output.push_str(s);
+        }
+        Form::Binary(s) => {
+            assert!(tys.is_empty());
+            assert_eq!(exprs.len(), 2);
+            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
+            output.push(' ');
+            output.push_str(s);
+            output.push(' ');
+            export_subexpression(&exprs[1], prec, OperatorSide::Right, output, context)?;
+        }
+        Form::Invoke(s) => {
+            output.push_str(s);
+            export_template_type_args(tys.as_slice(), output, context)?;
+            export_invocation_args(exprs, output, context)?;
+        }
+        Form::AddressMethod(_, s) if context.module.flags.requires_buffer_address => {
+            assert!(
+                exprs.len() >= 2,
+                "Buffer address intrinsic expects at least an address and offset"
+            );
+
+            output.push_str(s);
+            export_template_type_args(tys.as_slice(), output, context)?;
+            output.push('(');
+            if let [addr, offset, rest @ ..] = exprs.as_slice() {
+                export_subexpression(addr, 6, OperatorSide::Left, output, context)?;
+                output.push_str(" + uint64_t(");
+                export_subexpression(offset, 17, OperatorSide::Middle, output, context)?;
+                output.push(')');
+
+                for expr in rest {
+                    output.push_str(", ");
+                    export_subexpression(expr, 17, OperatorSide::CommaList, output, context)?;
+                }
+            } else {
+                panic!("Incorrect number of arguments in buffer address load");
+            }
+            output.push(')');
+        }
+        Form::Method(s) | Form::AddressMethod(s, _) => {
+            assert!(!exprs.is_empty());
+            export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
+            output.push('.');
+            output.push_str(s);
+            export_template_type_args(tys.as_slice(), output, context)?;
+            export_invocation_args(&exprs[1..], output, context)?;
+        }
+    }
+    Ok(())
 }
 
 /// Export ir variable initializer to HLSL
