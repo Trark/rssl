@@ -414,6 +414,228 @@ fn check_swizzle() {
 }
 
 #[test]
+fn check_operator_prefix_increment() {
+    check_types("void g(out int x) {} void f() { int x = 0u; g(++x); }");
+    check_fail("void f() { const int x = 0u; ++x; }");
+
+    check_types("void g(out uint x) {} void f() { uint x = 0u; g(++x); }");
+    check_fail("void f() { const uint x = 0u; ++x; }");
+
+    check_types("void g(out float x) {} void f() { float x = 0u; g(++x); }");
+    check_fail("void f() { const float x = 0u; ++x; }");
+}
+
+#[test]
+fn check_operator_postfix_increment() {
+    check_types("void f() { int x = 0; x++; }");
+    check_fail("void g(out int x) {} void f() { int x = 0; g(x++); }");
+    check_fail("void f() { const int x = 0; x++; }");
+
+    check_types("void f() { uint x = 0; x++; }");
+    check_fail("void g(out uint x) {} void f() { uint x = 0; g(x++); }");
+    check_fail("void f() { const uint x = 0; x++; }");
+
+    check_types("void f() { float x = 0; x++; }");
+    check_fail("void g(out float x) {} void f() { float x = 0; g(x++); }");
+    check_fail("void f() { const float x = 0; x++; }");
+}
+
+#[test]
+fn check_operator_prefix_decrement() {
+    check_types("void g(out int x) {} void f() { int x = 0; g(--x); }");
+    check_fail("void f() { const int x = 0; --x; }");
+
+    check_types("void g(out uint x) {} void f() { uint x = 0; g(--x); }");
+    check_fail("void f() { const uint x = 0; --x; }");
+
+    check_types("void g(out float x) {} void f() { float x = 0; g(--x); }");
+    check_fail("void f() { const float x = 0; --x; }");
+}
+
+#[test]
+fn check_operator_postfix_decrement() {
+    check_types("void f() { int x = 0; x++; }");
+    check_fail("void g(out int x) {} void f() { int x = 0; g(x--); }");
+    check_fail("void f() { const int x = 0; x--; }");
+
+    check_types("void f() { uint x = 0; x++; }");
+    check_fail("void g(out uint x) {} void f() { uint x = 0; g(x--); }");
+    check_fail("void f() { const uint x = 0; x--; }");
+
+    check_types("void f() { float x = 0; x++; }");
+    check_fail("void g(out float x) {} void f() { float x = 0; g(x--); }");
+    check_fail("void f() { const float x = 0; x--; }");
+}
+
+#[test]
+fn check_operator_unary_plus() {
+    check_types("void f() { int x = 0; +x; }");
+    check_fail("void g(out int x) {} void f() { int x = 0; g(+x); }");
+    check_types("void f() { const int x = 0; +x; }");
+
+    check_types("void f() { uint x = 0u; +x; }");
+    check_fail("void g(out uint x) {} void f() { uint x = 0; g(+x); }");
+    check_types("void f() { const uint x = 0; +x; }");
+
+    check_types("void f() { float x = 0; +x; }");
+    check_fail("void g(out float x) {} void f() { float x = 0; g(+x); }");
+    check_types("void f() { const float x = 0; +x; }");
+}
+
+#[test]
+fn check_operator_minus() {
+    check_types("void f() { int x = 0; -x; }");
+    check_fail("void g(out int x) {} void f() { int x = 0; g(-x); }");
+    check_types("void f() { const int x = 0; -x; }");
+
+    check_types("void f() { uint x = 0u; -x; }");
+    check_fail("void g(out uint x) {} void f() { uint x = 0; g(-x); }");
+    check_types("void f() { const uint x = 0; -x; }");
+
+    check_types("void f() { float x = 0; +x; }");
+    check_fail("void g(out float x) {} void f() { float x = 0; g(-x); }");
+    check_types("void f() { const float x = 0; -x; }");
+}
+
+#[test]
+fn check_operator_logical_not() {
+    check_types("void f() { bool x = false; !x; }");
+    check_fail("void g(out bool x) {} void f() { bool x = false; g(!x); }");
+}
+
+#[test]
+fn check_operator_bitwise_not() {
+    check_types("void f() { uint x = 0; ~x; }");
+    check_fail("void g(out uint x) {} void f() { uint x = 0; g(~x); }");
+}
+
+#[test]
+fn check_operator_add() {
+    check_types("void f() { uint x, y = 0; uint z = x + y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x + y; }");
+}
+
+#[test]
+fn check_operator_subtract() {
+    check_types("void f() { uint x, y = 0; uint z = x - y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x - y; }");
+}
+
+#[test]
+fn check_operator_multiply() {
+    check_types("void f() { uint x, y = 0; uint z = x * y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x * y; }");
+}
+
+#[test]
+fn check_operator_divide() {
+    check_types("void f() { uint x, y = 0; uint z = x / y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x / y; }");
+}
+
+#[test]
+fn check_operator_left_shift() {
+    check_types("void f() { uint x, y = 0; uint z = x << y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x << y; }");
+}
+
+#[test]
+fn check_operator_right_shift() {
+    check_types("void f() { uint x, y = 0; uint z = x >> y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x >> y; }");
+}
+
+#[test]
+fn check_operator_bitwise_and() {
+    check_types("void f() { uint x, y = 0; uint z = x & y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x & y; }");
+}
+
+#[test]
+fn check_operator_bitwise_or() {
+    check_types("void f() { uint x, y = 0; uint z = x | y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x | y; }");
+}
+
+#[test]
+fn check_operator_bitwise_xor() {
+    check_types("void f() { uint x, y = 0; uint z = x ^ y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x ^ y; }");
+}
+
+#[test]
+fn check_operator_boolean_and() {
+    check_types("void f() { bool x, y = 0; bool z = x && y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x && y; }");
+
+    check_types("void f() { uint x, y = 0; uint z = x && y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x && y; }");
+}
+
+#[test]
+fn check_operator_boolean_or() {
+    check_types("void f() { bool x, y = 0; bool z = x || y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x || y; }");
+
+    check_types("void f() { uint x, y = 0; uint z = x || y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x || y; }");
+}
+
+#[test]
+fn check_operator_less_than() {
+    check_types("void f() { uint x, y = 0; uint z = x < y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x < y; }");
+
+    check_types("void f() { bool x, y = 0; bool z = x < y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x < y; }");
+}
+
+#[test]
+fn check_operator_less_equal() {
+    check_types("void f() { uint x, y = 0; uint z = x <= y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x <= y; }");
+
+    check_types("void f() { bool x, y = 0; bool z = x <= y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x <= y; }");
+}
+
+#[test]
+fn check_operator_greater_than() {
+    check_types("void f() { uint x, y = 0; uint z = x > y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x > y; }");
+
+    check_types("void f() { bool x, y = 0; bool z = x > y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x > y; }");
+}
+
+#[test]
+fn check_operator_greater_equal() {
+    check_types("void f() { uint x, y = 0; uint z = x >= y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x >= y; }");
+
+    check_types("void f() { bool x, y = 0; bool z = x >= y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x >= y; }");
+}
+
+#[test]
+fn check_operator_equality() {
+    check_types("void f() { uint x, y = 0; uint z = x == y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x == y; }");
+
+    check_types("void f() { bool x, y = 0; bool z = x == y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x == y; }");
+}
+
+#[test]
+fn check_operator_inequality() {
+    check_types("void f() { uint x, y = 0; uint z = x != y; }");
+    check_types("void f() { const uint x, y = 0; uint z = x != y; }");
+
+    check_types("void f() { bool x, y = 0; bool z = x != y; }");
+    check_types("void f() { const bool x, y = 0; bool z = x != y; }");
+}
+
+#[test]
 fn check_assignment() {
     // Trivial assignment
     check_types("void f() { int x = 1; int y = x; }");

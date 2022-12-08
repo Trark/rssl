@@ -427,7 +427,13 @@ fn parse_expr_unaryop(
         TypedExpression::Value(expr_ir, expr_ty) => {
             fn enforce_increment_type(ety: &ExpressionType, op: &ast::UnaryOp) -> TyperResult<()> {
                 let ExpressionType(ty, vt) = ety;
-                let (tyl, _) = ty.clone().extract_modifier();
+                let (tyl, modifier) = ty.clone().extract_modifier();
+                if modifier.is_const {
+                    return Err(TyperError::UnaryOperationWrongTypes(
+                        op.clone(),
+                        ErrorType::Unknown,
+                    ));
+                }
                 match (tyl, vt) {
                     (_, ir::ValueType::Rvalue) => Err(TyperError::UnaryOperationWrongTypes(
                         op.clone(),
@@ -456,11 +462,19 @@ fn parse_expr_unaryop(
                 }
                 ast::UnaryOp::PostfixIncrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (ir::IntrinsicOp::PostfixIncrement, expr_ir, expr_ty)
+                    (
+                        ir::IntrinsicOp::PostfixIncrement,
+                        expr_ir,
+                        expr_ty.0.to_rvalue(),
+                    )
                 }
                 ast::UnaryOp::PostfixDecrement => {
                     enforce_increment_type(&expr_ty, op)?;
-                    (ir::IntrinsicOp::PostfixDecrement, expr_ir, expr_ty)
+                    (
+                        ir::IntrinsicOp::PostfixDecrement,
+                        expr_ir,
+                        expr_ty.0.to_rvalue(),
+                    )
                 }
                 ast::UnaryOp::Plus => (ir::IntrinsicOp::Plus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::Minus => (ir::IntrinsicOp::Minus, expr_ir, expr_ty.0.to_rvalue()),
@@ -759,8 +773,8 @@ fn parse_expr_binop(
         | ast::BinOp::BitwiseXor
         | ast::BinOp::BooleanAnd
         | ast::BinOp::BooleanOr => {
-            let lhs_tyl = &lhs_type.0;
-            let rhs_tyl = &rhs_type.0;
+            let lhs_tyl = lhs_type.0.clone().remove_modifier();
+            let rhs_tyl = rhs_type.0.clone().remove_modifier();
             let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
                 ir::ScalarType::Bool
             } else {

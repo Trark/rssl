@@ -359,7 +359,7 @@ impl ImplicitConversion {
         };
         let dim = match *dimension_cast {
             Some(DimensionCast(_, ref dim)) => Some(*dim),
-            None => match ty.0 {
+            None => match ty.0.clone().remove_modifier() {
                 TypeLayout::Scalar(_) => Some(NumericDimension::Scalar),
                 TypeLayout::Vector(_, ref x) => Some(NumericDimension::Vector(*x)),
                 TypeLayout::Matrix(_, ref x, ref y) => Some(NumericDimension::Matrix(*x, *y)),
