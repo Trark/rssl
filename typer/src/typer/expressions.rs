@@ -239,12 +239,16 @@ fn find_function_type(
     ))
 }
 
-fn apply_casts(casts: Vec<ImplicitConversion>, values: Vec<ir::Expression>) -> Vec<ir::Expression> {
+fn apply_casts(
+    module: &mut ir::Module,
+    casts: Vec<ImplicitConversion>,
+    values: Vec<ir::Expression>,
+) -> Vec<ir::Expression> {
     assert_eq!(casts.len(), values.len());
     values
         .into_iter()
         .enumerate()
-        .map(|(index, value)| casts[index].apply(value))
+        .map(|(index, value)| casts[index].apply(module, value))
         .collect::<Vec<_>>()
 }
 
@@ -267,7 +271,7 @@ fn write_function(
             call_location,
         )?;
     // Apply implicit casts
-    let param_values = apply_casts(casts, param_values);
+    let param_values = apply_casts(&mut context.module, casts, param_values);
     let return_type_layout = context
         .module
         .type_registry
@@ -312,7 +316,7 @@ fn write_method(
             call_location,
         )?;
     // Apply implicit casts
-    let mut param_values = apply_casts(casts, param_values);
+    let mut param_values = apply_casts(&mut context.module, casts, param_values);
     // Add struct as implied first argument
     param_values.insert(0, unresolved.object_value);
 
@@ -723,8 +727,8 @@ fn parse_expr_binop(
             }
             let types = resolve_arithmetic_types(op, &lhs_type, &rhs_type)?;
             let (lhs_cast, rhs_cast, output_intrinsic) = types;
-            let lhs_final = lhs_cast.apply(lhs_ir);
-            let rhs_final = rhs_cast.apply(rhs_ir);
+            let lhs_final = lhs_cast.apply(&mut context.module, lhs_ir);
+            let rhs_final = rhs_cast.apply(&mut context.module, rhs_ir);
             let output_type = output_intrinsic
                 .get_return_type(&[lhs_cast.get_target_type(), rhs_cast.get_target_type()]);
             let node = ir::Expression::Intrinsic(
@@ -778,8 +782,8 @@ fn parse_expr_binop(
                 Err(()) => return err_bad_type,
             };
             assert_eq!(lhs_cast.get_target_type(), rhs_cast.get_target_type());
-            let lhs_final = lhs_cast.apply(lhs_ir);
-            let rhs_final = rhs_cast.apply(rhs_ir);
+            let lhs_final = lhs_cast.apply(&mut context.module, lhs_ir);
+            let rhs_final = rhs_cast.apply(&mut context.module, rhs_ir);
             let i = match *op {
                 ast::BinOp::BitwiseAnd => ir::Intrinsic::BitwiseAnd,
                 ast::BinOp::BitwiseOr => ir::Intrinsic::BitwiseOr,
@@ -808,7 +812,7 @@ fn parse_expr_binop(
             };
             match ImplicitConversion::find(&rhs_type, &required_rtype) {
                 Ok(rhs_cast) => {
-                    let rhs_final = rhs_cast.apply(rhs_ir);
+                    let rhs_final = rhs_cast.apply(&mut context.module, rhs_ir);
                     let i = match *op {
                         ast::BinOp::Assignment => ir::Intrinsic::Assignment,
                         ast::BinOp::SumAssignment => ir::Intrinsic::SumAssignment,
@@ -908,8 +912,8 @@ fn parse_expr_ternary(
         Err(()) => return wrong_types_err,
     };
 
-    let lhs_casted = Box::new(left_cast.apply(lhs));
-    let rhs_casted = Box::new(right_cast.apply(rhs));
+    let lhs_casted = Box::new(left_cast.apply(&mut context.module, lhs));
+    let rhs_casted = Box::new(right_cast.apply(&mut context.module, rhs));
     assert_eq!(left_cast.get_target_type(), right_cast.get_target_type());
     let final_type = left_cast.get_target_type();
 
@@ -922,7 +926,7 @@ fn parse_expr_ternary(
             ))
         }
     };
-    let cond_casted = Box::new(cond_cast.apply(cond));
+    let cond_casted = Box::new(cond_cast.apply(&mut context.module, cond));
 
     let node = ir::Expression::TernaryConditional(cond_casted, lhs_casted, rhs_casted);
     Ok(TypedExpression::Value(node, final_type))
@@ -976,7 +980,7 @@ fn parse_expr_unchecked(
                     let cast_to_int_result = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast_to_int_result {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
-                        Ok(cast) => cast.apply(subscript_ir),
+                        Ok(cast) => cast.apply(&mut context.module, subscript_ir),
                     };
                     let array = Box::new(array_ir);
                     let sub = Box::new(subscript_final);
@@ -988,7 +992,7 @@ fn parse_expr_unchecked(
                     let cast = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
-                        Ok(cast) => cast.apply(subscript_ir),
+                        Ok(cast) => cast.apply(&mut context.module, subscript_ir),
                     };
                     let array = Box::new(array_ir);
                     let sub = Box::new(subscript_final);
@@ -1000,7 +1004,7 @@ fn parse_expr_unchecked(
                     let cast = ImplicitConversion::find(&subscript_ty, &index);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
-                        Ok(cast) => cast.apply(subscript_ir),
+                        Ok(cast) => cast.apply(&mut context.module, subscript_ir),
                     };
                     let array = Box::new(array_ir);
                     let sub = Box::new(subscript_final);
@@ -1226,8 +1230,9 @@ fn parse_expr_unchecked(
             match expr_texp {
                 TypedExpression::Value(expr_ir, _) => {
                     let ir_type = parse_type(ty, context)?;
+                    let ty_id = context.module.type_registry.register_type(ir_type.clone());
                     Ok(TypedExpression::Value(
-                        ir::Expression::Cast(ir_type.clone(), Box::new(expr_ir)),
+                        ir::Expression::Cast(ty_id, Box::new(expr_ir)),
                         ir_type.to_rvalue(),
                     ))
                 }
@@ -1239,8 +1244,9 @@ fn parse_expr_unchecked(
         }
         ast::Expression::SizeOf(ref ty) => {
             let ir_type = parse_type(ty, context)?;
+            let ty_id = context.module.type_registry.register_type(ir_type);
             Ok(TypedExpression::Value(
-                ir::Expression::SizeOf(ir_type),
+                ir::Expression::SizeOf(ty_id),
                 ir::TypeLayout::uint().to_rvalue(),
             ))
         }
@@ -1377,13 +1383,14 @@ fn parse_expr_constructor(
             Ok(cast) => cast,
             Err(()) => return Err(TyperError::WrongTypeInConstructor),
         };
-        let expr = cast.apply(expr_base);
+        let expr = cast.apply(&mut context.module, expr_base);
         slots.push(ir::ConstructorSlot { arity, expr });
     }
     let expected_layout = ty.get_num_elements();
     let ety = ty.to_rvalue();
     if total_arity == expected_layout {
-        let cons = ir::Expression::Constructor(ety.0.clone(), slots);
+        let ty_id = context.module.type_registry.register_type(ety.0.clone());
+        let cons = ir::Expression::Constructor(ty_id, slots);
         Ok(TypedExpression::Value(cons, ety))
     } else {
         Err(TyperError::ConstructorWrongArgumentCount(error_location))
@@ -1556,8 +1563,12 @@ fn get_expression_type(
         ir::Expression::Call(id, _, ref template_args, _) => {
             context.get_type_of_function_return(id, template_args)
         }
-        ir::Expression::Constructor(ref tyl, _) => Ok(tyl.clone().to_rvalue()),
-        ir::Expression::Cast(ref ty, _) => Ok(ty.to_rvalue()),
+        ir::Expression::Constructor(ty, _) => {
+            Ok(context.module.type_registry.get_type_layout(ty).to_rvalue())
+        }
+        ir::Expression::Cast(ty, _) => {
+            Ok(context.module.type_registry.get_type_layout(ty).to_rvalue())
+        }
         ir::Expression::SizeOf(_) => Ok(ir::TypeLayout::uint().to_rvalue()),
         ir::Expression::Intrinsic(ref intrinsic, ref template_args, ref args) => {
             let mut arg_types = Vec::with_capacity(args.len());

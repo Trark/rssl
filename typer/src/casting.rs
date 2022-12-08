@@ -396,7 +396,7 @@ impl ImplicitConversion {
         }
     }
 
-    pub fn apply(&self, expr: Expression) -> Expression {
+    pub fn apply(&self, module: &mut Module, expr: Expression) -> Expression {
         // If there was no conversion then return the given expression
         if let ImplicitConversion(_, _, None, None, None) = *self {
             return expr;
@@ -430,7 +430,8 @@ impl ImplicitConversion {
         }
 
         // Emit a cast operation on the given expression
-        Expression::Cast(target_type.0, Box::new(expr))
+        let type_id = module.type_registry.register_type(target_type.0);
+        Expression::Cast(type_id, Box::new(expr))
     }
 }
 

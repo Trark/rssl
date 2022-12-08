@@ -939,7 +939,8 @@ fn export_subexpression(
             export_subexpression(expr_index, prec, OperatorSide::Middle, output, context)?;
             output.push(']');
         }
-        ir::Expression::Constructor(tyl, args) => {
+        ir::Expression::Constructor(type_id, args) => {
+            let tyl = context.module.type_registry.get_type_layout(*type_id);
             export_type_layout(tyl, output, context)?;
             output.push('(');
             if let Some((last, main)) = args.split_last() {
@@ -951,15 +952,17 @@ fn export_subexpression(
             }
             output.push(')');
         }
-        ir::Expression::Cast(ty, expr) => {
+        ir::Expression::Cast(type_id, expr) => {
             output.push('(');
-            export_type(ty, output, context)?;
+            let tyl = context.module.type_registry.get_type_layout(*type_id);
+            export_type(tyl, output, context)?;
             output.push(')');
             export_subexpression(expr, prec, OperatorSide::Right, output, context)?;
         }
-        ir::Expression::SizeOf(ty) => {
+        ir::Expression::SizeOf(type_id) => {
             output.push_str("sizeof(");
-            export_type(ty, output, context)?;
+            let tyl = context.module.type_registry.get_type_layout(*type_id);
+            export_type(tyl, output, context)?;
             output.push(')');
         }
         ir::Expression::Member(expr, name) => {

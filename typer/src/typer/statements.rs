@@ -125,7 +125,9 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 .get_type_layout(context.get_current_return_type());
             let expected_ety = expected_type_layout.to_rvalue();
             match ImplicitConversion::find(&expr_ty, &expected_ety) {
-                Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(rhs_cast.apply(expr_ir)))]),
+                Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(
+                    rhs_cast.apply(&mut context.module, expr_ir),
+                ))]),
                 Err(()) => Err(TyperError::WrongTypeInReturnStatement(
                     expr_ty.0,
                     expected_ety.0,
@@ -282,7 +284,9 @@ fn parse_initializer(
             let ety = tyl.clone().remove_modifier().to_rvalue();
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             match ImplicitConversion::find(&expr_ty, &ety) {
-                Ok(rhs_cast) => ir::Initializer::Expression(rhs_cast.apply(expr_ir)),
+                Ok(rhs_cast) => {
+                    ir::Initializer::Expression(rhs_cast.apply(&mut context.module, expr_ir))
+                }
                 Err(()) => {
                     return Err(TyperError::InitializerExpressionWrongType(
                         expr_ty.0,
