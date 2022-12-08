@@ -346,22 +346,22 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         &|f| {
                             write!(
                                 f,
-                                "candidate function{}: {:?} {}(",
+                                "candidate function{}: {} {}(",
                                 if *ambiguous_success {
                                     ""
                                 } else {
                                     " not viable"
                                 },
-                                overload.1.return_type.return_type,
+                                get_type_id_string(overload.1.return_type.return_type, context),
                                 func_name
                             )?;
                             if let Some((last_param, not_last)) =
                                 overload.1.param_types.split_last()
                             {
                                 for param in not_last {
-                                    write!(f, "{:?}, ", param)?;
+                                    write!(f, "{}, ", get_param_type_string(param, context))?;
                                 }
-                                write!(f, "{:?}", last_param)?;
+                                write!(f, "{}", get_param_type_string(last_param, context))?;
                             }
                             write!(f, ")")
                         },
@@ -534,6 +534,11 @@ fn get_function_location(id: ir::FunctionId, context: &Context) -> SourceLocatio
     context.module.get_function_location(id)
 }
 
+/// Get a string name from a type id for error display
+fn get_type_id_string(id: ir::TypeId, context: &Context) -> String {
+    get_type_string(context.module.type_registry.get_type_layout(id), context)
+}
+
 /// Get a string name from a type for error display
 fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
     match *tyl {
@@ -546,6 +551,19 @@ fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
             format!("{:?}{}", modifier, get_type_string(ty, context))
         }
         _ => format!("{:?}", tyl),
+    }
+}
+
+/// Get a string name from a param type for error display
+fn get_param_type_string(param: &ir::ParamType, context: &Context) -> String {
+    match &param.2 {
+        None => format!("{:?} {}", param.1, get_type_id_string(param.0, context)),
+        Some(m) => format!(
+            "{:?} {:?} {}",
+            param.1,
+            m,
+            get_type_id_string(param.0, context)
+        ),
     }
 }
 

@@ -37,12 +37,11 @@ impl<'a> ToExpressionType for &'a TypeLayout {
     }
 }
 
-impl From<ParamType> for ExpressionType {
-    fn from(ty: ParamType) -> Self {
-        let vt = match ty.1 {
+impl From<InputModifier> for ValueType {
+    fn from(im: InputModifier) -> Self {
+        match im {
             InputModifier::In => ValueType::Rvalue,
             InputModifier::InOut | InputModifier::Out => ValueType::Lvalue,
-        };
-        ExpressionType(ty.0, vt)
+        }
     }
 }

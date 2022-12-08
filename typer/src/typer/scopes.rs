@@ -72,7 +72,7 @@ struct ScopeData {
     namespaces: HashMap<String, ScopeIndex>,
 
     owning_struct: Option<ir::StructId>,
-    function_return_type: Option<ir::TypeLayout>,
+    function_return_type: Option<ir::TypeId>,
 }
 
 impl Context {
@@ -205,14 +205,14 @@ impl Context {
     }
 
     /// Set the scope as a function scope with the given return type
-    pub fn set_function_return_type(&mut self, return_type: ir::TypeLayout) {
+    pub fn set_function_return_type(&mut self, return_type: ir::TypeId) {
         assert_eq!(self.scopes[self.current_scope].function_return_type, None);
         self.scopes[self.current_scope].function_return_type = Some(return_type);
     }
 
     /// Get the return type of the current function
-    pub fn get_current_return_type(&self) -> ir::TypeLayout {
-        match self.search_scopes(|s| s.function_return_type.clone()) {
+    pub fn get_current_return_type(&self) -> ir::TypeId {
+        match self.search_scopes(|s| s.function_return_type) {
             Some(ret) => ret,
             None => panic!("Not inside function"),
         }
@@ -451,12 +451,19 @@ impl Context {
     ) -> TyperResult<ExpressionType> {
         let signature = self.get_function_signature(id)?;
         if template_args.is_empty() {
-            Ok(signature.return_type.return_type.clone().to_rvalue())
+            let type_layout = self
+                .module
+                .type_registry
+                .get_type_layout(signature.return_type.return_type)
+                .clone();
+            Ok(type_layout.to_rvalue())
         } else {
-            let return_type = apply_template_type_substitution(
-                signature.return_type.return_type.clone(),
-                template_args,
-            );
+            let type_layout = self
+                .module
+                .type_registry
+                .get_type_layout(signature.return_type.return_type)
+                .clone();
+            let return_type = apply_template_type_substitution(type_layout, template_args);
             Ok(return_type.to_rvalue())
         }
     }
@@ -928,20 +935,24 @@ impl Context {
 
         // Function signature requires applying template substitution
         let base_signature = self.module.function_registry.get_function_signature(id);
-        let signature = base_signature.clone().apply_templates(template_args);
+        let signature = base_signature
+            .clone()
+            .apply_templates(&mut self.module, template_args);
 
         // Return type can be retrieved from the signature
-        self.scopes[new_scope_id].function_return_type =
-            Some(signature.return_type.return_type.clone());
+        self.scopes[new_scope_id].function_return_type = Some(signature.return_type.return_type);
 
         // This should be the same as the template function scopes return type with templates applied
         assert_eq!(
-            signature.return_type.return_type,
+            *self
+                .module
+                .type_registry
+                .get_type_layout(signature.return_type.return_type),
             super::types::apply_template_type_substitution(
-                self.scopes[old_scope_id]
-                    .function_return_type
-                    .clone()
-                    .unwrap(),
+                self.module
+                    .type_registry
+                    .get_type_layout(self.scopes[old_scope_id].function_return_type.unwrap())
+                    .clone(),
                 template_args,
             )
         );

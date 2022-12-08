@@ -89,6 +89,7 @@ fn parse_identifier(id: &ast::ScopedIdentifier, context: &Context) -> TyperResul
 }
 
 fn find_function_type(
+    module: &mut ir::Module,
     overloads: &Vec<FunctionOverload>,
     template_args: &[Located<ir::TypeOrConstant>],
     param_types: &[ExpressionType],
@@ -96,10 +97,11 @@ fn find_function_type(
 ) -> TyperResult<(FunctionOverload, Vec<ImplicitConversion>)> {
     use crate::casting::VectorRank;
     fn find_overload_casts(
+        module: &mut ir::Module,
         overload: &FunctionOverload,
         template_args: &[Located<ir::TypeOrConstant>],
         param_types: &[ExpressionType],
-    ) -> Result<(ir::TypeLayout, Vec<ImplicitConversion>), ()> {
+    ) -> Result<(ir::TypeId, Vec<ImplicitConversion>), ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
 
         let mut signature = overload.1.clone();
@@ -112,7 +114,7 @@ fn find_function_type(
                 return Err(());
             }
 
-            signature = signature.apply_templates(template_args);
+            signature = signature.apply_templates(module, template_args);
         } else if !template_args.is_empty() {
             // Template args given to non template function
             return Err(());
@@ -122,7 +124,13 @@ fn find_function_type(
             if required_type.2.is_some() {
                 return Err(());
             };
-            let ety = required_type.clone().into();
+            let ety = ExpressionType(
+                module
+                    .type_registry
+                    .get_type_layout(required_type.0)
+                    .clone(),
+                required_type.1.into(),
+            );
             if let Ok(cast) = ImplicitConversion::find(source_type, &ety) {
                 overload_casts.push(cast)
             } else {
@@ -136,7 +144,7 @@ fn find_function_type(
     for overload in overloads {
         if param_types.len() == overload.1.param_types.len() {
             if let Ok((return_type, param_casts)) =
-                find_overload_casts(overload, template_args, param_types)
+                find_overload_casts(module, overload, template_args, param_types)
             {
                 let mut overload = overload.clone();
                 overload.1.return_type.return_type = return_type;
@@ -252,6 +260,7 @@ fn write_function(
     // Find the matching function overload
     let (FunctionOverload(id, ir::FunctionSignature { return_type, .. }), casts) =
         find_function_type(
+            &mut context.module,
             &unresolved.overloads,
             template_args,
             param_types,
@@ -259,7 +268,11 @@ fn write_function(
         )?;
     // Apply implicit casts
     let param_values = apply_casts(casts, param_values);
-    let return_type = return_type.return_type.to_rvalue();
+    let return_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(return_type.return_type);
+    let return_type = return_type_layout.to_rvalue();
 
     if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
         Ok(TypedExpression::Value(
@@ -292,6 +305,7 @@ fn write_method(
     // Find the matching method overload
     let (FunctionOverload(id, ir::FunctionSignature { return_type, .. }), casts) =
         find_function_type(
+            &mut context.module,
             &unresolved.overloads,
             template_args,
             param_types,
@@ -301,7 +315,13 @@ fn write_method(
     let mut param_values = apply_casts(casts, param_values);
     // Add struct as implied first argument
     param_values.insert(0, unresolved.object_value);
-    let return_type = return_type.return_type.to_rvalue();
+
+    let return_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(return_type.return_type)
+        .clone();
+    let return_type = return_type_layout.to_rvalue();
 
     if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(id) {
         Ok(TypedExpression::Value(

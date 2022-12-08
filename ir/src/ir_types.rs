@@ -122,11 +122,11 @@ impl Module {
 
         // Make a new entry
         let id = ObjectId(self.type_registry.object_layouts.len() as u32);
-        self.type_registry.object_layouts.push(object_type);
+        self.type_registry.object_layouts.push(object_type.clone());
 
         // Gather the intrinsic functions
         let mut functions = Vec::new();
-        for def in intrinsic_data::get_methods(self.type_registry.get_object_layout(id)) {
+        for def in intrinsic_data::get_methods(self, object_type) {
             // Register the function
             let func_id = self.function_registry.register_function(
                 FunctionNameDefinition {

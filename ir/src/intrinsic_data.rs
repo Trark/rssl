@@ -1,4 +1,5 @@
 use crate::*;
+use rssl_text::Located;
 
 type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, &'static [ParamDef]);
 
@@ -263,36 +264,51 @@ const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
 ];
 
 /// Create a collection of all the intrinsic functions
-pub fn get_intrinsics() -> Vec<(String, Intrinsic, FunctionSignature)> {
-    let mut overloads = Vec::with_capacity(INTRINSICS.len());
-    for &(ref name, ref intrinsic, param_types) in INTRINSICS {
+pub fn add_intrinsics(module: &mut Module) {
+    for &(ref name, ref intrinsic, param_type_defs) in INTRINSICS {
         // Fetch and remap the param types
-        let param_types = param_types
+        let param_types = param_type_defs
             .iter()
-            .map(|p| ParamType(p.0.clone(), p.1, None))
+            .map(|p| ParamType(module.type_registry.register_type(p.0.clone()), p.1, None))
             .collect::<Vec<_>>();
 
         // Generate the return type
         let mut expr_types = Vec::with_capacity(param_types.len());
-        for param_type in &param_types {
-            expr_types.push(param_type.clone().into());
+        for param_type_def in param_type_defs {
+            expr_types.push(ExpressionType(
+                param_type_def.0.clone(),
+                param_type_def.1.into(),
+            ));
         }
-        let return_type = intrinsic.get_return_type(&expr_types).0;
+        let return_type_layout = intrinsic.get_return_type(&expr_types).0;
         let return_type = FunctionReturn {
-            return_type,
+            return_type: module.type_registry.register_type(return_type_layout),
             semantic: None,
         };
 
         // Make the signature
-        let sig = FunctionSignature {
+        let signature = FunctionSignature {
             return_type,
             template_params: TemplateParamCount(0),
             param_types,
         };
 
-        overloads.push((name.to_string(), intrinsic.clone(), sig));
+        // All intrinsic functions are in root namespace
+        let full_name = ScopedName::unscoped(name.to_string());
+
+        // Register the intrinsic as a function
+        let id = module.function_registry.register_function(
+            FunctionNameDefinition {
+                name: Located::none(name.to_string()),
+                full_name,
+            },
+            signature,
+        );
+
+        module
+            .function_registry
+            .set_intrinsic_data(id, intrinsic.clone());
     }
-    overloads
 }
 
 const BUFFER_INTRINSICS: &[IntrinsicDefinition] =
@@ -330,7 +346,13 @@ const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
         T_OBJECT_ARG_TY,
         &[T_SAMPLER, T_FLOAT2],
     ),
-    ("Load", Intrinsic::Texture2DLoad, 0, T_OBJECT_ARG_TY, &[T_INT3]),
+    (
+        "Load",
+        Intrinsic::Texture2DLoad,
+        0,
+        T_OBJECT_ARG_TY,
+        &[T_INT3],
+    ),
 ];
 
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[(
@@ -475,9 +497,9 @@ pub struct MethodDefinition {
 }
 
 /// Get the intrinsic methods for an intrinsic object
-pub fn get_methods(object: &ObjectType) -> Vec<MethodDefinition> {
+pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinition> {
     // Pick the functions based on the object base type
-    let method_defs = match object {
+    let method_defs = match &object {
         ObjectType::Buffer(_) => BUFFER_INTRINSICS,
         ObjectType::RWBuffer(_) => RWBUFFER_INTRINSICS,
         ObjectType::StructuredBuffer(_) => STRUCTUREDBUFFER_INTRINSICS,
@@ -492,7 +514,7 @@ pub fn get_methods(object: &ObjectType) -> Vec<MethodDefinition> {
     };
 
     // Get the object template type
-    let inner_type = match object {
+    let inner_type = match &object {
         ObjectType::Buffer(dty)
         | ObjectType::RWBuffer(dty)
         | ObjectType::Texture2D(dty)
@@ -504,7 +526,7 @@ pub fn get_methods(object: &ObjectType) -> Vec<MethodDefinition> {
     };
 
     let mut methods = Vec::new();
-    for &(method_name, ref intrinsic, template_param_count, ref return_type, param_types) in
+    for &(method_name, ref intrinsic, template_param_count, ref return_type, param_type_defs) in
         method_defs
     {
         // Replace the object template type with the type arg
@@ -518,23 +540,26 @@ pub fn get_methods(object: &ObjectType) -> Vec<MethodDefinition> {
         };
 
         // Fetch and remap the param types
-        let param_types = param_types
+        let param_types = param_type_defs
             .iter()
-            .map(|p| ParamType(remap_inner(p.0.clone()), p.1, None))
+            .map(|p| ParamType(module.type_registry.register_type(p.0.clone()), p.1, None))
             .collect::<Vec<_>>();
 
         // Fetch and remap the return type
-        let return_type = remap_inner(return_type.clone());
+        let return_type_layout = remap_inner(return_type.clone());
 
         // Check generated return type for consistency
         {
             let mut expr_types = Vec::with_capacity(param_types.len());
             expr_types.push(TypeLayout::Object(object.clone()).to_rvalue());
-            for param_type in &param_types {
-                expr_types.push(param_type.clone().into());
+            for param_type_def in param_type_defs {
+                expr_types.push(ExpressionType(
+                    param_type_def.0.clone(),
+                    param_type_def.1.into(),
+                ));
             }
             let generated_return_type = intrinsic.get_return_type(&expr_types).0;
-            assert_eq!(return_type, generated_return_type);
+            assert_eq!(return_type_layout, generated_return_type);
         }
 
         methods.push(MethodDefinition {
@@ -542,7 +567,7 @@ pub fn get_methods(object: &ObjectType) -> Vec<MethodDefinition> {
             intrinsic: intrinsic.clone(),
             signature: FunctionSignature {
                 return_type: FunctionReturn {
-                    return_type,
+                    return_type: module.type_registry.register_type(return_type_layout),
                     semantic: None,
                 },
                 template_params: TemplateParamCount(template_param_count),

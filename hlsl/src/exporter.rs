@@ -374,7 +374,11 @@ fn export_function(
         export_function_attribute(attribute, output, context)?;
     }
 
-    export_type(&sig.return_type.return_type, output, context)?;
+    let return_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(sig.return_type.return_type);
+    export_type(return_type_layout, output, context)?;
     output.push(' ');
 
     output.push_str(context.get_function_name(id)?);
@@ -449,7 +453,11 @@ fn export_function_param(
         todo!("Interpolation modifier: {:?}", param.param_type.2);
     }
     let mut array_part = String::new();
-    export_type_for_def(&param.param_type.0, output, &mut array_part, context)?;
+    let param_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(param.param_type.0);
+    export_type_for_def(param_type_layout, output, &mut array_part, context)?;
 
     output.push(' ');
 

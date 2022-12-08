@@ -36,7 +36,7 @@ pub struct FunctionImplementation {
 /// The type of a function return value
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionReturn {
-    pub return_type: TypeLayout,
+    pub return_type: TypeId,
     pub semantic: Option<Semantic>,
 }
 
@@ -52,7 +52,7 @@ pub struct FunctionParam {
 /// The type of any parameter declaration
 #[derive(PartialEq, Eq, Clone)]
 pub struct ParamType(
-    pub TypeLayout,
+    pub TypeId,
     pub InputModifier,
     pub Option<InterpolationModifier>,
 );
@@ -135,9 +135,9 @@ impl FunctionRegistry {
     }
 }
 
-impl From<TypeLayout> for ParamType {
-    fn from(ty: TypeLayout) -> ParamType {
-        ParamType(ty, InputModifier::default(), None)
+impl From<TypeId> for ParamType {
+    fn from(id: TypeId) -> ParamType {
+        ParamType(id, InputModifier::default(), None)
     }
 }
 

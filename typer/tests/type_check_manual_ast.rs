@@ -218,13 +218,19 @@ fn test_ast_to_ir() {
                 ])
             );
 
-            let mut expected_types = ir::TypeRegistry::default();
-            expected_types.register_type(ir::TypeLayout::Modifier(
-                ir::TypeModifier::const_only(),
-                Box::new(ir::TypeLayout::Scalar(ir::ScalarType::Int)),
-            ));
+            let mut reference_module = ir::Module::create();
+            let void_id = reference_module
+                .type_registry
+                .register_type(ir::TypeLayout::Void);
+            let const_int_id =
+                reference_module
+                    .type_registry
+                    .register_type(ir::TypeLayout::Modifier(
+                        ir::TypeModifier::const_only(),
+                        Box::new(ir::TypeLayout::Scalar(ir::ScalarType::Int)),
+                    ));
 
-            assert_eq!(actual.type_registry, expected_types);
+            assert_eq!(actual.type_registry, reference_module.type_registry);
             assert_eq!(actual.struct_registry, Vec::new());
             assert_eq!(actual.struct_template_registry, Vec::new());
 
@@ -234,7 +240,7 @@ fn test_ast_to_ir() {
                     .get_function_signature(base_func_id),
                 ir::FunctionSignature {
                     return_type: ir::FunctionReturn {
-                        return_type: ir::TypeLayout::void().into(),
+                        return_type: void_id.into(),
                         semantic: None,
                     },
                     template_params: ir::TemplateParamCount(0),
@@ -281,7 +287,7 @@ fn test_ast_to_ir() {
                     id: ir::GlobalId(0),
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
-                    type_id: ir::TypeId(1),
+                    type_id: const_int_id,
                     storage_class: ir::GlobalStorage::Static,
                     lang_slot: None,
                     api_slot: None,

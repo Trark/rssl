@@ -13,18 +13,37 @@ pub struct FunctionOverload(pub ir::FunctionId, pub ir::FunctionSignature);
 /// Trait for applying template arguments onto another type
 pub trait ApplyTemplates {
     /// Transforms a signature with template parameters with concrete arguments
-    fn apply_templates(self, template_args: &[Located<ir::TypeOrConstant>]) -> Self;
+    fn apply_templates(
+        self,
+        module: &mut ir::Module,
+        template_args: &[Located<ir::TypeOrConstant>],
+    ) -> Self;
 }
 
 impl ApplyTemplates for ir::FunctionSignature {
-    fn apply_templates(mut self, template_args: &[Located<ir::TypeOrConstant>]) -> Self {
+    fn apply_templates(
+        mut self,
+        module: &mut ir::Module,
+        template_args: &[Located<ir::TypeOrConstant>],
+    ) -> Self {
         for param_type in &mut self.param_types {
-            let ty = param_type.0.clone();
-            param_type.0 = apply_template_type_substitution(ty, template_args);
+            let param_type_layout = module.type_registry.get_type_layout(param_type.0).clone();
+
+            let param_type_layout =
+                apply_template_type_substitution(param_type_layout, template_args).clone();
+
+            param_type.0 = module.type_registry.register_type(param_type_layout);
         }
 
-        self.return_type.return_type =
-            apply_template_type_substitution(self.return_type.return_type, template_args);
+        let return_type_layout = module
+            .type_registry
+            .get_type_layout(self.return_type.return_type)
+            .clone();
+
+        let return_type_layout =
+            apply_template_type_substitution(return_type_layout, template_args);
+
+        self.return_type.return_type = module.type_registry.register_type(return_type_layout);
 
         self
     }
@@ -61,15 +80,23 @@ pub fn parse_function_signature(
     let return_type = parse_returntype(&fd.returntype, context)?;
 
     // We save the return type of the current function for return statement parsing
-    context.set_function_return_type(return_type.return_type.clone());
+    context.set_function_return_type(return_type.return_type);
 
     let param_types = {
         let mut vec = vec![];
         for param in &fd.params {
             let mut var_type = parse_paramtype(&param.param_type, context)?;
 
+            let type_layout = context
+                .module
+                .type_registry
+                .get_type_layout(var_type.0)
+                .clone();
+
             // If the parameter has type information bound to the name then apply it to the type now
-            var_type.0 = apply_variable_bind(var_type.0, &param.bind, &None)?;
+            let type_layout = apply_variable_bind(type_layout, &param.bind, &None)?;
+
+            var_type.0 = context.module.type_registry.register_type(type_layout);
 
             vec.push(var_type);
         }
@@ -100,11 +127,7 @@ pub fn parse_function_body(
     let func_params = {
         let mut vec = Vec::new();
         for (var_type, ast_param) in signature.param_types.into_iter().zip(&fd.params) {
-            let var_type_id = context
-                .module
-                .type_registry
-                .register_type(var_type.0.clone());
-            let var_id = context.insert_variable(ast_param.name.clone(), var_type_id)?;
+            let var_id = context.insert_variable(ast_param.name.clone(), var_type.0)?;
             vec.push(ir::FunctionParam {
                 id: var_id,
                 param_type: var_type,
@@ -166,6 +189,9 @@ fn parse_returntype(
     context: &mut Context,
 ) -> TyperResult<ir::FunctionReturn> {
     let ty = parse_type(&return_type.return_type, context)?;
+
+    let ty = context.module.type_registry.register_type(ty);
+
     Ok(ir::FunctionReturn {
         return_type: ty,
         semantic: return_type.semantic.clone(),
@@ -183,6 +209,9 @@ fn parse_paramtype(
             param_type.0.location,
         ));
     }
+
+    let ty = context.module.type_registry.register_type(ty);
+
     Ok(ir::ParamType(ty, param_type.1, param_type.2.clone()))
 }
 
