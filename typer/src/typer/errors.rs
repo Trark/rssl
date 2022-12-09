@@ -331,9 +331,9 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         }
                         if let Some((last_arg, not_last)) = types.split_last() {
                             for arg in not_last {
-                                write!(f, "{:?}, ", arg.0)?;
+                                write!(f, "{}, ", get_type_string(&arg.0, context))?;
                             }
-                            write!(f, "{:?}", last_arg.0)?;
+                            write!(f, "{}", get_type_string(&last_arg.0, context))?;
                         }
                         write!(f, ")")
                     },

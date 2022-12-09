@@ -60,7 +60,14 @@ pub fn check_fail_message(source: &str, expected_message: &str) {
         Ok(_) => panic!("Expected type check to fail: {}", source),
         Err(err) => {
             let error_print = err.display(&source_manager).to_string();
-            assert_eq!(error_print, expected_message);
+            assert_eq!(
+                error_print,
+                expected_message,
+                "\n{2}\n{0}{2}\n{1}",
+                error_print,
+                expected_message,
+                "-".repeat(80)
+            );
         }
     }
 }

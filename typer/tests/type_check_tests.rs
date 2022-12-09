@@ -171,6 +171,28 @@ void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
     check_types("void f() { int x[2]; } void main() { f(); }");
     // Check that a function can have a function parameter that is an array
     check_types("void f(out int x[2]) {} void main() { int a[2]; f(a); }");
+
+    // Check that we can not define a function that is the same as an intrinsic
+    // HLSL allows this but we do not
+    check_fail("void mul(float4x4 x, float4 y) {}");
+
+    // Check that we can define functions that are overloads of intrinsic functions
+    check_types("struct S {}; void mul(S s) {} void main() { S s; mul(s); }");
+
+    // Ensure the failure message for overloads with both user functions and intrinsics functions
+    // Tests the printed names for functions, intrinsics, and structs displays the correct name
+    check_fail_message(
+        "struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }",
+        "type_test.rssl:1:63: error: no matching function for call to mul(A)
+struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
+                                                              ^
+note: candidate function not viable: float3 mul(in float3x3, in float3)
+note: candidate function not viable: float4 mul(in float4x4, in float4)
+type_test.rssl:1:32: note: candidate function not viable: void mul(in S)
+struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
+                               ^
+",
+    );
 }
 
 #[test]
