@@ -277,7 +277,7 @@ fn export_global_variable(
     }
 
     let mut array_part = String::new();
-    export_type_for_def(&type_layout, output, &mut array_part, context)?;
+    export_type_layout_for_def(&type_layout, output, &mut array_part, context)?;
 
     output.push(' ');
 
@@ -374,11 +374,7 @@ fn export_function(
         export_function_attribute(attribute, output, context)?;
     }
 
-    let return_type_layout = context
-        .module
-        .type_registry
-        .get_type_layout(sig.return_type.return_type);
-    export_type(return_type_layout, output, context)?;
+    export_type(sig.return_type.return_type, output, context)?;
     output.push(' ');
 
     output.push_str(context.get_function_name(id)?);
@@ -453,11 +449,7 @@ fn export_function_param(
         todo!("Interpolation modifier: {:?}", param.param_type.2);
     }
     let mut array_part = String::new();
-    let param_type_layout = context
-        .module
-        .type_registry
-        .get_type_layout(param.param_type.0);
-    export_type_for_def(param_type_layout, output, &mut array_part, context)?;
+    export_type_for_def(param.param_type.0, output, &mut array_part, context)?;
 
     output.push(' ');
 
@@ -497,7 +489,7 @@ fn export_semantic_annotation(
 
 /// Export ir type to HLSL
 fn export_type(
-    ty: &ir::TypeLayout,
+    ty: ir::TypeId,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
@@ -509,12 +501,13 @@ fn export_type(
 
 /// Export ir type to HLSL
 fn export_type_for_def(
-    ty: &ir::TypeLayout,
+    ty: ir::TypeId,
     output: &mut String,
     output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    export_type_layout_for_def(ty, output, output_array, context)?;
+    let tyl = context.module.type_registry.get_type_layout(ty);
+    export_type_layout_for_def(tyl, output, output_array, context)?;
     Ok(())
 }
 
@@ -553,12 +546,12 @@ fn export_type_layout_for_def(
             match ot {
                 ir::ObjectType::Buffer(dt) => {
                     output.push_str("Buffer<");
-                    export_type(&(*dt).into(), output, context)?;
+                    export_type_layout(&(*dt).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::RWBuffer(dt) => {
                     output.push_str("RWBuffer<");
-                    export_type(&(*dt).into(), output, context)?;
+                    export_type_layout(&(*dt).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::ByteAddressBuffer => output.push_str("ByteAddressBuffer"),
@@ -572,27 +565,27 @@ fn export_type_layout_for_def(
                 ir::ObjectType::RWBufferAddress => output.push_str("RWByteAddressBuffer"),
                 ir::ObjectType::StructuredBuffer(st) => {
                     output.push_str("StructuredBuffer<");
-                    export_type(&st.clone().into(), output, context)?;
+                    export_type_layout(&st.clone().into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::RWStructuredBuffer(st) => {
                     output.push_str("RWStructuredBuffer<");
-                    export_type(&st.clone().into(), output, context)?;
+                    export_type_layout(&st.clone().into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::Texture2D(dt) => {
                     output.push_str("Texture2D<");
-                    export_type(&(*dt).into(), output, context)?;
+                    export_type_layout(&(*dt).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::RWTexture2D(dt) => {
                     output.push_str("RWTexture2D<");
-                    export_type(&(*dt).into(), output, context)?;
+                    export_type_layout(&(*dt).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::ConstantBuffer(st) => {
                     output.push_str("ConstantBuffer<");
-                    export_type(&st.clone().into(), output, context)?;
+                    export_type_layout(&st.clone().into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::SamplerState => {
@@ -634,10 +627,7 @@ fn export_type_or_constant(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     match tc {
-        ir::TypeOrConstant::Type(ty) => {
-            let type_layout = context.module.type_registry.get_type_layout(*ty);
-            export_type(type_layout, output, context)
-        }
+        ir::TypeOrConstant::Type(ty) => export_type(*ty, output, context),
         ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
     }
 }
@@ -759,8 +749,7 @@ fn export_variable_definition(
         ir::LocalStorage::Static => output.push_str("static "),
     }
     let mut array_part = String::new();
-    let type_layout = context.module.type_registry.get_type_layout(def.type_id);
-    export_type_for_def(type_layout, output, &mut array_part, context)?;
+    export_type_for_def(def.type_id, output, &mut array_part, context)?;
     export_variable_definition_no_type(def, &array_part, output, context)
 }
 
@@ -815,9 +804,8 @@ fn export_for_init(
             // Extract type information from first definition to ensure later definitions match
             let mut head_core_part = String::new();
             let mut head_array_part = String::new();
-            let head_type_layout = context.module.type_registry.get_type_layout(head.type_id);
             export_type_for_def(
-                head_type_layout,
+                head.type_id,
                 &mut head_core_part,
                 &mut head_array_part,
                 context,
@@ -829,9 +817,8 @@ fn export_for_init(
                 // Extract type information from the non-first definition
                 let mut cur_core_part = String::new();
                 let mut cur_array_part = String::new();
-                let element_type_layout = context.module.type_registry.get_type_layout(def.type_id);
                 export_type_for_def(
-                    element_type_layout,
+                    def.type_id,
                     &mut cur_core_part,
                     &mut cur_array_part,
                     context,
@@ -943,8 +930,7 @@ fn export_subexpression(
             output.push(']');
         }
         ir::Expression::Constructor(type_id, args) => {
-            let tyl = context.module.type_registry.get_type_layout(*type_id);
-            export_type_layout(tyl, output, context)?;
+            export_type(*type_id, output, context)?;
             output.push('(');
             if let Some((last, main)) = args.split_last() {
                 for slot in main {
@@ -957,15 +943,13 @@ fn export_subexpression(
         }
         ir::Expression::Cast(type_id, expr) => {
             output.push('(');
-            let tyl = context.module.type_registry.get_type_layout(*type_id);
-            export_type(tyl, output, context)?;
+            export_type(*type_id, output, context)?;
             output.push(')');
             export_subexpression(expr, prec, OperatorSide::Right, output, context)?;
         }
         ir::Expression::SizeOf(type_id) => {
             output.push_str("sizeof(");
-            let tyl = context.module.type_registry.get_type_layout(*type_id);
-            export_type(tyl, output, context)?;
+            export_type(*type_id, output, context)?;
             output.push(')');
         }
         ir::Expression::Member(expr, name) => {
@@ -1404,8 +1388,7 @@ fn export_struct(
     for member in &decl.members {
         context.new_line(output);
         let mut array_part = String::new();
-        let type_layout = context.module.type_registry.get_type_layout(member.type_id);
-        export_type_for_def(type_layout, output, &mut array_part, context)?;
+        export_type_for_def(member.type_id, output, &mut array_part, context)?;
         output.push(' ');
         output.push_str(&member.name);
         output.push_str(&array_part);
@@ -1447,8 +1430,7 @@ fn export_constant_buffer(
     for member in &decl.members {
         context.new_line(output);
         let mut array_part = String::new();
-        let type_layout = context.module.type_registry.get_type_layout(member.type_id);
-        export_type_for_def(type_layout, output, &mut array_part, context)?;
+        export_type_for_def(member.type_id, output, &mut array_part, context)?;
         output.push(' ');
         output.push_str(&member.name);
         output.push_str(&array_part);
