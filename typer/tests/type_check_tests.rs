@@ -86,6 +86,11 @@ fn check_primitive_types() {
     check_fail("matrix<float, 5, 4> x;");
     check_fail("matrix<float, 4, 5> x;");
     check_fail("matrix<float, 5, 5> x;");
+
+    // We do not support const types as type args here
+    // This also does not work as expected with HLSL / DXC
+    check_fail("vector<const float, 4> x;");
+    check_fail("matrix<const float, 4, 4> x;");
 }
 
 #[test]
@@ -386,22 +391,29 @@ fn check_variable_scope() {
 fn check_object_type_arguments() {
     check_types("Buffer buf;");
     check_types("Buffer<uint4> buf;");
+    check_types("Buffer<const uint4> buf;");
     check_types("RWBuffer<float4> buf;");
     check_types("RWBuffer<uint4> buf;");
+    check_types("RWBuffer<const float4> buf;");
 
     check_types("ByteAddressBuffer buf;");
     check_types("RWByteAddressBuffer buf;");
 
     check_types("StructuredBuffer<uint4> buf;");
     check_types("struct S {}; StructuredBuffer<S> buf;");
+    check_types("struct S {}; StructuredBuffer<const S> buf;");
     check_types("RWStructuredBuffer<uint4> buf;");
     check_types("struct S {}; RWStructuredBuffer<S> buf;");
+    check_types("struct S {}; RWStructuredBuffer<const S> buf;");
 
     check_types("Texture2D tex;");
     check_types("Texture2D<uint4> tex;");
+    check_types("Texture2D<const uint4> tex;");
     check_types("RWTexture2D<float4> tex;");
     check_types("RWTexture2D<uint4> tex;");
+    check_types("RWTexture2D<const uint4> tex;");
 
+    // HLSL forbids constant buffers with non-struct types - maybe we should as well
     check_types("ConstantBuffer<uint4> buf;");
     check_types("struct S {}; ConstantBuffer<S> buf;");
 }
@@ -412,6 +424,9 @@ fn check_texture_index() {
     check_types(
         "RWTexture2D<float4> tex; void sub(out float4 v) {} void main() { sub(tex[uint2(0, 0)]); }",
     );
+    check_fail(
+        "RWTexture2D<const float4> tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }",
+    );
     check_types("Texture2D tex; void main() { float x = tex[uint2(0, 0)]; }");
     check_fail("Texture2D tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }");
     check_fail("Texture2D tex; void sub(out float4 v) {} void main() { sub(tex[uint2(0, 0)]); }");
@@ -421,7 +436,9 @@ fn check_texture_index() {
 fn check_buffer_index() {
     check_types("RWBuffer<float> buf; void main() { buf[0] = 3; }");
     check_types("RWBuffer<float> buf; void sub(out float v) {} void main() { sub(buf[0]); }");
+    check_fail("RWBuffer<const float> buf; void main() { buf[0] = 3; }");
     check_types("Buffer<float> buf; void main() { float v = buf[0]; }");
+    check_types("Buffer<const float> buf; void main() { float v = buf[0]; }");
     check_fail("Buffer<float> buf; void main() { buf[0] = 3; }");
     check_fail("Buffer<float> buf; void sub(out float v) {} void main() { sub(buf[0]); }");
 }
