@@ -294,7 +294,7 @@ impl Context {
         let tyl_unmodified = self.module.type_registry.get_type_layer(ty_unmodified);
 
         // Match template argument counts with type
-        match *tyl_unmodified {
+        match tyl_unmodified {
             ir::TypeLayer::StructTemplate(id) => {
                 // Templated type definitions require template arguments
                 // We do not currently support default arguments

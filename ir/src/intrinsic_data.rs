@@ -507,13 +507,13 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
     };
 
     // Get the object template type
-    let inner_type = match &object {
+    let inner_type = match object {
         ObjectType::Buffer(dty)
         | ObjectType::RWBuffer(dty)
         | ObjectType::Texture2D(dty)
-        | ObjectType::RWTexture2D(dty) => Some(TypeLayout::from(*dty)),
+        | ObjectType::RWTexture2D(dty) => Some(TypeLayout::from(dty)),
         ObjectType::StructuredBuffer(sty) | ObjectType::RWStructuredBuffer(sty) => {
-            Some(TypeLayout::from(sty.clone()))
+            Some(TypeLayout::from(sty))
         }
         _ => None,
     };

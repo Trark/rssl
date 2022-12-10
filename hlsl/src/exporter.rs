@@ -565,12 +565,12 @@ fn export_type_layout_for_def(
                 ir::ObjectType::RWBufferAddress => output.push_str("RWByteAddressBuffer"),
                 ir::ObjectType::StructuredBuffer(st) => {
                     output.push_str("StructuredBuffer<");
-                    export_type_layout(&st.clone().into(), output, context)?;
+                    export_type_layout(&(*st).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::RWStructuredBuffer(st) => {
                     output.push_str("RWStructuredBuffer<");
-                    export_type_layout(&st.clone().into(), output, context)?;
+                    export_type_layout(&(*st).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::Texture2D(dt) => {
@@ -585,7 +585,7 @@ fn export_type_layout_for_def(
                 }
                 ir::ObjectType::ConstantBuffer(st) => {
                     output.push_str("ConstantBuffer<");
-                    export_type_layout(&st.clone().into(), output, context)?;
+                    export_type_layout(&(*st).into(), output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::SamplerState => {

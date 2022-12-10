@@ -27,7 +27,7 @@ pub struct TypeRegistry {
 
 /// The description of a type represented by a type id.
 /// This is a single layer of the definition which links to the next type id for complex types.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum TypeLayer {
     Void,
     Scalar(ScalarType),
@@ -98,7 +98,7 @@ impl TypeRegistry {
             TypeLayer::Struct(id) => TypeLayout::Struct(*id),
             TypeLayer::StructTemplate(id) => TypeLayout::StructTemplate(*id),
             // TODO: Deal with recursive StructuredType/DataType
-            TypeLayer::Object(ot) => TypeLayout::Object(ot.clone()),
+            TypeLayer::Object(ot) => TypeLayout::Object(*ot),
             TypeLayer::Array(inner, len) => {
                 TypeLayout::Array(Box::new(self.get_type_layout(*inner).clone()), *len)
             }
@@ -123,13 +123,13 @@ impl TypeRegistry {
     }
 
     /// Get the top type layer for a type id
-    pub fn get_type_layer(&self, id: TypeId) -> &TypeLayer {
-        &self.layers[id.0 as usize]
+    pub fn get_type_layer(&self, id: TypeId) -> TypeLayer {
+        self.layers[id.0 as usize]
     }
 
     /// Get the object type layout for an object id
-    pub fn get_object_layout(&self, id: ObjectId) -> &ObjectType {
-        &self.object_layouts[id.0 as usize]
+    pub fn get_object_layout(&self, id: ObjectId) -> ObjectType {
+        self.object_layouts[id.0 as usize]
     }
 
     /// Get the intrinsic functions for an object id
@@ -189,7 +189,7 @@ impl Module {
 
         // Make a new entry
         let id = ObjectId(self.type_registry.object_layouts.len() as u32);
-        self.type_registry.object_layouts.push(object_type.clone());
+        self.type_registry.object_layouts.push(object_type);
 
         // Gather the intrinsic functions
         let mut functions = Vec::new();
@@ -240,11 +240,11 @@ pub enum NumericDimension {
 
 /// A type that can be used in structured buffers
 /// These are the both all the data types and user defined structs
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub struct StructuredType(pub StructuredLayout, pub TypeModifier);
 
 /// Layout for StructuredType
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum StructuredLayout {
     Scalar(ScalarType),
     Vector(ScalarType, u32),
@@ -281,7 +281,7 @@ pub struct TemplateTypeId(pub u32);
 pub struct TemplateParamCount(pub u32);
 
 /// A built in object type
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum ObjectType {
     Buffer(DataType),
     RWBuffer(DataType),

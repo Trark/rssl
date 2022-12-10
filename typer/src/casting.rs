@@ -368,7 +368,7 @@ impl ImplicitConversion {
             Some(DimensionCast(_, ref dim)) => Some(*dim),
             None => {
                 let ty_unmodified = module.type_registry.remove_modifier(ty.0);
-                match *module.type_registry.get_type_layer(ty_unmodified) {
+                match module.type_registry.get_type_layer(ty_unmodified) {
                     TypeLayer::Scalar(_) => Some(NumericDimension::Scalar),
                     TypeLayer::Vector(_, x) => Some(NumericDimension::Vector(x)),
                     TypeLayer::Matrix(_, x, y) => Some(NumericDimension::Matrix(x, y)),
@@ -385,7 +385,7 @@ impl ImplicitConversion {
                 Some(dim) => {
                     let ExpressionType(ty_modified, vt) = ty;
                     let (ty, m) = module.type_registry.extract_modifier(ty_modified);
-                    let scalar = match *module.type_registry.get_type_layer(ty) {
+                    let scalar = match module.type_registry.get_type_layer(ty) {
                         TypeLayer::Scalar(scalar) => scalar,
                         TypeLayer::Vector(scalar, _) => scalar,
                         TypeLayer::Matrix(scalar, _, _) => scalar,

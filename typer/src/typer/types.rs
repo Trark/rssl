@@ -198,7 +198,7 @@ pub fn parse_data_layout(
 
                         // Type modifiers not supported inside arguments
                         let s = match context.module.type_registry.get_type_layer(type_id) {
-                            ir::TypeLayer::Scalar(s) => *s,
+                            ir::TypeLayer::Scalar(s) => s,
                             _ => return None,
                         };
 
@@ -227,7 +227,7 @@ pub fn parse_data_layout(
 
                         // Type modifiers not supported inside arguments
                         let s = match context.module.type_registry.get_type_layer(type_id) {
-                            ir::TypeLayer::Scalar(s) => *s,
+                            ir::TypeLayer::Scalar(s) => s,
                             _ => return None,
                         };
 
@@ -298,10 +298,10 @@ fn parse_object_type(
             let layer = context.module.type_registry.get_type_layer(id);
             match layer {
                 ir::TypeLayer::Scalar(st) => {
-                    Some(ir::DataType(ir::DataLayout::Scalar(*st), modifier))
+                    Some(ir::DataType(ir::DataLayout::Scalar(st), modifier))
                 }
                 ir::TypeLayer::Vector(st, x) => {
-                    Some(ir::DataType(ir::DataLayout::Vector(*st, *x), modifier))
+                    Some(ir::DataType(ir::DataLayout::Vector(st, x), modifier))
                 }
                 _ => None,
             }
@@ -324,15 +324,15 @@ fn parse_object_type(
             let layer = context.module.type_registry.get_type_layer(id);
             match layer {
                 ir::TypeLayer::Scalar(st) => Some(ir::StructuredType(
-                    ir::StructuredLayout::Scalar(*st),
+                    ir::StructuredLayout::Scalar(st),
                     modifier,
                 )),
                 ir::TypeLayer::Vector(st, x) => Some(ir::StructuredType(
-                    ir::StructuredLayout::Vector(*st, *x),
+                    ir::StructuredLayout::Vector(st, x),
                     modifier,
                 )),
                 ir::TypeLayer::Struct(id) => Some(ir::StructuredType(
-                    ir::StructuredLayout::Struct(*id),
+                    ir::StructuredLayout::Struct(id),
                     modifier,
                 )),
                 _ => None,
@@ -392,7 +392,7 @@ pub fn apply_template_type_substitution(
     remap: &[Located<ir::TypeOrConstant>],
     context: &mut Context,
 ) -> ir::TypeId {
-    match *context.module.type_registry.get_type_layer(source_type) {
+    match context.module.type_registry.get_type_layer(source_type) {
         ir::TypeLayer::Modifier(modifier, tyl) => {
             let inner_ty = apply_template_type_substitution(tyl, remap, context);
             let layer = ir::TypeLayer::Modifier(modifier, inner_ty);

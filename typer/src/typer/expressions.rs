@@ -463,7 +463,7 @@ fn parse_expr_unaryop(
                         ErrorType::Unknown,
                     ));
                 }
-                match *context.module.type_registry.get_type_layer(tyl) {
+                match context.module.type_registry.get_type_layer(tyl) {
                     ir::TypeLayer::Scalar(ir::ScalarType::Bool) => Err(
                         TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
                     ),
@@ -505,7 +505,7 @@ fn parse_expr_unaryop(
                 ast::UnaryOp::Minus => (ir::IntrinsicOp::Minus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::LogicalNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    let tyl = match *context.module.type_registry.get_type_layer(input_ty_id) {
+                    let tyl = match context.module.type_registry.get_type_layer(input_ty_id) {
                         ir::TypeLayer::Scalar(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
                         ir::TypeLayer::Vector(_, x) => {
                             ir::TypeLayer::Vector(ir::ScalarType::Bool, x)
@@ -526,7 +526,7 @@ fn parse_expr_unaryop(
                 }
                 ast::UnaryOp::BitwiseNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    match *context.module.type_registry.get_type_layer(input_ty_id) {
+                    match context.module.type_registry.get_type_layer(input_ty_id) {
                         ir::TypeLayer::Scalar(ir::ScalarType::Int)
                         | ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
                             (ir::IntrinsicOp::BitwiseNot, expr_ir, expr_ty.0.to_rvalue())
@@ -681,36 +681,36 @@ fn resolve_arithmetic_types(
         let right_base_tyl = context.module.type_registry.get_type_layer(right_base_id);
         let (ltl, rtl) = match (left_base_tyl, right_base_tyl) {
             (ir::TypeLayer::Scalar(ls), ir::TypeLayer::Scalar(rs)) => {
-                let common_scalar = common_real_type(*ls, *rs)?;
+                let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_scalar(common_scalar);
                 let common_right = common_left.clone();
                 (common_left, common_right)
             }
             (ir::TypeLayer::Scalar(ls), ir::TypeLayer::Vector(rs, x2)) => {
-                let common_scalar = common_real_type(*ls, *rs)?;
+                let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_scalar(common_scalar);
-                let common_right = ir::TypeLayout::from_vector(common_scalar, *x2);
+                let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
                 (common_left, common_right)
             }
             (ir::TypeLayer::Vector(ls, x1), ir::TypeLayer::Scalar(rs)) => {
-                let common_scalar = common_real_type(*ls, *rs)?;
-                let common_left = ir::TypeLayout::from_vector(common_scalar, *x1);
+                let common_scalar = common_real_type(ls, rs)?;
+                let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
                 let common_right = ir::TypeLayout::from_scalar(common_scalar);
                 (common_left, common_right)
             }
             (ir::TypeLayer::Vector(ls, x1), ir::TypeLayer::Vector(rs, x2))
-                if x1 == x2 || *x1 == 1 || *x2 == 1 =>
+                if x1 == x2 || x1 == 1 || x2 == 1 =>
             {
-                let common_scalar = common_real_type(*ls, *rs)?;
-                let common_left = ir::TypeLayout::from_vector(common_scalar, *x1);
-                let common_right = ir::TypeLayout::from_vector(common_scalar, *x2);
+                let common_scalar = common_real_type(ls, rs)?;
+                let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
+                let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
                 (common_left, common_right)
             }
             (ir::TypeLayer::Matrix(ls, x1, y1), ir::TypeLayer::Matrix(rs, x2, y2))
                 if x1 == x2 && y1 == y2 =>
             {
-                let common_scalar = common_real_type(*ls, *rs)?;
-                let common_left = ir::TypeLayout::from_matrix(common_scalar, *x2, *y2);
+                let common_scalar = common_real_type(ls, rs)?;
+                let common_left = ir::TypeLayout::from_matrix(common_scalar, x2, y2);
                 let common_right = common_left.clone();
                 (common_left, common_right)
             }
@@ -1166,7 +1166,7 @@ fn parse_expr_unchecked(
                                 let ty_unmod = context.module.type_registry.remove_modifier(ty);
                                 let tyl_unmod =
                                     context.module.type_registry.get_type_layer(ty_unmod);
-                                match *tyl_unmod {
+                                match tyl_unmod {
                                     ir::TypeLayer::Struct(found_id) => {
                                         if id != found_id {
                                             return Err(TyperError::MemberIsForDifferentType(
@@ -1300,7 +1300,7 @@ fn parse_expr_unchecked(
                     };
 
                     // Get the object id or register it if it was not already seen
-                    let obj_id = context.module.register_object(object_type.clone());
+                    let obj_id = context.module.register_object(*object_type);
 
                     let mut overloads = Vec::new();
                     for func_id in context.module.type_registry.get_object_functions(obj_id) {
