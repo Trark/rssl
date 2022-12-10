@@ -27,34 +27,11 @@ impl ApplyTemplates for ir::FunctionSignature {
         context: &mut Context,
     ) -> Self {
         for param_type in &mut self.param_types {
-            let param_type_layout = context
-                .module
-                .type_registry
-                .get_type_layout(param_type.0)
-                .clone();
-
-            let param_type_layout =
-                apply_template_type_substitution(param_type_layout, template_args, context).clone();
-
-            param_type.0 = context
-                .module
-                .type_registry
-                .register_type(param_type_layout);
+            param_type.0 = apply_template_type_substitution(param_type.0, template_args, context);
         }
 
-        let return_type_layout = context
-            .module
-            .type_registry
-            .get_type_layout(self.return_type.return_type)
-            .clone();
-
-        let return_type_layout =
-            apply_template_type_substitution(return_type_layout, template_args, context);
-
-        self.return_type.return_type = context
-            .module
-            .type_registry
-            .register_type(return_type_layout);
+        self.return_type.return_type =
+            apply_template_type_substitution(self.return_type.return_type, template_args, context);
 
         self
     }

@@ -1721,9 +1721,7 @@ fn get_expression_type(
                 arg_types.push(get_expression_type(arg, context)?);
             }
             let ety = intrinsic.get_return_type(&arg_types, &mut context.module);
-            let tyl = context.module.type_registry.get_type_layout(ety.0).clone();
-            let tyl_sub = apply_template_type_substitution(tyl, template_args, context);
-            let ty_sub = context.module.type_registry.register_type(tyl_sub);
+            let ty_sub = apply_template_type_substitution(ety.0, template_args, context);
             Ok(ExpressionType(ty_sub, ety.1))
         }
     }

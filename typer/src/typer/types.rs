@@ -388,26 +388,26 @@ fn parse_object_type(
 
 /// Replace instances of a template type parameter in a type with a concrete type
 pub fn apply_template_type_substitution(
-    source_type: ir::TypeLayout,
+    source_type: ir::TypeId,
     remap: &[Located<ir::TypeOrConstant>],
     context: &mut Context,
-) -> ir::TypeLayout {
-    match source_type {
-        ir::TypeLayout::Modifier(modifier, tyl) => ir::TypeLayout::Modifier(
-            modifier,
-            Box::new(apply_template_type_substitution(*tyl, remap, context)),
-        ),
-        ir::TypeLayout::TemplateParam(ref p) => match &remap[p.0 as usize].node {
-            ir::TypeOrConstant::Type(ty) => {
-                context.module.type_registry.get_type_layout(*ty).clone()
-            }
+) -> ir::TypeId {
+    match *context.module.type_registry.get_type_layer(source_type) {
+        ir::TypeLayer::Modifier(modifier, tyl) => {
+            let inner_ty = apply_template_type_substitution(tyl, remap, context);
+            let layer = ir::TypeLayer::Modifier(modifier, inner_ty);
+            context.module.type_registry.register_type_layer(layer)
+        }
+        ir::TypeLayer::TemplateParam(ref p) => match &remap[p.0 as usize].node {
+            ir::TypeOrConstant::Type(ty) => *ty,
             ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
         },
-        ir::TypeLayout::Array(tyl, len) => {
-            let inner_ty = apply_template_type_substitution(*tyl, remap, context);
-            ir::TypeLayout::Array(Box::new(inner_ty), len)
+        ir::TypeLayer::Array(tyl, len) => {
+            let inner_ty = apply_template_type_substitution(tyl, remap, context);
+            let layer = ir::TypeLayer::Array(inner_ty, len);
+            context.module.type_registry.register_type_layer(layer)
         }
-        t => t,
+        _ => source_type,
     }
 }
 

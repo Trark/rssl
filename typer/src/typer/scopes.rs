@@ -457,13 +457,11 @@ impl Context {
         if template_args.is_empty() {
             Ok(signature.return_type.return_type.to_rvalue())
         } else {
-            let type_layout = self
-                .module
-                .type_registry
-                .get_type_layout(signature.return_type.return_type)
-                .clone();
-            let return_type = apply_template_type_substitution(type_layout, template_args, self);
-            let return_type = self.module.type_registry.register_type(return_type);
+            let return_type = apply_template_type_substitution(
+                signature.return_type.return_type,
+                template_args,
+                self,
+            );
             Ok(return_type.to_rvalue())
         }
     }
@@ -931,21 +929,12 @@ impl Context {
 
         // This should be the same as the template function scopes return type with templates applied
         {
-            let active_fn_return_layout = self
-                .module
-                .type_registry
-                .get_type_layout(self.scopes[old_scope_id].function_return_type.unwrap())
-                .clone();
             let active_fn_return_layout = super::types::apply_template_type_substitution(
-                active_fn_return_layout,
+                self.scopes[old_scope_id].function_return_type.unwrap(),
                 template_args,
                 self,
             );
-            let signature_return_layout = self
-                .module
-                .type_registry
-                .get_type_layout(signature.return_type.return_type);
-            assert_eq!(*signature_return_layout, active_fn_return_layout);
+            assert_eq!(signature.return_type.return_type, active_fn_return_layout);
         }
 
         // Push the instantiation as a new function
