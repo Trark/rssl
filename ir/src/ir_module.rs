@@ -119,9 +119,10 @@ impl Module {
     }
 
     /// Get the source location from a type
-    pub fn get_type_location(&self, id: &TypeLayout) -> SourceLocation {
-        match id {
-            TypeLayout::Struct(id) => {
+    pub fn get_type_location(&self, id: TypeId) -> SourceLocation {
+        let id = self.type_registry.remove_modifier(id);
+        match self.type_registry.get_type_layer(id) {
+            TypeLayer::Struct(id) => {
                 assert!(id.0 < self.struct_registry.len() as u32);
                 self.struct_registry[id.0 as usize].name.location
             }

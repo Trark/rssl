@@ -6,9 +6,10 @@ use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
 /// Attempt to get an ir type from an ast type
-pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::TypeLayout> {
+pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::TypeId> {
     let direct_modifier = ty.modifier;
-    let (ir_tyl, base_modifier) = parse_typelayout(&ty.layout, context)?.extract_modifier();
+    let parsed_id = parse_typelayout(&ty.layout, context)?;
+    let (ir_ty, base_modifier) = context.module.type_registry.extract_modifier(parsed_id);
     // Matrix ordering not properly handled
     assert_eq!(base_modifier.row_order, direct_modifier.row_order);
     let modifier = ir::TypeModifier {
@@ -16,14 +17,15 @@ pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type
         row_order: direct_modifier.row_order,
         volatile: base_modifier.volatile || direct_modifier.volatile,
     };
-    Ok(ir_tyl.combine_modifier(modifier))
+    let ty = context
+        .module
+        .type_registry
+        .combine_modifier(ir_ty, modifier);
+    Ok(ty)
 }
 
 /// Attempt to get an ir type layout from an ast type layout
-pub fn parse_typelayout(
-    ty: &ast::TypeLayout,
-    context: &mut Context,
-) -> TyperResult<ir::TypeLayout> {
+pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperResult<ir::TypeId> {
     Ok(match *ty {
         ast::TypeLayout(ref name, ref args) => {
             // Translate type arguments first
@@ -35,15 +37,18 @@ pub fn parse_typelayout(
             // Special case all the built in types
 
             if let Some(ty) = parse_voidtype(name, &ir_args) {
-                return Ok(ty);
+                let id = context.module.type_registry.register_type(ty);
+                return Ok(id);
             }
 
-            if let Some(ty) = parse_data_layout(name, &ir_args) {
-                return Ok(ty);
+            if let Some(ty) = parse_data_layout(name, &ir_args, context) {
+                let id = context.module.type_registry.register_type(ty);
+                return Ok(id);
             }
 
-            if let Some(object_type) = parse_object_type(name, &ir_args) {
-                return Ok(object_type);
+            if let Some(object_type) = parse_object_type(name, &ir_args, context) {
+                let id = context.module.type_registry.register_type(object_type);
+                return Ok(id);
             }
 
             // Find the type from the scope stack
@@ -177,6 +182,7 @@ fn test_parse_datalayout_str() {
 pub fn parse_data_layout(
     name: &ast::ScopedIdentifier,
     template_args: &[ir::TypeOrConstant],
+    context: &mut Context,
 ) -> Option<ir::TypeLayout> {
     if let Some(name) = name.try_trivial() {
         if template_args.is_empty() {
@@ -184,10 +190,15 @@ pub fn parse_data_layout(
         } else {
             match name.node.as_str() {
                 "vector" => {
-                    // Type modifiers not supported inside arguments
                     if template_args.len() == 2 {
-                        let s = match template_args[0] {
-                            ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(s)) => s,
+                        let type_id = match template_args[0] {
+                            ir::TypeOrConstant::Type(id) => id,
+                            _ => return None,
+                        };
+
+                        // Type modifiers not supported inside arguments
+                        let s = match context.module.type_registry.get_type_layer(type_id) {
+                            ir::TypeLayer::Scalar(s) => *s,
                             _ => return None,
                         };
 
@@ -209,9 +220,14 @@ pub fn parse_data_layout(
                 }
                 "matrix" => {
                     if template_args.len() == 3 {
+                        let type_id = match template_args[0] {
+                            ir::TypeOrConstant::Type(id) => id,
+                            _ => return None,
+                        };
+
                         // Type modifiers not supported inside arguments
-                        let s = match template_args[0] {
-                            ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(s)) => s,
+                        let s = match context.module.type_registry.get_type_layer(type_id) {
+                            ir::TypeLayer::Scalar(s) => *s,
                             _ => return None,
                         };
 
@@ -270,58 +286,59 @@ fn parse_voidtype(
 fn parse_object_type(
     name: &ast::ScopedIdentifier,
     template_args: &[ir::TypeOrConstant],
+    context: &mut Context,
 ) -> Option<ir::TypeLayout> {
-    fn get_data_type(args: &[ir::TypeOrConstant], default_float4: bool) -> Option<ir::DataType> {
-        match args {
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(st))] => Some(ir::DataType(
-                ir::DataLayout::Scalar(*st),
-                ir::TypeModifier::default(),
-            )),
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Vector(st, x))] => Some(ir::DataType(
-                ir::DataLayout::Vector(*st, *x),
-                ir::TypeModifier::default(),
-            )),
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Modifier(modifier, ty))] => {
-                match get_data_type(&[ir::TypeOrConstant::Type(*ty.clone())], default_float4) {
-                    Some(ty) => {
-                        assert_eq!(ty.1, ir::TypeModifier::default());
-                        Some(ir::DataType(ty.0, *modifier))
-                    }
-                    None => None,
+    fn get_data_type(
+        args: &[ir::TypeOrConstant],
+        default_float4: bool,
+        context: &mut Context,
+    ) -> Option<ir::DataType> {
+        if let [ir::TypeOrConstant::Type(id)] = args {
+            let (id, modifier) = context.module.type_registry.extract_modifier(*id);
+            let layer = context.module.type_registry.get_type_layer(id);
+            match layer {
+                ir::TypeLayer::Scalar(st) => {
+                    Some(ir::DataType(ir::DataLayout::Scalar(*st), modifier))
                 }
+                ir::TypeLayer::Vector(st, x) => {
+                    Some(ir::DataType(ir::DataLayout::Vector(*st, *x), modifier))
+                }
+                _ => None,
             }
-            [] if default_float4 => Some(ir::DataType(
+        } else if default_float4 {
+            Some(ir::DataType(
                 ir::DataLayout::Vector(ir::ScalarType::Float, 4),
                 ir::TypeModifier::default(),
-            )),
-            _ => None,
+            ))
+        } else {
+            None
         }
     }
 
-    fn get_structured_type(args: &[ir::TypeOrConstant]) -> Option<ir::StructuredType> {
-        match args {
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Scalar(st))] => Some(ir::StructuredType(
-                ir::StructuredLayout::Scalar(*st),
-                ir::TypeModifier::default(),
-            )),
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Vector(st, x))] => Some(ir::StructuredType(
-                ir::StructuredLayout::Vector(*st, *x),
-                ir::TypeModifier::default(),
-            )),
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Struct(id))] => Some(ir::StructuredType(
-                ir::StructuredLayout::Struct(*id),
-                ir::TypeModifier::default(),
-            )),
-            [ir::TypeOrConstant::Type(ir::TypeLayout::Modifier(modifier, ty))] => {
-                match get_structured_type(&[ir::TypeOrConstant::Type(*ty.clone())]) {
-                    Some(ty) => {
-                        assert_eq!(ty.1, ir::TypeModifier::default());
-                        Some(ir::StructuredType(ty.0, *modifier))
-                    }
-                    None => None,
-                }
+    fn get_structured_type(
+        args: &[ir::TypeOrConstant],
+        context: &mut Context,
+    ) -> Option<ir::StructuredType> {
+        if let [ir::TypeOrConstant::Type(id)] = args {
+            let (id, modifier) = context.module.type_registry.extract_modifier(*id);
+            let layer = context.module.type_registry.get_type_layer(id);
+            match layer {
+                ir::TypeLayer::Scalar(st) => Some(ir::StructuredType(
+                    ir::StructuredLayout::Scalar(*st),
+                    modifier,
+                )),
+                ir::TypeLayer::Vector(st, x) => Some(ir::StructuredType(
+                    ir::StructuredLayout::Vector(*st, *x),
+                    modifier,
+                )),
+                ir::TypeLayer::Struct(id) => Some(ir::StructuredType(
+                    ir::StructuredLayout::Struct(*id),
+                    modifier,
+                )),
+                _ => None,
             }
-            _ => None,
+        } else {
+            None
         }
     }
 
@@ -332,10 +349,10 @@ fn parse_object_type(
 
     match name.identifiers[0].node.as_str() {
         "Buffer" => Some(ir::TypeLayout::Object(ir::ObjectType::Buffer(
-            get_data_type(template_args, true)?,
+            get_data_type(template_args, true, context)?,
         ))),
         "RWBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWBuffer(
-            get_data_type(template_args, false)?,
+            get_data_type(template_args, false, context)?,
         ))),
         "ByteAddressBuffer" if template_args.is_empty() => {
             Some(ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer))
@@ -350,19 +367,19 @@ fn parse_object_type(
             Some(ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress))
         }
         "Texture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::Texture2D(
-            get_data_type(template_args, true)?,
+            get_data_type(template_args, true, context)?,
         ))),
         "RWTexture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(
-            get_data_type(template_args, false)?,
+            get_data_type(template_args, false, context)?,
         ))),
         "ConstantBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(
-            get_structured_type(template_args)?,
+            get_structured_type(template_args, context)?,
         ))),
         "StructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(
-            get_structured_type(template_args)?,
+            get_structured_type(template_args, context)?,
         ))),
         "RWStructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(
-            get_structured_type(template_args)?,
+            get_structured_type(template_args, context)?,
         ))),
         "SamplerState" => Some(ir::TypeLayout::Object(ir::ObjectType::SamplerState)),
         _ => None,
@@ -373,18 +390,21 @@ fn parse_object_type(
 pub fn apply_template_type_substitution(
     source_type: ir::TypeLayout,
     remap: &[Located<ir::TypeOrConstant>],
+    context: &mut Context,
 ) -> ir::TypeLayout {
     match source_type {
         ir::TypeLayout::Modifier(modifier, tyl) => ir::TypeLayout::Modifier(
             modifier,
-            Box::new(apply_template_type_substitution(*tyl, remap)),
+            Box::new(apply_template_type_substitution(*tyl, remap, context)),
         ),
         ir::TypeLayout::TemplateParam(ref p) => match &remap[p.0 as usize].node {
-            ir::TypeOrConstant::Type(ty) => ty.clone(),
+            ir::TypeOrConstant::Type(ty) => {
+                context.module.type_registry.get_type_layout(*ty).clone()
+            }
             ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
         },
         ir::TypeLayout::Array(tyl, len) => {
-            let inner_ty = apply_template_type_substitution(*tyl, remap);
+            let inner_ty = apply_template_type_substitution(*tyl, remap, context);
             ir::TypeLayout::Array(Box::new(inner_ty), len)
         }
         t => t,

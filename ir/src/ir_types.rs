@@ -59,8 +59,6 @@ pub enum TypeLayout {
 impl TypeRegistry {
     /// Get or create the type id from a type layout
     pub fn register_type(&mut self, type_layout: TypeLayout) -> TypeId {
-        let full_layout = type_layout.clone();
-
         let layer = match type_layout {
             TypeLayout::Void => TypeLayer::Void,
             TypeLayout::Scalar(st) => TypeLayer::Scalar(st),
@@ -75,17 +73,42 @@ impl TypeRegistry {
             }
             TypeLayout::TemplateParam(id) => TypeLayer::TemplateParam(id),
             TypeLayout::Modifier(modifier, inner) => {
+                assert!(!matches!(*inner, TypeLayout::Modifier(_, _)));
                 TypeLayer::Modifier(modifier, self.register_type((*inner).clone()))
             }
         };
 
+        self.register_type_layer(layer)
+    }
+
+    /// Get or create the type id from a type layer
+    pub fn register_type_layer(&mut self, layer: TypeLayer) -> TypeId {
         // Search for an existing registration of the type
         for (i, existing) in self.layers.iter().enumerate() {
             if layer == *existing {
-                assert_eq!(full_layout, self.layouts[i]);
                 return TypeId(i as u32);
             }
         }
+
+        let full_layout = match &layer {
+            TypeLayer::Void => TypeLayout::Void,
+            TypeLayer::Scalar(st) => TypeLayout::Scalar(*st),
+            TypeLayer::Vector(st, x) => TypeLayout::Vector(*st, *x),
+            TypeLayer::Matrix(st, x, y) => TypeLayout::Matrix(*st, *x, *y),
+            TypeLayer::Struct(id) => TypeLayout::Struct(*id),
+            TypeLayer::StructTemplate(id) => TypeLayout::StructTemplate(*id),
+            // TODO: Deal with recursive StructuredType/DataType
+            TypeLayer::Object(ot) => TypeLayout::Object(ot.clone()),
+            TypeLayer::Array(inner, len) => {
+                TypeLayout::Array(Box::new(self.get_type_layout(*inner).clone()), *len)
+            }
+            TypeLayer::TemplateParam(id) => TypeLayout::TemplateParam(*id),
+            TypeLayer::Modifier(modifier, inner) => {
+                let layout = self.get_type_layout(*inner).clone();
+                assert!(!matches!(layout, TypeLayout::Modifier(_, _)));
+                TypeLayout::Modifier(*modifier, Box::new(layout))
+            }
+        };
 
         // Make a new entry
         let id = TypeId(self.layouts.len() as u32);
@@ -99,6 +122,11 @@ impl TypeRegistry {
         &self.layouts[id.0 as usize]
     }
 
+    /// Get the top type layer for a type id
+    pub fn get_type_layer(&self, id: TypeId) -> &TypeLayer {
+        &self.layers[id.0 as usize]
+    }
+
     /// Get the object type layout for an object id
     pub fn get_object_layout(&self, id: ObjectId) -> &ObjectType {
         &self.object_layouts[id.0 as usize]
@@ -107,6 +135,45 @@ impl TypeRegistry {
     /// Get the intrinsic functions for an object id
     pub fn get_object_functions(&self, id: ObjectId) -> &Vec<FunctionId> {
         &self.object_functions[id.0 as usize]
+    }
+
+    /// Get the base type and type modifier from a type
+    pub fn extract_modifier(&self, id: TypeId) -> (TypeId, TypeModifier) {
+        match self.layers[id.0 as usize] {
+            TypeLayer::Modifier(modifier, inner) => (inner, modifier),
+            _ => (id, TypeModifier::default()),
+        }
+    }
+
+    /// Get the base type without a type modifier from a type
+    pub fn remove_modifier(&self, id: TypeId) -> TypeId {
+        self.extract_modifier(id).0
+    }
+
+    /// Add a modifier onto a type
+    ///
+    /// This expects there to not already be a modifier on the type
+    pub fn combine_modifier(&mut self, id: TypeId, modifier: TypeModifier) -> TypeId {
+        assert!(!matches!(
+            self.layers[id.0 as usize],
+            TypeLayer::Modifier(_, _)
+        ));
+        if modifier == TypeModifier::default() {
+            id
+        } else {
+            self.register_type_layer(TypeLayer::Modifier(modifier, id))
+        }
+    }
+
+    /// Add the const modifier to a type
+    pub fn make_const(&mut self, id: TypeId) -> TypeId {
+        let (base, mut modifier) = self.extract_modifier(id);
+        if modifier.is_const {
+            id
+        } else {
+            modifier.is_const = true;
+            self.register_type_layer(TypeLayer::Modifier(modifier, base))
+        }
     }
 }
 
@@ -249,10 +316,22 @@ pub enum Constant {
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum TypeOrConstant {
     /// Value is a type
-    Type(TypeLayout),
+    Type(TypeId),
 
     /// Value is a constant
     Constant(Constant),
+}
+
+impl TypeId {
+    /// Turn the type into an [ExpressionType] as an rvalue
+    pub fn to_rvalue(self) -> ExpressionType {
+        ExpressionType(self, ValueType::Rvalue)
+    }
+
+    /// Turn the type into an [ExpressionType] as an lvalue
+    pub fn to_lvalue(self) -> ExpressionType {
+        ExpressionType(self, ValueType::Lvalue)
+    }
 }
 
 impl From<DataType> for TypeLayout {

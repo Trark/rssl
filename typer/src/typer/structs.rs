@@ -60,7 +60,7 @@ fn parse_struct_internal(
         for (template_param, template_arg) in sd.template_params.0.iter().zip(template_args) {
             match template_arg {
                 ir::TypeOrConstant::Type(ty) => {
-                    context.register_typedef(template_param.clone(), ty.clone())?
+                    context.register_typedef(template_param.clone(), *ty)?
                 }
                 ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
             }
@@ -76,15 +76,28 @@ fn parse_struct_internal(
         match ast_entry {
             ast::StructEntry::Variable(ast_member) => {
                 let base_type = parse_type(&ast_member.ty, context)?;
-                if base_type.is_void() {
+                let base_type_layout = context
+                    .module
+                    .type_registry
+                    .get_type_layout(base_type)
+                    .clone();
+
+                let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
+                let base_type_layout_unmodified = context
+                    .module
+                    .type_registry
+                    .get_type_layout(base_type_unmodified);
+                if base_type_layout_unmodified.is_void() {
                     return Err(TyperError::VariableHasIncompleteType(
                         base_type,
                         ast_member.ty.location,
                     ));
                 }
+
                 for def in &ast_member.defs {
                     let name = def.name.clone();
-                    let type_layout = apply_variable_bind(base_type.clone(), &def.bind, &None)?;
+                    let type_layout =
+                        apply_variable_bind(base_type_layout.clone(), &def.bind, &None)?;
                     let type_id = context.module.type_registry.register_type(type_layout);
                     member_map.insert(name.clone(), type_id);
                     members.push(ir::StructMember { name, type_id });

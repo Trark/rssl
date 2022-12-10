@@ -1,7 +1,7 @@
 use super::errors::*;
 use super::scopes::*;
 use crate::casting::ImplicitConversion;
-use ir::{ExpressionType, ToExpressionType};
+use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
 
@@ -119,18 +119,15 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
         ast::Statement::Discard => Ok(vec![ir::Statement::Discard]),
         ast::Statement::Return(Some(ref expr)) => {
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
-            let expected_type_layout = context
-                .module
-                .type_registry
-                .get_type_layout(context.get_current_return_type());
-            let expected_ety = expected_type_layout.to_rvalue();
-            match ImplicitConversion::find(&expr_ty, &expected_ety) {
+            let expected_type = context.get_current_return_type();
+            let expected_ety = expected_type.to_rvalue();
+            match ImplicitConversion::find(&expr_ty, &expected_ety, &mut context.module) {
                 Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(
-                    rhs_cast.apply(&mut context.module, expr_ir),
+                    rhs_cast.apply(expr_ir, &mut context.module),
                 ))]),
                 Err(()) => Err(TyperError::WrongTypeInReturnStatement(
                     expr_ty.0,
-                    expected_ety.0,
+                    expected_type,
                 )),
             }
         }
@@ -141,8 +138,11 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 Ok(Vec::from([ir::Statement::Return(None)]))
             } else {
                 Err(TyperError::WrongTypeInReturnStatement(
-                    ir::TypeLayout::void(),
-                    expected_type_layout.clone(),
+                    context
+                        .module
+                        .type_registry
+                        .register_type(ir::TypeLayout::void()),
+                    expected_type,
                 ))
             }
         }
@@ -169,11 +169,11 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             &local_variable.init,
         )?;
 
-        // Parse the initializer
-        let var_init = parse_initializer_opt(&local_variable.init, &type_layout, context)?;
-
         // Register the type
         let type_id = context.module.type_registry.register_type(type_layout);
+
+        // Parse the initializer
+        let var_init = parse_initializer_opt(&local_variable.init, type_id, context)?;
 
         // Register the variable
         let var_id = context.insert_variable(local_variable.name.clone(), type_id)?;
@@ -196,14 +196,15 @@ fn parse_localtype(
     context: &mut Context,
 ) -> TyperResult<(ir::TypeId, ir::LocalStorage)> {
     let ty = parse_type(&local_type.0, context)?;
-    if ty.is_void() {
+
+    let ty_unmodified = context.module.type_registry.remove_modifier(ty);
+    let ty_layout_unmodified = context.module.type_registry.get_type_layout(ty_unmodified);
+    if ty_layout_unmodified.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             local_type.0.location,
         ));
     }
-
-    let ty = context.module.type_registry.register_type(ty);
 
     Ok((ty, local_type.1))
 }
@@ -264,11 +265,11 @@ fn evaluate_constexpr_int(expr: &ast::Expression) -> Result<u64, ()> {
 /// Process an optional variable initialisation expression
 pub fn parse_initializer_opt(
     init_opt: &Option<ast::Initializer>,
-    tyl: &ir::TypeLayout,
+    ty: ir::TypeId,
     context: &mut Context,
 ) -> TyperResult<Option<ir::Initializer>> {
     Ok(match *init_opt {
-        Some(ref init) => Some(parse_initializer(init, tyl, context)?),
+        Some(ref init) => Some(parse_initializer(init, ty, context)?),
         None => None,
     })
 }
@@ -276,16 +277,16 @@ pub fn parse_initializer_opt(
 /// Process a variable initialisation expression
 fn parse_initializer(
     init: &ast::Initializer,
-    tyl: &ir::TypeLayout,
+    ty: ir::TypeId,
     context: &mut Context,
 ) -> TyperResult<ir::Initializer> {
     Ok(match *init {
         ast::Initializer::Expression(ref expr) => {
-            let ety = tyl.clone().remove_modifier().to_rvalue();
+            let ety = context.module.type_registry.remove_modifier(ty).to_rvalue();
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
-            match ImplicitConversion::find(&expr_ty, &ety) {
+            match ImplicitConversion::find(&expr_ty, &ety, &mut context.module) {
                 Ok(rhs_cast) => {
-                    ir::Initializer::Expression(rhs_cast.apply(&mut context.module, expr_ir))
+                    ir::Initializer::Expression(rhs_cast.apply(expr_ir, &mut context.module))
                 }
                 Err(()) => {
                     return Err(TyperError::InitializerExpressionWrongType(
@@ -304,14 +305,15 @@ fn parse_initializer(
             ) -> TyperResult<Vec<ir::Initializer>> {
                 let mut elements = Vec::with_capacity(inits.len());
                 for init in inits {
-                    let element = parse_initializer(init, &ety.0, context)?;
+                    let element = parse_initializer(init, ety.0, context)?;
                     elements.push(element);
                 }
                 Ok(elements)
             }
-            let (tyl, _) = tyl.clone().extract_modifier();
+            let ty = context.module.type_registry.remove_modifier(ty);
+            let tyl = context.module.type_registry.get_type_layer(ty);
             match tyl {
-                ir::TypeLayout::Scalar(_) => {
+                ir::TypeLayer::Scalar(_) => {
                     if exprs.len() as u32 != 1 {
                         return Err(TyperError::InitializerAggregateWrongDimension);
                     }
@@ -319,24 +321,28 @@ fn parse_initializer(
                     // Reparse as if it was a single expression instead of a 1 element aggregate
                     // Meaning '{ x }' is read as if it were 'x'
                     // Will also reduce '{{ x }}' to 'x'
-                    parse_initializer(&exprs[0], &tyl, context)?
+                    parse_initializer(&exprs[0], ty, context)?
                 }
-                ir::TypeLayout::Vector(ref scalar, ref dim) => {
+                ir::TypeLayer::Vector(ref scalar, ref dim) => {
                     if exprs.len() as u32 != *dim {
                         return Err(TyperError::InitializerAggregateWrongDimension);
                     }
 
-                    let ety = ir::TypeLayout::from_scalar(*scalar).to_rvalue();
+                    let ty = context
+                        .module
+                        .type_registry
+                        .register_type(ir::TypeLayout::from_scalar(*scalar));
+                    let ety = ty.to_rvalue();
                     let elements = build_elements(&ety, exprs, context)?;
 
                     ir::Initializer::Aggregate(elements)
                 }
-                ir::TypeLayout::Array(ref inner, ref dim) => {
+                ir::TypeLayer::Array(ref inner, ref dim) => {
                     if exprs.len() as u64 != *dim {
                         return Err(TyperError::InitializerAggregateWrongDimension);
                     }
 
-                    let ety = (*inner).clone().to_rvalue();
+                    let ety = inner.to_rvalue();
                     let elements = build_elements(&ety, exprs, context)?;
 
                     ir::Initializer::Aggregate(elements)

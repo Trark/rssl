@@ -15,35 +15,46 @@ pub trait ApplyTemplates {
     /// Transforms a signature with template parameters with concrete arguments
     fn apply_templates(
         self,
-        module: &mut ir::Module,
         template_args: &[Located<ir::TypeOrConstant>],
+        context: &mut Context,
     ) -> Self;
 }
 
 impl ApplyTemplates for ir::FunctionSignature {
     fn apply_templates(
         mut self,
-        module: &mut ir::Module,
         template_args: &[Located<ir::TypeOrConstant>],
+        context: &mut Context,
     ) -> Self {
         for param_type in &mut self.param_types {
-            let param_type_layout = module.type_registry.get_type_layout(param_type.0).clone();
+            let param_type_layout = context
+                .module
+                .type_registry
+                .get_type_layout(param_type.0)
+                .clone();
 
             let param_type_layout =
-                apply_template_type_substitution(param_type_layout, template_args).clone();
+                apply_template_type_substitution(param_type_layout, template_args, context).clone();
 
-            param_type.0 = module.type_registry.register_type(param_type_layout);
+            param_type.0 = context
+                .module
+                .type_registry
+                .register_type(param_type_layout);
         }
 
-        let return_type_layout = module
+        let return_type_layout = context
+            .module
             .type_registry
             .get_type_layout(self.return_type.return_type)
             .clone();
 
         let return_type_layout =
-            apply_template_type_substitution(return_type_layout, template_args);
+            apply_template_type_substitution(return_type_layout, template_args, context);
 
-        self.return_type.return_type = module.type_registry.register_type(return_type_layout);
+        self.return_type.return_type = context
+            .module
+            .type_registry
+            .register_type(return_type_layout);
 
         self
     }
@@ -190,8 +201,6 @@ fn parse_returntype(
 ) -> TyperResult<ir::FunctionReturn> {
     let ty = parse_type(&return_type.return_type, context)?;
 
-    let ty = context.module.type_registry.register_type(ty);
-
     Ok(ir::FunctionReturn {
         return_type: ty,
         semantic: return_type.semantic.clone(),
@@ -203,14 +212,15 @@ fn parse_paramtype(
     context: &mut Context,
 ) -> TyperResult<ir::ParamType> {
     let ty = parse_type(&param_type.0, context)?;
-    if ty.is_void() {
+
+    let ty_unmodified = context.module.type_registry.remove_modifier(ty);
+    let tyl = context.module.type_registry.get_type_layout(ty_unmodified);
+    if tyl.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             param_type.0.location,
         ));
     }
-
-    let ty = context.module.type_registry.register_type(ty);
 
     Ok(ir::ParamType(ty, param_type.1, param_type.2.clone()))
 }

@@ -229,6 +229,9 @@ fn test_ast_to_ir() {
                         ir::TypeModifier::const_only(),
                         Box::new(ir::TypeLayout::Scalar(ir::ScalarType::Int)),
                     ));
+            reference_module
+                .type_registry
+                .register_type(ir::TypeLayout::Scalar(ir::ScalarType::UntypedInt));
 
             assert_eq!(actual.type_registry, reference_module.type_registry);
             assert_eq!(actual.struct_registry, Vec::new());

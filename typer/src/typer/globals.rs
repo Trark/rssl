@@ -28,11 +28,11 @@ pub fn parse_rootdefinition_globalvariable(
             &global_variable.init,
         )?;
 
-        // Parse the initializer
-        let var_init = parse_initializer_opt(&global_variable.init, &type_layout, context)?;
-
         // Register the type
         let type_id = context.module.type_registry.register_type(type_layout);
+
+        // Parse the initializer
+        let var_init = parse_initializer_opt(&global_variable.init, type_id, context)?;
 
         // Insert variable
         let var_id = context.insert_global(global_variable.name.clone(), type_id, storage_class)?;
@@ -55,7 +55,10 @@ fn parse_globaltype(
     context: &mut Context,
 ) -> TyperResult<(ir::TypeId, ir::GlobalStorage)> {
     let mut ty = parse_type(&global_type.0, context)?;
-    if ty.is_void() {
+
+    let ty_unmodified = context.module.type_registry.remove_modifier(ty);
+    let tyl = context.module.type_registry.get_type_layout(ty_unmodified);
+    if tyl.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             global_type.0.location,
@@ -64,10 +67,8 @@ fn parse_globaltype(
 
     // All extern variables are implicitly const
     if global_type.1 == ir::GlobalStorage::Extern {
-        ty = ty.make_const();
+        ty = context.module.type_registry.make_const(ty);
     }
-
-    let ty = context.module.type_registry.register_type(ty);
 
     Ok((ty, global_type.1))
 }
@@ -81,16 +82,28 @@ pub fn parse_rootdefinition_constantbuffer(
     let mut members_map = HashMap::new();
     for member in &cb.members {
         let base_type = parse_type(&member.ty, context)?;
-        if base_type.is_void() {
+        let base_type_layout = context
+            .module
+            .type_registry
+            .get_type_layout(base_type)
+            .clone();
+
+        let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
+        let base_type_layout_unmodified = context
+            .module
+            .type_registry
+            .get_type_layout(base_type_unmodified);
+        if base_type_layout_unmodified.is_void() {
             return Err(TyperError::VariableHasIncompleteType(
                 base_type,
                 member.ty.location,
             ));
         }
+
         for def in &member.defs {
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
-            let var_type = apply_variable_bind(base_type.clone(), &def.bind, &None)?;
+            let var_type = apply_variable_bind(base_type_layout.clone(), &def.bind, &None)?;
             let type_id = context.module.type_registry.register_type(var_type);
             members_map.insert(var_name.clone(), type_id);
             members.push(ir::ConstantVariable {

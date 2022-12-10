@@ -143,7 +143,11 @@ pub enum Intrinsic {
 }
 
 impl IntrinsicOp {
-    pub fn get_return_type(&self, param_types: &[ExpressionType]) -> ExpressionType {
+    pub fn get_return_type(
+        &self,
+        param_types: &[ExpressionType],
+        module: &mut Module,
+    ) -> ExpressionType {
         use IntrinsicOp::*;
         match *self {
             PrefixIncrement | PrefixDecrement => {
@@ -152,32 +156,44 @@ impl IntrinsicOp {
             }
             PostfixIncrement | PostfixDecrement | Plus | Minus => {
                 assert_eq!(param_types.len(), 1);
-                param_types[0].0.clone().to_rvalue()
+                param_types[0].0.to_rvalue()
             }
             LogicalNot => {
                 assert_eq!(param_types.len(), 1);
-                match param_types[0].0 {
-                    TypeLayout::Scalar(_) => TypeLayout::bool().to_rvalue(),
-                    TypeLayout::Vector(_, x) => TypeLayout::booln(x).to_rvalue(),
+                match module.type_registry.get_type_layout(param_types[0].0) {
+                    TypeLayout::Scalar(_) => module
+                        .type_registry
+                        .register_type(TypeLayout::bool())
+                        .to_rvalue(),
+                    TypeLayout::Vector(_, x) => module
+                        .type_registry
+                        .register_type(TypeLayout::booln(*x))
+                        .to_rvalue(),
                     _ => panic!("invalid logical not intrinsic"),
                 }
             }
             BitwiseNot => {
                 assert_eq!(param_types.len(), 1);
-                param_types[0].0.clone().to_rvalue()
+                param_types[0].0.to_rvalue()
             }
 
             Add | Subtract | Multiply | Divide | Modulus | LeftShift | RightShift | BitwiseAnd
             | BitwiseOr | BitwiseXor | BooleanAnd | BooleanOr => {
                 assert_eq!(param_types.len(), 2);
-                TypeLayout::most_significant_data_type(&param_types[0].0, &param_types[1].0)
-                    .to_rvalue()
+                let lhs = module.type_registry.get_type_layout(param_types[0].0);
+                let rhs = module.type_registry.get_type_layout(param_types[1].0);
+                let tyl = TypeLayout::most_significant_data_type(lhs, rhs);
+                let ty = module.type_registry.register_type(tyl);
+                ty.to_rvalue()
             }
             LessThan | LessEqual | GreaterThan | GreaterEqual | Equality | Inequality => {
                 assert_eq!(param_types.len(), 2);
-                TypeLayout::most_significant_data_type(&param_types[0].0, &param_types[1].0)
-                    .transform_scalar(ScalarType::Bool)
-                    .to_rvalue()
+                let lhs = module.type_registry.get_type_layout(param_types[0].0);
+                let rhs = module.type_registry.get_type_layout(param_types[1].0);
+                let tyl = TypeLayout::most_significant_data_type(lhs, rhs)
+                    .transform_scalar(ScalarType::Bool);
+                let ty = module.type_registry.register_type(tyl);
+                ty.to_rvalue()
             }
             Assignment | SumAssignment | DifferenceAssignment | ProductAssignment
             | QuotientAssignment | RemainderAssignment => {

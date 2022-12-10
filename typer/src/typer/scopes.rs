@@ -4,7 +4,7 @@ use super::expressions::{UnresolvedFunction, VariableExpression};
 use super::functions::{parse_function_body, ApplyTemplates, FunctionOverload};
 use super::structs::build_struct_from_template;
 use super::types::apply_template_type_substitution;
-use ir::{ExpressionType, ToExpressionType};
+use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::Located;
@@ -29,7 +29,7 @@ pub struct Context {
 pub type ScopeIndex = usize;
 
 pub enum StructMemberValue {
-    Variable(ir::TypeLayout),
+    Variable(ir::TypeId),
     Method(Vec<FunctionOverload>),
 }
 
@@ -65,7 +65,7 @@ struct ScopeData {
     variables: VariableBlock,
 
     function_ids: HashMap<String, Vec<ir::FunctionId>>,
-    types: HashMap<String, ir::TypeLayout>,
+    types: HashMap<String, ir::TypeId>,
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
     template_args: HashMap<String, ir::TemplateTypeId>,
@@ -219,7 +219,10 @@ impl Context {
     }
 
     /// Find a variable with a given name in the current scope
-    pub fn find_identifier(&self, id: &ast::ScopedIdentifier) -> TyperResult<VariableExpression> {
+    pub fn find_identifier(
+        &mut self,
+        id: &ast::ScopedIdentifier,
+    ) -> TyperResult<VariableExpression> {
         let (leaf_name, scopes) = id.identifiers.split_last().unwrap();
 
         let mut scope_index = match id.base {
@@ -254,12 +257,16 @@ impl Context {
 
                 // Try to find a type name in the searched scope
                 if let Some(ty) = scope.types.get(&leaf_name.node) {
-                    return Ok(VariableExpression::Type(ty.clone()));
+                    return Ok(VariableExpression::Type(*ty));
                 }
 
                 // Try to find a template type name in the searched scope
                 if let Some(id) = scope.template_args.get(&leaf_name.node) {
-                    return Ok(VariableExpression::Type(ir::TypeLayout::TemplateParam(*id)));
+                    let ty_id = self
+                        .module
+                        .type_registry
+                        .register_type(ir::TypeLayout::TemplateParam(*id));
+                    return Ok(VariableExpression::Type(ty_id));
                 }
             }
             scope_index = self.scopes[scope_index].parent_scope;
@@ -276,18 +283,19 @@ impl Context {
         &mut self,
         name: &ast::ScopedIdentifier,
         template_args: &[ir::TypeOrConstant],
-    ) -> TyperResult<ir::TypeLayout> {
+    ) -> TyperResult<ir::TypeId> {
         let ty = match self.find_identifier(name) {
             Ok(VariableExpression::Type(ty)) => ty,
             Ok(_) => return Err(TyperError::ExpectedTypeReceivedExpression(name.clone())),
             Err(err) => return Err(err),
         };
 
-        let (tyl, modifier) = ty.clone().extract_modifier();
+        let (ty_unmodified, modifier) = self.module.type_registry.extract_modifier(ty);
+        let tyl_unmodified = self.module.type_registry.get_type_layer(ty_unmodified);
 
         // Match template argument counts with type
-        match tyl {
-            ir::TypeLayout::StructTemplate(id) => {
+        match *tyl_unmodified {
+            ir::TypeLayer::StructTemplate(id) => {
                 // Templated type definitions require template arguments
                 // We do not currently support default arguments
                 if template_args.is_empty() {
@@ -299,7 +307,9 @@ impl Context {
                     let ast = &struct_template_def.ast.clone();
 
                     if let Some(id) = struct_template_data.instantiations.get(template_args) {
-                        Ok(ir::TypeLayout::Struct(*id).combine_modifier(modifier))
+                        let layout = ir::TypeLayout::Struct(*id).combine_modifier(modifier);
+                        let id = self.module.type_registry.register_type(layout);
+                        Ok(id)
                     } else {
                         // Return to scope of the struct definition to build the template
                         let current_scope = self.current_scope;
@@ -318,7 +328,9 @@ impl Context {
                             .instantiations
                             .insert(template_args.to_vec(), sid);
 
-                        Ok(ir::TypeLayout::Struct(sid).combine_modifier(modifier))
+                        let layout = ir::TypeLayout::Struct(sid).combine_modifier(modifier);
+                        let id = self.module.type_registry.register_type(layout);
+                        Ok(id)
                     }
                 }
             }
@@ -357,15 +369,14 @@ impl Context {
         }
         self.scopes[scope_index]
             .variables
-            .get_type_of_variable(&self.module, var_ref)
+            .get_type_of_variable(var_ref)
     }
 
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: ir::GlobalId) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.module.global_registry.len() as u32);
         let type_id = self.module.global_registry[id.0 as usize].type_id;
-        let type_layout = self.module.type_registry.get_type_layout(type_id);
-        Ok(type_layout.to_lvalue())
+        Ok(type_id.to_lvalue())
     }
 
     /// Find the type of a constant buffer member
@@ -376,10 +387,7 @@ impl Context {
     ) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.cbuffer_data.len() as u32);
         match self.cbuffer_data[id.0 as usize].members.get(name) {
-            Some(ty) => {
-                let type_layout = self.module.type_registry.get_type_layout(*ty);
-                Ok(type_layout.to_lvalue())
-            }
+            Some(ty) => Ok(ty.to_lvalue()),
             None => Err(TyperError::ConstantDoesNotExist(id, name.to_string())),
         }
     }
@@ -393,10 +401,7 @@ impl Context {
     ) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.struct_data.len() as u32);
         match self.struct_data[id.0 as usize].members.get(name) {
-            Some(ty) => {
-                let type_layout = self.module.type_registry.get_type_layout(*ty);
-                Ok(type_layout.to_lvalue())
-            }
+            Some(ty) => Ok(ty.to_lvalue()),
             None => Err(TyperError::StructMemberDoesNotExist(id, name.to_string())),
         }
     }
@@ -410,8 +415,7 @@ impl Context {
         assert!(id.0 < self.struct_data.len() as u32);
         if let Some(ty) = self.struct_data[id.0 as usize].members.get(name) {
             assert!(!self.struct_data[id.0 as usize].methods.contains_key(name));
-            let type_layout = self.module.type_registry.get_type_layout(*ty);
-            return Ok(StructMemberValue::Variable(type_layout.clone()));
+            return Ok(StructMemberValue::Variable(*ty));
         }
 
         if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
@@ -445,25 +449,21 @@ impl Context {
 
     /// Find the return type of a function
     pub fn get_type_of_function_return(
-        &self,
+        &mut self,
         id: ir::FunctionId,
         template_args: &[Located<ir::TypeOrConstant>],
     ) -> TyperResult<ExpressionType> {
         let signature = self.get_function_signature(id)?;
         if template_args.is_empty() {
-            let type_layout = self
-                .module
-                .type_registry
-                .get_type_layout(signature.return_type.return_type)
-                .clone();
-            Ok(type_layout.to_rvalue())
+            Ok(signature.return_type.return_type.to_rvalue())
         } else {
             let type_layout = self
                 .module
                 .type_registry
                 .get_type_layout(signature.return_type.return_type)
                 .clone();
-            let return_type = apply_template_type_substitution(type_layout, template_args);
+            let return_type = apply_template_type_substitution(type_layout, template_args, self);
+            let return_type = self.module.type_registry.register_type(return_type);
             Ok(return_type.to_rvalue())
         }
     }
@@ -541,11 +541,10 @@ impl Context {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::Constant(_, _, ref ty)) => {
-                let type_layout = self.module.type_registry.get_type_layout(data.type_id);
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
                     ty.to_error_type(),
-                    type_layout.to_error_type(),
+                    data.type_id.to_error_type(),
                 ));
             }
             _ => {}
@@ -567,7 +566,7 @@ impl Context {
         &mut self,
         name: Located<String>,
         is_non_template: bool,
-    ) -> Result<ir::StructId, ir::TypeLayout> {
+    ) -> Result<ir::StructId, ir::TypeId> {
         let full_name = self.get_qualified_name(&name);
 
         let id = ir::StructId(self.struct_data.len() as u32);
@@ -596,10 +595,10 @@ impl Context {
                 .entry(data.name.to_string())
             {
                 Entry::Vacant(v) => {
-                    v.insert(ir::TypeLayout::Struct(id));
+                    v.insert(type_id);
                 }
                 Entry::Occupied(o) => {
-                    return Err(o.get().clone());
+                    return Err(*o.get());
                 }
             }
         }
@@ -625,7 +624,7 @@ impl Context {
         &mut self,
         name: Located<String>,
         ast: ast::StructDefinition,
-    ) -> Result<ir::StructTemplateId, ir::TypeLayout> {
+    ) -> Result<ir::StructTemplateId, ir::TypeId> {
         let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
         assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
         let type_id = self
@@ -651,10 +650,10 @@ impl Context {
             .entry(data.name.to_string())
         {
             Entry::Vacant(v) => {
-                v.insert(ir::TypeLayout::StructTemplate(id));
+                v.insert(type_id);
             }
             Entry::Occupied(o) => {
-                return Err(o.get().clone());
+                return Err(*o.get());
             }
         }
         Ok(id)
@@ -711,11 +710,7 @@ impl Context {
     }
 
     /// Register a new typedef
-    pub fn register_typedef(
-        &mut self,
-        name: Located<String>,
-        ty: ir::TypeLayout,
-    ) -> TyperResult<()> {
+    pub fn register_typedef(&mut self, name: Located<String>, ty: ir::TypeId) -> TyperResult<()> {
         match self.scopes[self.current_scope]
             .types
             .entry(name.to_string())
@@ -724,7 +719,7 @@ impl Context {
                 v.insert(ty);
                 Ok(())
             }
-            Entry::Occupied(o) => Err(TyperError::StructAlreadyDefined(name, o.get().clone())),
+            Entry::Occupied(o) => Err(TyperError::StructAlreadyDefined(name, *o.get())),
         }
     }
 
@@ -792,7 +787,7 @@ impl Context {
         name: &str,
         scopes_up: u32,
     ) -> Option<VariableExpression> {
-        if let Some(ve) = scope.variables.find_variable(name, &self.module, scopes_up) {
+        if let Some(ve) = scope.variables.find_variable(name, scopes_up) {
             return Some(ve);
         }
 
@@ -810,20 +805,14 @@ impl Context {
         for id in scope.cbuffer_ids.values() {
             for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
                 if member_name == name {
-                    let type_layout = self.module.type_registry.get_type_layout(*ty);
-                    return Some(VariableExpression::Constant(
-                        *id,
-                        name.to_string(),
-                        type_layout.clone(),
-                    ));
+                    return Some(VariableExpression::Constant(*id, name.to_string(), *ty));
                 }
             }
         }
 
         if let Some(id) = scope.global_ids.get(name) {
             let type_id = self.module.global_registry[id.0 as usize].type_id;
-            let type_layout = self.module.type_registry.get_type_layout(type_id).clone();
-            return Some(VariableExpression::Global(*id, type_layout));
+            return Some(VariableExpression::Global(*id, type_id));
         }
 
         None
@@ -924,7 +913,7 @@ impl Context {
                 ir::TypeOrConstant::Type(ty) => {
                     self.scopes[new_scope_id]
                         .types
-                        .insert(template_param_name, ty.clone());
+                        .insert(template_param_name, *ty);
                 }
                 ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
             }
@@ -935,27 +924,29 @@ impl Context {
 
         // Function signature requires applying template substitution
         let base_signature = self.module.function_registry.get_function_signature(id);
-        let signature = base_signature
-            .clone()
-            .apply_templates(&mut self.module, template_args);
+        let signature = base_signature.clone().apply_templates(template_args, self);
 
         // Return type can be retrieved from the signature
         self.scopes[new_scope_id].function_return_type = Some(signature.return_type.return_type);
 
         // This should be the same as the template function scopes return type with templates applied
-        assert_eq!(
-            *self
+        {
+            let active_fn_return_layout = self
                 .module
                 .type_registry
-                .get_type_layout(signature.return_type.return_type),
-            super::types::apply_template_type_substitution(
-                self.module
-                    .type_registry
-                    .get_type_layout(self.scopes[old_scope_id].function_return_type.unwrap())
-                    .clone(),
+                .get_type_layout(self.scopes[old_scope_id].function_return_type.unwrap())
+                .clone();
+            let active_fn_return_layout = super::types::apply_template_type_substitution(
+                active_fn_return_layout,
                 template_args,
-            )
-        );
+                self,
+            );
+            let signature_return_layout = self
+                .module
+                .type_registry
+                .get_type_layout(signature.return_type.return_type);
+            assert_eq!(*signature_return_layout, active_fn_return_layout);
+        }
 
         // Push the instantiation as a new function
         let function_name = self
@@ -1038,32 +1029,21 @@ impl VariableBlock {
         }
     }
 
-    fn find_variable(
-        &self,
-        name: &str,
-        module: &ir::Module,
-        scopes_up: u32,
-    ) -> Option<VariableExpression> {
+    fn find_variable(&self, name: &str, scopes_up: u32) -> Option<VariableExpression> {
         match self.variables.get(name) {
             Some(&(ref ty, ref id)) => {
                 let var = ir::VariableRef(*id, ir::ScopeRef(scopes_up));
-                let type_layout = module.type_registry.get_type_layout(*ty);
-                Some(VariableExpression::Local(var, type_layout.clone()))
+                Some(VariableExpression::Local(var, *ty))
             }
             None => None,
         }
     }
 
-    fn get_type_of_variable(
-        &self,
-        module: &ir::Module,
-        var_ref: ir::VariableRef,
-    ) -> TyperResult<ExpressionType> {
+    fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
         let ir::VariableRef(ref id, _) = var_ref;
         for &(ref var_ty, ref var_id) in self.variables.values() {
             if id == var_id {
-                let type_layout = module.type_registry.get_type_layout(*var_ty);
-                return Ok(type_layout.to_lvalue());
+                return Ok(var_ty.to_lvalue());
             }
         }
         panic!("Invalid local variable id: {:?}", var_ref);

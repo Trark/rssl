@@ -13,7 +13,7 @@ pub type TyperResult<T> = Result<T, TyperError>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
-    StructAlreadyDefined(Located<String>, ir::TypeLayout),
+    StructAlreadyDefined(Located<String>, ir::TypeId),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
@@ -22,12 +22,12 @@ pub enum TyperError {
 
     TypeDoesNotHaveMembers(ErrorType),
     /// Failed to find member of a type
-    MemberDoesNotExist(ir::TypeLayout, ast::ScopedIdentifier),
-    InvalidSwizzle(ir::TypeLayout, String),
+    MemberDoesNotExist(ir::TypeId, ast::ScopedIdentifier),
+    InvalidSwizzle(ir::TypeId, String),
     /// Member identifier is part of a different type
-    MemberIsForDifferentType(ir::TypeLayout, ir::TypeLayout, ast::ScopedIdentifier),
+    MemberIsForDifferentType(ir::TypeId, ir::TypeId, ast::ScopedIdentifier),
     /// Member identifier does not point to a type member
-    IdentifierIsNotAMember(ir::TypeLayout, ast::ScopedIdentifier),
+    IdentifierIsNotAMember(ir::TypeId, ast::ScopedIdentifier),
 
     ArrayIndexingNonArrayType,
     ArraySubscriptIndexNotInteger,
@@ -51,12 +51,12 @@ pub enum TyperError {
 
     InvalidCast(ErrorType, ErrorType),
 
-    InitializerExpressionWrongType(ir::TypeLayout, ir::TypeLayout, SourceLocation),
+    InitializerExpressionWrongType(ir::TypeId, ir::TypeId, SourceLocation),
     InitializerAggregateDoesNotMatchType,
     InitializerAggregateWrongDimension,
 
     WrongTypeInConstructor,
-    WrongTypeInReturnStatement(ir::TypeLayout, ir::TypeLayout),
+    WrongTypeInReturnStatement(ir::TypeId, ir::TypeId),
     FunctionNotCalled,
 
     MutableRequired,
@@ -71,34 +71,33 @@ pub enum TyperError {
     StructMemberDoesNotExist(ir::StructId, String),
 
     /// Identifier in an expression resolved as a type
-    ExpectedExpressionReceivedType(ast::ScopedIdentifier, ir::TypeLayout),
+    ExpectedExpressionReceivedType(ast::ScopedIdentifier, ir::TypeId),
 
     /// Identifier in a type context resolved as an expression
     ExpectedTypeReceivedExpression(ast::ScopedIdentifier),
 
     /// Swizzle is not allowed on the type
-    InvalidTypeForSwizzle(ir::TypeLayout),
+    InvalidTypeForSwizzle(ir::TypeId),
 
     /// Attempted to use member access on a non-composite type
-    MemberNodeMustBeUsedOnStruct(ir::TypeLayout, String),
+    MemberNodeMustBeUsedOnStruct(ir::TypeId, String),
 
     /// Attempted to index into a non-indexable type
-    ArrayIndexMustBeUsedOnArrayType(ir::TypeLayout),
+    ArrayIndexMustBeUsedOnArrayType(ir::TypeId),
 
     /// Expression in a constant context could not be evaluated
     ExpressionIsNotConstantExpression(SourceLocation),
 
     /// A variable was declared with an incomplete type
-    VariableHasIncompleteType(ir::TypeLayout, SourceLocation),
+    VariableHasIncompleteType(ir::TypeId, SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ErrorType {
     Untyped(ast::Type),
-    ValueId(ir::TypeId),
-    Value(ir::TypeLayout),
+    Value(ir::TypeId),
     Function(Vec<FunctionOverload>),
-    Method(ir::TypeLayout, Vec<FunctionOverload>),
+    Method(ir::TypeId, Vec<FunctionOverload>),
     Unknown,
 }
 
@@ -117,19 +116,13 @@ pub trait ToErrorType {
 
 impl ToErrorType for ir::TypeId {
     fn to_error_type(&self) -> ErrorType {
-        ErrorType::ValueId(*self)
-    }
-}
-
-impl ToErrorType for ir::TypeLayout {
-    fn to_error_type(&self) -> ErrorType {
-        ErrorType::Value(self.clone())
+        ErrorType::Value(*self)
     }
 }
 
 impl ToErrorType for ir::ExpressionType {
     fn to_error_type(&self) -> ErrorType {
-        ErrorType::Value(self.0.clone())
+        ErrorType::Value(self.0)
     }
 }
 
@@ -191,7 +184,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     name.location,
                     Severity::Error,
                 )?;
-                let previous_location = context.module.get_type_location(previous_type);
+                let previous_location = context.module.get_type_location(*previous_type);
                 if previous_location != SourceLocation::UNKNOWN {
                     write_message(
                         &|f| write!(f, "previous definition is here"),
@@ -251,7 +244,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     write!(
                         f,
                         "type '{}' does not contain member '{}'",
-                        get_type_string(ty, context),
+                        get_type_id_string(*ty, context),
                         name
                     )
                 },
@@ -264,7 +257,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         f,
                         "invalid swizzle '{}' on type '{}'",
                         swizzle,
-                        get_type_string(ty, context)
+                        get_type_id_string(*ty, context)
                     )
                 },
                 SourceLocation::UNKNOWN,
@@ -275,9 +268,9 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     write!(
                         f,
                         "accessing member of type '{}' ('{}') on type '{}'",
-                        get_type_string(found_tyl, context),
+                        get_type_id_string(*found_tyl, context),
                         path,
-                        get_type_string(sampled_ty, context),
+                        get_type_id_string(*sampled_ty, context),
                     )
                 },
                 SourceLocation::UNKNOWN,
@@ -289,7 +282,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         f,
                         "identifier '{}' is not a member of type '{}'",
                         path,
-                        get_type_string(ty, context)
+                        get_type_id_string(*ty, context)
                     )
                 },
                 SourceLocation::UNKNOWN,
@@ -331,9 +324,9 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         }
                         if let Some((last_arg, not_last)) = types.split_last() {
                             for arg in not_last {
-                                write!(f, "{}, ", get_type_string(&arg.0, context))?;
+                                write!(f, "{}, ", get_type_id_string(arg.0, context))?;
                             }
-                            write!(f, "{}", get_type_string(&last_arg.0, context))?;
+                            write!(f, "{}", get_type_id_string(last_arg.0, context))?;
                         }
                         write!(f, ")")
                     },
@@ -411,8 +404,8 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     write!(
                         f,
                         "Variable of type '{}' was initialised with an expression of type '{}'",
-                        get_type_string(expected, context),
-                        get_type_string(actual, context),
+                        get_type_id_string(*expected, context),
+                        get_type_id_string(*actual, context),
                     )
                 },
                 *loc,
@@ -519,7 +512,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     write!(
                         f,
                         "Variable declared with incomplete type '{}'",
-                        get_type_string(ty, context)
+                        get_type_id_string(*ty, context)
                     )
                 },
                 *loc,

@@ -634,7 +634,10 @@ fn export_type_or_constant(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     match tc {
-        ir::TypeOrConstant::Type(ty) => export_type(ty, output, context),
+        ir::TypeOrConstant::Type(ty) => {
+            let type_layout = context.module.type_registry.get_type_layout(*ty);
+            export_type(type_layout, output, context)
+        }
         ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
     }
 }

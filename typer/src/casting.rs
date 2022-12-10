@@ -69,7 +69,7 @@ struct DimensionCast(NumericDimension, NumericDimension);
 struct NumericCast(ScalarType, ScalarType);
 
 #[derive(PartialEq, Debug, Clone)]
-struct ValueTypeCast(TypeLayout, ValueType, ValueType);
+struct ValueTypeCast(TypeId, ValueType, ValueType);
 
 #[derive(PartialEq, Debug, Clone)]
 struct ModifierCast(TypeModifier);
@@ -181,45 +181,54 @@ impl NumericCast {
         }
     }
 
-    fn get_target_type(&self, dim: NumericDimension) -> ExpressionType {
-        match dim {
-            NumericDimension::Scalar => TypeLayout::Scalar(self.1),
-            NumericDimension::Vector(x) => TypeLayout::Vector(self.1, x),
-            NumericDimension::Matrix(x, y) => TypeLayout::Matrix(self.1, x, y),
-        }
-        .to_rvalue()
+    fn get_target_type(&self, module: &mut Module, dim: NumericDimension) -> ExpressionType {
+        let tyl = match dim {
+            NumericDimension::Scalar => TypeLayer::Scalar(self.1),
+            NumericDimension::Vector(x) => TypeLayer::Vector(self.1, x),
+            NumericDimension::Matrix(x, y) => TypeLayer::Matrix(self.1, x, y),
+        };
+        let id = module.type_registry.register_type_layer(tyl);
+        id.to_rvalue()
     }
 }
 
 impl ValueTypeCast {
     fn get_target_type(&self) -> ExpressionType {
-        ExpressionType(self.0.clone(), self.2.clone())
+        ExpressionType(self.0, self.2.clone())
     }
 }
 
 impl ModifierCast {
-    fn modify(&self, ty: ExpressionType) -> ExpressionType {
+    fn modify(&self, module: &mut Module, ty: ExpressionType) -> ExpressionType {
         let ExpressionType(ty, vt) = ty;
-        let (ty, _) = ty.extract_modifier();
-        ExpressionType(ty.combine_modifier(self.0), vt)
+        let ty = module.type_registry.remove_modifier(ty);
+        let ty = module.type_registry.combine_modifier(ty, self.0);
+        ExpressionType(ty, vt)
     }
 }
 
 impl ImplicitConversion {
-    pub fn find(source: &ExpressionType, dest: &ExpressionType) -> Result<ImplicitConversion, ()> {
+    pub fn find(
+        source: &ExpressionType,
+        dest: &ExpressionType,
+        module: &mut Module,
+    ) -> Result<ImplicitConversion, ()> {
         let source_copy = source.clone();
         let (source_type, dest_type, value_type_cast) = match (&source.1, &dest.1) {
             (&Rvalue, &Lvalue) => return Err(()),
-            (&Rvalue, &Rvalue) | (&Lvalue, &Lvalue) => (&source.0, &dest.0, None),
+            (&Rvalue, &Rvalue) | (&Lvalue, &Lvalue) => (source.0, dest.0, None),
             (&Lvalue, &Rvalue) => (
-                &source.0,
-                &dest.0,
-                Some(ValueTypeCast(source.0.clone(), Lvalue, Rvalue)),
+                source.0,
+                dest.0,
+                Some(ValueTypeCast(source.0, Lvalue, Rvalue)),
             ),
         };
 
-        let (source_l, mods) = source_type.clone().extract_modifier();
-        let (dest_l, modd) = dest_type.clone().extract_modifier();
+        let (source_id, mods) = module.type_registry.extract_modifier(source_type);
+        let (dest_id, modd) = module.type_registry.extract_modifier(dest_type);
+
+        let source_l = module.type_registry.get_type_layout(source_id);
+        let dest_l = module.type_registry.get_type_layout(dest_id);
 
         let dimension_cast = match (&source_l, &dest_l, dest.1 == Lvalue) {
             (ty1, ty2, _) if ty1 == ty2 => None,
@@ -274,13 +283,13 @@ impl ImplicitConversion {
         let numeric_cast = if source_l == dest_l {
             None
         } else {
-            let source_scalar = match source_l {
+            let source_scalar = match *source_l {
                 TypeLayout::Scalar(s) => s,
                 TypeLayout::Vector(s, _) => s,
                 TypeLayout::Matrix(s, _, _) => s,
                 _ => return Err(()),
             };
-            let dest_scalar = match dest_l {
+            let dest_scalar = match *dest_l {
                 TypeLayout::Scalar(s) => s,
                 TypeLayout::Vector(s, _) => s,
                 TypeLayout::Matrix(s, _, _) => s,
@@ -344,7 +353,7 @@ impl ImplicitConversion {
         ConversionRank(num, vec)
     }
 
-    pub fn get_target_type(&self) -> ExpressionType {
+    pub fn get_target_type(&self, module: &mut Module) -> ExpressionType {
         let &ImplicitConversion(
             ref source_type,
             ref value_type_cast,
@@ -359,70 +368,76 @@ impl ImplicitConversion {
         };
         let dim = match *dimension_cast {
             Some(DimensionCast(_, ref dim)) => Some(*dim),
-            None => match ty.0.clone().remove_modifier() {
-                TypeLayout::Scalar(_) => Some(NumericDimension::Scalar),
-                TypeLayout::Vector(_, ref x) => Some(NumericDimension::Vector(*x)),
-                TypeLayout::Matrix(_, ref x, ref y) => Some(NumericDimension::Matrix(*x, *y)),
-                _ => None,
-            },
+            None => {
+                let ty_unmodified = module.type_registry.remove_modifier(ty.0);
+                match *module.type_registry.get_type_layer(ty_unmodified) {
+                    TypeLayer::Scalar(_) => Some(NumericDimension::Scalar),
+                    TypeLayer::Vector(_, x) => Some(NumericDimension::Vector(x)),
+                    TypeLayer::Matrix(_, x, y) => Some(NumericDimension::Matrix(x, y)),
+                    _ => None,
+                }
+            }
         };
         let ty = match *numeric_cast {
-            Some(ref nc) => {
-                nc.get_target_type(dim.expect("expecting numeric cast to operate on numeric type"))
-            }
+            Some(ref nc) => nc.get_target_type(
+                module,
+                dim.expect("expecting numeric cast to operate on numeric type"),
+            ),
             None => match dim {
                 Some(dim) => {
                     let ExpressionType(ty_modified, vt) = ty;
-                    let (tyl, m) = ty_modified.extract_modifier();
-                    let scalar = match tyl {
-                        TypeLayout::Scalar(scalar) => scalar,
-                        TypeLayout::Vector(scalar, _) => scalar,
-                        TypeLayout::Matrix(scalar, _, _) => scalar,
+                    let (ty, m) = module.type_registry.extract_modifier(ty_modified);
+                    let scalar = match *module.type_registry.get_type_layer(ty) {
+                        TypeLayer::Scalar(scalar) => scalar,
+                        TypeLayer::Vector(scalar, _) => scalar,
+                        TypeLayer::Matrix(scalar, _, _) => scalar,
                         _ => panic!("dimension cast on non numeric type"),
                     };
                     let tyl_dim = match dim {
-                        NumericDimension::Scalar => TypeLayout::Scalar(scalar),
-                        NumericDimension::Vector(x) => TypeLayout::Vector(scalar, x),
-                        NumericDimension::Matrix(x, y) => TypeLayout::Matrix(scalar, x, y),
+                        NumericDimension::Scalar => TypeLayer::Scalar(scalar),
+                        NumericDimension::Vector(x) => TypeLayer::Vector(scalar, x),
+                        NumericDimension::Matrix(x, y) => TypeLayer::Matrix(scalar, x, y),
                     };
-                    ExpressionType(tyl_dim.combine_modifier(m), vt)
+                    let id = module.type_registry.register_type_layer(tyl_dim);
+                    let id = module.type_registry.combine_modifier(id, m);
+                    ExpressionType(id, vt)
                 }
                 None => ty,
             },
         };
         match *mod_cast {
-            Some(ref mc) => mc.modify(ty),
+            Some(ref mc) => mc.modify(module, ty),
             None => ty,
         }
     }
 
-    pub fn apply(&self, module: &mut Module, expr: Expression) -> Expression {
+    pub fn apply(&self, expr: Expression, module: &mut Module) -> Expression {
         // If there was no conversion then return the given expression
         if let ImplicitConversion(_, _, None, None, None) = *self {
             return expr;
         }
 
-        let target_type = self.get_target_type();
+        let target_type = self.get_target_type(module);
 
         // If the type was an untyped literal int then instead convert the literal type
         // This simplifies the expressions we generate so we don't have to clean it up later
         if let Expression::Literal(Literal::UntypedInt(v)) = expr {
-            let (target_ty, _) = target_type.0.clone().extract_modifier();
-            match target_ty {
-                TypeLayout::Scalar(ScalarType::Bool) => {
+            let target_type_unmodified = module.type_registry.remove_modifier(target_type.0);
+            match module.type_registry.get_type_layer(target_type_unmodified) {
+                TypeLayer::Scalar(ScalarType::Bool) => {
                     return Expression::Literal(Literal::Bool(v != 0))
                 }
-                TypeLayout::Scalar(ScalarType::UInt) => {
+                TypeLayer::Scalar(ScalarType::UInt) => {
                     return Expression::Literal(Literal::UInt(v))
                 }
-                TypeLayout::Scalar(ScalarType::Int) => return Expression::Literal(Literal::Int(v)),
-                TypeLayout::Scalar(ScalarType::Half) => {
+                TypeLayer::Scalar(ScalarType::Int) => return Expression::Literal(Literal::Int(v)),
+                TypeLayer::Scalar(ScalarType::Half) => {
                     return Expression::Literal(Literal::Half(v as f32))
                 }
-                TypeLayout::Scalar(ScalarType::Float) => {
+                TypeLayer::Scalar(ScalarType::Float) => {
                     return Expression::Literal(Literal::Float(v as f32))
                 }
-                TypeLayout::Scalar(ScalarType::Double) => {
+                TypeLayer::Scalar(ScalarType::Double) => {
                     return Expression::Literal(Literal::Double(v as f64))
                 }
                 _ => {}
@@ -430,28 +445,41 @@ impl ImplicitConversion {
         }
 
         // Emit a cast operation on the given expression
-        let type_id = module.type_registry.register_type(target_type.0);
-        Expression::Cast(type_id, Box::new(expr))
+        Expression::Cast(target_type.0, Box::new(expr))
     }
 }
 
 #[test]
 fn test_implicitconversion() {
-    let basic_types = &[
-        TypeLayout::bool(),
-        TypeLayout::int(),
-        TypeLayout::uint(),
-        TypeLayout::float(),
-        TypeLayout::floatn(4),
-    ];
+    let mut module = Module::create();
+    let bool_ty = module.type_registry.register_type(TypeLayout::bool());
+    let int_ty = module.type_registry.register_type(TypeLayout::int());
+    let int1_ty = module.type_registry.register_type(TypeLayout::intn(1));
+    let uint_ty = module.type_registry.register_type(TypeLayout::uint());
+    let uint1_ty = module.type_registry.register_type(TypeLayout::uintn(1));
+    let uint4_ty = module.type_registry.register_type(TypeLayout::uintn(4));
+    let float_ty = module.type_registry.register_type(TypeLayout::float());
+    let float4_ty = module.type_registry.register_type(TypeLayout::floatn(4));
+    let sampler_state_ty = module
+        .type_registry
+        .register_type(TypeLayout::Object(ObjectType::SamplerState));
+    let buffer_f4_ty =
+        module
+            .type_registry
+            .register_type(TypeLayout::from_object(ObjectType::Buffer(DataType(
+                DataLayout::Vector(Float, 4),
+                TypeModifier::default(),
+            ))));
+
+    let basic_types = &[bool_ty, int_ty, uint_ty, float_ty, float4_ty];
 
     for ty in basic_types {
         assert_eq!(
-            ImplicitConversion::find(&ty.to_rvalue(), &ty.to_rvalue()),
+            ImplicitConversion::find(&ty.to_rvalue(), &ty.to_rvalue(), &mut module),
             Ok(ImplicitConversion(ty.to_rvalue(), None, None, None, None))
         );
         assert_eq!(
-            ImplicitConversion::find(&ty.to_lvalue(), &ty.to_rvalue()),
+            ImplicitConversion::find(&ty.to_lvalue(), &ty.to_rvalue(), &mut module),
             Ok(ImplicitConversion(
                 ty.to_lvalue(),
                 Some(ValueTypeCast(ty.clone(), Lvalue, Rvalue)),
@@ -461,38 +489,32 @@ fn test_implicitconversion() {
             ))
         );
         assert_eq!(
-            ImplicitConversion::find(&ty.to_rvalue(), &ty.to_lvalue()),
+            ImplicitConversion::find(&ty.to_rvalue(), &ty.to_lvalue(), &mut module),
             Err(())
         );
         assert_eq!(
-            ImplicitConversion::find(&ty.to_lvalue(), &ty.to_lvalue()),
+            ImplicitConversion::find(&ty.to_lvalue(), &ty.to_lvalue(), &mut module),
             Ok(ImplicitConversion(ty.to_lvalue(), None, None, None, None))
         );
     }
 
     assert_eq!(
         ImplicitConversion::find(
-            &TypeLayout::Object(ObjectType::SamplerState).to_lvalue(),
-            &TypeLayout::uint().to_lvalue()
+            &sampler_state_ty.to_lvalue(),
+            &uint_ty.to_lvalue(),
+            &mut module
         ),
         Err(())
     );
-    let f4dty = DataType(DataLayout::Vector(Float, 4), TypeModifier::default());
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::from_object(ObjectType::Buffer(f4dty)).to_lvalue(),
-            &TypeLayout::uint().to_lvalue()
-        ),
+        ImplicitConversion::find(&buffer_f4_ty.to_lvalue(), &uint_ty.to_lvalue(), &mut module),
         Err(())
     );
 
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::int().to_rvalue(),
-            &TypeLayout::intn(1).to_rvalue()
-        ),
+        ImplicitConversion::find(&int_ty.to_rvalue(), &int1_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            TypeLayout::int().to_rvalue(),
+            int_ty.to_rvalue(),
             None,
             Some(DimensionCast(
                 NumericDimension::Scalar,
@@ -503,12 +525,9 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::intn(1).to_rvalue(),
-            &TypeLayout::int().to_rvalue()
-        ),
+        ImplicitConversion::find(&int1_ty.to_rvalue(), &int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            TypeLayout::intn(1).to_rvalue(),
+            int1_ty.to_rvalue(),
             None,
             Some(DimensionCast(
                 NumericDimension::Vector(1),
@@ -519,12 +538,9 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::uint().to_rvalue(),
-            &TypeLayout::uintn(4).to_rvalue()
-        ),
+        ImplicitConversion::find(&uint_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            TypeLayout::uint().to_rvalue(),
+            uint_ty.to_rvalue(),
             None,
             Some(DimensionCast(
                 NumericDimension::Scalar,
@@ -535,12 +551,9 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::uintn(1).to_rvalue(),
-            &TypeLayout::uintn(4).to_rvalue()
-        ),
+        ImplicitConversion::find(&uint1_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            TypeLayout::uintn(1).to_rvalue(),
+            uint1_ty.to_rvalue(),
             None,
             Some(DimensionCast(
                 NumericDimension::Vector(1),
@@ -552,12 +565,9 @@ fn test_implicitconversion() {
     );
 
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::int().to_lvalue(),
-            &TypeLayout::intn(1).to_lvalue()
-        ),
+        ImplicitConversion::find(&int_ty.to_lvalue(), &int1_ty.to_lvalue(), &mut module),
         Ok(ImplicitConversion(
-            TypeLayout::int().to_lvalue(),
+            int_ty.to_lvalue(),
             None,
             Some(DimensionCast(
                 NumericDimension::Scalar,
@@ -568,12 +578,9 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::intn(1).to_lvalue(),
-            &TypeLayout::int().to_lvalue()
-        ),
+        ImplicitConversion::find(&int1_ty.to_lvalue(), &int_ty.to_lvalue(), &mut module),
         Ok(ImplicitConversion(
-            TypeLayout::intn(1).to_lvalue(),
+            int1_ty.to_lvalue(),
             None,
             Some(DimensionCast(
                 NumericDimension::Vector(1),
@@ -587,56 +594,52 @@ fn test_implicitconversion() {
 
 #[test]
 fn test_get_rank() {
+    let mut module = Module::create();
+    let uint_ty = module.type_registry.register_type(TypeLayout::uint());
+    let uint1_ty = module.type_registry.register_type(TypeLayout::uintn(1));
+    let uint4_ty = module.type_registry.register_type(TypeLayout::uintn(4));
+
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::uint().to_rvalue(),
-            &TypeLayout::uintn(1).to_rvalue()
-        )
-        .unwrap()
-        .get_rank(),
+        ImplicitConversion::find(&uint_ty.to_rvalue(), &uint1_ty.to_rvalue(), &mut module)
+            .unwrap()
+            .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Exact)
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::uintn(1).to_rvalue(),
-            &TypeLayout::uint().to_rvalue()
-        )
-        .unwrap()
-        .get_rank(),
+        ImplicitConversion::find(&uint1_ty.to_rvalue(), &uint_ty.to_rvalue(), &mut module)
+            .unwrap()
+            .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Exact)
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::uint().to_rvalue(),
-            &TypeLayout::uintn(4).to_rvalue()
-        )
-        .unwrap()
-        .get_rank(),
+        ImplicitConversion::find(&uint_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module)
+            .unwrap()
+            .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Expand)
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &TypeLayout::uintn(1).to_rvalue(),
-            &TypeLayout::uintn(4).to_rvalue()
-        )
-        .unwrap()
-        .get_rank(),
+        ImplicitConversion::find(&uint1_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module)
+            .unwrap()
+            .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Expand)
     );
 }
 
 #[test]
 fn test_const() {
+    let mut module = Module::create();
+    let int_ty = module
+        .type_registry
+        .register_type(TypeLayout::from_scalar(Int));
+    let const_int_ty = module
+        .type_registry
+        .register_type(TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()));
+
     // Non-const to const rvalue
     assert_eq!(
-        ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int).to_rvalue()),
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_rvalue())
-        ),
+        ImplicitConversion::find(&int_ty.to_rvalue(), &const_int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            ExpressionType(TypeLayout::from_scalar(Int), Rvalue),
+            int_ty.to_rvalue(),
             None,
             None,
             None,
@@ -644,15 +647,10 @@ fn test_const() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int).to_lvalue()),
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_rvalue())
-        ),
+        ImplicitConversion::find(&int_ty.to_lvalue(), &const_int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            ExpressionType(TypeLayout::from_scalar(Int), Lvalue),
-            Some(ValueTypeCast(TypeLayout::int(), Lvalue, Rvalue)),
+            int_ty.to_lvalue(),
+            Some(ValueTypeCast(int_ty, Lvalue, Rvalue)),
             None,
             None,
             Some(ModifierCast(TypeModifier::const_only()))
@@ -661,18 +659,12 @@ fn test_const() {
     // Const to const rvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_rvalue()),
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_rvalue())
+            &const_int_ty.to_rvalue(),
+            &const_int_ty.to_rvalue(),
+            &mut module
         ),
         Ok(ImplicitConversion(
-            ExpressionType(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Rvalue
-            ),
+            const_int_ty.to_rvalue(),
             None,
             None,
             None,
@@ -681,23 +673,13 @@ fn test_const() {
     );
     assert_eq!(
         ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_lvalue()),
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_rvalue())
+            &const_int_ty.to_lvalue(),
+            &const_int_ty.to_rvalue(),
+            &mut module
         ),
         Ok(ImplicitConversion(
-            ExpressionType(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Lvalue
-            ),
-            Some(ValueTypeCast(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Lvalue,
-                Rvalue
-            )),
+            const_int_ty.to_lvalue(),
+            Some(ValueTypeCast(const_int_ty, Lvalue, Rvalue)),
             None,
             None,
             None
@@ -705,17 +687,9 @@ fn test_const() {
     );
     // Const removing from rvalue
     assert_eq!(
-        ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_rvalue()),
-            &(TypeLayout::from_scalar(Int).to_rvalue())
-        ),
+        ImplicitConversion::find(&const_int_ty.to_rvalue(), &int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            ExpressionType(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Rvalue
-            ),
+            const_int_ty.to_rvalue(),
             None,
             None,
             None,
@@ -723,22 +697,10 @@ fn test_const() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_lvalue()),
-            &(TypeLayout::from_scalar(Int).to_rvalue())
-        ),
+        ImplicitConversion::find(&const_int_ty.to_lvalue(), &int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
-            ExpressionType(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Lvalue
-            ),
-            Some(ValueTypeCast(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Lvalue,
-                Rvalue
-            )),
+            const_int_ty.to_lvalue(),
+            Some(ValueTypeCast(const_int_ty, Lvalue, Rvalue)),
             None,
             None,
             Some(ModifierCast(TypeModifier::default()))
@@ -747,14 +709,9 @@ fn test_const() {
 
     // Non-const to const lvalue
     assert_eq!(
-        ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int).to_lvalue()),
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_lvalue())
-        ),
+        ImplicitConversion::find(&int_ty.to_lvalue(), &const_int_ty.to_lvalue(), &mut module),
         Ok(ImplicitConversion(
-            ExpressionType(TypeLayout::from_scalar(Int), Lvalue),
+            int_ty.to_lvalue(),
             None,
             None,
             None,
@@ -764,18 +721,12 @@ fn test_const() {
     // const to const lvalue
     assert_eq!(
         ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_lvalue()),
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_lvalue())
+            &const_int_ty.to_lvalue(),
+            &const_int_ty.to_lvalue(),
+            &mut module
         ),
         Ok(ImplicitConversion(
-            ExpressionType(
-                TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()),
-                Lvalue
-            ),
+            const_int_ty.to_lvalue(),
             None,
             None,
             None,
@@ -784,12 +735,7 @@ fn test_const() {
     );
     // const to non-const lvalue
     assert_eq!(
-        ImplicitConversion::find(
-            &(TypeLayout::from_scalar(Int)
-                .combine_modifier(TypeModifier::const_only())
-                .to_lvalue()),
-            &(TypeLayout::from_scalar(Int).to_lvalue())
-        ),
+        ImplicitConversion::find(&const_int_ty.to_lvalue(), &int_ty.to_lvalue(), &mut module),
         Err(())
     );
 }
