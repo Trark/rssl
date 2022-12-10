@@ -121,7 +121,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             let expected_type = context.get_current_return_type();
             let expected_ety = expected_type.to_rvalue();
-            match ImplicitConversion::find(&expr_ty, &expected_ety, &mut context.module) {
+            match ImplicitConversion::find(expr_ty, expected_ety, &mut context.module) {
                 Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(
                     rhs_cast.apply(expr_ir, &mut context.module),
                 ))]),
@@ -284,7 +284,7 @@ fn parse_initializer(
         ast::Initializer::Expression(ref expr) => {
             let ety = context.module.type_registry.remove_modifier(ty).to_rvalue();
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
-            match ImplicitConversion::find(&expr_ty, &ety, &mut context.module) {
+            match ImplicitConversion::find(expr_ty, ety, &mut context.module) {
                 Ok(rhs_cast) => {
                     ir::Initializer::Expression(rhs_cast.apply(expr_ir, &mut context.module))
                 }

@@ -152,7 +152,7 @@ impl IntrinsicOp {
         match *self {
             PrefixIncrement | PrefixDecrement => {
                 assert_eq!(param_types.len(), 1);
-                param_types[0].clone()
+                param_types[0]
             }
             PostfixIncrement | PostfixDecrement | Plus | Minus => {
                 assert_eq!(param_types.len(), 1);
@@ -200,7 +200,7 @@ impl IntrinsicOp {
                 assert_eq!(param_types.len(), 2);
                 assert_eq!(param_types[0].0, param_types[1].0);
                 assert_eq!(param_types[0].1, ValueType::Lvalue);
-                param_types[0].clone()
+                param_types[0]
             }
         }
     }

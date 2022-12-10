@@ -194,7 +194,7 @@ impl NumericCast {
 
 impl ValueTypeCast {
     fn get_target_type(&self) -> ExpressionType {
-        ExpressionType(self.0, self.2.clone())
+        ExpressionType(self.0, self.2)
     }
 }
 
@@ -209,11 +209,10 @@ impl ModifierCast {
 
 impl ImplicitConversion {
     pub fn find(
-        source: &ExpressionType,
-        dest: &ExpressionType,
+        source: ExpressionType,
+        dest: ExpressionType,
         module: &mut Module,
     ) -> Result<ImplicitConversion, ()> {
-        let source_copy = source.clone();
         let (source_type, dest_type, value_type_cast) = match (&source.1, &dest.1) {
             (&Rvalue, &Lvalue) => return Err(()),
             (&Rvalue, &Rvalue) | (&Lvalue, &Lvalue) => (source.0, dest.0, None),
@@ -323,7 +322,7 @@ impl ImplicitConversion {
         };
 
         Ok(ImplicitConversion(
-            source_copy,
+            source,
             value_type_cast,
             dimension_cast,
             numeric_cast,
@@ -355,16 +354,15 @@ impl ImplicitConversion {
 
     pub fn get_target_type(&self, module: &mut Module) -> ExpressionType {
         let &ImplicitConversion(
-            ref source_type,
+            source_type,
             ref value_type_cast,
             ref dimension_cast,
             ref numeric_cast,
             ref mod_cast,
         ) = self;
-        let ty = source_type.clone();
         let ty = match *value_type_cast {
             Some(ref vtc) => vtc.get_target_type(),
-            None => ty,
+            None => source_type,
         };
         let dim = match *dimension_cast {
             Some(DimensionCast(_, ref dim)) => Some(*dim),
@@ -475,11 +473,11 @@ fn test_implicitconversion() {
 
     for ty in basic_types {
         assert_eq!(
-            ImplicitConversion::find(&ty.to_rvalue(), &ty.to_rvalue(), &mut module),
+            ImplicitConversion::find(ty.to_rvalue(), ty.to_rvalue(), &mut module),
             Ok(ImplicitConversion(ty.to_rvalue(), None, None, None, None))
         );
         assert_eq!(
-            ImplicitConversion::find(&ty.to_lvalue(), &ty.to_rvalue(), &mut module),
+            ImplicitConversion::find(ty.to_lvalue(), ty.to_rvalue(), &mut module),
             Ok(ImplicitConversion(
                 ty.to_lvalue(),
                 Some(ValueTypeCast(ty.clone(), Lvalue, Rvalue)),
@@ -489,30 +487,30 @@ fn test_implicitconversion() {
             ))
         );
         assert_eq!(
-            ImplicitConversion::find(&ty.to_rvalue(), &ty.to_lvalue(), &mut module),
+            ImplicitConversion::find(ty.to_rvalue(), ty.to_lvalue(), &mut module),
             Err(())
         );
         assert_eq!(
-            ImplicitConversion::find(&ty.to_lvalue(), &ty.to_lvalue(), &mut module),
+            ImplicitConversion::find(ty.to_lvalue(), ty.to_lvalue(), &mut module),
             Ok(ImplicitConversion(ty.to_lvalue(), None, None, None, None))
         );
     }
 
     assert_eq!(
         ImplicitConversion::find(
-            &sampler_state_ty.to_lvalue(),
-            &uint_ty.to_lvalue(),
+            sampler_state_ty.to_lvalue(),
+            uint_ty.to_lvalue(),
             &mut module
         ),
         Err(())
     );
     assert_eq!(
-        ImplicitConversion::find(&buffer_f4_ty.to_lvalue(), &uint_ty.to_lvalue(), &mut module),
+        ImplicitConversion::find(buffer_f4_ty.to_lvalue(), uint_ty.to_lvalue(), &mut module),
         Err(())
     );
 
     assert_eq!(
-        ImplicitConversion::find(&int_ty.to_rvalue(), &int1_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(int_ty.to_rvalue(), int1_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             int_ty.to_rvalue(),
             None,
@@ -525,7 +523,7 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(&int1_ty.to_rvalue(), &int_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(int1_ty.to_rvalue(), int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             int1_ty.to_rvalue(),
             None,
@@ -538,7 +536,7 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(&uint_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(uint_ty.to_rvalue(), uint4_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             uint_ty.to_rvalue(),
             None,
@@ -551,7 +549,7 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(&uint1_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(uint1_ty.to_rvalue(), uint4_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             uint1_ty.to_rvalue(),
             None,
@@ -565,7 +563,7 @@ fn test_implicitconversion() {
     );
 
     assert_eq!(
-        ImplicitConversion::find(&int_ty.to_lvalue(), &int1_ty.to_lvalue(), &mut module),
+        ImplicitConversion::find(int_ty.to_lvalue(), int1_ty.to_lvalue(), &mut module),
         Ok(ImplicitConversion(
             int_ty.to_lvalue(),
             None,
@@ -578,7 +576,7 @@ fn test_implicitconversion() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(&int1_ty.to_lvalue(), &int_ty.to_lvalue(), &mut module),
+        ImplicitConversion::find(int1_ty.to_lvalue(), int_ty.to_lvalue(), &mut module),
         Ok(ImplicitConversion(
             int1_ty.to_lvalue(),
             None,
@@ -600,25 +598,25 @@ fn test_get_rank() {
     let uint4_ty = module.type_registry.register_type(TypeLayout::uintn(4));
 
     assert_eq!(
-        ImplicitConversion::find(&uint_ty.to_rvalue(), &uint1_ty.to_rvalue(), &mut module)
+        ImplicitConversion::find(uint_ty.to_rvalue(), uint1_ty.to_rvalue(), &mut module)
             .unwrap()
             .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Exact)
     );
     assert_eq!(
-        ImplicitConversion::find(&uint1_ty.to_rvalue(), &uint_ty.to_rvalue(), &mut module)
+        ImplicitConversion::find(uint1_ty.to_rvalue(), uint_ty.to_rvalue(), &mut module)
             .unwrap()
             .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Exact)
     );
     assert_eq!(
-        ImplicitConversion::find(&uint_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module)
+        ImplicitConversion::find(uint_ty.to_rvalue(), uint4_ty.to_rvalue(), &mut module)
             .unwrap()
             .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Expand)
     );
     assert_eq!(
-        ImplicitConversion::find(&uint1_ty.to_rvalue(), &uint4_ty.to_rvalue(), &mut module)
+        ImplicitConversion::find(uint1_ty.to_rvalue(), uint4_ty.to_rvalue(), &mut module)
             .unwrap()
             .get_rank(),
         ConversionRank(NumericRank::Exact, VectorRank::Expand)
@@ -637,7 +635,7 @@ fn test_const() {
 
     // Non-const to const rvalue
     assert_eq!(
-        ImplicitConversion::find(&int_ty.to_rvalue(), &const_int_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(int_ty.to_rvalue(), const_int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             int_ty.to_rvalue(),
             None,
@@ -647,7 +645,7 @@ fn test_const() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(&int_ty.to_lvalue(), &const_int_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(int_ty.to_lvalue(), const_int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             int_ty.to_lvalue(),
             Some(ValueTypeCast(int_ty, Lvalue, Rvalue)),
@@ -659,8 +657,8 @@ fn test_const() {
     // Const to const rvalue
     assert_eq!(
         ImplicitConversion::find(
-            &const_int_ty.to_rvalue(),
-            &const_int_ty.to_rvalue(),
+            const_int_ty.to_rvalue(),
+            const_int_ty.to_rvalue(),
             &mut module
         ),
         Ok(ImplicitConversion(
@@ -673,8 +671,8 @@ fn test_const() {
     );
     assert_eq!(
         ImplicitConversion::find(
-            &const_int_ty.to_lvalue(),
-            &const_int_ty.to_rvalue(),
+            const_int_ty.to_lvalue(),
+            const_int_ty.to_rvalue(),
             &mut module
         ),
         Ok(ImplicitConversion(
@@ -687,7 +685,7 @@ fn test_const() {
     );
     // Const removing from rvalue
     assert_eq!(
-        ImplicitConversion::find(&const_int_ty.to_rvalue(), &int_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(const_int_ty.to_rvalue(), int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             const_int_ty.to_rvalue(),
             None,
@@ -697,7 +695,7 @@ fn test_const() {
         ))
     );
     assert_eq!(
-        ImplicitConversion::find(&const_int_ty.to_lvalue(), &int_ty.to_rvalue(), &mut module),
+        ImplicitConversion::find(const_int_ty.to_lvalue(), int_ty.to_rvalue(), &mut module),
         Ok(ImplicitConversion(
             const_int_ty.to_lvalue(),
             Some(ValueTypeCast(const_int_ty, Lvalue, Rvalue)),
@@ -709,7 +707,7 @@ fn test_const() {
 
     // Non-const to const lvalue
     assert_eq!(
-        ImplicitConversion::find(&int_ty.to_lvalue(), &const_int_ty.to_lvalue(), &mut module),
+        ImplicitConversion::find(int_ty.to_lvalue(), const_int_ty.to_lvalue(), &mut module),
         Ok(ImplicitConversion(
             int_ty.to_lvalue(),
             None,
@@ -721,8 +719,8 @@ fn test_const() {
     // const to const lvalue
     assert_eq!(
         ImplicitConversion::find(
-            &const_int_ty.to_lvalue(),
-            &const_int_ty.to_lvalue(),
+            const_int_ty.to_lvalue(),
+            const_int_ty.to_lvalue(),
             &mut module
         ),
         Ok(ImplicitConversion(
@@ -735,7 +733,7 @@ fn test_const() {
     );
     // const to non-const lvalue
     assert_eq!(
-        ImplicitConversion::find(&const_int_ty.to_lvalue(), &int_ty.to_lvalue(), &mut module),
+        ImplicitConversion::find(const_int_ty.to_lvalue(), int_ty.to_lvalue(), &mut module),
         Err(())
     );
 }

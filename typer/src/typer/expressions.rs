@@ -127,7 +127,7 @@ fn find_function_type(
                 return Err(());
             };
             let ety = ExpressionType(required_type.0, required_type.1.into());
-            if let Ok(cast) = ImplicitConversion::find(source_type, &ety, &mut context.module) {
+            if let Ok(cast) = ImplicitConversion::find(*source_type, ety, &mut context.module) {
                 overload_casts.push(cast)
             } else {
                 return Err(());
@@ -445,18 +445,18 @@ fn parse_expr_unaryop(
     match parse_expr_internal(expr, context)? {
         TypedExpression::Value(expr_ir, expr_ty) => {
             fn enforce_increment_type(
-                ety: &ExpressionType,
+                ety: ExpressionType,
                 op: &ast::UnaryOp,
                 context: &mut Context,
             ) -> TyperResult<()> {
                 let ExpressionType(ty, vt) = ety;
-                if *vt == ir::ValueType::Rvalue {
+                if vt == ir::ValueType::Rvalue {
                     return Err(TyperError::UnaryOperationWrongTypes(
                         op.clone(),
                         ErrorType::Unknown,
                     ));
                 }
-                let (tyl, modifier) = context.module.type_registry.extract_modifier(*ty);
+                let (tyl, modifier) = context.module.type_registry.extract_modifier(ty);
                 if modifier.is_const {
                     return Err(TyperError::UnaryOperationWrongTypes(
                         op.clone(),
@@ -478,15 +478,15 @@ fn parse_expr_unaryop(
             }
             let (intrinsic, eir, ety) = match *op {
                 ast::UnaryOp::PrefixIncrement => {
-                    enforce_increment_type(&expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, context)?;
                     (ir::IntrinsicOp::PrefixIncrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PrefixDecrement => {
-                    enforce_increment_type(&expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, context)?;
                     (ir::IntrinsicOp::PrefixDecrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PostfixIncrement => {
-                    enforce_increment_type(&expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, context)?;
                     (
                         ir::IntrinsicOp::PostfixIncrement,
                         expr_ir,
@@ -494,7 +494,7 @@ fn parse_expr_unaryop(
                     )
                 }
                 ast::UnaryOp::PostfixDecrement => {
-                    enforce_increment_type(&expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, context)?;
                     (
                         ir::IntrinsicOp::PostfixDecrement,
                         expr_ir,
@@ -596,8 +596,8 @@ fn most_sig_scalar(left: ir::ScalarType, right: ir::ScalarType) -> ir::ScalarTyp
 
 fn resolve_arithmetic_types(
     binop: &ast::BinOp,
-    left: &ExpressionType,
-    right: &ExpressionType,
+    left: ExpressionType,
+    right: ExpressionType,
     context: &mut Context,
 ) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp)> {
     use rssl_ir::ScalarType;
@@ -671,8 +671,8 @@ fn resolve_arithmetic_types(
 
     fn do_noerror(
         op: &ast::BinOp,
-        left: &ExpressionType,
-        right: &ExpressionType,
+        left: ExpressionType,
+        right: ExpressionType,
         context: &mut Context,
     ) -> Result<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp), ()> {
         let left_base_id = context.module.type_registry.remove_modifier(left.0);
@@ -720,9 +720,9 @@ fn resolve_arithmetic_types(
         let left_out_id = context.module.type_registry.register_type(ltl);
         let right_out_id = context.module.type_registry.register_type(rtl);
         let elt = left_out_id.to_rvalue();
-        let lc = ImplicitConversion::find(left, &elt, &mut context.module)?;
+        let lc = ImplicitConversion::find(left, elt, &mut context.module)?;
         let ert = right_out_id.to_rvalue();
-        let rc = ImplicitConversion::find(right, &ert, &mut context.module)?;
+        let rc = ImplicitConversion::find(right, ert, &mut context.module)?;
         Ok((lc, rc, output_type))
     }
 
@@ -774,7 +774,7 @@ fn parse_expr_binop(
         | ast::BinOp::LeftShift
         | ast::BinOp::RightShift => {
             if *op == ast::BinOp::LeftShift || *op == ast::BinOp::RightShift {
-                fn is_integer(ety: &ExpressionType, context: &Context) -> bool {
+                fn is_integer(ety: ExpressionType, context: &Context) -> bool {
                     let base_id = context.module.type_registry.remove_modifier(ety.0);
                     let tyl = context.module.type_registry.get_type_layout(base_id);
                     let sty = match tyl.to_scalar() {
@@ -785,11 +785,11 @@ fn parse_expr_binop(
                         || sty == ir::ScalarType::UInt
                         || sty == ir::ScalarType::UntypedInt
                 }
-                if !is_integer(&lhs_type, context) || !is_integer(&rhs_type, context) {
+                if !is_integer(lhs_type, context) || !is_integer(rhs_type, context) {
                     return err_bad_type;
                 }
             }
-            let types = resolve_arithmetic_types(op, &lhs_type, &rhs_type, context)?;
+            let types = resolve_arithmetic_types(op, lhs_type, rhs_type, context)?;
             let (lhs_cast, rhs_cast, output_intrinsic) = types;
             let lhs_final = lhs_cast.apply(lhs_ir, &mut context.module);
             let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
@@ -842,11 +842,11 @@ fn parse_expr_binop(
             let tyl = ir::TypeLayout::from_numeric(scalar, x, y);
             let ty = context.module.type_registry.register_type(tyl);
             let ety = ty.to_rvalue();
-            let lhs_cast = match ImplicitConversion::find(&lhs_type, &ety, &mut context.module) {
+            let lhs_cast = match ImplicitConversion::find(lhs_type, ety, &mut context.module) {
                 Ok(cast) => cast,
                 Err(()) => return err_bad_type,
             };
-            let rhs_cast = match ImplicitConversion::find(&rhs_type, &ety, &mut context.module) {
+            let rhs_cast = match ImplicitConversion::find(rhs_type, ety, &mut context.module) {
                 Ok(cast) => cast,
                 Err(()) => return err_bad_type,
             };
@@ -890,7 +890,7 @@ fn parse_expr_binop(
                 ir::ValueType::Lvalue => ExpressionType(lhs_type.0, ir::ValueType::Rvalue),
                 _ => return Err(TyperError::LvalueRequired),
             };
-            match ImplicitConversion::find(&rhs_type, &required_rtype, &mut context.module) {
+            match ImplicitConversion::find(rhs_type, required_rtype, &mut context.module) {
                 Ok(rhs_cast) => {
                     let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
                     let i = match *op {
@@ -929,8 +929,8 @@ fn parse_expr_ternary(
     let (lhs, lhs_ety) = parse_expr_value_only(lhs, context)?;
     let (rhs, rhs_ety) = parse_expr_value_only(rhs, context)?;
 
-    let ExpressionType(lhs_ty, _) = lhs_ety.clone();
-    let ExpressionType(rhs_ty, _) = rhs_ety.clone();
+    let lhs_ty = lhs_ety.0;
+    let rhs_ty = rhs_ety.0;
     let wrong_types_err = Err(TyperError::TernaryArmsMustHaveSameType(
         lhs_ty.to_error_type(),
         rhs_ty.to_error_type(),
@@ -991,11 +991,11 @@ fn parse_expr_ternary(
         .combine_modifier(comb_unmodified_ty_id, target_mod);
     let ety_target = comb_ty_id.to_rvalue();
 
-    let left_cast = match ImplicitConversion::find(&lhs_ety, &ety_target, &mut context.module) {
+    let left_cast = match ImplicitConversion::find(lhs_ety, ety_target, &mut context.module) {
         Ok(cast) => cast,
         Err(()) => return wrong_types_err,
     };
-    let right_cast = match ImplicitConversion::find(&rhs_ety, &ety_target, &mut context.module) {
+    let right_cast = match ImplicitConversion::find(rhs_ety, ety_target, &mut context.module) {
         Ok(cast) => cast,
         Err(()) => return wrong_types_err,
     };
@@ -1015,7 +1015,7 @@ fn parse_expr_ternary(
 
     // Cast the condition
     let cond_cast =
-        match ImplicitConversion::find(&cond_ety, &bool_ty.to_rvalue(), &mut context.module) {
+        match ImplicitConversion::find(cond_ety, bool_ty.to_rvalue(), &mut context.module) {
             Ok(cast) => cast,
             Err(()) => {
                 return Err(TyperError::TernaryConditionRequiresBoolean(
@@ -1080,7 +1080,7 @@ fn parse_expr_unchecked(
                         .register_type(ir::TypeLayout::uint());
                     let index = index_type.to_rvalue();
                     let cast_to_int_result =
-                        ImplicitConversion::find(&subscript_ty, &index, &mut context.module);
+                        ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast_to_int_result {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
@@ -1096,7 +1096,7 @@ fn parse_expr_unchecked(
                         .type_registry
                         .register_type(ir::TypeLayout::uintn(2));
                     let index = index_type.to_rvalue();
-                    let cast = ImplicitConversion::find(&subscript_ty, &index, &mut context.module);
+                    let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
@@ -1112,7 +1112,7 @@ fn parse_expr_unchecked(
                         .type_registry
                         .register_type(ir::TypeLayout::uintn(2));
                     let index = index_type.to_rvalue();
-                    let cast = ImplicitConversion::find(&subscript_ty, &index, &mut context.module);
+                    let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
                         Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
@@ -1512,7 +1512,7 @@ fn parse_expr_constructor(
         };
         let target_ty = context.module.type_registry.register_type(target_tyl);
         let target_type = target_ty.to_rvalue();
-        let cast = match ImplicitConversion::find(&ety, &target_type, &mut context.module) {
+        let cast = match ImplicitConversion::find(ety, target_type, &mut context.module) {
             Ok(cast) => cast,
             Err(()) => return Err(TyperError::WrongTypeInConstructor),
         };
