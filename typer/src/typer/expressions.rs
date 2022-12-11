@@ -839,7 +839,7 @@ fn parse_expr_binop(
             };
             let x = ir::TypeLayout::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
             let y = ir::TypeLayout::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
-            let tyl = ir::TypeLayout::from_numeric(scalar, x, y);
+            let tyl = ir::TypeLayout::from_numeric_parts(scalar, x, y);
             let ty = context.module.type_registry.register_type(tyl);
             let ety = ty.to_rvalue();
             let lhs_cast = match ImplicitConversion::find(lhs_type, ety, &mut context.module) {
@@ -955,8 +955,7 @@ fn parse_expr_ternary(
     // Transform the types
     let (lhs_target_tyl, rhs_target_tyl) = match (st, nd) {
         (Some(st), Some(nd)) => {
-            let dtyl = ir::DataLayout::new(st, nd);
-            let tyl = ir::TypeLayout::from(dtyl);
+            let tyl = ir::TypeLayout::from_numeric_dimensions(st, nd);
             (tyl.clone(), tyl)
         }
         (Some(st), None) => {

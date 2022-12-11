@@ -102,7 +102,7 @@ fn parse_scalartype_str(input: &[u8]) -> Result<(&[u8], ir::ScalarType), Primiti
 }
 
 // Parse data type as part of a string
-fn parse_datalayout_str(typename: &str) -> Option<ir::TypeLayout> {
+fn parse_numeric_str(typename: &str) -> Option<ir::TypeLayout> {
     fn digit(input: &[u8]) -> Result<(&[u8], u32), PrimitiveTypeError> {
         // Handle end of stream
         if input.is_empty() {
@@ -159,23 +159,23 @@ fn parse_datalayout_str(typename: &str) -> Option<ir::TypeLayout> {
 }
 
 #[test]
-fn test_parse_datalayout_str() {
+fn test_parse_numeric_str() {
     assert_eq!(
-        parse_datalayout_str("float"),
+        parse_numeric_str("float"),
         Some(ir::TypeLayout::Scalar(ir::ScalarType::Float))
     );
     assert_eq!(
-        parse_datalayout_str("uint3"),
+        parse_numeric_str("uint3"),
         Some(ir::TypeLayout::Vector(ir::ScalarType::UInt, 3))
     );
     assert_eq!(
-        parse_datalayout_str("bool2x3"),
+        parse_numeric_str("bool2x3"),
         Some(ir::TypeLayout::Matrix(ir::ScalarType::Bool, 2, 3))
     );
 
-    assert_eq!(parse_datalayout_str(""), None);
-    assert_eq!(parse_datalayout_str("float5"), None);
-    assert_eq!(parse_datalayout_str("float2x"), None);
+    assert_eq!(parse_numeric_str(""), None);
+    assert_eq!(parse_numeric_str("float5"), None);
+    assert_eq!(parse_numeric_str("float2x"), None);
 }
 
 /// Parse a type layout for a basic data type
@@ -186,7 +186,7 @@ pub fn parse_data_layout(
 ) -> Option<ir::TypeLayout> {
     if let Some(name) = name.try_trivial() {
         if template_args.is_empty() {
-            parse_datalayout_str(name.as_str())
+            parse_numeric_str(name.as_str())
         } else {
             match name.node.as_str() {
                 "vector" => {

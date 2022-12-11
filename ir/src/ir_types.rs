@@ -238,18 +238,6 @@ pub enum NumericDimension {
     Matrix(u32, u32),
 }
 
-/// A type that can be used in data buffers (Buffer / RWBuffer / etc)
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub struct DataType(pub DataLayout, pub TypeModifier);
-
-/// The memory layout of a DataType
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum DataLayout {
-    Scalar(ScalarType),
-    Vector(ScalarType, u32),
-    Matrix(ScalarType, u32, u32),
-}
-
 /// Id to a user defined struct
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct StructId(pub u32);
@@ -317,41 +305,6 @@ impl TypeId {
     /// Turn the type into an [ExpressionType] as an lvalue
     pub fn to_lvalue(self) -> ExpressionType {
         ExpressionType(self, ValueType::Lvalue)
-    }
-}
-
-impl From<DataType> for TypeLayout {
-    fn from(ty: DataType) -> TypeLayout {
-        let DataType(layout, modifier) = ty;
-        TypeLayout::from(layout).combine_modifier(modifier)
-    }
-}
-
-impl From<DataLayout> for TypeLayout {
-    fn from(data: DataLayout) -> TypeLayout {
-        match data {
-            DataLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
-            DataLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
-            DataLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-        }
-    }
-}
-
-impl From<TypeLayout> for Option<DataType> {
-    fn from(ty: TypeLayout) -> Option<DataType> {
-        let (tyl, ty_mod) = ty.extract_modifier();
-        Option::<DataLayout>::from(tyl).map(|dtyl| DataType(dtyl, ty_mod))
-    }
-}
-
-impl From<TypeLayout> for Option<DataLayout> {
-    fn from(ty: TypeLayout) -> Option<DataLayout> {
-        match ty {
-            TypeLayout::Scalar(scalar) => Some(DataLayout::Scalar(scalar)),
-            TypeLayout::Vector(scalar, x) => Some(DataLayout::Vector(scalar, x)),
-            TypeLayout::Matrix(scalar, x, y) => Some(DataLayout::Matrix(scalar, x, y)),
-            _ => None,
-        }
     }
 }
 
@@ -479,7 +432,7 @@ impl TypeLayout {
 
         let st = left_ty.to_scalar().unwrap();
         assert_eq!(st, right.to_scalar().unwrap());
-        Self::from(DataLayout::new(st, nd)).combine_modifier(left_mod)
+        Self::from_numeric_dimensions(st, nd).combine_modifier(left_mod)
     }
 
     /// Attempt to get the most significant dimension of two data types
@@ -509,6 +462,7 @@ impl TypeLayout {
         }
     }
 
+    /// Get the total number of scalar elements in the type - or 1 for non-numeric types
     pub fn get_num_elements(&self) -> u32 {
         assert!(!self.has_modifiers());
         match (self.to_x(), self.to_y()) {
@@ -518,7 +472,18 @@ impl TypeLayout {
             (None, None) => 1,
         }
     }
-    pub const fn from_numeric(
+
+    /// Construct a type layout from a scalar type part and the dimension part
+    pub const fn from_numeric_dimensions(scalar: ScalarType, dim: NumericDimension) -> Self {
+        match dim {
+            NumericDimension::Scalar => TypeLayout::Scalar(scalar),
+            NumericDimension::Vector(x) => TypeLayout::Vector(scalar, x),
+            NumericDimension::Matrix(x, y) => TypeLayout::Matrix(scalar, x, y),
+        }
+    }
+
+    /// Construct a type layout from a scalar type part and the two optional dimension sizes
+    pub const fn from_numeric_parts(
         scalar: ScalarType,
         x_opt: Option<u32>,
         y_opt: Option<u32>,
@@ -643,43 +608,6 @@ impl TypeLayout {
     }
 }
 
-impl DataType {
-    pub const fn as_const(self) -> DataType {
-        let DataType(layout, mut modifier) = self;
-        modifier.is_const = true;
-        DataType(layout, modifier)
-    }
-}
-
-impl DataLayout {
-    /// Construct a data layout from a scalar type part and the dimension part
-    pub const fn new(scalar: ScalarType, dim: NumericDimension) -> DataLayout {
-        match dim {
-            NumericDimension::Scalar => DataLayout::Scalar(scalar),
-            NumericDimension::Vector(x) => DataLayout::Vector(scalar, x),
-            NumericDimension::Matrix(x, y) => DataLayout::Matrix(scalar, x, y),
-        }
-    }
-
-    /// Extract scalar type part
-    pub const fn to_scalar(&self) -> ScalarType {
-        match *self {
-            DataLayout::Scalar(scalar)
-            | DataLayout::Vector(scalar, _)
-            | DataLayout::Matrix(scalar, _, _) => scalar,
-        }
-    }
-
-    /// Replace scalar type part with another type
-    pub const fn transform_scalar(self, to_scalar: ScalarType) -> DataLayout {
-        match self {
-            DataLayout::Scalar(_) => DataLayout::Scalar(to_scalar),
-            DataLayout::Vector(_, x) => DataLayout::Vector(to_scalar, x),
-            DataLayout::Matrix(_, x, y) => DataLayout::Matrix(to_scalar, x, y),
-        }
-    }
-}
-
 impl std::fmt::Debug for TypeLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
@@ -724,22 +652,6 @@ impl std::fmt::Debug for ScalarType {
             ScalarType::Half => write!(f, "half"),
             ScalarType::Float => write!(f, "float"),
             ScalarType::Double => write!(f, "double"),
-        }
-    }
-}
-
-impl std::fmt::Debug for DataType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}{:?}", self.1, self.0)
-    }
-}
-
-impl std::fmt::Debug for DataLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            DataLayout::Scalar(st) => write!(f, "{:?}", st),
-            DataLayout::Vector(st, x) => write!(f, "{:?}{}", st, x),
-            DataLayout::Matrix(st, x, y) => write!(f, "{:?}{}x{}", st, x, y),
         }
     }
 }
