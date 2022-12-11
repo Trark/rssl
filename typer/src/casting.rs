@@ -461,13 +461,9 @@ fn test_implicitconversion() {
     let sampler_state_ty = module
         .type_registry
         .register_type(TypeLayout::Object(ObjectType::SamplerState));
-    let buffer_f4_ty =
-        module
-            .type_registry
-            .register_type(TypeLayout::from_object(ObjectType::Buffer(DataType(
-                DataLayout::Vector(Float, 4),
-                TypeModifier::default(),
-            ))));
+    let buffer_f4_ty = module
+        .type_registry
+        .register_type(TypeLayout::from_object(ObjectType::Buffer(float4_ty)));
 
     let basic_types = &[bool_ty, int_ty, uint_ty, float_ty, float4_ty];
 

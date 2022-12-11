@@ -292,24 +292,20 @@ fn parse_object_type(
         args: &[ir::TypeOrConstant],
         default_float4: bool,
         context: &mut Context,
-    ) -> Option<ir::DataType> {
+    ) -> Option<ir::TypeId> {
         if let [ir::TypeOrConstant::Type(id)] = args {
-            let (id, modifier) = context.module.type_registry.extract_modifier(*id);
-            let layer = context.module.type_registry.get_type_layer(id);
+            let id_nomod = context.module.type_registry.remove_modifier(*id);
+            let layer = context.module.type_registry.get_type_layer(id_nomod);
             match layer {
-                ir::TypeLayer::Scalar(st) => {
-                    Some(ir::DataType(ir::DataLayout::Scalar(st), modifier))
-                }
-                ir::TypeLayer::Vector(st, x) => {
-                    Some(ir::DataType(ir::DataLayout::Vector(st, x), modifier))
-                }
+                ir::TypeLayer::Scalar(_) | ir::TypeLayer::Vector(_, _) => Some(*id),
                 _ => None,
             }
         } else if default_float4 {
-            Some(ir::DataType(
-                ir::DataLayout::Vector(ir::ScalarType::Float, 4),
-                ir::TypeModifier::default(),
-            ))
+            let f4 = context
+                .module
+                .type_registry
+                .register_type_layer(ir::TypeLayer::Vector(ir::ScalarType::Float, 4));
+            Some(f4)
         } else {
             None
         }
@@ -318,23 +314,14 @@ fn parse_object_type(
     fn get_structured_type(
         args: &[ir::TypeOrConstant],
         context: &mut Context,
-    ) -> Option<ir::StructuredType> {
+    ) -> Option<ir::TypeId> {
         if let [ir::TypeOrConstant::Type(id)] = args {
-            let (id, modifier) = context.module.type_registry.extract_modifier(*id);
-            let layer = context.module.type_registry.get_type_layer(id);
+            let id_nomod = context.module.type_registry.remove_modifier(*id);
+            let layer = context.module.type_registry.get_type_layer(id_nomod);
             match layer {
-                ir::TypeLayer::Scalar(st) => Some(ir::StructuredType(
-                    ir::StructuredLayout::Scalar(st),
-                    modifier,
-                )),
-                ir::TypeLayer::Vector(st, x) => Some(ir::StructuredType(
-                    ir::StructuredLayout::Vector(st, x),
-                    modifier,
-                )),
-                ir::TypeLayer::Struct(id) => Some(ir::StructuredType(
-                    ir::StructuredLayout::Struct(id),
-                    modifier,
-                )),
+                ir::TypeLayer::Scalar(_)
+                | ir::TypeLayer::Vector(_, _)
+                | ir::TypeLayer::Struct(_) => Some(*id),
                 _ => None,
             }
         } else {

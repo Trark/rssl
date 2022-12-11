@@ -1141,18 +1141,27 @@ fn parse_expr_unchecked(
                 _ => return Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
             };
             let ExpressionType(composite_ty, vt) = composite_ety;
-            let (composite_ty_nomod, composite_mod) =
+
+            let (mut composite_ty_nomod, composite_mod) =
                 context.module.type_registry.extract_modifier(composite_ty);
-            let composite_tyl_nomod = context
+            let mut composite_tyl_nomod = context
                 .module
                 .type_registry
-                .get_type_layout(composite_ty_nomod);
-            match *composite_tyl_nomod {
-                ir::TypeLayout::Struct(id)
-                | ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
-                    ir::StructuredLayout::Struct(id),
-                    _,
-                ))) => {
+                .get_type_layer(composite_ty_nomod);
+
+            // If it is a constant buffer then auto unwrap the inner type
+            if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(inner)) =
+                composite_tyl_nomod
+            {
+                composite_ty_nomod = context.module.type_registry.remove_modifier(inner);
+                composite_tyl_nomod = context
+                    .module
+                    .type_registry
+                    .get_type_layer(composite_ty_nomod);
+            }
+
+            match composite_tyl_nomod {
+                ir::TypeLayer::Struct(id) => {
                     assert!(!member.identifiers.is_empty());
                     let member_name = &member.identifiers.last().unwrap().node;
 
@@ -1207,7 +1216,7 @@ fn parse_expr_unchecked(
                         Err(err) => Err(err),
                     }
                 }
-                ir::TypeLayout::Scalar(scalar) => {
+                ir::TypeLayer::Scalar(scalar) => {
                     let member = match member.try_trivial() {
                         Some(member) => member,
                         None => {
@@ -1241,7 +1250,7 @@ fn parse_expr_unchecked(
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
-                ir::TypeLayout::Vector(scalar, x) => {
+                ir::TypeLayer::Vector(scalar, x) => {
                     let member = match member.try_trivial() {
                         Some(member) => member,
                         None => {
@@ -1287,7 +1296,7 @@ fn parse_expr_unchecked(
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
-                ir::TypeLayout::Object(ref object_type) => {
+                ir::TypeLayer::Object(object_type) => {
                     // We do not currently support checking complex identifier patterns
                     let member = match member.try_trivial() {
                         Some(member) => member,
@@ -1300,7 +1309,7 @@ fn parse_expr_unchecked(
                     };
 
                     // Get the object id or register it if it was not already seen
-                    let obj_id = context.module.register_object(*object_type);
+                    let obj_id = context.module.register_object(object_type);
 
                     let mut overloads = Vec::new();
                     for func_id in context.module.type_registry.get_object_functions(obj_id) {
@@ -1663,42 +1672,35 @@ fn get_expression_type(
             let array_ty = get_expression_type(array, context)?;
             // Todo: Modifiers on object type template parameters
             let array_ty_nomod = context.module.type_registry.remove_modifier(array_ty.0);
-            let array_tyl_nomod = context.module.type_registry.get_type_layout(array_ty_nomod);
-            let tyl = match array_tyl_nomod.clone() {
-                ir::TypeLayout::Array(element, _) => (*element).clone(),
-                ir::TypeLayout::Object(ir::ObjectType::Buffer(data_type)) => {
-                    ir::TypeLayout::from(data_type.as_const())
+            let array_tyl_nomod = context.module.type_registry.get_type_layer(array_ty_nomod);
+            let ty = match array_tyl_nomod {
+                ir::TypeLayer::Array(element, _) => element,
+                ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty)) => {
+                    context.module.type_registry.make_const(ty)
                 }
-                ir::TypeLayout::Object(ir::ObjectType::RWBuffer(data_type)) => {
-                    ir::TypeLayout::from(data_type)
-                }
-                ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(structured_type)) => {
-                    ir::TypeLayout::from(structured_type.as_const())
-                }
-                ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(structured_type)) => {
-                    ir::TypeLayout::from(structured_type)
-                }
-                ir::TypeLayout::Object(ir::ObjectType::Texture2D(data_type)) => {
-                    ir::TypeLayout::from(data_type.as_const())
-                }
-                ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(data_type)) => {
-                    ir::TypeLayout::from(data_type)
-                }
+                ir::TypeLayer::Object(ir::ObjectType::RWBuffer(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(ty)) => ty,
                 _ => return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(array_ty_nomod)),
             };
-            let ty = context.module.type_registry.register_type(tyl);
             Ok(ty.to_lvalue())
         }
         ir::Expression::Member(ref expr, ref name) => {
             let expr_type = get_expression_type(expr, context)?;
-            let ty = context.module.type_registry.remove_modifier(expr_type.0);
-            let tyl = context.module.type_registry.get_type_layout(ty);
-            let id = match *tyl {
-                ir::TypeLayout::Struct(id) => id,
-                ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(ir::StructuredType(
-                    ir::StructuredLayout::Struct(id),
-                    _,
-                ))) => id,
+
+            let mut ty = context.module.type_registry.remove_modifier(expr_type.0);
+            let mut tyl = context.module.type_registry.get_type_layer(ty);
+
+            // If it is a constant buffer then auto unwrap the inner type
+            if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(inner)) = tyl {
+                ty = context.module.type_registry.remove_modifier(inner);
+                tyl = context.module.type_registry.get_type_layer(ty);
+            }
+
+            let id = match tyl {
+                ir::TypeLayer::Struct(id) => id,
                 _ => return Err(TyperError::MemberNodeMustBeUsedOnStruct(ty, name.clone())),
             };
             context.get_type_of_struct_member(id, name)

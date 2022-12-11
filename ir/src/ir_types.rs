@@ -283,8 +283,8 @@ pub struct TemplateParamCount(pub u32);
 /// A built in object type
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum ObjectType {
-    Buffer(DataType),
-    RWBuffer(DataType),
+    Buffer(TypeId),
+    RWBuffer(TypeId),
 
     ByteAddressBuffer,
     RWByteAddressBuffer,
@@ -292,13 +292,13 @@ pub enum ObjectType {
     BufferAddress,
     RWBufferAddress,
 
-    StructuredBuffer(StructuredType),
-    RWStructuredBuffer(StructuredType),
+    StructuredBuffer(TypeId),
+    RWStructuredBuffer(TypeId),
 
-    Texture2D(DataType),
-    RWTexture2D(DataType),
+    Texture2D(TypeId),
+    RWTexture2D(TypeId),
 
-    ConstantBuffer(StructuredType),
+    ConstantBuffer(TypeId),
 
     SamplerState,
 }

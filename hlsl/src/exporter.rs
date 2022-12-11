@@ -264,20 +264,21 @@ fn export_global_variable(
         export_vk_binding_annotation(&decl.api_slot, output)?;
     }
 
-    let mut type_layout = context
-        .module
-        .type_registry
-        .get_type_layout(decl.type_id)
-        .clone();
-
+    let mut suppress_const = false;
     match decl.storage_class {
-        ir::GlobalStorage::Extern => type_layout = type_layout.remove_const(),
+        ir::GlobalStorage::Extern => suppress_const = true,
         ir::GlobalStorage::Static => output.push_str("static "),
         ir::GlobalStorage::GroupShared => output.push_str("groupshared "),
     }
 
     let mut array_part = String::new();
-    export_type_layout_for_def(&type_layout, output, &mut array_part, context)?;
+    export_type_impl(
+        decl.type_id,
+        suppress_const,
+        output,
+        &mut array_part,
+        context,
+    )?;
 
     output.push(' ');
 
@@ -506,52 +507,39 @@ fn export_type_for_def(
     output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    let tyl = context.module.type_registry.get_type_layout(ty);
-    export_type_layout_for_def(tyl, output, output_array, context)?;
+    export_type_impl(ty, false, output, output_array, context)?;
     Ok(())
 }
 
-/// Export ir type layout to HLSL
-fn export_type_layout(
-    tyl: &ir::TypeLayout,
-    output: &mut String,
-    context: &mut ExportContext,
-) -> Result<(), ExportError> {
-    let mut array_part = String::new();
-    export_type_layout_for_def(tyl, output, &mut array_part, context)?;
-    output.push_str(&array_part);
-    Ok(())
-}
-
-/// Export ir type layout to HLSL
-fn export_type_layout_for_def(
-    tyl: &ir::TypeLayout,
+/// Export ir type to HLSL
+fn export_type_impl(
+    ty: ir::TypeId,
+    suppress_const: bool,
     output: &mut String,
     output_array: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    match *tyl {
-        ir::TypeLayout::Void => write!(output, "void").unwrap(),
-        ir::TypeLayout::Scalar(st) => write!(output, "{}", export_scalar_type(st)?).unwrap(),
-        ir::TypeLayout::Vector(st, x) => {
-            write!(output, "{}{}", export_scalar_type(st)?, x).unwrap()
-        }
-        ir::TypeLayout::Matrix(st, x, y) => {
+    let tyl = context.module.type_registry.get_type_layer(ty);
+    match tyl {
+        ir::TypeLayer::Void => write!(output, "void").unwrap(),
+        ir::TypeLayer::Scalar(st) => write!(output, "{}", export_scalar_type(st)?).unwrap(),
+        ir::TypeLayer::Vector(st, x) => write!(output, "{}{}", export_scalar_type(st)?, x).unwrap(),
+        ir::TypeLayer::Matrix(st, x, y) => {
             write!(output, "{}{}x{}", export_scalar_type(st)?, x, y).unwrap()
         }
-        ir::TypeLayout::Struct(id) => {
+        ir::TypeLayer::Struct(id) => {
             write!(output, "{}", context.get_struct_name_full(id)?).unwrap()
         }
-        ir::TypeLayout::Object(ref ot) => {
+        ir::TypeLayer::Object(ot) => {
             match ot {
-                ir::ObjectType::Buffer(dt) => {
+                ir::ObjectType::Buffer(ty) => {
                     output.push_str("Buffer<");
-                    export_type_layout(&(*dt).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
-                ir::ObjectType::RWBuffer(dt) => {
+                ir::ObjectType::RWBuffer(ty) => {
                     output.push_str("RWBuffer<");
-                    export_type_layout(&(*dt).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::ByteAddressBuffer => output.push_str("ByteAddressBuffer"),
@@ -563,29 +551,29 @@ fn export_type_layout_for_def(
                 }
                 ir::ObjectType::BufferAddress => output.push_str("ByteAddressBuffer"),
                 ir::ObjectType::RWBufferAddress => output.push_str("RWByteAddressBuffer"),
-                ir::ObjectType::StructuredBuffer(st) => {
+                ir::ObjectType::StructuredBuffer(ty) => {
                     output.push_str("StructuredBuffer<");
-                    export_type_layout(&(*st).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
-                ir::ObjectType::RWStructuredBuffer(st) => {
+                ir::ObjectType::RWStructuredBuffer(ty) => {
                     output.push_str("RWStructuredBuffer<");
-                    export_type_layout(&(*st).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
-                ir::ObjectType::Texture2D(dt) => {
+                ir::ObjectType::Texture2D(ty) => {
                     output.push_str("Texture2D<");
-                    export_type_layout(&(*dt).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
-                ir::ObjectType::RWTexture2D(dt) => {
+                ir::ObjectType::RWTexture2D(ty) => {
                     output.push_str("RWTexture2D<");
-                    export_type_layout(&(*dt).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
-                ir::ObjectType::ConstantBuffer(st) => {
+                ir::ObjectType::ConstantBuffer(ty) => {
                     output.push_str("ConstantBuffer<");
-                    export_type_layout(&(*st).into(), output, context)?;
+                    export_type(ty, output, context)?;
                     output.push('>');
                 }
                 ir::ObjectType::SamplerState => {
@@ -593,13 +581,16 @@ fn export_type_layout_for_def(
                 }
             };
         }
-        ir::TypeLayout::Array(ref ty, ref len) => {
-            export_type_layout_for_def(ty, output, output_array, context)?;
+        ir::TypeLayer::Array(ty, len) => {
+            export_type_impl(ty, false, output, output_array, context)?;
             write!(output_array, "[{}]", len).unwrap();
         }
-        ir::TypeLayout::Modifier(ref modifier, ref ty) => {
+        ir::TypeLayer::Modifier(mut modifier, ty) => {
+            if suppress_const {
+                modifier.is_const = false;
+            }
             write!(output, "{:?}", modifier).unwrap();
-            export_type_layout_for_def(ty, output, output_array, context)?;
+            export_type_impl(ty, false, output, output_array, context)?;
         }
         _ => todo!("Type layout not implemented: {:?}", tyl),
     };
