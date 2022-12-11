@@ -66,7 +66,7 @@ impl TypeRegistry {
             TypeLayout::Matrix(st, x, y) => TypeLayer::Matrix(st, x, y),
             TypeLayout::Struct(id) => TypeLayer::Struct(id),
             TypeLayout::StructTemplate(id) => TypeLayer::StructTemplate(id),
-            // TODO: Deal with recursive StructuredType/DataType
+            // TODO: Deal with recursive types in object type args
             TypeLayout::Object(ot) => TypeLayer::Object(ot),
             TypeLayout::Array(inner, len) => {
                 TypeLayer::Array(self.register_type((*inner).clone()), len)
@@ -97,7 +97,7 @@ impl TypeRegistry {
             TypeLayer::Matrix(st, x, y) => TypeLayout::Matrix(*st, *x, *y),
             TypeLayer::Struct(id) => TypeLayout::Struct(*id),
             TypeLayer::StructTemplate(id) => TypeLayout::StructTemplate(*id),
-            // TODO: Deal with recursive StructuredType/DataType
+            // TODO: Deal with recursive types in object type args
             TypeLayer::Object(ot) => TypeLayout::Object(*ot),
             TypeLayer::Array(inner, len) => {
                 TypeLayout::Array(Box::new(self.get_type_layout(*inner).clone()), *len)
@@ -238,20 +238,6 @@ pub enum NumericDimension {
     Matrix(u32, u32),
 }
 
-/// A type that can be used in structured buffers
-/// These are the both all the data types and user defined structs
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub struct StructuredType(pub StructuredLayout, pub TypeModifier);
-
-/// Layout for StructuredType
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum StructuredLayout {
-    Scalar(ScalarType),
-    Vector(ScalarType, u32),
-    Matrix(ScalarType, u32, u32),
-    Struct(StructId),
-}
-
 /// A type that can be used in data buffers (Buffer / RWBuffer / etc)
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub struct DataType(pub DataLayout, pub TypeModifier);
@@ -341,30 +327,12 @@ impl From<DataType> for TypeLayout {
     }
 }
 
-impl From<StructuredType> for TypeLayout {
-    fn from(ty: StructuredType) -> TypeLayout {
-        let StructuredType(layout, modifier) = ty;
-        TypeLayout::from(layout).combine_modifier(modifier)
-    }
-}
-
 impl From<DataLayout> for TypeLayout {
     fn from(data: DataLayout) -> TypeLayout {
         match data {
             DataLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
             DataLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
             DataLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-        }
-    }
-}
-
-impl From<StructuredLayout> for TypeLayout {
-    fn from(structured: StructuredLayout) -> TypeLayout {
-        match structured {
-            StructuredLayout::Scalar(scalar) => TypeLayout::Scalar(scalar),
-            StructuredLayout::Vector(scalar, x) => TypeLayout::Vector(scalar, x),
-            StructuredLayout::Matrix(scalar, x, y) => TypeLayout::Matrix(scalar, x, y),
-            StructuredLayout::Struct(id) => TypeLayout::Struct(id),
         }
     }
 }
@@ -675,14 +643,6 @@ impl TypeLayout {
     }
 }
 
-impl StructuredType {
-    pub const fn as_const(self) -> StructuredType {
-        let StructuredType(layout, mut modifier) = self;
-        modifier.is_const = true;
-        StructuredType(layout, modifier)
-    }
-}
-
 impl DataType {
     pub const fn as_const(self) -> DataType {
         let DataType(layout, mut modifier) = self;
@@ -764,23 +724,6 @@ impl std::fmt::Debug for ScalarType {
             ScalarType::Half => write!(f, "half"),
             ScalarType::Float => write!(f, "float"),
             ScalarType::Double => write!(f, "double"),
-        }
-    }
-}
-
-impl std::fmt::Debug for StructuredType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}{:?}", self.1, self.0)
-    }
-}
-
-impl std::fmt::Debug for StructuredLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            StructuredLayout::Scalar(ref st) => write!(f, "{:?}", st),
-            StructuredLayout::Vector(ref st, ref x) => write!(f, "{:?}{}", st, x),
-            StructuredLayout::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
-            StructuredLayout::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
         }
     }
 }
