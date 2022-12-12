@@ -268,18 +268,17 @@ pub fn add_intrinsics(module: &mut Module) {
                 ty
             };
 
-            // Fetch the param types
-            let param_types = def
-                .param_types
-                .iter()
-                .map(|p| {
-                    ParamType(
-                        module.type_registry.register_type(remap_inner(p.0.clone())),
-                        p.1,
-                        None,
-                    )
-                })
-                .collect::<Vec<_>>();
+            // Fetch and remap the param types
+            let mut param_types = Vec::with_capacity(def.param_types.len());
+            for param_type_def in def.param_types {
+                param_types.push(ParamType(
+                    module
+                        .type_registry
+                        .register_type(remap_inner(param_type_def.0.clone())),
+                    param_type_def.1,
+                    None,
+                ));
+            }
 
             // Register the return type
             let return_type = FunctionReturn {
@@ -413,33 +412,34 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         };
 
         // Fetch and remap the param types
-        let param_types = def
-            .param_types
-            .iter()
-            .map(|p| {
-                ParamType(
-                    module.type_registry.register_type(remap_inner(p.0.clone())),
-                    p.1,
-                    None,
-                )
-            })
-            .collect::<Vec<_>>();
+        let mut param_types = Vec::with_capacity(def.param_types.len());
+        for param_type_def in def.param_types {
+            param_types.push(ParamType(
+                module
+                    .type_registry
+                    .register_type(remap_inner(param_type_def.0.clone())),
+                param_type_def.1,
+                None,
+            ));
+        }
 
-        // Fetch and remap the return type
-        let return_type_layout = remap_inner(def.return_type.clone());
-        let return_type = module.type_registry.register_type(return_type_layout);
+        // Register the return type
+        let return_type = FunctionReturn {
+            return_type: module
+                .type_registry
+                .register_type(remap_inner(def.return_type.clone())),
+            semantic: None,
+        };
 
         // Calculate the number of template arguments to the function
-        let template_params = get_template_param_count(module, return_type, &param_types);
+        let template_params =
+            get_template_param_count(module, return_type.return_type, &param_types);
 
         methods.push(MethodDefinition {
             name: def.function_name.to_string(),
             intrinsic: def.intrinsic.clone(),
             signature: FunctionSignature {
-                return_type: FunctionReturn {
-                    return_type,
-                    semantic: None,
-                },
+                return_type,
                 template_params,
                 param_types,
             },
