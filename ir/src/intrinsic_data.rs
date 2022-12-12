@@ -1,267 +1,285 @@
 use crate::*;
 use rssl_text::Located;
 
-type IntrinsicDefinitionNoTemplates = (&'static str, Intrinsic, TypeLayout, &'static [ParamDef]);
-
-type IntrinsicDefinition = (
-    &'static str,
-    Intrinsic,
-    u32,
-    TypeLayout,
-    &'static [ParamDef],
-);
+type IntrinsicDefinition = (&'static str, Intrinsic, TypeLayout, &'static [ParamDef]);
 
 struct ParamDef(pub TypeLayout, pub InputModifier);
 
-use TypeLayout::Void;
+const fn type_from_str(name: &str) -> TypeLayout {
+    let layer = match TypeLayer::from_numeric_str(name) {
+        Some(layer) => layer,
+        None => panic!(),
+    };
 
-const T_BOOL_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Bool);
-const T_BOOL2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 2);
-const T_BOOL3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 3);
-const T_BOOL4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Bool, 4);
-const T_INT_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Int);
-const T_INT1_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 1);
-const T_INT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 2);
-const T_INT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 3);
-const T_INT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Int, 4);
-const T_UINT_TY: TypeLayout = TypeLayout::Scalar(ScalarType::UInt);
-const T_UINT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::UInt, 2);
-const T_UINT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::UInt, 3);
-const T_UINT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::UInt, 4);
-const T_FLOAT_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Float);
-const T_FLOAT1_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 1);
-const T_FLOAT2_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 2);
-const T_FLOAT3_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 3);
-const T_FLOAT4_TY: TypeLayout = TypeLayout::Vector(ScalarType::Float, 4);
-const T_DOUBLE_TY: TypeLayout = TypeLayout::Scalar(ScalarType::Double);
-const T_SAMPLER_TY: TypeLayout = TypeLayout::Object(ObjectType::SamplerState);
-const T_TEMPLATE0_TY: TypeLayout = TypeLayout::TemplateParam(TemplateTypeId(0));
-const T_OBJECT_ARG_TY: TypeLayout = TypeLayout::TemplateParam(TemplateTypeId(u32::MAX));
+    TypeLayout::from_numeric_layer_or_fail(layer)
+}
 
-const T_BOOL: ParamDef = ParamDef(T_BOOL_TY, InputModifier::In);
-const T_BOOL2: ParamDef = ParamDef(T_BOOL2_TY, InputModifier::In);
-const T_BOOL3: ParamDef = ParamDef(T_BOOL3_TY, InputModifier::In);
-const T_BOOL4: ParamDef = ParamDef(T_BOOL4_TY, InputModifier::In);
-const T_INT: ParamDef = ParamDef(T_INT_TY, InputModifier::In);
-const T_INT1: ParamDef = ParamDef(T_INT1_TY, InputModifier::In);
-const T_INT2: ParamDef = ParamDef(T_INT2_TY, InputModifier::In);
-const T_INT3: ParamDef = ParamDef(T_INT3_TY, InputModifier::In);
-const T_INT4: ParamDef = ParamDef(T_INT4_TY, InputModifier::In);
-const T_UINT: ParamDef = ParamDef(T_UINT_TY, InputModifier::In);
-const T_UINT2: ParamDef = ParamDef(T_UINT2_TY, InputModifier::In);
-const T_UINT3: ParamDef = ParamDef(T_UINT3_TY, InputModifier::In);
-const T_UINT4: ParamDef = ParamDef(T_UINT4_TY, InputModifier::In);
-const T_UINT_OUT: ParamDef = ParamDef(T_UINT_TY, InputModifier::Out);
-const T_FLOAT: ParamDef = ParamDef(T_FLOAT_TY, InputModifier::In);
-const T_FLOAT1: ParamDef = ParamDef(T_FLOAT1_TY, InputModifier::In);
-const T_FLOAT2: ParamDef = ParamDef(T_FLOAT2_TY, InputModifier::In);
-const T_FLOAT3: ParamDef = ParamDef(T_FLOAT3_TY, InputModifier::In);
-const T_FLOAT4: ParamDef = ParamDef(T_FLOAT4_TY, InputModifier::In);
-const T_FLOAT_OUT: ParamDef = ParamDef(T_FLOAT_TY, InputModifier::Out);
-const T_FLOAT2_OUT: ParamDef = ParamDef(T_FLOAT2_TY, InputModifier::Out);
-const T_FLOAT3_OUT: ParamDef = ParamDef(T_FLOAT3_TY, InputModifier::Out);
-const T_FLOAT4_OUT: ParamDef = ParamDef(T_FLOAT4_TY, InputModifier::Out);
-const T_SAMPLER: ParamDef = ParamDef(T_SAMPLER_TY, InputModifier::In);
-const T_TEMPLATE0: ParamDef = ParamDef(T_TEMPLATE0_TY, InputModifier::In);
+macro_rules! return_type {
+    (T) => {
+        TypeLayout::TemplateParam(TemplateTypeId(0))
+    };
+
+    (D) => {
+        TypeLayout::TemplateParam(TemplateTypeId(u32::MAX))
+    };
+
+    (void) => {
+        TypeLayout::Void
+    };
+
+    ($ty:ident) => {
+        type_from_str(stringify!($ty))
+    };
+}
+
+macro_rules! param_type {
+    (T) => {
+        ParamDef(
+            TypeLayout::TemplateParam(TemplateTypeId(0)),
+            InputModifier::In,
+        )
+    };
+
+    (D) => {
+        ParamDef(
+            TypeLayout::TemplateParam(TemplateTypeId(u32::MAX)),
+            InputModifier::In,
+        )
+    };
+
+    (SamplerState) => {
+        ParamDef(
+            TypeLayout::Object(ObjectType::SamplerState),
+            InputModifier::In,
+        )
+    };
+
+    ($ty:ident) => {
+        ParamDef(type_from_str(stringify!($ty)), InputModifier::In)
+    };
+
+    (out $ty:ident) => {
+        ParamDef(type_from_str(stringify!($ty)), InputModifier::Out)
+    };
+
+    (inout $ty:ident) => {
+        ParamDef(type_from_str(stringify!($ty)), InputModifier::InOut)
+    };
+
+    ($ty:expr) => {
+        ParamDef($ty, InputModifier::In)
+    };
+}
+
+macro_rules! f {
+    ($return_type:tt $name:tt ($($($param_type:ident)+),*) => $intrinsic:ident) => {
+        (
+            stringify!($name),
+            Intrinsic::$intrinsic,
+            return_type!($return_type),
+            &[$(param_type!($($param_type)+)),*],
+        )
+    };
+}
 
 #[rustfmt::skip]
-const INTRINSICS: &[IntrinsicDefinitionNoTemplates] = &[
-    ("AllMemoryBarrier", Intrinsic::AllMemoryBarrier, Void, &[]),
-    ("AllMemoryBarrierWithGroupSync", Intrinsic::AllMemoryBarrierWithGroupSync, Void, &[]),
-    ("DeviceMemoryBarrier", Intrinsic::DeviceMemoryBarrier, Void, &[]),
-    ("DeviceMemoryBarrierWithGroupSync", Intrinsic::DeviceMemoryBarrierWithGroupSync, Void, &[]),
-    ("GroupMemoryBarrier", Intrinsic::GroupMemoryBarrier, Void, &[]),
-    ("GroupMemoryBarrierWithGroupSync", Intrinsic::GroupMemoryBarrierWithGroupSync, Void, &[]),
+const INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void AllMemoryBarrier() => AllMemoryBarrier },
+    f! { void AllMemoryBarrierWithGroupSync() => AllMemoryBarrierWithGroupSync },
+    f! { void DeviceMemoryBarrier() => DeviceMemoryBarrier },
+    f! { void DeviceMemoryBarrierWithGroupSync() => DeviceMemoryBarrierWithGroupSync },
+    f! { void GroupMemoryBarrier() => GroupMemoryBarrier },
+    f! { void GroupMemoryBarrierWithGroupSync() => GroupMemoryBarrierWithGroupSync },
 
-    ("all", Intrinsic::All, T_BOOL_TY, &[T_BOOL]),
-    ("all", Intrinsic::All, T_BOOL_TY, &[T_BOOL2]),
-    ("all", Intrinsic::All, T_BOOL_TY, &[T_BOOL3]),
-    ("all", Intrinsic::All, T_BOOL_TY, &[T_BOOL4]),
+    f! { bool all(bool) => All },
+    f! { bool all(bool2) => All },
+    f! { bool all(bool3) => All },
+    f! { bool all(bool4) => All },
 
-    ("any", Intrinsic::Any, T_BOOL_TY, &[T_BOOL]),
-    ("any", Intrinsic::Any, T_BOOL_TY, &[T_BOOL2]),
-    ("any", Intrinsic::Any, T_BOOL_TY, &[T_BOOL3]),
-    ("any", Intrinsic::Any, T_BOOL_TY, &[T_BOOL4]),
+    f! { bool any(bool) => Any },
+    f! { bool any(bool2) => Any },
+    f! { bool any(bool3) => Any },
+    f! { bool any(bool4) => Any },
 
-    ("abs", Intrinsic::Abs, T_INT_TY, &[T_INT]),
-    ("abs", Intrinsic::Abs, T_INT2_TY, &[T_INT2]),
-    ("abs", Intrinsic::Abs, T_INT3_TY, &[T_INT3]),
-    ("abs", Intrinsic::Abs, T_INT4_TY, &[T_INT4]),
-    ("abs", Intrinsic::Abs, T_FLOAT_TY, &[T_FLOAT]),
-    ("abs", Intrinsic::Abs, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("abs", Intrinsic::Abs, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("abs", Intrinsic::Abs, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { int abs(int) => Abs },
+    f! { int2 abs(int2) => Abs },
+    f! { int3 abs(int3) => Abs },
+    f! { int4 abs(int4) => Abs },
+    f! { float abs(float) => Abs },
+    f! { float2 abs(float2) => Abs },
+    f! { float3 abs(float3) => Abs },
+    f! { float4 abs(float4) => Abs },
 
-    ("acos", Intrinsic::Acos, T_FLOAT_TY, &[T_FLOAT]),
-    ("acos", Intrinsic::Acos, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("acos", Intrinsic::Acos, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("acos", Intrinsic::Acos, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float acos(float) => Acos },
+    f! { float2 acos(float2) => Acos },
+    f! { float3 acos(float3) => Acos },
+    f! { float4 acos(float4) => Acos },
 
-    ("asin", Intrinsic::Asin, T_FLOAT_TY, &[T_FLOAT]),
-    ("asin", Intrinsic::Asin, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("asin", Intrinsic::Asin, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("asin", Intrinsic::Asin, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float asin(float) => Asin },
+    f! { float2 asin(float2) => Asin },
+    f! { float3 asin(float3) => Asin },
+    f! { float4 asin(float4) => Asin },
 
-    ("asint", Intrinsic::AsInt, T_INT_TY, &[T_UINT]),
-    ("asint", Intrinsic::AsInt, T_INT2_TY, &[T_UINT2]),
-    ("asint", Intrinsic::AsInt, T_INT3_TY, &[T_UINT3]),
-    ("asint", Intrinsic::AsInt, T_INT4_TY, &[T_UINT4]),
-    ("asint", Intrinsic::AsInt, T_INT_TY, &[T_FLOAT]),
-    ("asint", Intrinsic::AsInt, T_INT2_TY, &[T_FLOAT2]),
-    ("asint", Intrinsic::AsInt, T_INT3_TY, &[T_FLOAT3]),
-    ("asint", Intrinsic::AsInt, T_INT4_TY, &[T_FLOAT4]),
+    f! { int asint(uint) => AsInt },
+    f! { int2 asint(uint2) => AsInt },
+    f! { int3 asint(uint3) => AsInt },
+    f! { int4 asint(uint4) => AsInt },
+    f! { int asint(float) => AsInt },
+    f! { int2 asint(float2) => AsInt },
+    f! { int3 asint(float3) => AsInt },
+    f! { int4 asint(float4) => AsInt },
 
-    ("asuint", Intrinsic::AsUInt, T_UINT_TY, &[T_INT]),
-    ("asuint", Intrinsic::AsUInt, T_UINT2_TY, &[T_INT2]),
-    ("asuint", Intrinsic::AsUInt, T_UINT3_TY, &[T_INT3]),
-    ("asuint", Intrinsic::AsUInt, T_UINT4_TY, &[T_INT4]),
-    ("asuint", Intrinsic::AsUInt, T_UINT_TY, &[T_FLOAT]),
-    ("asuint", Intrinsic::AsUInt, T_UINT2_TY, &[T_FLOAT2]),
-    ("asuint", Intrinsic::AsUInt, T_UINT3_TY, &[T_FLOAT3]),
-    ("asuint", Intrinsic::AsUInt, T_UINT4_TY, &[T_FLOAT4]),
+    f! { uint asuint(int) => AsUInt },
+    f! { uint2 asuint(int2) => AsUInt },
+    f! { uint3 asuint(int3) => AsUInt },
+    f! { uint4 asuint(int4) => AsUInt },
+    f! { uint asuint(float) => AsUInt },
+    f! { uint2 asuint(float2) => AsUInt },
+    f! { uint3 asuint(float3) => AsUInt },
+    f! { uint4 asuint(float4) => AsUInt },
 
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT_TY, &[T_INT]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT2_TY, &[T_INT2]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT3_TY, &[T_INT3]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT4_TY, &[T_INT4]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT_TY, &[T_UINT]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT2_TY, &[T_UINT2]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT3_TY, &[T_UINT3]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT4_TY, &[T_UINT4]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT_TY, &[T_FLOAT]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("asfloat", Intrinsic::AsFloat, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float asfloat(int) => AsFloat },
+    f! { float2 asfloat(int2) => AsFloat },
+    f! { float3 asfloat(int3) => AsFloat },
+    f! { float4 asfloat(int4) => AsFloat },
+    f! { float asfloat(uint) => AsFloat },
+    f! { float2 asfloat(uint2) => AsFloat },
+    f! { float3 asfloat(uint3) => AsFloat },
+    f! { float4 asfloat(uint4) => AsFloat },
+    f! { float asfloat(float) => AsFloat },
+    f! { float2 asfloat(float2) => AsFloat },
+    f! { float3 asfloat(float3) => AsFloat },
+    f! { float4 asfloat(float4) => AsFloat },
 
-    ("exp", Intrinsic::Exp, T_FLOAT_TY, &[T_FLOAT]),
-    ("exp", Intrinsic::Exp, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("exp", Intrinsic::Exp, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("exp", Intrinsic::Exp, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float exp(float) => Exp },
+    f! { float2 exp(float2) => Exp },
+    f! { float3 exp(float3) => Exp },
+    f! { float4 exp(float4) => Exp },
 
-    ("asdouble", Intrinsic::AsDouble, T_DOUBLE_TY, &[T_UINT, T_UINT]),
+    f! { double asdouble(uint, uint) => AsDouble },
 
-    ("clamp", Intrinsic::Clamp, T_INT_TY, &[T_INT, T_INT, T_INT]),
-    ("clamp", Intrinsic::Clamp, T_INT2_TY, &[T_INT2, T_INT2, T_INT2]),
-    ("clamp", Intrinsic::Clamp, T_INT3_TY, &[T_INT3, T_INT3, T_INT3]),
-    ("clamp", Intrinsic::Clamp, T_INT4_TY, &[T_INT4, T_INT4, T_INT4]),
-    ("clamp", Intrinsic::Clamp, T_FLOAT_TY, &[T_FLOAT, T_FLOAT, T_FLOAT]),
-    ("clamp", Intrinsic::Clamp, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2, T_FLOAT2]),
-    ("clamp", Intrinsic::Clamp, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3, T_FLOAT3]),
-    ("clamp", Intrinsic::Clamp, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4, T_FLOAT4]),
+    f! { int clamp(int, int, int) => Clamp },
+    f! { int2 clamp(int2, int2, int2) => Clamp },
+    f! { int3 clamp(int3, int3, int3) => Clamp },
+    f! { int4 clamp(int4, int4, int4) => Clamp },
+    f! { float clamp(float, float, float) => Clamp },
+    f! { float2 clamp(float2, float2, float2) => Clamp },
+    f! { float3 clamp(float3, float3, float3) => Clamp },
+    f! { float4 clamp(float4, float4, float4) => Clamp },
 
-    ("cos", Intrinsic::Cos, T_FLOAT_TY, &[T_FLOAT]),
-    ("cos", Intrinsic::Cos, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("cos", Intrinsic::Cos, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("cos", Intrinsic::Cos, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float cos(float) => Cos },
+    f! { float2 cos(float2) => Cos },
+    f! { float3 cos(float3) => Cos },
+    f! { float4 cos(float4) => Cos },
 
-    ("cross", Intrinsic::Cross, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3]),
+    f! { float3 cross(float3, float3) => Cross },
 
-    ("distance", Intrinsic::Distance, T_FLOAT_TY, &[T_FLOAT1, T_FLOAT1]),
-    ("distance", Intrinsic::Distance, T_FLOAT_TY, &[T_FLOAT2, T_FLOAT2]),
-    ("distance", Intrinsic::Distance, T_FLOAT_TY, &[T_FLOAT3, T_FLOAT3]),
-    ("distance", Intrinsic::Distance, T_FLOAT_TY, &[T_FLOAT4, T_FLOAT4]),
+    f! { float distance(float1, float1) => Distance },
+    f! { float distance(float2, float2) => Distance },
+    f! { float distance(float3, float3) => Distance },
+    f! { float distance(float4, float4) => Distance },
 
-    ("dot", Intrinsic::Dot, T_INT_TY, &[T_INT1, T_INT1]),
-    ("dot", Intrinsic::Dot, T_INT_TY, &[T_INT2, T_INT2]),
-    ("dot", Intrinsic::Dot, T_INT_TY, &[T_INT3, T_INT3]),
-    ("dot", Intrinsic::Dot, T_INT_TY, &[T_INT4, T_INT4]),
-    ("dot", Intrinsic::Dot, T_FLOAT_TY, &[T_FLOAT1, T_FLOAT1]),
-    ("dot", Intrinsic::Dot, T_FLOAT_TY, &[T_FLOAT2, T_FLOAT2]),
-    ("dot", Intrinsic::Dot, T_FLOAT_TY, &[T_FLOAT3, T_FLOAT3]),
-    ("dot", Intrinsic::Dot, T_FLOAT_TY, &[T_FLOAT4, T_FLOAT4]),
+    f! { int dot(int1, int1) => Dot },
+    f! { int dot(int2, int2) => Dot },
+    f! { int dot(int3, int3) => Dot },
+    f! { int dot(int4, int4) => Dot },
+    f! { float dot(float1, float1) => Dot },
+    f! { float dot(float2, float2) => Dot },
+    f! { float dot(float3, float3) => Dot },
+    f! { float dot(float4, float4) => Dot },
 
-    ("mul", Intrinsic::Mul, T_FLOAT3_TY, &[ParamDef(TypeLayout::Matrix(ScalarType::Float, 3, 3), InputModifier::In), T_FLOAT3]),
-    ("mul", Intrinsic::Mul, T_FLOAT4_TY, &[ParamDef(TypeLayout::Matrix(ScalarType::Float, 4, 4), InputModifier::In), T_FLOAT4]),
+    f! { float3 mul(float3x3, float3) => Mul },
+    f! { float4 mul(float4x4, float4) => Mul },
 
-    ("f16tof32", Intrinsic::F16ToF32, T_FLOAT_TY, &[T_UINT]),
-    ("f32tof16", Intrinsic::F32ToF16, T_UINT_TY, &[T_FLOAT]),
+    f! { float f16tof32(uint) => F16ToF32 },
+    f! { uint f32tof16(float) => F32ToF16 },
 
-    ("floor", Intrinsic::Floor, T_FLOAT_TY, &[T_FLOAT]),
-    ("floor", Intrinsic::Floor, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("floor", Intrinsic::Floor, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("floor", Intrinsic::Floor, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float floor(float) => Floor },
+    f! { float2 floor(float2) => Floor },
+    f! { float3 floor(float3) => Floor },
+    f! { float4 floor(float4) => Floor },
 
-    ("lerp", Intrinsic::Lerp, T_FLOAT_TY, &[T_FLOAT, T_FLOAT, T_FLOAT]),
-    ("lerp", Intrinsic::Lerp, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2, T_FLOAT2]),
-    ("lerp", Intrinsic::Lerp, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3, T_FLOAT3]),
-    ("lerp", Intrinsic::Lerp, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4, T_FLOAT4]),
+    f! { float lerp(float, float, float) => Lerp },
+    f! { float2 lerp(float2, float2, float2) => Lerp },
+    f! { float3 lerp(float3, float3, float3) => Lerp },
+    f! { float4 lerp(float4, float4, float4) => Lerp },
 
-    ("isnan", Intrinsic::IsNaN, T_BOOL_TY, &[T_FLOAT]),
-    ("isnan", Intrinsic::IsNaN, T_BOOL2_TY, &[T_FLOAT2]),
-    ("isnan", Intrinsic::IsNaN, T_BOOL3_TY, &[T_FLOAT3]),
-    ("isnan", Intrinsic::IsNaN, T_BOOL4_TY, &[T_FLOAT4]),
+    f! { bool isnan(float) => IsNaN },
+    f! { bool2 isnan(float2) => IsNaN },
+    f! { bool3 isnan(float3) => IsNaN },
+    f! { bool4 isnan(float4) => IsNaN },
 
-    ("length", Intrinsic::Length, T_FLOAT_TY, &[T_FLOAT1]),
-    ("length", Intrinsic::Length, T_FLOAT_TY, &[T_FLOAT2]),
-    ("length", Intrinsic::Length, T_FLOAT_TY, &[T_FLOAT3]),
-    ("length", Intrinsic::Length, T_FLOAT_TY, &[T_FLOAT4]),
+    f! { float length(float1) => Length },
+    f! { float length(float2) => Length },
+    f! { float length(float3) => Length },
+    f! { float length(float4) => Length },
 
-    ("min", Intrinsic::Min, T_INT_TY, &[T_INT, T_INT]),
-    ("min", Intrinsic::Min, T_INT2_TY, &[T_INT2, T_INT2]),
-    ("min", Intrinsic::Min, T_INT3_TY, &[T_INT3, T_INT3]),
-    ("min", Intrinsic::Min, T_INT4_TY, &[T_INT4, T_INT4]),
-    ("min", Intrinsic::Min, T_FLOAT_TY, &[T_FLOAT, T_FLOAT]),
-    ("min", Intrinsic::Min, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2]),
-    ("min", Intrinsic::Min, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3]),
-    ("min", Intrinsic::Min, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4]),
+    f! { int min(int, int) => Min },
+    f! { int2 min(int2, int2) => Min },
+    f! { int3 min(int3, int3) => Min },
+    f! { int4 min(int4, int4) => Min },
+    f! { float min(float, float) => Min },
+    f! { float2 min(float2, float2) => Min },
+    f! { float3 min(float3, float3) => Min },
+    f! { float4 min(float4, float4) => Min },
 
-    ("max", Intrinsic::Max, T_INT_TY, &[T_INT, T_INT]),
-    ("max", Intrinsic::Max, T_INT2_TY, &[T_INT2, T_INT2]),
-    ("max", Intrinsic::Max, T_INT3_TY, &[T_INT3, T_INT3]),
-    ("max", Intrinsic::Max, T_INT4_TY, &[T_INT4, T_INT4]),
-    ("max", Intrinsic::Max, T_FLOAT_TY, &[T_FLOAT, T_FLOAT]),
-    ("max", Intrinsic::Max, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2]),
-    ("max", Intrinsic::Max, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3]),
-    ("max", Intrinsic::Max, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4]),
+    f! { int max(int, int) => Max },
+    f! { int2 max(int2, int2) => Max },
+    f! { int3 max(int3, int3) => Max },
+    f! { int4 max(int4, int4) => Max },
+    f! { float max(float, float) => Max },
+    f! { float2 max(float2, float2) => Max },
+    f! { float3 max(float3, float3) => Max },
+    f! { float4 max(float4, float4) => Max },
 
-    ("normalize", Intrinsic::Normalize, T_FLOAT1_TY, &[T_FLOAT1]),
-    ("normalize", Intrinsic::Normalize, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("normalize", Intrinsic::Normalize, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("normalize", Intrinsic::Normalize, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float1 normalize(float1) => Normalize },
+    f! { float2 normalize(float2) => Normalize },
+    f! { float3 normalize(float3) => Normalize },
+    f! { float4 normalize(float4) => Normalize },
 
-    ("pow", Intrinsic::Pow, T_FLOAT_TY, &[T_FLOAT, T_FLOAT]),
-    ("pow", Intrinsic::Pow, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2]),
-    ("pow", Intrinsic::Pow, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3]),
-    ("pow", Intrinsic::Pow, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4]),
+    f! { float pow(float, float) => Pow },
+    f! { float2 pow(float2, float2) => Pow },
+    f! { float3 pow(float3, float3) => Pow },
+    f! { float4 pow(float4, float4) => Pow },
 
-    ("saturate", Intrinsic::Saturate, T_FLOAT_TY, &[T_FLOAT]),
-    ("saturate", Intrinsic::Saturate, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("saturate", Intrinsic::Saturate, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("saturate", Intrinsic::Saturate, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float saturate(float) => Saturate },
+    f! { float2 saturate(float2) => Saturate },
+    f! { float3 saturate(float3) => Saturate },
+    f! { float4 saturate(float4) => Saturate },
 
-    ("sign", Intrinsic::Sign, T_INT_TY, &[T_INT]),
-    ("sign", Intrinsic::Sign, T_INT2_TY, &[T_INT2]),
-    ("sign", Intrinsic::Sign, T_INT3_TY, &[T_INT3]),
-    ("sign", Intrinsic::Sign, T_INT4_TY, &[T_INT4]),
-    ("sign", Intrinsic::Sign, T_INT_TY, &[T_FLOAT]),
-    ("sign", Intrinsic::Sign, T_INT2_TY, &[T_FLOAT2]),
-    ("sign", Intrinsic::Sign, T_INT3_TY, &[T_FLOAT3]),
-    ("sign", Intrinsic::Sign, T_INT4_TY, &[T_FLOAT4]),
+    f! { int sign(int) => Sign },
+    f! { int2 sign(int2) => Sign },
+    f! { int3 sign(int3) => Sign },
+    f! { int4 sign(int4) => Sign },
+    f! { int sign(float) => Sign },
+    f! { int2 sign(float2) => Sign },
+    f! { int3 sign(float3) => Sign },
+    f! { int4 sign(float4) => Sign },
 
-    ("sin", Intrinsic::Sin, T_FLOAT_TY, &[T_FLOAT]),
-    ("sin", Intrinsic::Sin, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("sin", Intrinsic::Sin, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("sin", Intrinsic::Sin, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float sin(float) => Sin },
+    f! { float2 sin(float2) => Sin },
+    f! { float3 sin(float3) => Sin },
+    f! { float4 sin(float4) => Sin },
 
-    ("sincos", Intrinsic::Sincos, Void, &[T_FLOAT, T_FLOAT_OUT, T_FLOAT_OUT]),
-    ("sincos", Intrinsic::Sincos, Void, &[T_FLOAT2, T_FLOAT2_OUT, T_FLOAT2_OUT]),
-    ("sincos", Intrinsic::Sincos, Void, &[T_FLOAT3, T_FLOAT3_OUT, T_FLOAT3_OUT]),
-    ("sincos", Intrinsic::Sincos, Void, &[T_FLOAT4, T_FLOAT4_OUT, T_FLOAT4_OUT]),
+    f! { void sincos(float, out float, out float) => Sincos },
+    f! { void sincos(float2, out float2, out float2) => Sincos },
+    f! { void sincos(float3, out float3, out float3) => Sincos },
+    f! { void sincos(float4, out float4, out float4) => Sincos },
 
-    ("smoothstep", Intrinsic::SmoothStep, T_FLOAT_TY, &[T_FLOAT, T_FLOAT, T_FLOAT]),
-    ("smoothstep", Intrinsic::SmoothStep, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2, T_FLOAT2]),
-    ("smoothstep", Intrinsic::SmoothStep, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3, T_FLOAT3]),
-    ("smoothstep", Intrinsic::SmoothStep, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4, T_FLOAT4]),
+    f! { float smoothstep(float, float, float) => SmoothStep },
+    f! { float2 smoothstep(float2, float2, float2) => SmoothStep },
+    f! { float3 smoothstep(float3, float3, float3) => SmoothStep },
+    f! { float4 smoothstep(float4, float4, float4) => SmoothStep },
 
-    ("sqrt", Intrinsic::Sqrt, T_FLOAT_TY, &[T_FLOAT]),
-    ("sqrt", Intrinsic::Sqrt, T_FLOAT2_TY, &[T_FLOAT2]),
-    ("sqrt", Intrinsic::Sqrt, T_FLOAT3_TY, &[T_FLOAT3]),
-    ("sqrt", Intrinsic::Sqrt, T_FLOAT4_TY, &[T_FLOAT4]),
+    f! { float sqrt(float) => Sqrt },
+    f! { float2 sqrt(float2) => Sqrt },
+    f! { float3 sqrt(float3) => Sqrt },
+    f! { float4 sqrt(float4) => Sqrt },
 
-    ("step", Intrinsic::Step, T_FLOAT_TY, &[T_FLOAT, T_FLOAT]),
-    ("step", Intrinsic::Step, T_FLOAT2_TY, &[T_FLOAT2, T_FLOAT2]),
-    ("step", Intrinsic::Step, T_FLOAT3_TY, &[T_FLOAT3, T_FLOAT3]),
-    ("step", Intrinsic::Step, T_FLOAT4_TY, &[T_FLOAT4, T_FLOAT4]),
+    f! { float step(float, float) => Step },
+    f! { float2 step(float2, float2) => Step },
+    f! { float3 step(float3, float3) => Step },
+    f! { float4 step(float4, float4) => Step },
 ];
 
 /// Create a collection of all the intrinsic functions
@@ -279,10 +297,14 @@ pub fn add_intrinsics(module: &mut Module) {
             semantic: None,
         };
 
+        // Calculate the number of template arguments to the function
+        let template_params =
+            get_template_param_count(module, return_type.return_type, &param_types);
+
         // Make the signature
         let signature = FunctionSignature {
             return_type,
-            template_params: TemplateParamCount(0),
+            template_params,
             param_types,
         };
 
@@ -304,183 +326,47 @@ pub fn add_intrinsics(module: &mut Module) {
     }
 }
 
-const BUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[("Load", Intrinsic::BufferLoad, 0, T_OBJECT_ARG_TY, &[T_INT])];
+const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int) => BufferLoad }];
 
-const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[(
-    "Load",
-    Intrinsic::RWBufferLoad,
-    0,
-    T_OBJECT_ARG_TY,
-    &[T_INT],
-)];
+const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int) => RWBufferLoad }];
 
-const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[(
-    "Load",
-    Intrinsic::StructuredBufferLoad,
-    0,
-    T_OBJECT_ARG_TY,
-    &[T_INT],
-)];
+const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
+    &[f! { D Load(int) => StructuredBufferLoad }];
 
-const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[(
-    "Load",
-    Intrinsic::RWStructuredBufferLoad,
-    0,
-    T_OBJECT_ARG_TY,
-    &[T_INT],
-)];
+const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
+    &[f! { D Load(int) => RWStructuredBufferLoad }];
 
 const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
-    (
-        "Sample",
-        Intrinsic::Texture2DSample,
-        0,
-        T_OBJECT_ARG_TY,
-        &[T_SAMPLER, T_FLOAT2],
-    ),
-    (
-        "Load",
-        Intrinsic::Texture2DLoad,
-        0,
-        T_OBJECT_ARG_TY,
-        &[T_INT3],
-    ),
+    f! { D Sample(SamplerState, float2) => Texture2DSample },
+    f! { D Load(int3) => Texture2DLoad },
 ];
 
-const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[(
-    "Load",
-    Intrinsic::RWTexture2DLoad,
-    0,
-    T_OBJECT_ARG_TY,
-    &[T_INT2],
-)];
+const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int2) => RWTexture2DLoad }];
 
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
-    (
-        "Load",
-        Intrinsic::ByteAddressBufferLoad,
-        0,
-        T_UINT_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load2",
-        Intrinsic::ByteAddressBufferLoad2,
-        0,
-        T_UINT2_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load3",
-        Intrinsic::ByteAddressBufferLoad3,
-        0,
-        T_UINT3_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load4",
-        Intrinsic::ByteAddressBufferLoad4,
-        0,
-        T_UINT4_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load",
-        Intrinsic::ByteAddressBufferLoadT,
-        1,
-        T_TEMPLATE0_TY,
-        &[T_UINT],
-    ),
+    f! { uint Load(uint) => ByteAddressBufferLoad },
+    f! { uint2 Load2(uint) => ByteAddressBufferLoad2 },
+    f! { uint3 Load3(uint) => ByteAddressBufferLoad3 },
+    f! { uint4 Load4(uint) => ByteAddressBufferLoad4 },
+    f! { T Load(uint) => ByteAddressBufferLoadT },
 ];
 
 const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
-    (
-        "Load",
-        Intrinsic::RWByteAddressBufferLoad,
-        0,
-        T_UINT_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load2",
-        Intrinsic::RWByteAddressBufferLoad2,
-        0,
-        T_UINT2_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load3",
-        Intrinsic::RWByteAddressBufferLoad3,
-        0,
-        T_UINT3_TY,
-        &[T_UINT],
-    ),
-    (
-        "Load4",
-        Intrinsic::RWByteAddressBufferLoad4,
-        0,
-        T_UINT4_TY,
-        &[T_UINT],
-    ),
-    (
-        "Store",
-        Intrinsic::RWByteAddressBufferStore,
-        0,
-        Void,
-        &[T_UINT, T_UINT],
-    ),
-    (
-        "Store2",
-        Intrinsic::RWByteAddressBufferStore2,
-        0,
-        Void,
-        &[T_UINT, T_UINT2],
-    ),
-    (
-        "Store3",
-        Intrinsic::RWByteAddressBufferStore3,
-        0,
-        Void,
-        &[T_UINT, T_UINT3],
-    ),
-    (
-        "Store4",
-        Intrinsic::RWByteAddressBufferStore4,
-        0,
-        Void,
-        &[T_UINT, T_UINT4],
-    ),
-    (
-        "InterlockedAdd",
-        Intrinsic::RWByteAddressBufferInterlockedAdd,
-        0,
-        Void,
-        &[T_UINT, T_UINT, T_UINT_OUT],
-    ),
+    f! { uint Load(uint) => RWByteAddressBufferLoad },
+    f! { uint2 Load2(uint) => RWByteAddressBufferLoad2 },
+    f! { uint3 Load3(uint) => RWByteAddressBufferLoad3 },
+    f! { uint4 Load4(uint) => RWByteAddressBufferLoad4 },
+    f! { void Store(uint, uint) => RWByteAddressBufferStore },
+    f! { void Store2(uint, uint2) => RWByteAddressBufferStore2 },
+    f! { void Store3(uint, uint3) => RWByteAddressBufferStore3 },
+    f! { void Store4(uint, uint4) => RWByteAddressBufferStore4 },
+    f! { void InterlockedAdd(uint, uint, out uint) => RWByteAddressBufferInterlockedAdd },
 ];
-const BUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[(
-    "Load",
-    Intrinsic::BufferAddressLoad,
-    1,
-    T_TEMPLATE0_TY,
-    &[T_UINT],
-)];
+const BUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] =
+    &[f! { T Load(uint) => BufferAddressLoad }];
 const RWBUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[
-    (
-        "Load",
-        Intrinsic::RWBufferAddressLoad,
-        1,
-        T_TEMPLATE0_TY,
-        &[T_UINT],
-    ),
-    (
-        "Store",
-        Intrinsic::RWBufferAddressStore,
-        1,
-        Void,
-        &[T_UINT, T_TEMPLATE0],
-    ),
+    f! { T Load(uint) => RWBufferAddressLoad },
+    f! { void Store(uint, T) => RWBufferAddressStore },
 ];
 
 pub struct MethodDefinition {
@@ -520,9 +406,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
     };
 
     let mut methods = Vec::new();
-    for &(method_name, ref intrinsic, template_param_count, ref return_type, param_type_defs) in
-        method_defs
-    {
+    for &(method_name, ref intrinsic, ref return_type, param_type_defs) in method_defs {
         // Replace the object template type with the type arg
         let remap_inner = |ty| {
             if let TypeLayout::TemplateParam(v) = ty {
@@ -536,25 +420,68 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         // Fetch and remap the param types
         let param_types = param_type_defs
             .iter()
-            .map(|p| ParamType(module.type_registry.register_type(p.0.clone()), p.1, None))
+            .map(|p| {
+                ParamType(
+                    module.type_registry.register_type(remap_inner(p.0.clone())),
+                    p.1,
+                    None,
+                )
+            })
             .collect::<Vec<_>>();
 
         // Fetch and remap the return type
         let return_type_layout = remap_inner(return_type.clone());
+        let return_type = module.type_registry.register_type(return_type_layout);
+
+        // Calculate the number of template arguments to the function
+        let template_params = get_template_param_count(module, return_type, &param_types);
 
         methods.push(MethodDefinition {
             name: method_name.to_string(),
             intrinsic: intrinsic.clone(),
             signature: FunctionSignature {
                 return_type: FunctionReturn {
-                    return_type: module.type_registry.register_type(return_type_layout),
+                    return_type,
                     semantic: None,
                 },
-                template_params: TemplateParamCount(template_param_count),
+                template_params,
                 param_types,
             },
         });
     }
 
     methods
+}
+
+/// Get the maximum template argument count within the function
+fn get_template_param_count(
+    module: &Module,
+    return_type: TypeId,
+    param_types: &[ParamType],
+) -> TemplateParamCount {
+    let mut count = get_max_template_arg(module, return_type);
+    for param_type in param_types {
+        count = std::cmp::max(count, get_max_template_arg(module, param_type.0))
+    }
+    TemplateParamCount(count)
+}
+
+/// Get the maximum template argument count within the type
+fn get_max_template_arg(module: &Module, id: TypeId) -> u32 {
+    let mut count = 0;
+    let layer = module.type_registry.get_type_layer(id);
+    match layer {
+        TypeLayer::Void
+        | TypeLayer::Scalar(_)
+        | TypeLayer::Vector(_, _)
+        | TypeLayer::Matrix(_, _, _)
+        | TypeLayer::Struct(_)
+        | TypeLayer::StructTemplate(_)
+        | TypeLayer::Object(_) => {}
+        TypeLayer::Array(inner, _) | TypeLayer::Modifier(_, inner) => {
+            count = std::cmp::max(count, get_max_template_arg(module, inner))
+        }
+        TypeLayer::TemplateParam(template_arg) => count = std::cmp::max(count, template_arg.0 + 1),
+    }
+    count
 }

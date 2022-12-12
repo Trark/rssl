@@ -308,6 +308,66 @@ impl TypeId {
     }
 }
 
+impl TypeLayer {
+    /// Parse numeric type from a string
+    pub const fn from_numeric_str(typename: &str) -> Option<TypeLayer> {
+        const fn digit(input: &[u8]) -> Option<(&[u8], u32)> {
+            match input {
+                [b'1', rest @ ..] => Some((rest, 1)),
+                [b'2', rest @ ..] => Some((rest, 2)),
+                [b'3', rest @ ..] => Some((rest, 3)),
+                [b'4', rest @ ..] => Some((rest, 4)),
+                _ => None,
+            }
+        }
+
+        const fn parse_str(input: &[u8]) -> Option<(&[u8], TypeLayer)> {
+            let (rest, ty) = match ScalarType::parse_str(input) {
+                Some(ok) => ok,
+                None => return None,
+            };
+            if rest.is_empty() {
+                return Some((&[], TypeLayer::Scalar(ty)));
+            }
+
+            let (rest, x) = match digit(rest) {
+                Some(ok) => ok,
+                None => return None,
+            };
+            if rest.is_empty() {
+                return Some((&[], TypeLayer::Vector(ty, x)));
+            }
+
+            let rest = match rest {
+                [b'x', rest @ ..] => rest,
+                _ => return None,
+            };
+
+            let (rest, y) = match digit(rest) {
+                Some(ok) => ok,
+                None => return None,
+            };
+            if rest.is_empty() {
+                return Some((&[], TypeLayer::Matrix(ty, x, y)));
+            }
+
+            None
+        }
+
+        let type_name_bytes = typename.as_bytes();
+
+        match parse_str(type_name_bytes) {
+            Some((rest, ty)) => {
+                if !rest.is_empty() {
+                    panic!("from_numeric_str expects to finish the string`");
+                }
+                Some(ty)
+            }
+            None => None,
+        }
+    }
+}
+
 impl TypeLayout {
     pub const fn void() -> Self {
         TypeLayout::Void
@@ -606,6 +666,42 @@ impl TypeLayout {
             self
         }
     }
+
+    /// Turn a [TypeLayer] for a numeric type into a [TypeLayout]
+    pub const fn from_numeric_layer(layer: TypeLayer) -> Option<Self> {
+        match layer {
+            TypeLayer::Scalar(s) => Some(TypeLayout::Scalar(s)),
+            TypeLayer::Vector(s, x) => Some(TypeLayout::Vector(s, x)),
+            TypeLayer::Matrix(s, x, y) => Some(TypeLayout::Matrix(s, x, y)),
+            _ => None,
+        }
+    }
+
+    /// Turn a [TypeLayer] for a numeric type into a [TypeLayout]
+    pub const fn from_numeric_layer_or_fail(layer: TypeLayer) -> Self {
+        match layer {
+            TypeLayer::Scalar(s) => TypeLayout::Scalar(s),
+            TypeLayer::Vector(s, x) => TypeLayout::Vector(s, x),
+            TypeLayer::Matrix(s, x, y) => TypeLayout::Matrix(s, x, y),
+            _ => panic!(),
+        }
+    }
+}
+
+impl ScalarType {
+    /// Parse scalar type as part of a string
+    const fn parse_str(input: &[u8]) -> Option<(&[u8], ScalarType)> {
+        match input {
+            [b'b', b'o', b'o', b'l', rest @ ..] => Some((rest, ScalarType::Bool)),
+            [b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::Int)),
+            [b'u', b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::UInt)),
+            [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Some((rest, ScalarType::UInt)),
+            [b'h', b'a', b'l', b'f', rest @ ..] => Some((rest, ScalarType::Half)),
+            [b'f', b'l', b'o', b'a', b't', rest @ ..] => Some((rest, ScalarType::Float)),
+            [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Some((rest, ScalarType::Double)),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Debug for TypeLayer {
@@ -674,4 +770,24 @@ impl std::fmt::Debug for ObjectType {
             SamplerState => write!(f, "SamplerState"),
         }
     }
+}
+
+#[test]
+fn test_parse_numeric_str() {
+    assert_eq!(
+        TypeLayer::from_numeric_str("float"),
+        Some(TypeLayer::Scalar(ScalarType::Float))
+    );
+    assert_eq!(
+        TypeLayer::from_numeric_str("uint3"),
+        Some(TypeLayer::Vector(ScalarType::UInt, 3))
+    );
+    assert_eq!(
+        TypeLayer::from_numeric_str("bool2x3"),
+        Some(TypeLayer::Matrix(ScalarType::Bool, 2, 3))
+    );
+
+    assert_eq!(TypeLayer::from_numeric_str(""), None);
+    assert_eq!(TypeLayer::from_numeric_str("float5"), None);
+    assert_eq!(TypeLayer::from_numeric_str("float2x"), None);
 }

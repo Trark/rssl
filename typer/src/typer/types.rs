@@ -82,100 +82,11 @@ pub fn parse_expression_or_type(
     }
 }
 
-enum PrimitiveTypeError {
-    UnexpectedCharacter,
-    EndOfStream,
-}
-
-// Parse scalar type as part of a string
-fn parse_scalartype_str(input: &[u8]) -> Result<(&[u8], ir::ScalarType), PrimitiveTypeError> {
-    match input {
-        [b'b', b'o', b'o', b'l', rest @ ..] => Ok((rest, ir::ScalarType::Bool)),
-        [b'i', b'n', b't', rest @ ..] => Ok((rest, ir::ScalarType::Int)),
-        [b'u', b'i', b'n', b't', rest @ ..] => Ok((rest, ir::ScalarType::UInt)),
-        [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Ok((rest, ir::ScalarType::UInt)),
-        [b'h', b'a', b'l', b'f', rest @ ..] => Ok((rest, ir::ScalarType::Half)),
-        [b'f', b'l', b'o', b'a', b't', rest @ ..] => Ok((rest, ir::ScalarType::Float)),
-        [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Ok((rest, ir::ScalarType::Double)),
-        _ => Err(PrimitiveTypeError::UnexpectedCharacter),
-    }
-}
-
-// Parse data type as part of a string
+// Parse numeric type as part of a string
 fn parse_numeric_str(typename: &str) -> Option<ir::TypeLayout> {
-    fn digit(input: &[u8]) -> Result<(&[u8], u32), PrimitiveTypeError> {
-        // Handle end of stream
-        if input.is_empty() {
-            return Err(PrimitiveTypeError::EndOfStream);
-        };
-
-        // Match on the next character
-        let n = match input[0] {
-            b'1' => 1,
-            b'2' => 2,
-            b'3' => 3,
-            b'4' => 4,
-            _ => {
-                // Not a digit
-                return Err(PrimitiveTypeError::UnexpectedCharacter);
-            }
-        };
-
-        // Success
-        Ok((&input[1..], n))
-    }
-
-    fn parse_str(input: &[u8]) -> Result<(&[u8], ir::TypeLayout), PrimitiveTypeError> {
-        let (rest, ty) = parse_scalartype_str(input)?;
-        if rest.is_empty() {
-            return Ok((&[], ir::TypeLayout::Scalar(ty)));
-        }
-
-        let (rest, x) = digit(rest)?;
-        if rest.is_empty() {
-            return Ok((&[], ir::TypeLayout::Vector(ty, x)));
-        }
-
-        let rest = match rest.first() {
-            Some(b'x') => &rest[1..],
-            _ => return Err(PrimitiveTypeError::UnexpectedCharacter),
-        };
-
-        let (rest, y) = digit(rest)?;
-        if rest.is_empty() {
-            return Ok((&[], ir::TypeLayout::Matrix(ty, x, y)));
-        }
-
-        Err(PrimitiveTypeError::UnexpectedCharacter)
-    }
-
-    match parse_str(typename[..].as_bytes()) {
-        Ok((rest, ty)) => {
-            assert_eq!(rest.len(), 0);
-            Some(ty)
-        }
-        Err(_) => None,
-    }
-}
-
-#[test]
-fn test_parse_numeric_str() {
-    assert_eq!(
-        parse_numeric_str("float"),
-        Some(ir::TypeLayout::Scalar(ir::ScalarType::Float))
-    );
-    assert_eq!(
-        parse_numeric_str("uint3"),
-        Some(ir::TypeLayout::Vector(ir::ScalarType::UInt, 3))
-    );
-    assert_eq!(
-        parse_numeric_str("bool2x3"),
-        Some(ir::TypeLayout::Matrix(ir::ScalarType::Bool, 2, 3))
-    );
-
-    assert_eq!(parse_numeric_str(""), None);
-    assert_eq!(parse_numeric_str("float5"), None);
-    assert_eq!(parse_numeric_str("float2x"), None);
+    let layer = ir::TypeLayer::from_numeric_str(typename)?;
+    let layout = ir::TypeLayout::from_numeric_layer(layer)?;
+    Some(layout)
 }
 
 /// Parse a type layout for a basic data type
