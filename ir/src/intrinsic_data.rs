@@ -1,7 +1,13 @@
 use crate::*;
 use rssl_text::Located;
 
-type IntrinsicDefinition = (&'static str, Intrinsic, TypeLayout, &'static [ParamDef]);
+struct IntrinsicDefinition {
+    function_name: &'static str,
+    intrinsic: Intrinsic,
+    return_type: TypeLayout,
+    param_types: &'static [ParamDef],
+    multi_types: &'static [TypeLayout],
+}
 
 struct ParamDef(pub TypeLayout, pub InputModifier);
 
@@ -21,6 +27,10 @@ macro_rules! return_type {
 
     (D) => {
         TypeLayout::TemplateParam(TemplateTypeId(u32::MAX))
+    };
+
+    (M) => {
+        TypeLayout::TemplateParam(TemplateTypeId(u32::MAX - 1))
     };
 
     (void) => {
@@ -44,6 +54,20 @@ macro_rules! param_type {
         ParamDef(
             TypeLayout::TemplateParam(TemplateTypeId(u32::MAX)),
             InputModifier::In,
+        )
+    };
+
+    (M) => {
+        ParamDef(
+            TypeLayout::TemplateParam(TemplateTypeId(u32::MAX - 1)),
+            InputModifier::In,
+        )
+    };
+
+    (out M) => {
+        ParamDef(
+            TypeLayout::TemplateParam(TemplateTypeId(u32::MAX - 1)),
+            InputModifier::Out,
         )
     };
 
@@ -72,13 +96,14 @@ macro_rules! param_type {
 }
 
 macro_rules! f {
-    ($return_type:tt $name:tt ($($($param_type:ident)+),*) => $intrinsic:ident) => {
-        (
-            stringify!($name),
-            Intrinsic::$intrinsic,
-            return_type!($return_type),
-            &[$(param_type!($($param_type)+)),*],
-        )
+    ($return_type:tt $name:tt ($($($param_type:ident)+),*) => $intrinsic:ident $(| $($($multi_types:ident)+),*)?) => {
+        IntrinsicDefinition {
+            function_name: stringify!($name),
+            intrinsic: Intrinsic::$intrinsic,
+            return_type: return_type!($return_type),
+            param_types: &[$(param_type!($($param_type)+)),*],
+            multi_types: &[$($(type_from_str(stringify!($($multi_types)+))),*)?],
+        }
     };
 }
 
@@ -91,34 +116,13 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GroupMemoryBarrier() => GroupMemoryBarrier },
     f! { void GroupMemoryBarrierWithGroupSync() => GroupMemoryBarrierWithGroupSync },
 
-    f! { bool all(bool) => All },
-    f! { bool all(bool2) => All },
-    f! { bool all(bool3) => All },
-    f! { bool all(bool4) => All },
+    f! { bool all(M) => All | bool, bool2, bool3, bool4 },
+    f! { bool any(M) => Any | bool, bool2, bool3, bool4 },
 
-    f! { bool any(bool) => Any },
-    f! { bool any(bool2) => Any },
-    f! { bool any(bool3) => Any },
-    f! { bool any(bool4) => Any },
+    f! { M abs(M) => Abs | int, int2, int3, int4, float, float2, float3, float4 },
 
-    f! { int abs(int) => Abs },
-    f! { int2 abs(int2) => Abs },
-    f! { int3 abs(int3) => Abs },
-    f! { int4 abs(int4) => Abs },
-    f! { float abs(float) => Abs },
-    f! { float2 abs(float2) => Abs },
-    f! { float3 abs(float3) => Abs },
-    f! { float4 abs(float4) => Abs },
-
-    f! { float acos(float) => Acos },
-    f! { float2 acos(float2) => Acos },
-    f! { float3 acos(float3) => Acos },
-    f! { float4 acos(float4) => Acos },
-
-    f! { float asin(float) => Asin },
-    f! { float2 asin(float2) => Asin },
-    f! { float3 asin(float3) => Asin },
-    f! { float4 asin(float4) => Asin },
+    f! { M acos(M) => Acos | float, float2, float3, float4 },
+    f! { M asin(M) => Asin | float, float2, float3, float4 },
 
     f! { int asint(uint) => AsInt },
     f! { int2 asint(uint2) => AsInt },
@@ -151,42 +155,20 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { float3 asfloat(float3) => AsFloat },
     f! { float4 asfloat(float4) => AsFloat },
 
-    f! { float exp(float) => Exp },
-    f! { float2 exp(float2) => Exp },
-    f! { float3 exp(float3) => Exp },
-    f! { float4 exp(float4) => Exp },
+    f! { M exp(M) => Exp | float, float2, float3, float4 },
 
     f! { double asdouble(uint, uint) => AsDouble },
 
-    f! { int clamp(int, int, int) => Clamp },
-    f! { int2 clamp(int2, int2, int2) => Clamp },
-    f! { int3 clamp(int3, int3, int3) => Clamp },
-    f! { int4 clamp(int4, int4, int4) => Clamp },
-    f! { float clamp(float, float, float) => Clamp },
-    f! { float2 clamp(float2, float2, float2) => Clamp },
-    f! { float3 clamp(float3, float3, float3) => Clamp },
-    f! { float4 clamp(float4, float4, float4) => Clamp },
+    f! { M clamp(M, M, M) => Clamp | int, int2, int3, int4, float, float2, float3, float4 },
 
-    f! { float cos(float) => Cos },
-    f! { float2 cos(float2) => Cos },
-    f! { float3 cos(float3) => Cos },
-    f! { float4 cos(float4) => Cos },
+    f! { M cos(M) => Cos | float, float2, float3, float4 },
 
     f! { float3 cross(float3, float3) => Cross },
 
-    f! { float distance(float1, float1) => Distance },
-    f! { float distance(float2, float2) => Distance },
-    f! { float distance(float3, float3) => Distance },
-    f! { float distance(float4, float4) => Distance },
+    f! { float distance(M, M) => Distance | float1, float2, float3, float4 },
 
-    f! { int dot(int1, int1) => Dot },
-    f! { int dot(int2, int2) => Dot },
-    f! { int dot(int3, int3) => Dot },
-    f! { int dot(int4, int4) => Dot },
-    f! { float dot(float1, float1) => Dot },
-    f! { float dot(float2, float2) => Dot },
-    f! { float dot(float3, float3) => Dot },
-    f! { float dot(float4, float4) => Dot },
+    f! { int dot(M, M) => Dot | int1, int2, int3, int4 },
+    f! { float dot(M, M) => Dot | float1, float2, float3, float4 },
 
     f! { float3 mul(float3x3, float3) => Mul },
     f! { float4 mul(float4x4, float4) => Mul },
@@ -194,58 +176,28 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { float f16tof32(uint) => F16ToF32 },
     f! { uint f32tof16(float) => F32ToF16 },
 
-    f! { float floor(float) => Floor },
-    f! { float2 floor(float2) => Floor },
-    f! { float3 floor(float3) => Floor },
-    f! { float4 floor(float4) => Floor },
+    f! { M floor(M) => Floor | float, float2, float3, float4 },
 
-    f! { float lerp(float, float, float) => Lerp },
-    f! { float2 lerp(float2, float2, float2) => Lerp },
-    f! { float3 lerp(float3, float3, float3) => Lerp },
-    f! { float4 lerp(float4, float4, float4) => Lerp },
+    f! { M lerp(M, M, M) => Lerp | float, float2, float3, float4 },
 
     f! { bool isnan(float) => IsNaN },
     f! { bool2 isnan(float2) => IsNaN },
     f! { bool3 isnan(float3) => IsNaN },
     f! { bool4 isnan(float4) => IsNaN },
 
-    f! { float length(float1) => Length },
-    f! { float length(float2) => Length },
-    f! { float length(float3) => Length },
-    f! { float length(float4) => Length },
+    f! { float length(M) => Length | float1, float2, float3, float4 },
 
-    f! { int min(int, int) => Min },
-    f! { int2 min(int2, int2) => Min },
-    f! { int3 min(int3, int3) => Min },
-    f! { int4 min(int4, int4) => Min },
-    f! { float min(float, float) => Min },
-    f! { float2 min(float2, float2) => Min },
-    f! { float3 min(float3, float3) => Min },
-    f! { float4 min(float4, float4) => Min },
-
-    f! { int max(int, int) => Max },
-    f! { int2 max(int2, int2) => Max },
-    f! { int3 max(int3, int3) => Max },
-    f! { int4 max(int4, int4) => Max },
-    f! { float max(float, float) => Max },
-    f! { float2 max(float2, float2) => Max },
-    f! { float3 max(float3, float3) => Max },
-    f! { float4 max(float4, float4) => Max },
+    f! { M min(M, M) => Min | int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M max(M, M) => Max | int, int2, int3, int4, float, float2, float3, float4 },
 
     f! { float1 normalize(float1) => Normalize },
     f! { float2 normalize(float2) => Normalize },
     f! { float3 normalize(float3) => Normalize },
     f! { float4 normalize(float4) => Normalize },
 
-    f! { float pow(float, float) => Pow },
-    f! { float2 pow(float2, float2) => Pow },
-    f! { float3 pow(float3, float3) => Pow },
-    f! { float4 pow(float4, float4) => Pow },
+    f! { M pow(M, M) => Pow | float, float2, float3, float4 },
 
-    f! { float saturate(float) => Saturate },
-    f! { float2 saturate(float2) => Saturate },
-    f! { float3 saturate(float3) => Saturate },
-    f! { float4 saturate(float4) => Saturate },
+    f! { M saturate(M) => Saturate | float, float2, float3, float4 },
 
     f! { int sign(int) => Sign },
     f! { int2 sign(int2) => Sign },
@@ -256,73 +208,84 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { int3 sign(float3) => Sign },
     f! { int4 sign(float4) => Sign },
 
-    f! { float sin(float) => Sin },
-    f! { float2 sin(float2) => Sin },
-    f! { float3 sin(float3) => Sin },
-    f! { float4 sin(float4) => Sin },
+    f! { M sin(M) => Sin | float, float2, float3, float4 },
 
-    f! { void sincos(float, out float, out float) => Sincos },
-    f! { void sincos(float2, out float2, out float2) => Sincos },
-    f! { void sincos(float3, out float3, out float3) => Sincos },
-    f! { void sincos(float4, out float4, out float4) => Sincos },
+    f! { void sincos(M, out M, out M) => Sincos | float, float2, float3, float4 },
 
-    f! { float smoothstep(float, float, float) => SmoothStep },
-    f! { float2 smoothstep(float2, float2, float2) => SmoothStep },
-    f! { float3 smoothstep(float3, float3, float3) => SmoothStep },
-    f! { float4 smoothstep(float4, float4, float4) => SmoothStep },
+    f! { M smoothstep(M, M, M) => SmoothStep | float, float2, float3, float4 },
 
-    f! { float sqrt(float) => Sqrt },
-    f! { float2 sqrt(float2) => Sqrt },
-    f! { float3 sqrt(float3) => Sqrt },
-    f! { float4 sqrt(float4) => Sqrt },
+    f! { M sqrt(M) => Sqrt | float, float2, float3, float4 },
 
-    f! { float step(float, float) => Step },
-    f! { float2 step(float2, float2) => Step },
-    f! { float3 step(float3, float3) => Step },
-    f! { float4 step(float4, float4) => Step },
+    f! { M step(M, M) => Step | float, float2, float3, float4 },
 ];
 
 /// Create a collection of all the intrinsic functions
 pub fn add_intrinsics(module: &mut Module) {
-    for &(ref name, ref intrinsic, ref return_type, param_type_defs) in INTRINSICS {
-        // Fetch the param types
-        let param_types = param_type_defs
-            .iter()
-            .map(|p| ParamType(module.type_registry.register_type(p.0.clone()), p.1, None))
-            .collect::<Vec<_>>();
-
-        // Register the return type
-        let return_type = FunctionReturn {
-            return_type: module.type_registry.register_type(return_type.clone()),
-            semantic: None,
+    for def in INTRINSICS {
+        let multi_types = if def.multi_types.is_empty() {
+            &[TypeLayout::Void]
+        } else {
+            def.multi_types
         };
+        for multi_type in multi_types {
+            // Replace the multi types
+            let remap_inner = |ty| {
+                if let TypeLayout::TemplateParam(v) = ty {
+                    if v.0 == u32::MAX - 1 {
+                        return multi_type.clone();
+                    }
+                };
+                ty
+            };
 
-        // Calculate the number of template arguments to the function
-        let template_params =
-            get_template_param_count(module, return_type.return_type, &param_types);
+            // Fetch the param types
+            let param_types = def
+                .param_types
+                .iter()
+                .map(|p| {
+                    ParamType(
+                        module.type_registry.register_type(remap_inner(p.0.clone())),
+                        p.1,
+                        None,
+                    )
+                })
+                .collect::<Vec<_>>();
 
-        // Make the signature
-        let signature = FunctionSignature {
-            return_type,
-            template_params,
-            param_types,
-        };
+            // Register the return type
+            let return_type = FunctionReturn {
+                return_type: module
+                    .type_registry
+                    .register_type(remap_inner(def.return_type.clone())),
+                semantic: None,
+            };
 
-        // All intrinsic functions are in root namespace
-        let full_name = ScopedName::unscoped(name.to_string());
+            // Calculate the number of template arguments to the function
+            let template_params =
+                get_template_param_count(module, return_type.return_type, &param_types);
 
-        // Register the intrinsic as a function
-        let id = module.function_registry.register_function(
-            FunctionNameDefinition {
-                name: Located::none(name.to_string()),
-                full_name,
-            },
-            signature,
-        );
+            // Make the signature
+            let signature = FunctionSignature {
+                return_type,
+                template_params,
+                param_types,
+            };
 
-        module
-            .function_registry
-            .set_intrinsic_data(id, intrinsic.clone());
+            // All intrinsic functions are in root namespace
+            let full_name = ScopedName::unscoped(def.function_name.to_string());
+
+            // Register the intrinsic as a function
+            let id = module.function_registry.register_function(
+                FunctionNameDefinition {
+                    name: Located::none(def.function_name.to_string()),
+                    full_name,
+                },
+                signature,
+            );
+
+            module
+                .function_registry
+                .set_intrinsic_data(id, def.intrinsic.clone());
+        }
     }
 }
 
@@ -406,7 +369,9 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
     };
 
     let mut methods = Vec::new();
-    for &(method_name, ref intrinsic, ref return_type, param_type_defs) in method_defs {
+    for def in method_defs {
+        assert!(def.multi_types.is_empty());
+
         // Replace the object template type with the type arg
         let remap_inner = |ty| {
             if let TypeLayout::TemplateParam(v) = ty {
@@ -418,7 +383,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         };
 
         // Fetch and remap the param types
-        let param_types = param_type_defs
+        let param_types = def
+            .param_types
             .iter()
             .map(|p| {
                 ParamType(
@@ -430,15 +396,15 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
             .collect::<Vec<_>>();
 
         // Fetch and remap the return type
-        let return_type_layout = remap_inner(return_type.clone());
+        let return_type_layout = remap_inner(def.return_type.clone());
         let return_type = module.type_registry.register_type(return_type_layout);
 
         // Calculate the number of template arguments to the function
         let template_params = get_template_param_count(module, return_type, &param_types);
 
         methods.push(MethodDefinition {
-            name: method_name.to_string(),
-            intrinsic: intrinsic.clone(),
+            name: def.function_name.to_string(),
+            intrinsic: def.intrinsic.clone(),
             signature: FunctionSignature {
                 return_type: FunctionReturn {
                     return_type,
