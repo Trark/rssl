@@ -217,6 +217,36 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { M sqrt(M) => Sqrt | float, float2, float3, float4 },
 
     f! { M step(M, M) => Step | float, float2, float3, float4 },
+
+    f! { uint WaveGetLaneCount() => WaveGetLaneCount },
+    f! { uint WaveGetLaneIndex() => WaveGetLaneIndex },
+    f! { bool WaveIsFirstLane() => WaveIsFirstLane },
+
+    f! { bool WaveActiveAnyTrue(bool) => WaveActiveAnyTrue },
+    f! { bool WaveActiveAllTrue(bool) => WaveActiveAllTrue },
+    f! { uint4 WaveActiveBallot(bool) => WaveActiveBallot },
+
+    f! { M WaveReadLaneAt(M, uint) => WaveReadLaneAt | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M WaveReadLaneFirst(M) => WaveReadLaneFirst | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+
+    f! { bool WaveActiveAllEqual(M) => WaveActiveAllEqual | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { uint WaveActiveCountBits(bool) => WaveActiveCountBits },
+    f! { M WaveActiveSum(M) => WaveActiveSum | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M WaveActiveProduct(M) => WaveActiveProduct | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M WaveActiveBitAnd(M) => WaveActiveBitAnd | uint, uint2, uint3, uint4, int, int2, int3, int4 },
+    f! { M WaveActiveBitOr(M) => WaveActiveBitOr | uint, uint2, uint3, uint4, int, int2, int3, int4 },
+    f! { M WaveActiveBitXor(M) => WaveActiveBitXor | uint, uint2, uint3, uint4, int, int2, int3, int4 },
+    f! { M WaveActiveMin(M) => WaveActiveMin | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M WaveActiveMax(M) => WaveActiveMax | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+
+    f! { uint WavePrefixCountBits(bool) => WavePrefixCountBits },
+    f! { M WavePrefixProduct(M) => WavePrefixProduct | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M WavePrefixSum(M) => WavePrefixSum | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+
+    f! { M QuadReadAcrossX(M) => QuadReadAcrossX | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M QuadReadAcrossY(M) => QuadReadAcrossY | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M QuadReadAcrossDiagonal(M) => QuadReadAcrossDiagonal | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { M QuadReadLaneAt(M, uint) => QuadReadLaneAt | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
 ];
 
 /// Create a collection of all the intrinsic functions

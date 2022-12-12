@@ -101,6 +101,42 @@ pub enum Intrinsic {
     Lerp,
     SmoothStep,
 
+    // Wave Query Intrinsics
+    WaveGetLaneCount,
+    WaveGetLaneIndex,
+    WaveIsFirstLane,
+
+    // Wave Vote Intrinsics
+    WaveActiveAnyTrue,
+    WaveActiveAllTrue,
+    WaveActiveBallot,
+
+    // Wave Broadcast Intrinsics
+    WaveReadLaneAt,
+    WaveReadLaneFirst,
+
+    // Wave Reduction Intrinsics
+    WaveActiveAllEqual,
+    WaveActiveCountBits,
+    WaveActiveSum,
+    WaveActiveProduct,
+    WaveActiveBitAnd,
+    WaveActiveBitOr,
+    WaveActiveBitXor,
+    WaveActiveMin,
+    WaveActiveMax,
+
+    // Wave Scan/Prefix Intrinsics
+    WavePrefixCountBits,
+    WavePrefixProduct,
+    WavePrefixSum,
+
+    // Quad Shuffle Operations
+    QuadReadAcrossX,
+    QuadReadAcrossY,
+    QuadReadAcrossDiagonal,
+    QuadReadLaneAt,
+
     // Buffer methods
     BufferLoad,
     RWBufferLoad,
