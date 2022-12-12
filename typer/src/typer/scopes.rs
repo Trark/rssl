@@ -1,7 +1,7 @@
 use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
-use super::functions::{parse_function_body, ApplyTemplates, FunctionOverload};
+use super::functions::{parse_function_body, ApplyTemplates};
 use super::structs::build_struct_from_template;
 use super::types::apply_template_type_substitution;
 use ir::ExpressionType;
@@ -30,7 +30,7 @@ pub type ScopeIndex = usize;
 
 pub enum StructMemberValue {
     Variable(ir::TypeId),
-    Method(Vec<FunctionOverload>),
+    Method(Vec<ir::FunctionId>),
 }
 
 #[derive(Debug, Clone)]
@@ -421,12 +421,7 @@ impl Context {
         if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
             let mut overloads = Vec::with_capacity(methods.len());
             for method_id in methods {
-                let signature = self
-                    .module
-                    .function_registry
-                    .get_function_signature(*method_id);
-                let overload = FunctionOverload(*method_id, signature.clone());
-                overloads.push(overload);
+                overloads.push(*method_id);
             }
             return Ok(StructMemberValue::Method(overloads));
         }
@@ -792,8 +787,7 @@ impl Context {
         if let Some(ids) = scope.function_ids.get(name) {
             let mut overloads = Vec::with_capacity(ids.len());
             for id in ids {
-                let signature = self.module.function_registry.get_function_signature(*id);
-                overloads.push(FunctionOverload(*id, signature.clone()));
+                overloads.push(*id);
             }
             return Some(VariableExpression::Function(UnresolvedFunction {
                 overloads,

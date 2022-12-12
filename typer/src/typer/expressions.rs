@@ -24,13 +24,13 @@ pub enum VariableExpression {
 /// Set of overloaded functions
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct UnresolvedFunction {
-    pub overloads: Vec<FunctionOverload>,
+    pub overloads: Vec<ir::FunctionId>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
 struct UnresolvedMethod {
     object_type: ir::TypeId,
-    overloads: Vec<FunctionOverload>,
+    overloads: Vec<ir::FunctionId>,
     object_value: ir::Expression,
 }
 
@@ -91,7 +91,7 @@ fn parse_identifier(
 }
 
 fn find_function_type(
-    overloads: &Vec<FunctionOverload>,
+    overloads: &Vec<ir::FunctionId>,
     template_args: &[Located<ir::TypeOrConstant>],
     param_types: &[ExpressionType],
     call_location: SourceLocation,
@@ -99,19 +99,17 @@ fn find_function_type(
 ) -> TyperResult<(FunctionOverload, Vec<ImplicitConversion>)> {
     use crate::casting::VectorRank;
     fn find_overload_casts(
-        overload: &FunctionOverload,
+        mut signature: ir::FunctionSignature,
         template_args: &[Located<ir::TypeOrConstant>],
         param_types: &[ExpressionType],
         context: &mut Context,
-    ) -> Result<(ir::TypeId, Vec<ImplicitConversion>), ()> {
+    ) -> Result<(ir::FunctionSignature, Vec<ImplicitConversion>), ()> {
         let mut overload_casts = Vec::with_capacity(param_types.len());
-
-        let mut signature = overload.1.clone();
 
         // Resolve template arguments
         // Require user to specify all arguments
-        if overload.1.template_params.0 != 0 {
-            if overload.1.template_params.0 as usize != template_args.len() {
+        if signature.template_params.0 != 0 {
+            if signature.template_params.0 as usize != template_args.len() {
                 // Wrong number of template arguments provided
                 return Err(());
             }
@@ -133,18 +131,21 @@ fn find_function_type(
                 return Err(());
             }
         }
-        Ok((signature.return_type.return_type, overload_casts))
+        Ok((signature, overload_casts))
     }
 
     let mut casts = Vec::with_capacity(overloads.len());
     for overload in overloads {
-        if param_types.len() == overload.1.param_types.len() {
-            if let Ok((return_type, param_casts)) =
-                find_overload_casts(overload, template_args, param_types, context)
+        let signature = context
+            .module
+            .function_registry
+            .get_function_signature(*overload);
+        if param_types.len() == signature.param_types.len() {
+            let signature = signature.clone();
+            if let Ok((signature, param_casts)) =
+                find_overload_casts(signature.clone(), template_args, param_types, context)
             {
-                let mut overload = overload.clone();
-                overload.1.return_type.return_type = return_type;
-                casts.push((overload, param_casts))
+                casts.push((FunctionOverload(*overload, signature), param_casts))
             }
         }
     }
@@ -217,7 +218,7 @@ fn find_function_type(
         }
 
         if casts.len() > 1 {
-            let ambiguous_overloads = casts.iter().map(|c| c.0.clone()).collect::<Vec<_>>();
+            let ambiguous_overloads = casts.iter().map(|c| c.0 .0).collect::<Vec<_>>();
             return Err(TyperError::FunctionArgumentTypeMismatch(
                 ambiguous_overloads,
                 param_types.to_vec(),
@@ -1315,13 +1316,7 @@ fn parse_expr_unchecked(
                         if context.module.function_registry.get_function_name(*func_id)
                             == member.node
                         {
-                            let signature = context
-                                .module
-                                .function_registry
-                                .get_function_signature(*func_id)
-                                .clone();
-
-                            overloads.push(FunctionOverload(*func_id, signature))
+                            overloads.push(*func_id)
                         }
                     }
 

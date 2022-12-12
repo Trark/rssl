@@ -1,4 +1,3 @@
-use super::functions::FunctionOverload;
 use super::scopes::Context;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -36,7 +35,7 @@ pub enum TyperError {
 
     FunctionPassedToAnotherFunction(ErrorType, ErrorType),
     FunctionArgumentTypeMismatch(
-        Vec<FunctionOverload>,
+        Vec<ir::FunctionId>,
         Vec<ir::ExpressionType>,
         SourceLocation,
         bool,
@@ -96,8 +95,8 @@ pub enum TyperError {
 pub enum ErrorType {
     Untyped(ast::Type),
     Value(ir::TypeId),
-    Function(Vec<FunctionOverload>),
-    Method(ir::TypeId, Vec<FunctionOverload>),
+    Function(Vec<ir::FunctionId>),
+    Method(ir::TypeId, Vec<ir::FunctionId>),
     Unknown,
 }
 
@@ -314,7 +313,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 call_location,
                 ambiguous_success,
             ) => {
-                let func_name = context.module.get_function_name(overloads[0].0);
+                let func_name = context.module.get_function_name(overloads[0]);
                 write_message(
                     &|f| {
                         if *ambiguous_success {
@@ -334,7 +333,11 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     Severity::Error,
                 )?;
                 for overload in overloads {
-                    let location = get_function_location(overload.0, context);
+                    let location = get_function_location(*overload, context);
+                    let signature = context
+                        .module
+                        .function_registry
+                        .get_function_signature(*overload);
                     write_message(
                         &|f| {
                             write!(
@@ -345,11 +348,10 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                                 } else {
                                     " not viable"
                                 },
-                                get_type_id_string(overload.1.return_type.return_type, context),
+                                get_type_id_string(signature.return_type.return_type, context),
                                 func_name
                             )?;
-                            if let Some((last_param, not_last)) =
-                                overload.1.param_types.split_last()
+                            if let Some((last_param, not_last)) = signature.param_types.split_last()
                             {
                                 for param in not_last {
                                     write!(f, "{}, ", get_param_type_string(param, context))?;
