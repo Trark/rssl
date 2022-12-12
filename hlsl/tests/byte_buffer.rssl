@@ -17,6 +17,7 @@ void test() {
     const uint2 y2 = g_output.Load2(0);
     const uint3 y3 = g_output.Load3(0);
     const uint4 y4 = g_output.Load4(0);
+    const MyStruct y5 = g_output.Load<MyStruct>(0);
 
     g_output.Store(0, x1);
     g_output.Store2(0, x2);
@@ -29,5 +30,17 @@ void test() {
     g_output.Store4(0.0, 0.0);
 
     uint outInt;
+
+    g_input.GetDimensions(outInt);
+    g_output.GetDimensions(outInt);
+
     g_output.InterlockedAdd(0, 0, outInt);
+    g_output.InterlockedAnd(0, 0, outInt);
+    g_output.InterlockedCompareExchange(0, 0, 0, outInt);
+    g_output.InterlockedCompareStore(0, 0, outInt);
+    g_output.InterlockedExchange(0, 0, outInt);
+    g_output.InterlockedMax(0, 0, outInt);
+    g_output.InterlockedMin(0, 0, outInt);
+    g_output.InterlockedOr(0, 0, outInt);
+    g_output.InterlockedXor(0, 0, outInt);
 }

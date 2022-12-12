@@ -146,6 +146,7 @@ pub enum Intrinsic {
     RWStructuredBufferLoad,
 
     // ByteAddressBuffer methods
+    ByteAddressBufferGetDimensions,
     ByteAddressBufferLoad,
     ByteAddressBufferLoad2,
     ByteAddressBufferLoad3,
@@ -153,15 +154,25 @@ pub enum Intrinsic {
     ByteAddressBufferLoadT,
 
     // RWByteAddressBuffer methods
+    RWByteAddressBufferGetDimensions,
     RWByteAddressBufferLoad,
     RWByteAddressBufferLoad2,
     RWByteAddressBufferLoad3,
     RWByteAddressBufferLoad4,
+    RWByteAddressBufferLoadT,
     RWByteAddressBufferStore,
     RWByteAddressBufferStore2,
     RWByteAddressBufferStore3,
     RWByteAddressBufferStore4,
     RWByteAddressBufferInterlockedAdd,
+    RWByteAddressBufferInterlockedAnd,
+    RWByteAddressBufferInterlockedCompareExchange,
+    RWByteAddressBufferInterlockedCompareStore,
+    RWByteAddressBufferInterlockedExchange,
+    RWByteAddressBufferInterlockedMax,
+    RWByteAddressBufferInterlockedMin,
+    RWByteAddressBufferInterlockedOr,
+    RWByteAddressBufferInterlockedXor,
 
     // BufferAddress methods
     BufferAddressLoad,

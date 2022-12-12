@@ -336,23 +336,44 @@ const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int2) => RWTexture2DLoad }];
 
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint) => ByteAddressBufferGetDimensions },
     f! { uint Load(uint) => ByteAddressBufferLoad },
+    f! { uint Load(uint, uint) => ByteAddressBufferLoad },
     f! { uint2 Load2(uint) => ByteAddressBufferLoad2 },
+    f! { uint2 Load2(uint, uint) => ByteAddressBufferLoad2 },
     f! { uint3 Load3(uint) => ByteAddressBufferLoad3 },
+    f! { uint3 Load3(uint, uint) => ByteAddressBufferLoad3 },
     f! { uint4 Load4(uint) => ByteAddressBufferLoad4 },
+    f! { uint4 Load4(uint, uint) => ByteAddressBufferLoad4 },
     f! { T Load(uint) => ByteAddressBufferLoadT },
+    f! { T Load(uint, uint) => ByteAddressBufferLoadT },
 ];
 
 const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint) => RWByteAddressBufferGetDimensions },
     f! { uint Load(uint) => RWByteAddressBufferLoad },
+    f! { uint Load(uint, uint) => RWByteAddressBufferLoad },
     f! { uint2 Load2(uint) => RWByteAddressBufferLoad2 },
+    f! { uint2 Load2(uint, uint) => RWByteAddressBufferLoad2 },
     f! { uint3 Load3(uint) => RWByteAddressBufferLoad3 },
+    f! { uint3 Load3(uint, uint) => RWByteAddressBufferLoad3 },
     f! { uint4 Load4(uint) => RWByteAddressBufferLoad4 },
+    f! { uint4 Load4(uint, uint) => RWByteAddressBufferLoad4 },
+    f! { T Load(uint) => RWByteAddressBufferLoadT },
+    f! { T Load(uint, uint) => RWByteAddressBufferLoadT },
     f! { void Store(uint, uint) => RWByteAddressBufferStore },
     f! { void Store2(uint, uint2) => RWByteAddressBufferStore2 },
     f! { void Store3(uint, uint3) => RWByteAddressBufferStore3 },
     f! { void Store4(uint, uint4) => RWByteAddressBufferStore4 },
     f! { void InterlockedAdd(uint, uint, out uint) => RWByteAddressBufferInterlockedAdd },
+    f! { void InterlockedAnd(uint, uint, out uint) => RWByteAddressBufferInterlockedAnd },
+    f! { void InterlockedCompareExchange(uint, uint, uint, out uint) => RWByteAddressBufferInterlockedCompareExchange },
+    f! { void InterlockedCompareStore(uint, uint, uint) => RWByteAddressBufferInterlockedCompareStore },
+    f! { void InterlockedExchange(uint, uint, out uint) => RWByteAddressBufferInterlockedExchange },
+    f! { void InterlockedMax(uint, uint, out uint) => RWByteAddressBufferInterlockedMax },
+    f! { void InterlockedMin(uint, uint, out uint) => RWByteAddressBufferInterlockedMin },
+    f! { void InterlockedOr(uint, uint, out uint) => RWByteAddressBufferInterlockedOr },
+    f! { void InterlockedXor(uint, uint, out uint) => RWByteAddressBufferInterlockedXor },
 ];
 const BUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] =
     &[f! { T Load(uint) => BufferAddressLoad }];
