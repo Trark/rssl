@@ -1211,9 +1211,24 @@ fn export_intrinsic_function(
         RWBufferAddressLoad => Form::AddressMethod("Load", "vk::RawBufferLoad"),
         RWBufferAddressStore => Form::AddressMethod("Store", "vk::RawBufferStore"),
 
+        Texture2DGetDimensions => Form::Method("GetDimensions"),
         Texture2DLoad => Form::Method("Load"),
         Texture2DSample => Form::Method("Sample"),
+        Texture2DSampleBias => Form::Method("SampleBias"),
+        Texture2DSampleCmp => Form::Method("SampleCmp"),
+        Texture2DSampleCmpLevelZero => Form::Method("SampleCmpLevelZero"),
+        Texture2DSampleGrad => Form::Method("SampleGrad"),
+        Texture2DSampleLevel => Form::Method("SampleLevel"),
+        Texture2DGatherRed => Form::Method("GatherRed"),
+        Texture2DGatherGreen => Form::Method("GatherGreen"),
+        Texture2DGatherBlue => Form::Method("GatherBlue"),
+        Texture2DGatherAlpha => Form::Method("GatherAlpha"),
+        Texture2DGatherCmpRed => Form::Method("GatherCmpRed"),
+        Texture2DGatherCmpGreen => Form::Method("GatherCmpGreen"),
+        Texture2DGatherCmpBlue => Form::Method("GatherCmpBlue"),
+        Texture2DGatherCmpAlpha => Form::Method("GatherCmpAlpha"),
 
+        RWTexture2DGetDimensions => Form::Method("GetDimensions"),
         RWTexture2DLoad => Form::Method("Load"),
     };
 

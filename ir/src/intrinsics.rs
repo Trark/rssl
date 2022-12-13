@@ -190,10 +190,25 @@ pub enum Intrinsic {
     RWBufferAddressStore,
 
     // Texture2D methods
+    Texture2DGetDimensions,
     Texture2DLoad,
     Texture2DSample,
+    Texture2DSampleBias,
+    Texture2DSampleCmp,
+    Texture2DSampleCmpLevelZero,
+    Texture2DSampleGrad,
+    Texture2DSampleLevel,
+    Texture2DGatherRed,
+    Texture2DGatherGreen,
+    Texture2DGatherBlue,
+    Texture2DGatherAlpha,
+    Texture2DGatherCmpRed,
+    Texture2DGatherCmpGreen,
+    Texture2DGatherCmpBlue,
+    Texture2DGatherCmpAlpha,
 
     // RWTexture2D methods
+    RWTexture2DGetDimensions,
     RWTexture2DLoad,
 }
 
