@@ -1142,6 +1142,13 @@ fn export_intrinsic_function(
         Lerp => Form::Invoke("lerp"),
         SmoothStep => Form::Invoke("smoothstep"),
 
+        DDX => Form::Invoke("ddx"),
+        DDXCoarse => Form::Invoke("ddx_coarse"),
+        DDXFine => Form::Invoke("ddx_fine"),
+        DDY => Form::Invoke("ddy"),
+        DDYCoarse => Form::Invoke("ddy_coarse"),
+        DDYFine => Form::Invoke("ddy_fine"),
+
         InterlockedAdd => Form::Invoke("InterlockedAdd"),
         InterlockedAnd => Form::Invoke("InterlockedAnd"),
         InterlockedCompareExchange => Form::Invoke("InterlockedCompareExchange"),

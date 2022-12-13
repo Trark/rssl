@@ -225,6 +225,13 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { M step(M, M) => Step | float, float2, float3, float4 },
 
+    f! { M ddx(M) => DDX | float, float2, float3, float4 },
+    f! { M ddx_coarse(M) => DDXCoarse | float, float2, float3, float4 },
+    f! { M ddx_fine(M) => DDXFine | float, float2, float3, float4 },
+    f! { M ddy(M) => DDY | float, float2, float3, float4 },
+    f! { M ddy_coarse(M) => DDYCoarse | float, float2, float3, float4 },
+    f! { M ddy_fine(M) => DDYFine | float, float2, float3, float4 },
+
     f! { void InterlockedAdd(M, M, out M) => InterlockedAdd | uint, int },
     f! { void InterlockedAnd(M, M, out M) => InterlockedAnd | uint, int },
     f! { void InterlockedCompareExchange(M, M, M, out M) => InterlockedCompareExchange | uint, int },

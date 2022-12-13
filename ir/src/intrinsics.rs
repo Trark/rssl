@@ -101,6 +101,14 @@ pub enum Intrinsic {
     Lerp,
     SmoothStep,
 
+    // Derivatives
+    DDX,
+    DDXCoarse,
+    DDXFine,
+    DDY,
+    DDYCoarse,
+    DDYFine,
+
     // Atomics
     InterlockedAdd,
     InterlockedAnd,
