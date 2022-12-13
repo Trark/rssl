@@ -553,21 +553,38 @@ fn macro_resolve() {
 }
 
 /// Stores the active #if blocks
-struct ConditionChain(Vec<bool>);
+struct ConditionChain(Vec<ConditionState>);
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+enum ConditionState {
+    /// We are currently parsing code
+    Enabled,
+
+    /// We are not parsing code but we are parsing conditions
+    DisabledInner,
+
+    /// We are not parsing code and we are not parsing conditions
+    DisabledOuter,
+}
 
 impl ConditionChain {
     fn new() -> ConditionChain {
         ConditionChain(vec![])
     }
 
-    fn push(&mut self, gate: bool) {
+    fn push(&mut self, gate: ConditionState) {
         self.0.push(gate);
     }
 
-    fn switch(&mut self) -> Result<(), PreprocessError> {
+    fn switch(&mut self, active: bool) -> Result<(), PreprocessError> {
         match self.0.pop() {
             Some(val) => {
-                self.0.push(!val);
+                self.0.push(match val {
+                    ConditionState::Enabled => ConditionState::DisabledOuter,
+                    ConditionState::DisabledInner if active => ConditionState::Enabled,
+                    ConditionState::DisabledInner => ConditionState::DisabledInner,
+                    ConditionState::DisabledOuter => ConditionState::DisabledOuter,
+                });
                 Ok(())
             }
             None => Err(PreprocessError::ElseNotMatched),
@@ -582,7 +599,7 @@ impl ConditionChain {
     }
 
     fn is_active(&self) -> bool {
-        self.0.iter().all(|gate| *gate)
+        self.0.iter().all(|gate| *gate == ConditionState::Enabled)
     }
 }
 
@@ -730,7 +747,7 @@ fn preprocess_command<'a>(
         }
     } else if command.starts_with("ifdef") || command.starts_with("ifndef") {
         if skip {
-            condition_chain.push(false);
+            condition_chain.push(ConditionState::DisabledInner);
             return Ok(get_after_single_line(command));
         }
         let not = command.starts_with("ifndef");
@@ -745,7 +762,12 @@ fn preprocess_command<'a>(
                 let body = &args[..end].trim();
 
                 let exists = macros.iter().any(|m| &m.0 == body);
-                condition_chain.push(if not { !exists } else { exists });
+                let active = if not { !exists } else { exists };
+                condition_chain.push(if active {
+                    ConditionState::Enabled
+                } else {
+                    ConditionState::DisabledInner
+                });
 
                 let remaining = &args[end..];
                 Ok(remaining)
@@ -754,7 +776,7 @@ fn preprocess_command<'a>(
         }
     } else if let Some(next) = command.strip_prefix("if") {
         if skip {
-            condition_chain.push(false);
+            condition_chain.push(ConditionState::DisabledInner);
             return Ok(get_after_single_line(command));
         }
         match next.chars().next() {
@@ -779,7 +801,11 @@ fn preprocess_command<'a>(
                 };
 
                 let active = crate::condition_parser::parse(resolved_no_comment)?;
-                condition_chain.push(active);
+                condition_chain.push(if active {
+                    ConditionState::Enabled
+                } else {
+                    ConditionState::DisabledInner
+                });
 
                 Ok(remaining)
             }
@@ -798,12 +824,45 @@ fn preprocess_command<'a>(
                     return Err(PreprocessError::InvalidElse);
                 }
 
-                condition_chain.switch()?;
+                condition_chain.switch(true)?;
 
                 let remaining = &args[end..];
                 Ok(remaining)
             }
             _ => Err(PreprocessError::InvalidElse),
+        }
+    } else if let Some(next) = command.strip_prefix("elif") {
+        match next.chars().next() {
+            Some(' ') | Some('\t') | Some('(') => {
+                let args = next.trim_start();
+                let end = match args.find('\n') {
+                    Some(sz) => sz + 1,
+                    _ => return Err(PreprocessError::InvalidIf(command.to_string())),
+                };
+                let body = &args[..end].trim();
+                let remaining = &args[end..];
+
+                let resolved = SubstitutedText::new(body, SourceLocation::UNKNOWN)
+                    .apply_all(macros)?
+                    .resolve();
+
+                let resolved_str: &str = &resolved;
+                // Sneaky hack to make `#if COND // comment` work
+                let resolved_no_comment = match resolved_str.find("//") {
+                    Some(sz) => resolved_str[..sz].trim(),
+                    None => resolved_str,
+                };
+
+                let active = crate::condition_parser::parse(resolved_no_comment)?;
+                condition_chain.switch(active)?;
+
+                if skip {
+                    Ok(get_after_single_line(command))
+                } else {
+                    Ok(remaining)
+                }
+            }
+            _ => Err(PreprocessError::InvalidIf(command.to_string())),
         }
     } else if let Some(next) = command.strip_prefix("endif") {
         match next.chars().next() {

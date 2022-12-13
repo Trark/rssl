@@ -73,6 +73,8 @@ fn test_condition() {
     assert_text!(pp("#if 1\nX\n#else\nY\n#endif"), "X\n");
     assert_text!(pp("#if !0\nX\n#else\nY\n#endif"), "X\n");
     assert_text!(pp("#if !1\nX\n#else\nY\n#endif"), "Y\n");
+    assert_text!(pp("#if 0\n#if 0\nX\n#else\nY\n#endif\n#endif"), "");
+    assert_text!(pp("#if 0\n#if 1\nX\n#else\nY\n#endif\n#endif"), "");
     assert_text!(pp("#if\t 1  \n X  \n #else \n Y \n#endif \n\t"), " X  \n\t");
     assert_text!(pp("#define TRUE 1\n#if TRUE\nX\n#else\nY\n#endif"), "X\n");
     assert_text!(pp("#define TRUE\n#ifdef TRUE\nX\n#else\nY\n#endif"), "X\n");
@@ -97,6 +99,25 @@ fn test_condition() {
                    comment\nX"
         ),
         "Y"
+    );
+    assert_text!(pp("#if 0\nX\n#elif 0\nY\n#endif"), "");
+    assert_text!(pp("#if 0\nX\n#elif 1\nY\n#endif"), "Y\n");
+    assert_text!(pp("#if 1\nX\n#elif 0\nY\n#endif"), "X\n");
+    assert_text!(pp("#if 1\nX\n#elif 1\nY\n#endif"), "X\n");
+    assert_text!(pp("#if 0\nX\n#elif 0\nY\n#else\nZ\n#endif"), "Z\n");
+    assert_text!(pp("#if 0\nX\n#elif 1\nY\n#else\nZ\n#endif"), "Y\n");
+    assert_text!(pp("#if 1\nX\n#elif 0\nY\n#else\nZ\n#endif"), "X\n");
+    assert_text!(
+        pp("#if 0\n#if 0\nX\n#elif 0\nY\n#else\nZ\n#endif\n#endif"),
+        ""
+    );
+    assert_text!(
+        pp("#if 0\n#if 0\nX\n#elif 1\nY\n#else\nZ\n#endif\n#endif"),
+        ""
+    );
+    assert_text!(
+        pp("#if 0\n#if 1\nX\n#elif 0\nY\n#else\nZ\n#endif\n#endif"),
+        ""
     );
 }
 
