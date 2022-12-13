@@ -1238,6 +1238,31 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
     }
 }
 
+/// Run the lexer on input text to turn it into tokens without location information or advanced error information
+pub fn minilex(text: &str) -> Result<Vec<Token>, LexerError> {
+    let code_bytes = text.as_bytes();
+    match token_stream(code_bytes) {
+        Ok((rest, stream)) => {
+            if rest.is_empty() {
+                let mut tokens = Vec::with_capacity(stream.len());
+                for StreamToken(ref token, _) in stream {
+                    tokens.push(token.clone());
+                }
+                Ok(tokens)
+            } else {
+                Err(LexerError::new(
+                    LexerErrorReason::Unknown,
+                    SourceLocation::UNKNOWN,
+                ))
+            }
+        }
+        Err(LexErrorContext(_, _)) => Err(LexerError::new(
+            LexerErrorReason::Unknown,
+            SourceLocation::UNKNOWN,
+        )),
+    }
+}
+
 #[test]
 fn test_token() {
     fn from_end(tok: Token, from: u32) -> IntermediateToken {
