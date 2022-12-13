@@ -82,6 +82,12 @@ fn parse_struct_internal(
                     .get_type_layout(base_type)
                     .clone();
 
+                if base_type_layout.is_const() {
+                    return Err(TyperError::StructMemberMayNotBeConst(
+                        ast_member.ty.location,
+                    ));
+                }
+
                 let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
                 let base_type_layout_unmodified = context
                     .module

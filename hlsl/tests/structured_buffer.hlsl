@@ -1,6 +1,6 @@
 struct MyStruct
 {
-    const uint m;
+    uint m;
 };
 
 StructuredBuffer<MyStruct> g_input : register(t0);

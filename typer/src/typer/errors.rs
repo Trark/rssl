@@ -89,6 +89,9 @@ pub enum TyperError {
 
     /// A variable was declared with an incomplete type
     VariableHasIncompleteType(ir::TypeId, SourceLocation),
+
+    /// A struct member was declared with const
+    StructMemberMayNotBeConst(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -517,6 +520,11 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         get_type_id_string(*ty, context)
                     )
                 },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StructMemberMayNotBeConst(loc) => write_message(
+                &|f| write!(f, "struct member was declared const"),
                 *loc,
                 Severity::Error,
             ),
