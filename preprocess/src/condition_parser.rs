@@ -79,6 +79,7 @@ fn parse_leaf(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionP
                     return Ok((rest, inner));
                 }
             }
+            Token::Id(_) => return Ok((rest, 0)),
             _ => {}
         }
     }
