@@ -1164,7 +1164,10 @@ fn export_intrinsic_function(
         QuadReadAcrossDiagonal => Form::Invoke("QuadReadAcrossDiagonal"),
         QuadReadLaneAt => Form::Invoke("QuadReadLaneAt"),
 
+        BufferGetDimensions => Form::Method("GetDimensions"),
         BufferLoad => Form::Method("Load"),
+
+        RWBufferGetDimensions => Form::Method("GetDimensions"),
         RWBufferLoad => Form::Method("Load"),
 
         StructuredBufferLoad => Form::Method("Load"),

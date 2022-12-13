@@ -138,7 +138,11 @@ pub enum Intrinsic {
     QuadReadLaneAt,
 
     // Buffer methods
+    BufferGetDimensions,
     BufferLoad,
+
+    // RWBuffer methods
+    RWBufferGetDimensions,
     RWBufferLoad,
 
     // StructuredBuffer methods

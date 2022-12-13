@@ -318,9 +318,17 @@ pub fn add_intrinsics(module: &mut Module) {
     }
 }
 
-const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int) => BufferLoad }];
+const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint) => BufferGetDimensions },
+    f! { D Load(int) => BufferLoad },
+    f! { D Load(int, uint) => BufferLoad },
+];
 
-const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int) => RWBufferLoad }];
+const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint) => RWBufferGetDimensions },
+    f! { D Load(int) => RWBufferLoad },
+    f! { D Load(int, uint) => RWBufferLoad },
+];
 
 const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
     &[f! { D Load(int) => StructuredBufferLoad }];
