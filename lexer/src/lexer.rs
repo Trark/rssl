@@ -1159,6 +1159,14 @@ fn token(input: &[u8]) -> LexResult<IntermediateToken> {
 fn token_stream(mut input: &[u8]) -> LexResult<Vec<StreamToken>> {
     let total_length = input.len() as u32;
     let mut tokens = Vec::new();
+
+    // If the input only contains whitespace then early out
+    // We only consume whitespace around tokens so with no tokens the whitespace will be left unparsed
+    let (no_whitespace_input, _) = skip_whitespace(input)?;
+    if no_whitespace_input.is_empty() {
+        return Ok((&[], tokens));
+    }
+
     while !input.is_empty() {
         match token(input) {
             Ok((rest, itoken)) => {
@@ -1544,6 +1552,10 @@ fn test_token() {
 #[test]
 fn test_token_stream() {
     assert_eq!(token_stream(&b""[..]), Ok((&b""[..], vec![])));
+    assert_eq!(
+        token_stream(&b"// Comment only source!\n"[..]),
+        Ok((&b""[..], vec![]))
+    );
 
     fn token_id(name: &'static str, loc: u32) -> StreamToken {
         StreamToken(Token::Id(Identifier(name.to_string())), StreamLocation(loc))
