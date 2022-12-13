@@ -146,7 +146,11 @@ pub enum Intrinsic {
     RWBufferLoad,
 
     // StructuredBuffer methods
+    StructuredBufferGetDimensions,
     StructuredBufferLoad,
+
+    // RWStructuredBuffer methods
+    RWStructuredBufferGetDimensions,
     RWStructuredBufferLoad,
 
     // ByteAddressBuffer methods

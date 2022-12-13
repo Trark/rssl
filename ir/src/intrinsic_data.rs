@@ -330,11 +330,17 @@ const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D Load(int, uint) => RWBufferLoad },
 ];
 
-const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[f! { D Load(int) => StructuredBufferLoad }];
+const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint, out uint) => StructuredBufferGetDimensions },
+    f! { D Load(int) => StructuredBufferLoad },
+    f! { D Load(int, uint) => StructuredBufferLoad },
+];
 
-const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] =
-    &[f! { D Load(int) => RWStructuredBufferLoad }];
+const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint, out uint) => RWStructuredBufferGetDimensions },
+    f! { D Load(int) => RWStructuredBufferLoad },
+    f! { D Load(int, uint) => RWStructuredBufferLoad },
+];
 
 const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D Sample(SamplerState, float2) => Texture2DSample },

@@ -1170,7 +1170,10 @@ fn export_intrinsic_function(
         RWBufferGetDimensions => Form::Method("GetDimensions"),
         RWBufferLoad => Form::Method("Load"),
 
+        StructuredBufferGetDimensions => Form::Method("GetDimensions"),
         StructuredBufferLoad => Form::Method("Load"),
+
+        RWStructuredBufferGetDimensions => Form::Method("GetDimensions"),
         RWStructuredBufferLoad => Form::Method("Load"),
 
         ByteAddressBufferGetDimensions => Form::Method("GetDimensions"),
