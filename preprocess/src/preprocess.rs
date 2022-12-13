@@ -359,7 +359,7 @@ impl SubstitutedSegment {
                     let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
                         let mut vec = vec?;
                         let raw_text = SubstitutedText::new(arg, SourceLocation::UNKNOWN);
-                        let subbed_text = raw_text.apply_all(macro_defs)?;
+                        let subbed_text = raw_text.apply_all(macro_defs, false)?;
                         let final_text = subbed_text.resolve();
                         vec.push(final_text);
                         Ok(vec)
@@ -396,6 +396,87 @@ impl SubstitutedSegment {
         }
         Ok(())
     }
+
+    fn apply_defined(
+        self,
+        macro_defs: &[Macro],
+        output: &mut Vec<SubstitutedSegment>,
+    ) -> Result<(), PreprocessError> {
+        let defined_name = "defined";
+        match self {
+            SubstitutedSegment::Text(text, location) => {
+                if let Some(sz) = find_macro(&text, defined_name) {
+                    let before = &text[..sz];
+                    let after_offset = sz + defined_name.len();
+                    let mut remaining = &text[after_offset..];
+
+                    // Read macro arguments
+                    let args = {
+                        // Consume the starting bracket
+                        let sz = match remaining.find('(') {
+                            Some(sz) => {
+                                let gap = remaining[..sz].trim();
+                                if !gap.is_empty() {
+                                    return Err(PreprocessError::MacroRequiresArguments);
+                                }
+                                sz
+                            }
+                            None => return Err(PreprocessError::MacroRequiresArguments),
+                        };
+                        remaining = &remaining[(sz + 1)..];
+
+                        // Consume all the arguments
+                        let mut args = vec![];
+                        loop {
+                            let (sz, last) = match (remaining.find(','), remaining.find(')')) {
+                                (Some(szn), Some(szl)) if szn < szl => (szn, false),
+                                (_, Some(szl)) => (szl, true),
+                                (Some(szn), None) => (szn, false),
+                                (None, None) => {
+                                    return Err(PreprocessError::MacroArgumentsNeverEnd);
+                                }
+                            };
+                            let arg = remaining[..sz].trim();
+                            args.push(arg);
+                            remaining = &remaining[(sz + 1)..];
+                            if last {
+                                break;
+                            }
+                        }
+                        args
+                    };
+
+                    let after = remaining;
+
+                    if args.len() as u64 != 1 {
+                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                    }
+
+                    let exists = macro_defs.iter().any(|m| m.0 == args[0]);
+
+                    let after_location = location.offset((text.len() - after.len()) as u32);
+                    if !before.is_empty() {
+                        output.push(SubstitutedSegment::Text(before.to_string(), location));
+                    }
+                    output.push(SubstitutedSegment::Replaced(
+                        if exists { "1" } else { "0" }.to_string(),
+                        SourceLocation::UNKNOWN,
+                    ));
+                    if !after.is_empty() {
+                        SubstitutedSegment::Text(after.to_string(), after_location)
+                            .apply_defined(macro_defs, output)?;
+                    }
+                    return Ok(());
+                }
+                assert!(!text.is_empty());
+                output.push(SubstitutedSegment::Text(text, location))
+            }
+            SubstitutedSegment::Replaced(text, location) => {
+                output.push(SubstitutedSegment::Replaced(text, location))
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -410,12 +491,23 @@ impl SubstitutedText {
         }
     }
 
-    fn apply_all(self, macro_defs: &[Macro]) -> Result<SubstitutedText, PreprocessError> {
+    fn apply_all(
+        self,
+        macro_defs: &[Macro],
+        apply_defined: bool,
+    ) -> Result<SubstitutedText, PreprocessError> {
         let length = self.0.len();
         let segments_iter = self.0.into_iter();
         let vec = segments_iter.fold(Ok(Vec::with_capacity(length)), |vec_res, segment| {
             let mut vec = vec_res?;
             let mut last_segments = vec![segment];
+            if apply_defined {
+                let mut next_segments = Vec::with_capacity(last_segments.len());
+                for substituted_segment in last_segments {
+                    substituted_segment.apply_defined(macro_defs, &mut next_segments)?;
+                }
+                last_segments = next_segments;
+            }
             for macro_def in macro_defs {
                 let mut next_segments = Vec::with_capacity(last_segments.len());
                 for substituted_segment in last_segments {
@@ -529,7 +621,7 @@ fn macro_from_definition() {
 fn macro_resolve() {
     fn run(input: &str, macros: &[Macro], expected_output: &str) {
         let text = SubstitutedText::new(input, SourceLocation::UNKNOWN);
-        let resolved_text = text.apply_all(&macros).unwrap().resolve();
+        let resolved_text = text.apply_all(&macros, false).unwrap().resolve();
         assert_eq!(resolved_text, expected_output);
     }
 
@@ -790,7 +882,7 @@ fn preprocess_command<'a>(
                 let remaining = &args[end..];
 
                 let resolved = SubstitutedText::new(body, SourceLocation::UNKNOWN)
-                    .apply_all(macros)?
+                    .apply_all(macros, true)?
                     .resolve();
 
                 let resolved_str: &str = &resolved;
@@ -843,7 +935,7 @@ fn preprocess_command<'a>(
                 let remaining = &args[end..];
 
                 let resolved = SubstitutedText::new(body, SourceLocation::UNKNOWN)
-                    .apply_all(macros)?
+                    .apply_all(macros, true)?
                     .resolve();
 
                 let resolved_str: &str = &resolved;
@@ -932,7 +1024,7 @@ fn preprocess_command<'a>(
 
                 let body = body.trim().replace("\\\n", "\n").replace("\\\r\n", "\r\n");
                 let subbed_body = SubstitutedText::new(&body, SourceLocation::UNKNOWN)
-                    .apply_all(macros)?
+                    .apply_all(macros, false)?
                     .resolve();
                 let macro_def = Macro::from_definition(header, &subbed_body, location)?;
 
@@ -1019,7 +1111,7 @@ fn preprocess_included_file(
             stream = &stream[sz..];
             if condition_chain.is_active() {
                 SubstitutedText::new(line, source_location)
-                    .apply_all(macros)?
+                    .apply_all(macros, false)?
                     .store(buffer);
             }
             if final_segment {

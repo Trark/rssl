@@ -100,6 +100,15 @@ fn test_condition() {
         ),
         "Y"
     );
+}
+
+#[test]
+fn test_condition_elif() {
+    let pp = preprocess_single_test;
+    assert_err!(
+        pp("#if 0\nX\n#elif 0\nY\n"),
+        PreprocessError::ConditionChainNotFinished
+    );
     assert_text!(pp("#if 0\nX\n#elif 0\nY\n#endif"), "");
     assert_text!(pp("#if 0\nX\n#elif 1\nY\n#endif"), "Y\n");
     assert_text!(pp("#if 1\nX\n#elif 0\nY\n#endif"), "X\n");
@@ -118,6 +127,35 @@ fn test_condition() {
     assert_text!(
         pp("#if 0\n#if 1\nX\n#elif 0\nY\n#else\nZ\n#endif\n#endif"),
         ""
+    );
+}
+
+#[test]
+fn test_condition_defined() {
+    let pp = preprocess_single_test;
+    assert_text!(pp("#if defined(A)\nX\n#else\nY\n#endif"), "Y\n");
+    assert_text!(pp("#if !defined(A)\nX\n#else\nY\n#endif"), "X\n");
+    assert_text!(
+        pp("#define A 1\n#if defined(A)\nX\n#else\nY\n#endif"),
+        "X\n"
+    );
+    assert_text!(
+        pp("#define A 1\n#if !defined(A)\nX\n#else\nY\n#endif"),
+        "Y\n"
+    );
+    assert_text!(
+        pp("#define A 0\n#if defined(A)\nX\n#else\nY\n#endif"),
+        "X\n"
+    );
+    assert_text!(
+        pp("#define A 0\n#if !defined(A)\nX\n#else\nY\n#endif"),
+        "Y\n"
+    );
+    assert_text!(pp("defined(A)"), "defined(A)");
+    assert_text!(pp("!defined(A)"), "!defined(A)");
+    assert_text!(
+        pp("#if defined(A)\ndefined(B)\n#else\ndefined(C)\n#endif"),
+        "defined(C)\n"
     );
 }
 
