@@ -275,6 +275,7 @@ pub enum ObjectType {
     ConstantBuffer(TypeId),
 
     SamplerState,
+    SamplerComparisonState,
 }
 
 /// A constant value
@@ -768,6 +769,7 @@ impl std::fmt::Debug for ObjectType {
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{:?}>", dt),
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{:?}>", st),
             SamplerState => write!(f, "SamplerState"),
+            SamplerComparisonState => write!(f, "SamplerComparisonState"),
         }
     }
 }

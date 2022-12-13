@@ -579,6 +579,9 @@ fn export_type_impl(
                 ir::ObjectType::SamplerState => {
                     output.push_str("SamplerState");
                 }
+                ir::ObjectType::SamplerComparisonState => {
+                    output.push_str("SamplerComparisonState");
+                }
             };
         }
         ir::TypeLayer::Array(ty, len) => {

@@ -78,6 +78,13 @@ macro_rules! param_type {
         )
     };
 
+    (SamplerComparisonState) => {
+        ParamDef(
+            TypeLayout::Object(ObjectType::SamplerComparisonState),
+            InputModifier::In,
+        )
+    };
+
     ($ty:ident) => {
         ParamDef(type_from_str(stringify!($ty)), InputModifier::In)
     };

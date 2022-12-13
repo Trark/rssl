@@ -49,7 +49,6 @@ fn parse_rootdefinition(
             Ok(Vec::from([def]))
         }
         ast::RootDefinition::Enum(_) => todo!(),
-        ast::RootDefinition::SamplerState => todo!(),
         ast::RootDefinition::ConstantBuffer(ref cb) => {
             let def = globals::parse_rootdefinition_constantbuffer(cb, context)?;
             Ok(Vec::from([def]))

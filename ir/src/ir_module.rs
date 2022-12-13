@@ -358,7 +358,10 @@ impl Module {
 
                                                 ObjectType::ConstantBuffer(_) => RegisterType::B,
 
-                                                ObjectType::SamplerState => RegisterType::S,
+                                                ObjectType::SamplerState
+                                                | ObjectType::SamplerComparisonState => {
+                                                    RegisterType::S
+                                                }
                                             }
                                         } else {
                                             panic!("Non-object type has a global resource binding");

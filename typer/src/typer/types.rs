@@ -280,6 +280,9 @@ fn parse_object_type(
             get_structured_type(template_args, context)?,
         ))),
         "SamplerState" => Some(ir::TypeLayout::Object(ir::ObjectType::SamplerState)),
+        "SamplerComparisonState" => Some(ir::TypeLayout::Object(
+            ir::ObjectType::SamplerComparisonState,
+        )),
         _ => None,
     }
 }

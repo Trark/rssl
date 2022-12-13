@@ -16,7 +16,6 @@ pub struct Module {
 pub enum RootDefinition {
     Struct(StructDefinition),
     Enum(EnumDefinition),
-    SamplerState,
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),
     Function(FunctionDefinition),
