@@ -16,6 +16,7 @@ pub enum PreprocessError {
     FailedToParseIfCondition(String),
     InvalidIfndef(String),
     InvalidElse,
+    InvalidElif(String),
     InvalidEndIf,
     ConditionChainNotFinished,
     ElseNotMatched,
@@ -46,6 +47,7 @@ impl std::fmt::Display for PreprocessError {
             }
             PreprocessError::InvalidIfndef(s) => write!(f, "Invalid #ifndef: {}", s),
             PreprocessError::InvalidElse => write!(f, "Invalid #else"),
+            PreprocessError::InvalidElif(s) => write!(f, "invalid #elif: {}", s),
             PreprocessError::InvalidEndIf => write!(f, "Invalid #endif"),
             PreprocessError::ConditionChainNotFinished => {
                 write!(f, "Not enough #endif's encountered")
@@ -929,7 +931,7 @@ fn preprocess_command<'a>(
                 let args = next.trim_start();
                 let end = match args.find('\n') {
                     Some(sz) => sz + 1,
-                    _ => return Err(PreprocessError::InvalidIf(command.to_string())),
+                    _ => return Err(PreprocessError::InvalidElif(command.to_string())),
                 };
                 let body = &args[..end].trim();
                 let remaining = &args[end..];
@@ -954,7 +956,7 @@ fn preprocess_command<'a>(
                     Ok(remaining)
                 }
             }
-            _ => Err(PreprocessError::InvalidIf(command.to_string())),
+            _ => Err(PreprocessError::InvalidElif(command.to_string())),
         }
     } else if let Some(next) = command.strip_prefix("endif") {
         match next.chars().next() {
