@@ -225,6 +225,16 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { M step(M, M) => Step | float, float2, float3, float4 },
 
+    f! { void InterlockedAdd(M, M, out M) => InterlockedAdd | uint, int },
+    f! { void InterlockedAnd(M, M, out M) => InterlockedAnd | uint, int },
+    f! { void InterlockedCompareExchange(M, M, M, out M) => InterlockedCompareExchange | uint, int },
+    f! { void InterlockedCompareStore(M, M, M) => InterlockedCompareStore | uint, int },
+    f! { void InterlockedExchange(M, M, out M) => InterlockedExchange | uint, int },
+    f! { void InterlockedMax(M, M, out M) => InterlockedMax | uint, int },
+    f! { void InterlockedMin(M, M, out M) => InterlockedMin | uint, int },
+    f! { void InterlockedOr(M, M, out M) => InterlockedOr | uint, int },
+    f! { void InterlockedXor(M, M, out M) => InterlockedXor | uint, int },
+
     f! { uint WaveGetLaneCount() => WaveGetLaneCount },
     f! { uint WaveGetLaneIndex() => WaveGetLaneIndex },
     f! { bool WaveIsFirstLane() => WaveIsFirstLane },

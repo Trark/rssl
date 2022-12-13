@@ -101,6 +101,17 @@ pub enum Intrinsic {
     Lerp,
     SmoothStep,
 
+    // Atomics
+    InterlockedAdd,
+    InterlockedAnd,
+    InterlockedCompareExchange,
+    InterlockedCompareStore,
+    InterlockedExchange,
+    InterlockedMax,
+    InterlockedMin,
+    InterlockedOr,
+    InterlockedXor,
+
     // Wave Query Intrinsics
     WaveGetLaneCount,
     WaveGetLaneIndex,

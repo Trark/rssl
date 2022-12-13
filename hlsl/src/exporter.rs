@@ -1142,6 +1142,16 @@ fn export_intrinsic_function(
         Lerp => Form::Invoke("lerp"),
         SmoothStep => Form::Invoke("smoothstep"),
 
+        InterlockedAdd => Form::Invoke("InterlockedAdd"),
+        InterlockedAnd => Form::Invoke("InterlockedAnd"),
+        InterlockedCompareExchange => Form::Invoke("InterlockedCompareExchange"),
+        InterlockedCompareStore => Form::Invoke("InterlockedCompareStore"),
+        InterlockedExchange => Form::Invoke("InterlockedExchange"),
+        InterlockedMax => Form::Invoke("InterlockedMax"),
+        InterlockedMin => Form::Invoke("InterlockedMin"),
+        InterlockedOr => Form::Invoke("InterlockedOr"),
+        InterlockedXor => Form::Invoke("InterlockedXor"),
+
         WaveGetLaneCount => Form::Invoke("WaveGetLaneCount"),
         WaveGetLaneIndex => Form::Invoke("WaveGetLaneIndex"),
         WaveIsFirstLane => Form::Invoke("WaveIsFirstLane"),

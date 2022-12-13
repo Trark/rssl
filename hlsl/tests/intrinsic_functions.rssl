@@ -1,4 +1,7 @@
+groupshared uint g_sharedValue;
+
 void test() {
+    uint out_u1;
     float out_f1;
     float2 out_f2;
     float3 out_f3;
@@ -159,6 +162,15 @@ void test() {
     float2 step_f2 = step(float2(0.0, 0.0), float2(0.0, 0.0));
     float3 step_f3 = step(float3(0.0, 0.0, 0.0), float3(0.0, 0.0, 0.0));
     float4 step_f4 = step(float4(0.0, 0.0, 0.0, 0.0), float4(0.0, 0.0, 0.0, 0.0));
+    InterlockedAdd(g_sharedValue, 0u, out_u1);
+    InterlockedAnd(g_sharedValue, 0u, out_u1);
+    InterlockedCompareExchange(g_sharedValue, 0u, 0u, out_u1);
+    InterlockedCompareStore(g_sharedValue, 0u, 0u);
+    InterlockedExchange(g_sharedValue, 0u, out_u1);
+    InterlockedMax(g_sharedValue, 0u, out_u1);
+    InterlockedMin(g_sharedValue, 0u, out_u1);
+    InterlockedOr(g_sharedValue, 0u, out_u1);
+    InterlockedXor(g_sharedValue, 0u, out_u1);
     uint lane_count = WaveGetLaneCount();
     uint lane_index = WaveGetLaneIndex();
     bool is_first = WaveIsFirstLane();
