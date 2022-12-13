@@ -328,25 +328,25 @@ pub fn add_intrinsics(module: &mut Module) {
 const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => BufferGetDimensions },
     f! { D Load(int) => BufferLoad },
-    f! { D Load(int, uint) => BufferLoad },
+    f! { D Load(int, out uint) => BufferLoad },
 ];
 
 const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => RWBufferGetDimensions },
     f! { D Load(int) => RWBufferLoad },
-    f! { D Load(int, uint) => RWBufferLoad },
+    f! { D Load(int, out uint) => RWBufferLoad },
 ];
 
 const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint) => StructuredBufferGetDimensions },
     f! { D Load(int) => StructuredBufferLoad },
-    f! { D Load(int, uint) => StructuredBufferLoad },
+    f! { D Load(int, out uint) => StructuredBufferLoad },
 ];
 
 const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint) => RWStructuredBufferGetDimensions },
     f! { D Load(int) => RWStructuredBufferLoad },
-    f! { D Load(int, uint) => RWStructuredBufferLoad },
+    f! { D Load(int, out uint) => RWStructuredBufferLoad },
 ];
 
 const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
@@ -359,29 +359,29 @@ const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[f! { D Load(int2) => RW
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => ByteAddressBufferGetDimensions },
     f! { uint Load(uint) => ByteAddressBufferLoad },
-    f! { uint Load(uint, uint) => ByteAddressBufferLoad },
+    f! { uint Load(uint, out uint) => ByteAddressBufferLoad },
     f! { uint2 Load2(uint) => ByteAddressBufferLoad2 },
-    f! { uint2 Load2(uint, uint) => ByteAddressBufferLoad2 },
+    f! { uint2 Load2(uint, out uint) => ByteAddressBufferLoad2 },
     f! { uint3 Load3(uint) => ByteAddressBufferLoad3 },
-    f! { uint3 Load3(uint, uint) => ByteAddressBufferLoad3 },
+    f! { uint3 Load3(uint, out uint) => ByteAddressBufferLoad3 },
     f! { uint4 Load4(uint) => ByteAddressBufferLoad4 },
-    f! { uint4 Load4(uint, uint) => ByteAddressBufferLoad4 },
+    f! { uint4 Load4(uint, out uint) => ByteAddressBufferLoad4 },
     f! { T Load(uint) => ByteAddressBufferLoadT },
-    f! { T Load(uint, uint) => ByteAddressBufferLoadT },
+    f! { T Load(uint, out uint) => ByteAddressBufferLoadT },
 ];
 
 const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => RWByteAddressBufferGetDimensions },
     f! { uint Load(uint) => RWByteAddressBufferLoad },
-    f! { uint Load(uint, uint) => RWByteAddressBufferLoad },
+    f! { uint Load(uint, out uint) => RWByteAddressBufferLoad },
     f! { uint2 Load2(uint) => RWByteAddressBufferLoad2 },
-    f! { uint2 Load2(uint, uint) => RWByteAddressBufferLoad2 },
+    f! { uint2 Load2(uint, out uint) => RWByteAddressBufferLoad2 },
     f! { uint3 Load3(uint) => RWByteAddressBufferLoad3 },
-    f! { uint3 Load3(uint, uint) => RWByteAddressBufferLoad3 },
+    f! { uint3 Load3(uint, out uint) => RWByteAddressBufferLoad3 },
     f! { uint4 Load4(uint) => RWByteAddressBufferLoad4 },
-    f! { uint4 Load4(uint, uint) => RWByteAddressBufferLoad4 },
+    f! { uint4 Load4(uint, out uint) => RWByteAddressBufferLoad4 },
     f! { T Load(uint) => RWByteAddressBufferLoadT },
-    f! { T Load(uint, uint) => RWByteAddressBufferLoadT },
+    f! { T Load(uint, out uint) => RWByteAddressBufferLoadT },
     f! { void Store(uint, uint) => RWByteAddressBufferStore },
     f! { void Store2(uint, uint2) => RWByteAddressBufferStore2 },
     f! { void Store3(uint, uint3) => RWByteAddressBufferStore3 },
