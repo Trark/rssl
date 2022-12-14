@@ -300,6 +300,55 @@ fn find_macro(text: &str, name: &str) -> Option<usize> {
     }
 }
 
+fn split_macro_args(mut remaining: &str) -> Result<(&str, Vec<&str>), PreprocessError> {
+    let mut args = vec![];
+    let mut brace_scope = 0;
+    let mut remaining_offset = 0;
+    loop {
+        let next_pos_result = remaining[remaining_offset..].find([',', '(', ')']);
+        let next_opt = next_pos_result.map(|next_pos| {
+            (
+                remaining.as_bytes()[next_pos + remaining_offset] as char,
+                next_pos + remaining_offset,
+            )
+        });
+        match next_opt {
+            Some((',', pos)) => {
+                if brace_scope == 0 {
+                    // Next argument
+                    let arg = remaining[..pos].trim();
+                    args.push(arg);
+                    remaining = &remaining[(pos + 1)..];
+                    remaining_offset = 0;
+                }
+            }
+            Some(('(', pos)) => {
+                // Start of inner parenthesis
+                brace_scope += 1;
+                remaining_offset = pos + 1;
+            }
+            Some((')', pos)) => {
+                if brace_scope > 0 {
+                    // End of inner parenthesis
+                    brace_scope -= 1;
+                    remaining_offset = pos + 1;
+                } else {
+                    // End of macro
+                    let arg = remaining[..pos].trim();
+                    args.push(arg);
+                    remaining = &remaining[(pos + 1)..];
+                    break;
+                }
+            }
+            Some(_) => unreachable!(),
+            None => {
+                return Err(PreprocessError::MacroArgumentsNeverEnd);
+            }
+        }
+    }
+    Ok((remaining, args))
+}
+
 impl SubstitutedSegment {
     fn apply(
         self,
@@ -348,23 +397,8 @@ impl SubstitutedSegment {
                         remaining = &remaining[(sz + 1)..];
 
                         // Consume all the arguments
-                        let mut args = vec![];
-                        loop {
-                            let (sz, last) = match (remaining.find(','), remaining.find(')')) {
-                                (Some(szn), Some(szl)) if szn < szl => (szn, false),
-                                (_, Some(szl)) => (szl, true),
-                                (Some(szn), None) => (szn, false),
-                                (None, None) => {
-                                    return Err(PreprocessError::MacroArgumentsNeverEnd)
-                                }
-                            };
-                            let arg = remaining[..sz].trim();
-                            args.push(arg);
-                            remaining = &remaining[(sz + 1)..];
-                            if last {
-                                break;
-                            }
-                        }
+                        let (rest, args) = split_macro_args(remaining)?;
+                        remaining = rest;
                         args
                     } else {
                         vec![]
@@ -446,23 +480,8 @@ impl SubstitutedSegment {
                         remaining = &remaining[(sz + 1)..];
 
                         // Consume all the arguments
-                        let mut args = vec![];
-                        loop {
-                            let (sz, last) = match (remaining.find(','), remaining.find(')')) {
-                                (Some(szn), Some(szl)) if szn < szl => (szn, false),
-                                (_, Some(szl)) => (szl, true),
-                                (Some(szn), None) => (szn, false),
-                                (None, None) => {
-                                    return Err(PreprocessError::MacroArgumentsNeverEnd);
-                                }
-                            };
-                            let arg = remaining[..sz].trim();
-                            args.push(arg);
-                            remaining = &remaining[(sz + 1)..];
-                            if last {
-                                break;
-                            }
-                        }
+                        let (rest, args) = split_macro_args(remaining)?;
+                        remaining = rest;
                         args
                     };
 

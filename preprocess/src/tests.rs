@@ -48,34 +48,61 @@ fn test_define() {
     assert_text!(pp("#define X 1\r\nX"), "1");
     assert_text!(pp("#define X 2\n#define Y X\nX"), "2");
     assert_text!(pp("#define X 2\\\n + 3\nX"), "2\n + 3");
-    assert_text!(pp("#define X(a) a\nX(2)"), "2");
-    assert_text!(pp("#define X(a,b) a+b\nX(2,3)"), "2+3");
-    assert_text!(pp("#define X(X,b) X+b\nX(2,3)"), "2+3");
-    assert_text!(pp("#define X(a,b) a+\\\nb\nX(2,3)"), "2+\n3");
-    assert_text!(pp("#define X(a,b) a+\\\r\nb\nX(2,3)"), "2+\r\n3");
     assert_text!(pp("#define X"), "");
     assert_text!(pp("#define X 0\n#define Y 1\nX Y"), "0 1");
     assert_text!(pp("#define X 0\n#define XY 1\nXY X"), "1 0");
+}
+
+#[test]
+fn test_define_function() {
+    let pp = preprocess_single_test;
+    assert_text!(pp("#define X(a) a\nX(2)"), "2");
+    assert_text!(pp("#define X(a,b) a+b\nX(2,3)"), "2+3");
+    assert_text!(pp("#define X(X,b) X+b\nX(2,3)"), "2+3");
+
+    // Test multiple lines in function macro
+    // The first line currently must have a space after the right parenthesis
+    // It can not immediately go into the new line
+    assert_text!(pp("#define X(a,b) a+\\\nb\nX(2,3)"), "2+\n3");
+    assert_text!(pp("#define X(a,b) a+\\\r\nb\nX(2,3)"), "2+\r\n3");
+
+    // Test invoking a macro with another define
     assert_text!(pp("#define X(a) a\n#define Y 1\nX(Y)"), "1");
+
+    // Test multiple arguments with overlapping name substrings
     assert_text!(
         pp("#define X(a,ab,ba,b) a ab a ba b ab a\nX(0,1,2,3)"),
         "0 1 0 2 3 1 0"
     );
+
+    // Base case for next text
     assert_text!(
         pp("#define Macro0(Arg0, Arg1) {Arg0,Arg1}\nMacro0(X, Y)"),
         "{X,Y}"
     );
+
+    // Test calling a macro in another macro
     assert_text!(
         pp("#define Macro0(Arg0, Arg1) {Arg0,Arg1}\n#define Macro1(Arg2, Arg3) Macro0(Arg2, Arg3)\nMacro1(X, Y)"),
         "{X,Y}"
     );
+
+    // Test calling a macro on the non-first line of another macro
     assert_text!(
         pp("#define Macro0(Arg0, Arg1) {Arg0,Arg1}\n#define Macro1(Arg2, Arg3) \\\nMacro0(Arg2, Arg3)\nMacro1(X, Y)"),
         "\n{X,Y}"
     );
+
+    // Test calling a macro from another macro with both macro args and other define args
     assert_text!(
         pp("#define Arg3 Y\n#define Macro0(Arg0, Arg1) {Arg0,Arg1}\n#define Macro1(Arg2) Macro0(Arg2, Arg3)\nMacro1(X)"),
         "{X,Y}"
+    );
+
+    // Test invoking a macro with another macro invocation inside it
+    assert_text!(
+        pp("#define Macro0(Arg0) {0:Arg0}\n#define Macro1(Arg1) {1:Arg1}\nMacro0(Macro1(X))"),
+        "{0:{1:X}}"
     );
 }
 
