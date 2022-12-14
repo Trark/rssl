@@ -342,6 +342,9 @@ fn split_macro_args<'stream>(
                     args.push(arg);
                     remaining = &remaining[(pos + 1)..];
                     remaining_offset = 0;
+                } else {
+                    // Argument lists inside inner parenthesis
+                    remaining_offset = pos + 1;
                 }
             }
             Some(('(', pos)) => {

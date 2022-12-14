@@ -69,6 +69,9 @@ fn test_define_function() {
     // Test invoking a macro with another define
     assert_text!(pp("#define X(a) a\n#define Y 1\nX(Y)"), "1");
 
+    // Test invoking a macro with values inside parenthesis
+    assert_text!(pp("#define X(a) a\nX((Y,Z))"), "(Y,Z)");
+
     // Test multiple arguments with overlapping name substrings
     assert_text!(
         pp("#define X(a,ab,ba,b) a ab a ba b ab a\nX(0,1,2,3)"),
@@ -103,6 +106,12 @@ fn test_define_function() {
     assert_text!(
         pp("#define Macro0(Arg0) {0:Arg0}\n#define Macro1(Arg1) {1:Arg1}\nMacro0(Macro1(X))"),
         "{0:{1:X}}"
+    );
+
+    // Test invoking a macro with another macro invocation inside it with multiple args
+    assert_text!(
+        pp("#define Macro0(Arg0, Arg1) {0:Arg0;Arg1}\n#define Macro1(Arg2, Arg3) {1:Arg2;Arg3}\nMacro0(Macro1(X,Y),Macro1(Z,W))"),
+        "{0:{1:X;Y};{1:Z;W}}"
     );
 }
 
