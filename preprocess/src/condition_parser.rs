@@ -44,13 +44,36 @@ fn parse_p15(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionPa
 }
 
 fn parse_p14(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
-    let left = parse_p3(stream)?;
+    let left = parse_p10(stream)?;
     let (stream, left_value) = left;
 
     if let Some((Token::AmpersandAmpersand, rest)) = stream.split_first() {
-        let (rest, right_value) = parse_p3(rest)?;
+        let (rest, right_value) = parse_p10(rest)?;
         let value = u64::from(left_value != 0 && right_value != 0);
         return Ok((rest, value));
+    }
+
+    Ok(left)
+}
+
+fn parse_p10(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    let left = parse_p3(stream)?;
+    let (stream, left_value) = left;
+
+    if let Some((tok, rest)) = stream.split_first() {
+        match tok {
+            Token::EqualsEquals => {
+                let (rest, right_value) = parse_p3(rest)?;
+                let value = u64::from(left_value == right_value);
+                return Ok((rest, value));
+            }
+            Token::ExclamationPointEquals => {
+                let (rest, right_value) = parse_p3(rest)?;
+                let value = u64::from(left_value != right_value);
+                return Ok((rest, value));
+            }
+            _ => {}
+        }
     }
 
     Ok(left)
@@ -133,4 +156,12 @@ fn test_condition_parser() {
     assert_eq!(parse("(0 || 1) && 0").unwrap(), false);
     assert_eq!(parse("(1 || 0) && 0").unwrap(), false);
     assert_eq!(parse("(1 || 1) && 0").unwrap(), false);
+    assert_eq!(parse("0 == 0").unwrap(), true);
+    assert_eq!(parse("0 == 1").unwrap(), false);
+    assert_eq!(parse("1 == 0").unwrap(), false);
+    assert_eq!(parse("1 == 1").unwrap(), true);
+    assert_eq!(parse("0 != 0").unwrap(), false);
+    assert_eq!(parse("0 != 1").unwrap(), true);
+    assert_eq!(parse("1 != 0").unwrap(), true);
+    assert_eq!(parse("1 != 1").unwrap(), false);
 }
