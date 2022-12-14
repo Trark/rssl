@@ -1075,6 +1075,8 @@ fn preprocess_command<'a>(
                 pragma_command
             )))
         }
+    } else if skip {
+        return Ok(get_after_macro(command));
     } else {
         Err(PreprocessError::UnknownCommand(format!(
             "#{}",
