@@ -379,7 +379,7 @@ impl SubstitutedSegment {
         self,
         macro_defs: &[Macro],
         output: &mut Vec<SubstitutedSegment>,
-    ) -> Result<(), PreprocessError> {
+    ) -> Result<Option<SubstitutedSegment>, PreprocessError> {
         match self {
             SubstitutedSegment::Text(text, location) => {
                 // Find the first macro that matches the text
@@ -447,19 +447,24 @@ impl SubstitutedSegment {
                         output.push(SubstitutedSegment::Replaced(replaced_text, macro_def.3));
                     }
                     if !after.is_empty() {
-                        SubstitutedSegment::Text(after.to_string(), after_location)
-                            .apply(macro_defs, output)?;
+                        Ok(Some(SubstitutedSegment::Text(
+                            after.to_string(),
+                            after_location,
+                        )))
+                    } else {
+                        Ok(None)
                     }
-                    return Ok(());
+                } else {
+                    assert!(!text.is_empty());
+                    output.push(SubstitutedSegment::Text(text, location));
+                    Ok(None)
                 }
-                assert!(!text.is_empty());
-                output.push(SubstitutedSegment::Text(text, location))
             }
             SubstitutedSegment::Replaced(text, location) => {
-                output.push(SubstitutedSegment::Replaced(text, location))
+                output.push(SubstitutedSegment::Replaced(text, location));
+                Ok(None)
             }
         }
-        Ok(())
     }
 
     fn apply_defined(
@@ -559,7 +564,10 @@ impl SubstitutedText {
             {
                 let mut next_segments = Vec::with_capacity(last_segments.len());
                 for substituted_segment in last_segments {
-                    substituted_segment.apply(macro_defs, &mut next_segments)?;
+                    let mut next_segment = Some(substituted_segment);
+                    while let Some(next) = next_segment {
+                        next_segment = next.apply(macro_defs, &mut next_segments)?;
+                    }
                 }
                 last_segments = next_segments;
             }
