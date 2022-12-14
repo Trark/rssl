@@ -1088,6 +1088,9 @@ fn preprocess_command<'a>(
         if pragma_command == "once" {
             file_loader.mark_as_pragma_once(file_id);
             Ok(get_after_single_line(command))
+        } else if pragma_command.starts_with("warning") {
+            // Ignore warning disable commands for now
+            Ok(get_after_single_line(command))
         } else {
             Err(PreprocessError::UnknownCommand(format!(
                 "#pragma {}",
