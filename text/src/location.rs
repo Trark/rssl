@@ -316,7 +316,16 @@ impl PreprocessedText {
     }
 
     pub fn get_source_location(&self, stream_location: StreamLocation) -> SourceLocation {
-        self.locations.get_source_location(stream_location)
+        self.locations.get_source_location(stream_location, 0).0
+    }
+
+    pub fn get_source_location_sequential(
+        &self,
+        stream_location: StreamLocation,
+        last_entry: usize,
+    ) -> (SourceLocation, usize) {
+        self.locations
+            .get_source_location(stream_location, last_entry)
     }
 
     /// Generate string from text with #line markers
@@ -395,23 +404,29 @@ impl StreamToSourceMap {
     }
 
     /// Get the source location for a position in a stream
-    pub fn get_source_location(&self, stream_location: StreamLocation) -> SourceLocation {
+    pub fn get_source_location(
+        &self,
+        stream_location: StreamLocation,
+        last_offset: usize,
+    ) -> (SourceLocation, usize) {
         if self.remap.is_empty() {
-            return SourceLocation::UNKNOWN;
+            return (SourceLocation::UNKNOWN, 0);
         }
 
         assert_eq!(self.remap[0].stream.0, 0);
+        assert!(last_offset < self.remap.len());
+        assert!(self.remap[last_offset].stream.0 <= stream_location.0);
 
-        let mut index = self.remap.len() - 1;
-        for entry in self.remap.iter().rev() {
-            if entry.stream <= stream_location {
+        let mut index = last_offset;
+        for i in last_offset..self.remap.len() {
+            if self.remap[i].stream > stream_location {
                 break;
             }
-            index -= 1;
+            index = i;
         }
 
         let previous = &self.remap[index];
         let offset = stream_location.0 - previous.stream.0;
-        previous.source.offset(offset)
+        (previous.source.offset(offset), index)
     }
 }

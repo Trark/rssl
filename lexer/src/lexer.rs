@@ -1194,8 +1194,12 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
                     stream
                 };
                 let mut lex_tokens = Vec::with_capacity(stream.len());
+                let mut last_entry = 0;
                 for StreamToken(ref token, stream_location) in stream {
-                    let source_location = preprocessed.get_source_location(stream_location);
+                    let location_result =
+                        preprocessed.get_source_location_sequential(stream_location, last_entry);
+                    let source_location = location_result.0;
+                    last_entry = location_result.1;
                     lex_tokens.push(LexToken(token.clone(), source_location));
                 }
                 Ok(Tokens { stream: lex_tokens })
