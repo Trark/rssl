@@ -61,6 +61,22 @@ fn test_define() {
         pp("#define X(a,ab,ba,b) a ab a ba b ab a\nX(0,1,2,3)"),
         "0 1 0 2 3 1 0"
     );
+    assert_text!(
+        pp("#define Macro0(Arg0, Arg1) {Arg0,Arg1}\nMacro0(X, Y)"),
+        "{X,Y}"
+    );
+    assert_text!(
+        pp("#define Macro0(Arg0, Arg1) {Arg0,Arg1}\n#define Macro1(Arg2, Arg3) Macro0(Arg2, Arg3)\nMacro1(X, Y)"),
+        "{X,Y}"
+    );
+    assert_text!(
+        pp("#define Macro0(Arg0, Arg1) {Arg0,Arg1}\n#define Macro1(Arg2, Arg3) \\\nMacro0(Arg2, Arg3)\nMacro1(X, Y)"),
+        "\n{X,Y}"
+    );
+    assert_text!(
+        pp("#define Arg3 Y\n#define Macro0(Arg0, Arg1) {Arg0,Arg1}\n#define Macro1(Arg2) Macro0(Arg2, Arg3)\nMacro1(X)"),
+        "{X,Y}"
+    );
 }
 
 #[test]

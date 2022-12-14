@@ -303,13 +303,31 @@ fn find_macro(text: &str, name: &str) -> Option<usize> {
 impl SubstitutedSegment {
     fn apply(
         self,
-        macro_def: &Macro,
         macro_defs: &[Macro],
         output: &mut Vec<SubstitutedSegment>,
     ) -> Result<(), PreprocessError> {
         match self {
             SubstitutedSegment::Text(text, location) => {
-                if let Some(sz) = find_macro(&text, &macro_def.0) {
+                // Find the first macro that matches the text
+                // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
+                let mut best_match_opt: Option<(&Macro, usize)> = None;
+                let mut search_range = text.as_str();
+                for macro_def in macro_defs {
+                    if let Some(pos) = find_macro(search_range, &macro_def.0) {
+                        // As we limit the search range we don't expect
+                        assert!(if let Some(best_match) = best_match_opt {
+                            pos < best_match.1
+                        } else {
+                            true
+                        });
+
+                        best_match_opt = Some((macro_def, pos));
+                        // Limit search for future macros so we only get better matches
+                        search_range = &text[..pos];
+                    }
+                }
+
+                if let Some((macro_def, sz)) = best_match_opt {
                     let before = &text[..sz];
                     let after_offset = sz + macro_def.0.len();
                     let mut remaining = &text[after_offset..];
@@ -385,7 +403,7 @@ impl SubstitutedSegment {
                     }
                     if !after.is_empty() {
                         SubstitutedSegment::Text(after.to_string(), after_location)
-                            .apply(macro_def, macro_defs, output)?;
+                            .apply(macro_defs, output)?;
                     }
                     return Ok(());
                 }
@@ -510,10 +528,10 @@ impl SubstitutedText {
                 }
                 last_segments = next_segments;
             }
-            for macro_def in macro_defs {
+            {
                 let mut next_segments = Vec::with_capacity(last_segments.len());
                 for substituted_segment in last_segments {
-                    substituted_segment.apply(macro_def, macro_defs, &mut next_segments)?;
+                    substituted_segment.apply(macro_defs, &mut next_segments)?;
                 }
                 last_segments = next_segments;
             }
