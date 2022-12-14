@@ -8,7 +8,7 @@ pub enum PreprocessError {
     InvalidInclude,
     InvalidDefine,
     MacroAlreadyDefined(String),
-    MacroRequiresArguments,
+    MacroRequiresArguments(String),
     MacroArgumentsNeverEnd,
     MacroExpectsDifferentNumberOfArguments,
     FailedToFindFile(String, IncludeError),
@@ -31,8 +31,8 @@ impl std::fmt::Display for PreprocessError {
             PreprocessError::InvalidInclude => write!(f, "Invalid #include command"),
             PreprocessError::InvalidDefine => write!(f, "Invalid #define command"),
             PreprocessError::MacroAlreadyDefined(s) => write!(f, "Macro already defined: {}", s),
-            PreprocessError::MacroRequiresArguments => {
-                write!(f, "Macro function requires arguments")
+            PreprocessError::MacroRequiresArguments(s) => {
+                write!(f, "Macro function \"{}\" requires arguments", s)
             }
             PreprocessError::MacroArgumentsNeverEnd => write!(f, "expected end of macro arguments"),
             PreprocessError::MacroExpectsDifferentNumberOfArguments => {
@@ -300,7 +300,29 @@ fn find_macro(text: &str, name: &str) -> Option<usize> {
     }
 }
 
-fn split_macro_args(mut remaining: &str) -> Result<(&str, Vec<&str>), PreprocessError> {
+fn split_macro_args<'stream>(
+    macro_name: &str,
+    mut remaining: &'stream str,
+) -> Result<(&'stream str, Vec<&'stream str>), PreprocessError> {
+    // Consume the starting bracket
+    let sz = match remaining.find(['(']) {
+        Some(sz) => {
+            let gap = remaining[..sz].trim();
+            if !gap.is_empty() {
+                return Err(PreprocessError::MacroRequiresArguments(
+                    macro_name.to_string(),
+                ));
+            }
+            sz
+        }
+        None => {
+            return Err(PreprocessError::MacroRequiresArguments(
+                macro_name.to_string(),
+            ))
+        }
+    };
+    remaining = &remaining[(sz + 1)..];
+
     let mut args = vec![];
     let mut brace_scope = 0;
     let mut remaining_offset = 0;
@@ -383,21 +405,7 @@ impl SubstitutedSegment {
 
                     // Read macro arguments
                     let args = if macro_def.1 > 0 {
-                        // Consume the starting bracket
-                        let sz = match remaining.find('(') {
-                            Some(sz) => {
-                                let gap = remaining[..sz].trim();
-                                if !gap.is_empty() {
-                                    return Err(PreprocessError::MacroRequiresArguments);
-                                }
-                                sz
-                            }
-                            None => return Err(PreprocessError::MacroRequiresArguments),
-                        };
-                        remaining = &remaining[(sz + 1)..];
-
-                        // Consume all the arguments
-                        let (rest, args) = split_macro_args(remaining)?;
+                        let (rest, args) = split_macro_args(&macro_def.0, remaining)?;
                         remaining = rest;
                         args
                     } else {
@@ -466,23 +474,21 @@ impl SubstitutedSegment {
 
                     // Read macro arguments
                     let args = {
-                        // Consume the starting bracket
-                        let sz = match remaining.find('(') {
-                            Some(sz) => {
-                                let gap = remaining[..sz].trim();
-                                if !gap.is_empty() {
-                                    return Err(PreprocessError::MacroRequiresArguments);
-                                }
-                                sz
-                            }
-                            None => return Err(PreprocessError::MacroRequiresArguments),
-                        };
-                        remaining = &remaining[(sz + 1)..];
-
-                        // Consume all the arguments
-                        let (rest, args) = split_macro_args(remaining)?;
-                        remaining = rest;
-                        args
+                        // Allow "defined A" instead of traditional defined(A)
+                        if !remaining.is_empty() && remaining.as_bytes()[0] == b' ' {
+                            remaining = &remaining[1..];
+                            let next_non_identifier = remaining
+                                .find(|c| !is_identifier_char(c))
+                                .unwrap_or(remaining.len());
+                            let arg = &remaining[..next_non_identifier];
+                            remaining = &remaining[next_non_identifier..];
+                            Vec::from([arg])
+                        } else {
+                            // Parse arguments like a normal macro called defined
+                            let (rest, args) = split_macro_args(defined_name, remaining)?;
+                            remaining = rest;
+                            args
+                        }
                     };
 
                     let after = remaining;

@@ -178,6 +178,12 @@ fn test_condition_defined() {
     let pp = preprocess_single_test;
     assert_text!(pp("#if defined(A)\nX\n#else\nY\n#endif"), "Y\n");
     assert_text!(pp("#if !defined(A)\nX\n#else\nY\n#endif"), "X\n");
+    assert_text!(pp("#if defined A \nX\n#else\nY\n#endif"), "Y\n");
+    assert_text!(pp("#if !defined A \nX\n#else\nY\n#endif"), "X\n");
+    assert_text!(pp("#if defined A\nX\n#else\nY\n#endif"), "Y\n");
+    assert_text!(pp("#if !defined A\nX\n#else\nY\n#endif"), "X\n");
+    assert_text!(pp("#if defined A&&defined A\nX\n#else\nY\n#endif"), "Y\n");
+    assert_text!(pp("#if !defined A&&!defined A\nX\n#else\nY\n#endif"), "X\n");
     assert_text!(
         pp("#define A 1\n#if defined(A)\nX\n#else\nY\n#endif"),
         "X\n"
