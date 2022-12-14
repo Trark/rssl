@@ -10,6 +10,7 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
     fn init_aggregate(input: &[LexToken]) -> ParseResult<Initializer> {
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
         let (input, exprs) = parse_list_nonempty(parse_token(Token::Comma), init_any)(input)?;
+        let (input, _) = parse_optional(parse_token(Token::Comma))(input)?;
         let (input, _) = parse_token(Token::RightBrace)(input)?;
         Ok((input, Initializer::Aggregate(exprs)))
     }
@@ -65,34 +66,66 @@ fn test_initializer() {
         Initializer::Expression(Located::none(Expression::Literal(Literal::UntypedInt(i))))
     }
 
-    let aggr_1 = [
-        LexToken::with_no_loc(Token::Equals),
-        LexToken::with_no_loc(Token::LeftBrace),
-        LexToken::with_no_loc(Token::LiteralInt(4)),
-        LexToken::with_no_loc(Token::RightBrace),
-        semicolon.clone(),
-    ];
-    let aggr_1_lit = loc_lit(4);
+    // = { 4 };
     assert_eq!(
-        initializer(&aggr_1),
-        Ok((done_toks, Some(Initializer::Aggregate(vec![aggr_1_lit]))))
+        initializer(&[
+            LexToken::with_no_loc(Token::Equals),
+            LexToken::with_no_loc(Token::LeftBrace),
+            LexToken::with_no_loc(Token::LiteralInt(4)),
+            LexToken::with_no_loc(Token::RightBrace),
+            semicolon.clone(),
+        ]),
+        Ok((
+            done_toks,
+            Some(Initializer::Aggregate(Vec::from([loc_lit(4)])))
+        ))
     );
 
-    let aggr_3 = [
-        LexToken::with_no_loc(Token::Equals),
-        LexToken::with_no_loc(Token::LeftBrace),
-        LexToken::with_no_loc(Token::LiteralInt(4)),
-        LexToken::with_no_loc(Token::Comma),
-        LexToken::with_no_loc(Token::LiteralInt(2)),
-        LexToken::with_no_loc(Token::Comma),
-        LexToken::with_no_loc(Token::LiteralInt(1)),
-        LexToken::with_no_loc(Token::RightBrace),
-        semicolon.clone(),
-    ];
-    let aggr_3_lits = vec![loc_lit(4), loc_lit(2), loc_lit(1)];
+    // = { 4, 2, 1 };
     assert_eq!(
-        initializer(&aggr_3),
-        Ok((done_toks, Some(Initializer::Aggregate(aggr_3_lits))))
+        initializer(&[
+            LexToken::with_no_loc(Token::Equals),
+            LexToken::with_no_loc(Token::LeftBrace),
+            LexToken::with_no_loc(Token::LiteralInt(4)),
+            LexToken::with_no_loc(Token::Comma),
+            LexToken::with_no_loc(Token::LiteralInt(2)),
+            LexToken::with_no_loc(Token::Comma),
+            LexToken::with_no_loc(Token::LiteralInt(1)),
+            LexToken::with_no_loc(Token::RightBrace),
+            semicolon.clone(),
+        ]),
+        Ok((
+            done_toks,
+            Some(Initializer::Aggregate(Vec::from([
+                loc_lit(4),
+                loc_lit(2),
+                loc_lit(1)
+            ])))
+        ))
+    );
+
+    // = { 4, 2, 1, };
+    assert_eq!(
+        initializer(&[
+            LexToken::with_no_loc(Token::Equals),
+            LexToken::with_no_loc(Token::LeftBrace),
+            LexToken::with_no_loc(Token::LiteralInt(4)),
+            LexToken::with_no_loc(Token::Comma),
+            LexToken::with_no_loc(Token::LiteralInt(2)),
+            LexToken::with_no_loc(Token::Comma),
+            LexToken::with_no_loc(Token::LiteralInt(1)),
+            LexToken::with_no_loc(Token::Comma),
+            LexToken::with_no_loc(Token::RightBrace),
+            semicolon.clone(),
+        ]),
+        Ok((
+            done_toks,
+            Some(Initializer::Aggregate(Vec::from([
+                loc_lit(4),
+                loc_lit(2),
+                loc_lit(1)
+            ])))
+        ))
     );
 
     // = {} should fail
