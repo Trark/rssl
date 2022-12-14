@@ -1044,6 +1044,9 @@ fn preprocess_command<'a>(
             _ => Err(PreprocessError::InvalidDefine),
         }
     } else if let Some(next) = command.strip_prefix("pragma") {
+        if skip {
+            return Ok(get_after_macro(command));
+        }
         let pragma_command = get_macro_line(next).trim();
         if pragma_command == "once" {
             file_loader.mark_as_pragma_once(file_id);
