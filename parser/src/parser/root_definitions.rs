@@ -3,6 +3,7 @@ use enums::parse_enum_definition;
 use functions::parse_function_definition;
 use globals::{parse_constant_buffer, parse_global_variable};
 use structs::parse_struct_definition;
+use types::parse_typedef;
 
 /// Parse a root element in a shader document
 fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
@@ -13,6 +14,11 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
 
     let res = res.select(match parse_enum_definition(input) {
         Ok((rest, enumdef)) => Ok((rest, RootDefinition::Enum(enumdef))),
+        Err(err) => Err(err),
+    });
+
+    let res = res.select(match parse_typedef(input) {
+        Ok((rest, typedef)) => Ok((rest, RootDefinition::Typedef(typedef))),
         Err(err) => Err(err),
     });
 

@@ -100,3 +100,44 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
 
     Ok((input, TemplateParamList(args)))
 }
+
+/// Parse a typedef
+pub fn parse_typedef(input: &[LexToken]) -> ParseResult<Typedef> {
+    let (input, _) = parse_token(Token::Typedef)(input)?;
+    let (input, ty) = parse_type(input)?;
+    let (input, id) = locate(match_identifier)(input)?;
+    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
+    let (input, _) = parse_token(Token::Semicolon)(input)?;
+    let td = Typedef {
+        name: Located::new(id.node.0.clone(), id.location),
+        source: ty,
+        bind: VariableBind(bind),
+    };
+    Ok((input, td))
+}
+
+#[test]
+fn test_typedef() {
+    use test_support::*;
+    let typedef = ParserTester::new(parse_typedef);
+
+    typedef.check(
+        "typedef uint u32;",
+        Typedef {
+            name: "u32".to_string().loc(13),
+            source: Type::from("uint".loc(8)),
+            bind: Default::default(),
+        },
+    );
+
+    typedef.check(
+        "typedef uint u32x4[4];",
+        Typedef {
+            name: "u32x4".to_string().loc(13),
+            source: Type::from("uint".loc(8)),
+            bind: VariableBind(Vec::from([Some(
+                Expression::Literal(Literal::UntypedInt(4)).loc(19),
+            )])),
+        },
+    );
+}

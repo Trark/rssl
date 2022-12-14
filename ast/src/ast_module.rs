@@ -2,6 +2,7 @@ use crate::ast_enums::EnumDefinition;
 use crate::ast_functions::FunctionDefinition;
 use crate::ast_globals::{ConstantBuffer, GlobalVariable};
 use crate::ast_structs::StructDefinition;
+use crate::ast_types::Typedef;
 
 /// Represents a full parsed source file - which is a list of [RootDefinitions][RootDefinition].
 #[derive(PartialEq, Debug, Clone)]
@@ -16,6 +17,7 @@ pub struct Module {
 pub enum RootDefinition {
     Struct(StructDefinition),
     Enum(EnumDefinition),
+    Typedef(Typedef),
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),
     Function(FunctionDefinition),

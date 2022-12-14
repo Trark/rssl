@@ -102,6 +102,7 @@ pub enum Token {
 
     Struct,
     Enum,
+    Typedef,
     ConstantBuffer,
     Register(RegisterSlot),
     PackOffset(OffsetSlot),

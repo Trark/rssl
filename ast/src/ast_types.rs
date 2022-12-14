@@ -1,3 +1,4 @@
+use crate::ast_statements::VariableBind;
 use crate::primitive_types::*;
 use crate::ExpressionOrType;
 use crate::ScopedIdentifier;
@@ -20,6 +21,20 @@ pub struct TypeLayout(pub ScopedIdentifier, pub Box<[ExpressionOrType]>);
 /// Template parameters
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct TemplateParamList(pub Vec<Located<String>>);
+
+/// A typedef definition
+#[derive(PartialEq, Debug, Clone)]
+pub struct Typedef {
+    /// The name of the typedef symbol
+    pub name: Located<String>,
+
+    /// The type information for the typedef
+    pub source: Type,
+
+    /// Type part assigned to the name
+    /// We do not support multiple declarations on the same line with typedef
+    pub bind: VariableBind,
+}
 
 impl Type {
     /// Make a type from a single name

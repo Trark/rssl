@@ -662,6 +662,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
 
         "struct" => Token::Struct,
         "enum" => Token::Enum,
+        "typedef" => Token::Typedef,
         "cbuffer" => Token::ConstantBuffer,
         "namespace" => Token::Namespace,
 

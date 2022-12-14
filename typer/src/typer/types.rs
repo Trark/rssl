@@ -1,6 +1,7 @@
 use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
+use super::statements::apply_variable_bind;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
@@ -339,4 +340,26 @@ fn evaluate_constant_expression(
         }
     };
     Ok(c)
+}
+
+/// Process a typedef
+pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) -> TyperResult<()> {
+    // Parse the base type
+    let base_type = parse_type(&td.source, context)?;
+    let base_type_layout = context
+        .module
+        .type_registry
+        .get_type_layout(base_type)
+        .clone();
+
+    // Apply the array modifier
+    let type_layout = apply_variable_bind(base_type_layout, &td.bind, &None)?;
+    let type_id = context.module.type_registry.register_type(type_layout);
+
+    // Register the typedef
+    context.register_typedef(td.name.clone(), type_id)?;
+
+    // We do not emit any global definitions as typedefs do not declare anything new
+
+    Ok(())
 }

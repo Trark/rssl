@@ -458,6 +458,18 @@ void main() {
 }
 
 #[test]
+fn check_typedef() {
+    // Check we can declare and use a typedef - the type will be substituted at site of use.
+    check_rssl_to_hlsl("typedef int CustomInt; CustomInt x = 0;", "int x = 0;\n");
+
+    // Check this works correctly with array types
+    check_rssl_to_hlsl(
+        "typedef int CustomInt[4]; CustomInt x = { 0, 0, 0, 0 };",
+        "int x[4] = { 0, 0, 0, 0 };\n",
+    );
+}
+
+#[test]
 fn check_intrinsic_functions() {
     // Check various intrinsic functions
     // As these are basically the same between RSSL and HLSL and there are no resources

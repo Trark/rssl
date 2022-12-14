@@ -366,6 +366,14 @@ fn check_struct_templates() {
 }
 
 #[test]
+fn check_typedef() {
+    check_types("typedef uint u32;");
+    check_types("typedef uint u32; u32 x = 1;");
+    check_types("typedef uint u32x4[4];");
+    check_types("typedef uint u32x4[4]; u32x4 v = { 2, 3, 4, 5 };");
+}
+
+#[test]
 fn check_cbuffer() {
     check_types(
         "cbuffer MyConstants { float c1; uint c2; } float f() { { return c1 + float(c2); } }",

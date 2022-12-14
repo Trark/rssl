@@ -49,6 +49,10 @@ fn parse_rootdefinition(
             Ok(Vec::from([def]))
         }
         ast::RootDefinition::Enum(_) => todo!(),
+        ast::RootDefinition::Typedef(ref td) => {
+            types::parse_rootdefinition_typedef(td, context)?;
+            Ok(Vec::new())
+        }
         ast::RootDefinition::ConstantBuffer(ref cb) => {
             let def = globals::parse_rootdefinition_constantbuffer(cb, context)?;
             Ok(Vec::from([def]))
