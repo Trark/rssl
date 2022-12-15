@@ -711,23 +711,27 @@ fn specific_text<'a>(input: &'a [u8], text: &'static str) -> LexResult<'a, &'a [
 }
 
 /// Parse trivial whitespace
-fn whitespace_simple(input: &[u8]) -> LexResult<()> {
-    if input.is_empty() {
-        end_of_stream()
-    } else {
-        match input[0] {
-            b' ' | b'\n' | b'\r' | b'\t' => Ok((&input[1..], ())),
-            _ => wrong_chars(input),
-        }
+fn whitespace_simple(input: &[u8]) -> LexResult<Token> {
+    match input {
+        [b' ', rest @ ..] | [b'\t', rest @ ..] => Ok((rest, Token::Whitespace)),
+        _ => wrong_chars(input),
+    }
+}
+
+/// Parse trivial whitespace
+fn whitespace_endline(input: &[u8]) -> LexResult<Token> {
+    match input {
+        [b'\r', b'\n', rest @ ..] | [b'\n', rest @ ..] => Ok((rest, Token::Endline)),
+        _ => wrong_chars(input),
     }
 }
 
 /// Parse a line comment
-fn line_comment(input: &[u8]) -> LexResult<()> {
+fn line_comment(input: &[u8]) -> LexResult<Token> {
     if input.starts_with(b"//") {
         match input.iter().enumerate().position(|c| *c.1 == b'\n') {
-            Some(len) => Ok((&input[len..], ())),
-            None => Ok((&[], ())),
+            Some(len) => Ok((&input[len + 1..], Token::Comment)),
+            None => Ok((&[], Token::Comment)),
         }
     } else {
         wrong_chars(input)
@@ -735,7 +739,7 @@ fn line_comment(input: &[u8]) -> LexResult<()> {
 }
 
 /// Parse a block comment
-fn block_comment(input: &[u8]) -> LexResult<()> {
+fn block_comment(input: &[u8]) -> LexResult<Token> {
     if input.starts_with(b"/*") {
         // Find the end of the block
         // We do not supported nested blocks
@@ -745,7 +749,7 @@ fn block_comment(input: &[u8]) -> LexResult<()> {
                 break;
             }
             if search.starts_with(b"*/") {
-                return Ok((&search[2..], ()));
+                return Ok((&search[2..], Token::Comment));
             }
             search = &search[1..];
         }
@@ -758,47 +762,35 @@ fn block_comment(input: &[u8]) -> LexResult<()> {
     }
 }
 
-/// Parse any kind of whitespace
-fn whitespace(input: &[u8]) -> LexResult<()> {
-    let mut search = input;
-    loop {
-        search = match choose(&[&whitespace_simple, &line_comment, &block_comment], search) {
-            Ok((input, ())) => input,
-            Err(_) => break,
-        }
-    }
-
-    if input == search {
-        // No whitespace found
-        wrong_chars(input)
-    } else {
-        // Whitespace found
-        Ok((search, ()))
-    }
-}
-
-/// Parse any kind of white space or no whitespace
-fn skip_whitespace(input: &[u8]) -> LexResult<()> {
-    let (input, _) = opt(whitespace)(input)?;
-    Ok((input, ()))
-}
-
 #[test]
 fn test_whitespace() {
-    let complete = Ok((&[][..], ()));
-    assert!(whitespace(b"").is_err());
-    assert_eq!(whitespace(b" "), complete);
-    assert_eq!(whitespace(b"//\n"), complete);
-    assert_eq!(whitespace(b"// comment\n"), complete);
-    assert_eq!(whitespace(b"/* comment */"), complete);
-    assert_eq!(whitespace(b"/* line 1\n\t line 2\n\t line 3 */"), complete);
-    assert_eq!(whitespace(b"/* line 1\n\t star *\n\t line 3 */"), complete);
-    assert_eq!(whitespace(b"/* line 1\n\t slash /\n\t line 3 */"), complete);
+    let end = |t: Token| Ok((&[][..], t));
+
+    // Empty string is not any kind of space
+    assert!(whitespace_simple(b"").is_err());
+    assert!(line_comment(b"").is_err());
+    assert!(block_comment(b"").is_err());
+    assert_eq!(whitespace_simple(b" "), end(Token::Whitespace));
+    assert_eq!(line_comment(b"//\n"), end(Token::Comment));
+    assert_eq!(line_comment(b"// comment\n"), end(Token::Comment));
+    assert_eq!(block_comment(b"/* comment */"), end(Token::Comment));
+    assert_eq!(
+        block_comment(b"/* line 1\n\t line 2\n\t line 3 */"),
+        end(Token::Comment)
+    );
+    assert_eq!(
+        block_comment(b"/* line 1\n\t star *\n\t line 3 */"),
+        end(Token::Comment)
+    );
+    assert_eq!(
+        block_comment(b"/* line 1\n\t slash /\n\t line 3 */"),
+        end(Token::Comment)
+    );
 }
 
 /// Peek at what token is coming next unless there is whitespace
 fn lookahead_token(input: &[u8]) -> LexResult<Option<Token>> {
-    match token_no_whitespace_intermediate(input) {
+    match token_intermediate(input) {
         Ok((_, o)) => Ok((input, Some(o))),
         Err(_) => Ok((input, None)),
     }
@@ -810,7 +802,7 @@ fn leftanglebracket(input: &[u8]) -> LexResult<Token> {
         Some(b'<') => {
             let input = &input[1..];
             let token = match lookahead_token(input)?.1 {
-                Some(_) => Token::LeftAngleBracket(FollowedBy::Token),
+                Some(tok) if !tok.is_whitespace() => Token::LeftAngleBracket(FollowedBy::Token),
                 _ => Token::LeftAngleBracket(FollowedBy::Whitespace),
             };
             Ok((input, token))
@@ -844,7 +836,7 @@ fn rightanglebracket(input: &[u8]) -> LexResult<Token> {
         Some(b'>') => {
             let input = &input[1..];
             let token = match lookahead_token(input)?.1 {
-                Some(_) => Token::RightAngleBracket(FollowedBy::Token),
+                Some(tok) if !tok.is_whitespace() => Token::RightAngleBracket(FollowedBy::Token),
                 _ => Token::RightAngleBracket(FollowedBy::Whitespace),
             };
             Ok((input, token))
@@ -1043,10 +1035,15 @@ fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
     )
 }
 
-/// Parse any single non-whitespace token - without a location
-fn token_no_whitespace_intermediate(input: &[u8]) -> LexResult<Token> {
+/// Parse a single token - without a location
+fn token_intermediate(input: &[u8]) -> LexResult<Token> {
     choose(
         &[
+            // Whitespace
+            &whitespace_simple,
+            &whitespace_endline,
+            &line_comment,
+            &block_comment,
             // Literals
             &literal_float,
             &literal_int,
@@ -1068,33 +1065,17 @@ fn token_no_whitespace_intermediate(input: &[u8]) -> LexResult<Token> {
     )
 }
 
-/// Parse any single non-whitespace token - with a location
-fn token_no_whitespace(input: &[u8]) -> LexResult<IntermediateToken> {
-    let (remaining, token) = token_no_whitespace_intermediate(input)?;
-    let intermediate_token = IntermediateToken(token, IntermediateLocation(input.len() as u32));
-    Ok((remaining, intermediate_token))
-}
-
 /// Parse a single token
 fn token(input: &[u8]) -> LexResult<IntermediateToken> {
-    let (input, _) = skip_whitespace(input)?;
-    let (input, token) = token_no_whitespace(input)?;
-    let (input, _) = skip_whitespace(input)?;
-
-    Ok((input, token))
+    let (remaining, token) = token_intermediate(input)?;
+    let intermediate_token = IntermediateToken(token, IntermediateLocation(input.len() as u32));
+    Ok((remaining, intermediate_token))
 }
 
 /// Parse all tokens in a stream
 fn token_stream(mut input: &[u8]) -> LexResult<Vec<StreamToken>> {
     let total_length = input.len() as u32;
     let mut tokens = Vec::new();
-
-    // If the input only contains whitespace then early out
-    // We only consume whitespace around tokens so with no tokens the whitespace will be left unparsed
-    let (no_whitespace_input, _) = skip_whitespace(input)?;
-    if no_whitespace_input.is_empty() {
-        return Ok((&[], tokens));
-    }
 
     while !input.is_empty() {
         match token(input) {
@@ -1125,6 +1106,9 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
                 let mut lex_tokens = Vec::with_capacity(stream.len());
                 let mut last_entry = 0;
                 for StreamToken(ref token, stream_location) in stream {
+                    if token.is_whitespace() {
+                        continue;
+                    }
                     let location_result =
                         preprocessed.get_source_location_sequential(stream_location, last_entry);
                     let source_location = location_result.0;
@@ -1141,16 +1125,12 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
                     }
                     after = &after[1..];
 
-                    if let Ok((_, token)) = token_no_whitespace(after) {
+                    if let Ok((_, token)) = token(after) {
                         if let IntermediateToken(Token::Id(_), _) = token {
                             // If we find an identifier then it would be a substring of another identifier which didn't lex
                         } else {
                             break;
                         }
-                    }
-
-                    if whitespace(after).is_ok() {
-                        break;
                     }
                 }
 
@@ -1187,6 +1167,9 @@ pub fn minilex(text: &str) -> Result<Vec<Token>, LexerError> {
             if rest.is_empty() {
                 let mut tokens = Vec::with_capacity(stream.len());
                 for StreamToken(ref token, _) in stream {
+                    if token.is_whitespace() {
+                        continue;
+                    }
                     tokens.push(token.clone());
                 }
                 Ok(tokens)
@@ -1216,16 +1199,8 @@ fn test_token() {
         Ok((&b""[..], from_end(Token::Semicolon, 1)))
     );
     assert_eq!(
-        token(&b" ;"[..]),
-        Ok((&b""[..], from_end(Token::Semicolon, 1)))
-    );
-    assert_eq!(
         token(&b"; "[..]),
-        Ok((&b""[..], from_end(Token::Semicolon, 2)))
-    );
-    assert_eq!(
-        token(&b" ; "[..]),
-        Ok((&b""[..], from_end(Token::Semicolon, 2)))
+        Ok((&b" "[..], from_end(Token::Semicolon, 2)))
     );
     assert_eq!(
         token(&b"name"[..]),
@@ -1237,7 +1212,7 @@ fn test_token() {
 
     assert_eq!(
         token(&b"12 "[..]),
-        Ok((&b""[..], from_end(Token::LiteralInt(12), 3)))
+        Ok((&b" "[..], from_end(Token::LiteralInt(12), 3)))
     );
     assert_eq!(
         token(&b"12u"[..]),
@@ -1258,7 +1233,7 @@ fn test_token() {
     );
     assert_eq!(
         token(&b"2.0 "[..]),
-        Ok((&b""[..], from_end(Token::LiteralFloat(2.0f32), 4)))
+        Ok((&b" "[..], from_end(Token::LiteralFloat(2.0f32), 4)))
     );
     assert_eq!(
         token(&b"2.0L"[..]),
@@ -1297,14 +1272,14 @@ fn test_token() {
     assert_eq!(
         token(&b"< "[..]),
         Ok((
-            &b""[..],
+            &b" "[..],
             from_end(Token::LeftAngleBracket(FollowedBy::Whitespace), 2)
         ))
     );
     assert_eq!(
         token(&b"> "[..]),
         Ok((
-            &b""[..],
+            &b" "[..],
             from_end(Token::RightAngleBracket(FollowedBy::Whitespace), 2)
         ))
     );
@@ -1343,46 +1318,49 @@ fn test_token() {
     );
     assert_eq!(token(&b","[..]), Ok((&b""[..], from_end(Token::Comma, 1))));
 
-    assert_eq!(token(&b"+ "[..]), Ok((&b""[..], from_end(Token::Plus, 2))));
-    assert_eq!(token(&b"- "[..]), Ok((&b""[..], from_end(Token::Minus, 2))));
+    assert_eq!(token(&b"+ "[..]), Ok((&b" "[..], from_end(Token::Plus, 2))));
+    assert_eq!(
+        token(&b"- "[..]),
+        Ok((&b" "[..], from_end(Token::Minus, 2)))
+    );
     assert_eq!(
         token(&b"/ "[..]),
-        Ok((&b""[..], from_end(Token::ForwardSlash, 2)))
+        Ok((&b" "[..], from_end(Token::ForwardSlash, 2)))
     );
     assert_eq!(
         token(&b"% "[..]),
-        Ok((&b""[..], from_end(Token::Percent, 2)))
+        Ok((&b" "[..], from_end(Token::Percent, 2)))
     );
     assert_eq!(
         token(&b"* "[..]),
-        Ok((&b""[..], from_end(Token::Asterix, 2)))
+        Ok((&b" "[..], from_end(Token::Asterix, 2)))
     );
     assert_eq!(
         token(&b"| "[..]),
-        Ok((&b""[..], from_end(Token::VerticalBar, 2)))
+        Ok((&b" "[..], from_end(Token::VerticalBar, 2)))
     );
     assert_eq!(
         token(&b"|| "[..]),
-        Ok((&b""[..], from_end(Token::VerticalBarVerticalBar, 3)))
+        Ok((&b" "[..], from_end(Token::VerticalBarVerticalBar, 3)))
     );
     assert_eq!(
         token(&b"& "[..]),
-        Ok((&b""[..], from_end(Token::Ampersand, 2)))
+        Ok((&b" "[..], from_end(Token::Ampersand, 2)))
     );
     assert_eq!(
         token(&b"&& "[..]),
-        Ok((&b""[..], from_end(Token::AmpersandAmpersand, 3)))
+        Ok((&b" "[..], from_end(Token::AmpersandAmpersand, 3)))
     );
-    assert_eq!(token(&b"^ "[..]), Ok((&b""[..], from_end(Token::Hat, 2))));
+    assert_eq!(token(&b"^ "[..]), Ok((&b" "[..], from_end(Token::Hat, 2))));
     assert_eq!(
         token(&b"= "[..]),
-        Ok((&b""[..], from_end(Token::Equals, 2)))
+        Ok((&b" "[..], from_end(Token::Equals, 2)))
     );
     assert_eq!(token(&b"#"[..]), Ok((&b""[..], from_end(Token::Hash, 1))));
     assert_eq!(token(&b"@"[..]), Ok((&b""[..], from_end(Token::At, 1))));
     assert_eq!(
         token(&b"! "[..]),
-        Ok((&b""[..], from_end(Token::ExclamationPoint, 2)))
+        Ok((&b" "[..], from_end(Token::ExclamationPoint, 2)))
     );
     assert_eq!(token(&b"~"[..]), Ok((&b""[..], from_end(Token::Tilde, 1))));
     assert_eq!(token(&b"."[..]), Ok((&b""[..], from_end(Token::Period, 1))));
@@ -1488,12 +1466,6 @@ fn test_token() {
 
 #[test]
 fn test_token_stream() {
-    assert_eq!(token_stream(&b""[..]), Ok((&b""[..], vec![])));
-    assert_eq!(
-        token_stream(&b"// Comment only source!\n"[..]),
-        Ok((&b""[..], vec![]))
-    );
-
     fn token_id(name: &'static str, loc: u32) -> StreamToken {
         StreamToken(Token::Id(Identifier(name.to_string())), StreamLocation(loc))
     }
@@ -1501,9 +1473,22 @@ fn test_token_stream() {
         StreamToken(tok, StreamLocation(loc))
     }
 
+    assert_eq!(token_stream(&b""[..]), Ok((&b""[..], vec![])));
+    assert_eq!(
+        token_stream(&b"// Comment only source!\n"[..]),
+        Ok((&b""[..], Vec::from([loc(Token::Comment, 0)])))
+    );
+
     assert_eq!(
         token_stream(&b" a "[..]),
-        Ok((&b""[..], vec![token_id("a", 1),]))
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::Whitespace, 0),
+                token_id("a", 1),
+                loc(Token::Whitespace, 2),
+            ])
+        ))
     );
 
     assert_eq!(
@@ -1512,6 +1497,7 @@ fn test_token_stream() {
             &b""[..],
             vec![
                 token_id("void", 0),
+                loc(Token::Whitespace, 4),
                 token_id("func", 5),
                 loc(Token::LeftParen, 9),
                 loc(Token::RightParen, 10),
@@ -1524,7 +1510,11 @@ fn test_token_stream() {
         token_stream(&b"-12 "[..]),
         Ok((
             &b""[..],
-            vec![loc(Token::Minus, 0), loc(Token::LiteralInt(12), 1),]
+            vec![
+                loc(Token::Minus, 0),
+                loc(Token::LiteralInt(12), 1),
+                loc(Token::Whitespace, 3),
+            ]
         ))
     );
     assert_eq!(
@@ -1563,7 +1553,10 @@ fn test_token_stream() {
         token_stream(&b"< "[..]),
         Ok((
             &b""[..],
-            vec![loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 0),]
+            vec![
+                loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 0),
+                loc(Token::Whitespace, 1),
+            ]
         ))
     );
 
@@ -1588,7 +1581,10 @@ fn test_token_stream() {
         token_stream(&b"> "[..]),
         Ok((
             &b""[..],
-            vec![loc(Token::RightAngleBracket(FollowedBy::Whitespace), 0),]
+            vec![
+                loc(Token::RightAngleBracket(FollowedBy::Whitespace), 0),
+                loc(Token::Whitespace, 1),
+            ]
         ))
     );
 }

@@ -113,6 +113,17 @@ pub enum Token {
     Typename,
 
     ReservedWord(String),
+
+    Endline,
+    Whitespace,
+    Comment,
+}
+
+impl Token {
+    /// Test if the token is for whitespace, endlines, or comments
+    pub fn is_whitespace(&self) -> bool {
+        matches!(self, Token::Endline | Token::Whitespace | Token::Comment)
+    }
 }
 
 /// A [Token] with source location information attached
