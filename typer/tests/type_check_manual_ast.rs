@@ -23,7 +23,7 @@ fn test_ast_pass() {
                     name: Located::none("g_myOutBuffer".to_string()),
                     bind: Default::default(),
                     slot: Some(ast::Register {
-                        slot_type: ast::RegisterType::T,
+                        slot_type: ast::RegisterType::U,
                         index: 0,
                     }),
                     init: None,

@@ -387,6 +387,12 @@ fn check_cbuffer() {
     check_types("struct S {}; cbuffer S {}");
     check_types("cbuffer S {} int S;");
     check_types("int S; cbuffer S {}");
+
+    // Constant buffers may have register annotations
+    check_types("cbuffer MyConstants : register(b4) { float c1; uint c2; }");
+
+    // But they must be in the 'b' group
+    check_fail("cbuffer MyConstants : register(t4) { float c1; uint c2; }");
 }
 
 #[test]
@@ -396,7 +402,7 @@ fn check_variable_scope() {
 }
 
 #[test]
-fn check_object_type_arguments() {
+fn check_object_type_globals() {
     check_types("Buffer buf;");
     check_types("Buffer<uint4> buf;");
     check_types("Buffer<const uint4> buf;");
@@ -424,6 +430,28 @@ fn check_object_type_arguments() {
     // HLSL forbids constant buffers with non-struct types - maybe we should as well
     check_types("ConstantBuffer<uint4> buf;");
     check_types("struct S {}; ConstantBuffer<S> buf;");
+
+    // Check allowed register types for Texture2D
+    check_types("Texture2D<float4> tex : register(t9);");
+    check_fail("Texture2D<float4> tex : register(u9);");
+    check_fail("Texture2D<float4> tex : register(b9);");
+    check_fail("Texture2D<float4> tex : register(s9);");
+
+    // Check allowed register types for RWTexture2D
+    check_types("RWTexture2D<float4> tex : register(u10);");
+    check_fail("RWTexture2D<float4> tex : register(t10);");
+    check_fail("RWTexture2D<float4> tex : register(b10);");
+    check_fail("RWTexture2D<float4> tex : register(s10);");
+
+    // Constant buffers may have register annotations of type 'b'
+    check_types("ConstantBuffer<uint4> buf : register(b4);");
+    check_fail("ConstantBuffer<uint4> buf : register(u4);");
+
+    // Register annotations are not permitted on non-objects
+    check_fail("uint x : register(t4);");
+    check_fail("uint x : register(u4);");
+    check_fail("uint x : register(b4);");
+    check_fail("uint x : register(s4);");
 }
 
 #[test]

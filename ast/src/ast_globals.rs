@@ -43,13 +43,9 @@ pub enum RegisterType {
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub name: Located<String>,
-    pub slot: Option<ConstantSlot>,
+    pub slot: Option<Register>,
     pub members: Vec<ConstantVariable>,
 }
-
-/// The resource binding slot for a global constant buffer parameter
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct ConstantSlot(pub u32);
 
 /// A variable definition inside a constant buffer
 ///
@@ -85,5 +81,16 @@ pub enum PackSubOffset {
 impl From<Type> for GlobalType {
     fn from(ty: Type) -> GlobalType {
         GlobalType(ty, GlobalStorage::default())
+    }
+}
+
+impl std::fmt::Display for RegisterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RegisterType::T => write!(f, "t"),
+            RegisterType::U => write!(f, "u"),
+            RegisterType::S => write!(f, "s"),
+            RegisterType::B => write!(f, "b"),
+        }
     }
 }

@@ -3,7 +3,7 @@ BufferAddress g_clusterInstanceData : register(t0);
 BufferAddress g_clusterData : register(t1);
 BufferAddress g_primitiveData : register(t2);
 
-RWBufferAddress g_indexData : register(t3);
+RWBufferAddress g_indexData : register(u3);
 RWByteAddressBuffer g_indirectBuffer : register(u4);
 
 struct ClusterInstanceData

@@ -38,10 +38,30 @@ pub fn parse_rootdefinition_globalvariable(
         let var_id = context.insert_global(global_variable.name.clone(), type_id, storage_class)?;
 
         let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
-        gv_ir.lang_slot = global_variable.slot.clone().map(|r| ir::LanguageBinding {
-            set: 0,
-            index: r.index,
-        });
+        gv_ir.lang_slot = match &global_variable.slot {
+            Some(slot) => {
+                if let ir::TypeLayout::Object(ot) = base_type_layout.clone().remove_modifier() {
+                    let expected_slot_type = ot.get_register_type();
+                    if slot.slot_type != expected_slot_type {
+                        return Err(TyperError::InvalidRegisterType(
+                            slot.slot_type,
+                            expected_slot_type,
+                            global_variable.name.location,
+                        ));
+                    };
+                    Some(ir::LanguageBinding {
+                        set: 0,
+                        index: slot.index,
+                    })
+                } else {
+                    return Err(TyperError::InvalidRegisterAnnotation(
+                        type_id,
+                        global_variable.name.location,
+                    ));
+                }
+            }
+            None => None,
+        };
         gv_ir.init = var_init;
 
         defs.push(ir::RootDefinition::GlobalVariable(var_id));
@@ -118,10 +138,22 @@ pub fn parse_rootdefinition_constantbuffer(
         Err(id) => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name, id)),
     };
     let cb_ir = &mut context.module.cbuffer_registry[id.0 as usize];
-    cb_ir.lang_binding = cb
-        .slot
-        .clone()
-        .map(|c| ir::LanguageBinding { set: 0, index: c.0 });
+    cb_ir.lang_binding = match &cb.slot {
+        Some(slot) => {
+            if slot.slot_type != ir::RegisterType::B {
+                return Err(TyperError::InvalidRegisterType(
+                    slot.slot_type,
+                    ir::RegisterType::B,
+                    cb.name.location,
+                ));
+            };
+            Some(ir::LanguageBinding {
+                set: 0,
+                index: slot.index,
+            })
+        }
+        None => None,
+    };
     cb_ir.members = members;
 
     Ok(ir::RootDefinition::ConstantBuffer(id))

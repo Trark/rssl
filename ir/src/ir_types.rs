@@ -705,6 +705,28 @@ impl ScalarType {
     }
 }
 
+impl ObjectType {
+    pub fn get_register_type(&self) -> RegisterType {
+        match self {
+            ObjectType::Buffer(_)
+            | ObjectType::ByteAddressBuffer
+            | ObjectType::BufferAddress
+            | ObjectType::StructuredBuffer(_)
+            | ObjectType::Texture2D(_) => RegisterType::T,
+
+            ObjectType::RWBuffer(_)
+            | ObjectType::RWByteAddressBuffer
+            | ObjectType::RWBufferAddress
+            | ObjectType::RWStructuredBuffer(_)
+            | ObjectType::RWTexture2D(_) => RegisterType::U,
+
+            ObjectType::ConstantBuffer(_) => RegisterType::B,
+
+            ObjectType::SamplerState | ObjectType::SamplerComparisonState => RegisterType::S,
+        }
+    }
+}
+
 impl std::fmt::Debug for TypeLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {

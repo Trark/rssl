@@ -17,23 +17,6 @@ pub enum FollowedBy {
     Whitespace,
 }
 
-/// The slot value that is attached to a [Token::Register] value
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum RegisterSlot {
-    T(u32),
-    U(u32),
-    B(u32),
-    S(u32),
-}
-
-/// The slot value that is attached to a [Token::PackOffset] value
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum OffsetSlot {
-    T(u32),
-    U(u32),
-    B(u32),
-}
-
 /// Any token that may appear in an RSSL file
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
@@ -104,8 +87,8 @@ pub enum Token {
     Enum,
     Typedef,
     ConstantBuffer,
-    Register(RegisterSlot),
-    PackOffset(OffsetSlot),
+    Register,
+    PackOffset,
     Namespace,
     Colon,
     ScopeResolution,

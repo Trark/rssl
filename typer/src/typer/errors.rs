@@ -92,6 +92,12 @@ pub enum TyperError {
 
     /// A struct member was declared with const
     StructMemberMayNotBeConst(SourceLocation),
+
+    /// Incorrect register type was used for a resource
+    InvalidRegisterType(ir::RegisterType, ir::RegisterType, SourceLocation),
+
+    /// Register annotation not allowed on type
+    InvalidRegisterAnnotation(ir::TypeId, SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -525,6 +531,28 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
             ),
             TyperError::StructMemberMayNotBeConst(loc) => write_message(
                 &|f| write!(f, "struct member was declared const"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::InvalidRegisterType(used, expected, loc) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "invalid register type '{}' - expected '{}'",
+                        used, expected
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::InvalidRegisterAnnotation(ty, loc) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "register() is not allowed on '{}'",
+                        get_type_id_string(*ty, context)
+                    )
+                },
                 *loc,
                 Severity::Error,
             ),

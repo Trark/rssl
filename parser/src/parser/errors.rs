@@ -43,25 +43,53 @@ impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
         let ParserErrorPrinter(err, source_manager) = self;
 
         // Find the failing location
-        let loc_opt = match &err.1 {
+        let loc = match &err.1 {
             Some(tokens) => match tokens.as_slice() {
-                [LexToken(_, loc), ..] => Some(*loc),
-                _ => None,
+                [LexToken(_, loc), ..] => *loc,
+                _ => SourceLocation::UNKNOWN,
             },
-            _ => None,
+            _ => SourceLocation::UNKNOWN,
         };
 
-        // Get file location info
-        let file_location = match loc_opt {
-            Some(loc) => source_manager.get_file_location(loc),
-            None => FileLocation::Unknown,
+        // Shared error message printing logic
+        let mut write_message = |write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
+                                 loc: SourceLocation| {
+            if loc != SourceLocation::UNKNOWN {
+                // Get file location info
+                let file_location = source_manager.get_file_location(loc);
+
+                // Print basic failure reason
+                write!(f, "{}: error: ", file_location)?;
+                write(f)?;
+                writeln!(f)?;
+
+                // Print source that caused the error
+                source_manager.write_source_for_error(f, Some(loc))
+            } else {
+                // Print basic failure reason
+                write!(f, "error: ")?;
+                write(f)?;
+                writeln!(f)
+            }
         };
 
-        // Print basic failure reason
-        writeln!(f, "{}: Failed to parse source", file_location)?;
-
-        // Print source that caused the error
-        source_manager.write_source_for_error(f, loc_opt)
+        match &err.0 {
+            ParseErrorReason::InvalidSlotType(slot_string) => write_message(
+                &|f| write!(f, "register type is not supported in '{}'", slot_string),
+                loc,
+            ),
+            ParseErrorReason::InvalidSlotIndex(slot_string) => write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "register index should be an integer in '{}'",
+                        slot_string
+                    )
+                },
+                loc,
+            ),
+            _ => write_message(&|f| write!(f, "failed to parse source"), loc),
+        }
     }
 }
 
@@ -72,9 +100,9 @@ pub enum ParseErrorReason {
     UnexpectedEndOfStream,
     TokensUnconsumed,
     WrongToken,
-    WrongSlotType,
-    UnknownType,
     SymbolIsNotAType,
+    InvalidSlotType(String),
+    InvalidSlotIndex(String),
     UnexpectedAttribute(String),
 }
 

@@ -315,10 +315,7 @@ fn export_register_annotation(
     if let Some(slot) = &slot {
         output.push_str(" : register(");
         match slot.slot_type {
-            Some(ir::RegisterType::T) => output.push('t'),
-            Some(ir::RegisterType::U) => output.push('u'),
-            Some(ir::RegisterType::S) => output.push('s'),
-            Some(ir::RegisterType::B) => output.push('b'),
+            Some(register_type) => write!(output, "{}", register_type).unwrap(),
             None => panic!("Exporter requires register types in api binding metadata"),
         }
         match slot.location {

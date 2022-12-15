@@ -664,6 +664,8 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "enum" => Token::Enum,
         "typedef" => Token::Typedef,
         "cbuffer" => Token::ConstantBuffer,
+        "register" => Token::Register,
+        "packoffset" => Token::PackOffset,
         "namespace" => Token::Namespace,
 
         "true" => Token::True,
@@ -682,7 +684,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "typename" => Token::Typename,
 
         // Unimplemented keywords
-        "packoffset" | "case" | "default" => Token::ReservedWord(id.0),
+        "case" | "default" => Token::ReservedWord(id.0),
 
         // Reserved keywords for future use
         "auto" | "catch" | "char" | "class" | "const_cast" | "delete" | "dynamic_cast"
@@ -695,21 +697,6 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         _ => Token::Id(id),
     };
     Ok((stream, tok))
-}
-
-/// Parse a single specific word
-fn specific_word<'a>(input: &'a [u8], name: &'static str) -> LexResult<'a, &'a [u8]> {
-    let name_bytes = name.as_bytes();
-    if input.starts_with(name_bytes) {
-        let (k, r) = input.split_at(name_bytes.len());
-        if r.is_empty() || identifier_char(r).is_err() {
-            Ok((r, k))
-        } else {
-            wrong_chars(input)
-        }
-    } else {
-        wrong_chars(input)
-    }
 }
 
 /// Parse a specific string of characters
@@ -807,63 +794,6 @@ fn test_whitespace() {
     assert_eq!(whitespace(b"/* line 1\n\t line 2\n\t line 3 */"), complete);
     assert_eq!(whitespace(b"/* line 1\n\t star *\n\t line 3 */"), complete);
     assert_eq!(whitespace(b"/* line 1\n\t slash /\n\t line 3 */"), complete);
-}
-
-/// Register class for a resource
-enum RegisterType {
-    T,
-    U,
-    B,
-    S,
-}
-
-/// Parse a register type
-fn register_type(input: &[u8]) -> LexResult<RegisterType> {
-    match input {
-        [b't', rest @ ..] => Ok((rest, RegisterType::T)),
-        [b'u', rest @ ..] => Ok((rest, RegisterType::U)),
-        [b'b', rest @ ..] => Ok((rest, RegisterType::B)),
-        [b's', rest @ ..] => Ok((rest, RegisterType::S)),
-        _ => wrong_chars(input),
-    }
-}
-
-/// Parse a register slot attribute
-fn register(input: &[u8]) -> LexResult<Token> {
-    let (input, _) = specific_word(input, "register")?;
-    let (input, _) = skip_whitespace(input)?;
-    let (input, _) = specific_text(input, "(")?;
-    let (input, _) = skip_whitespace(input)?;
-    let (input, slot_type) = register_type(input)?;
-    let (input, num) = digits(input)?;
-    let (input, _) = skip_whitespace(input)?;
-    let (input, _) = specific_text(input, ")")?;
-
-    let token = Token::Register(match slot_type {
-        RegisterType::T => RegisterSlot::T(num as u32),
-        RegisterType::U => RegisterSlot::U(num as u32),
-        RegisterType::B => RegisterSlot::B(num as u32),
-        RegisterType::S => RegisterSlot::S(num as u32),
-    });
-
-    Ok((input, token))
-}
-
-#[test]
-fn test_register() {
-    let p = register;
-    assert_eq!(
-        p(b"register(t0)"),
-        Ok((&b""[..], Token::Register(RegisterSlot::T(0))))
-    );
-    assert_eq!(
-        p(b"register(t1);"),
-        Ok((&b";"[..], Token::Register(RegisterSlot::T(1))))
-    );
-    assert_eq!(
-        p(b"register ( u1 ) ; "),
-        Ok((&b" ; "[..], Token::Register(RegisterSlot::U(1))))
-    );
 }
 
 /// Peek at what token is coming next unless there is whitespace
@@ -1131,8 +1061,6 @@ fn token_no_whitespace_intermediate(input: &[u8]) -> LexResult<Token> {
             &rightanglebracket,
             // Symbols
             &token_no_whitespace_symbols,
-            // Special words
-            &register,
             // Identifiers and keywords
             &any_word,
         ],
@@ -1507,8 +1435,12 @@ fn test_token() {
         Ok((&b""[..], from_end(Token::Namespace, 9)))
     );
     assert_eq!(
-        token(&b"register(t4)"[..]),
-        Ok((&b""[..], from_end(Token::Register(RegisterSlot::T(4)), 12)))
+        token(&b"register"[..]),
+        Ok((&b""[..], from_end(Token::Register, 8)))
+    );
+    assert_eq!(
+        token(&b"packoffset"[..]),
+        Ok((&b""[..], from_end(Token::PackOffset, 10)))
     );
     assert_eq!(token(&b":"[..]), Ok((&b""[..], from_end(Token::Colon, 1))));
     assert_eq!(
