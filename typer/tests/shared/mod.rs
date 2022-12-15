@@ -46,9 +46,8 @@ pub fn check_types(source: &str) {
 pub fn check_fail(source: &str) {
     let (tree, _) = parse_from_str(source);
 
-    match rssl_typer::type_check(&tree) {
-        Ok(_) => panic!("Expected type check to fail: {}", source),
-        Err(_) => {}
+    if rssl_typer::type_check(&tree).is_ok() {
+        panic!("Expected type check to fail: {}", source);
     }
 }
 

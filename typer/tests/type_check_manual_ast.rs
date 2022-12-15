@@ -243,7 +243,7 @@ fn test_ast_to_ir() {
                     .get_function_signature(base_func_id),
                 ir::FunctionSignature {
                     return_type: ir::FunctionReturn {
-                        return_type: void_id.into(),
+                        return_type: void_id,
                         semantic: None,
                     },
                     template_params: ir::TemplateParamCount(0),

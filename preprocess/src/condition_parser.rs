@@ -111,6 +111,7 @@ fn parse_leaf(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionP
 }
 
 #[test]
+#[allow(clippy::bool_assert_comparison)]
 fn test_condition_parser() {
     assert_eq!(parse("0").unwrap(), false);
     assert_eq!(parse("1").unwrap(), true);

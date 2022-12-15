@@ -677,7 +677,7 @@ fn macro_from_definition() {
 fn macro_resolve() {
     fn run(input: &str, macros: &[Macro], expected_output: &str) {
         let text = SubstitutedText::new(input, SourceLocation::UNKNOWN);
-        let resolved_text = text.apply_all(&macros, false).unwrap().resolve();
+        let resolved_text = text.apply_all(macros, false).unwrap().resolve();
         assert_eq!(resolved_text, expected_output);
     }
 

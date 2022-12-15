@@ -223,8 +223,8 @@ fn test_include() {
     impl IncludeHandler for TestFileLoader {
         fn load(&mut self, file_name: &str) -> Result<FileData, IncludeError> {
             Ok(FileData {
-                real_name: format!("./test/{}", file_name.to_string()),
-                contents: match file_name.as_ref() {
+                real_name: format!("./test/{}", file_name),
+                contents: match file_name {
                     "1.csh" => "X",
                     "2.csh" => "Y",
                     "p1.rssl" => "#pragma once\n1",

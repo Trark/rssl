@@ -33,6 +33,7 @@ impl TestLocationExt for Type {}
 impl TestLocationExt for String {}
 impl TestLocationExt for &str {}
 
+#[allow(clippy::wrong_self_convention)]
 pub trait TestVariableExt {
     fn as_var(self, offset: u32) -> Located<Expression>;
     fn as_bvar(self, offset: u32) -> Box<Located<Expression>>;

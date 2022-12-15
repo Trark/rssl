@@ -34,7 +34,7 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
 
 #[test]
 fn test_initializer() {
-    fn initializer<'t>(input: &'t [LexToken]) -> ParseResult<'t, Option<Initializer>> {
+    fn initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>> {
         parse_initializer(input)
     }
 
@@ -135,10 +135,7 @@ fn test_initializer() {
         LexToken::with_no_loc(Token::RightBrace),
         semicolon,
     ];
-    assert!(match initializer(&aggr_0) {
-        Err(_) => true,
-        _ => false,
-    });
+    assert!(initializer(&aggr_0).is_err());
 }
 
 /// Parse the type for a local variable

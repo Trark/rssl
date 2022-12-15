@@ -476,7 +476,7 @@ fn test_implicitconversion() {
             ImplicitConversion::find(ty.to_lvalue(), ty.to_rvalue(), &mut module),
             Ok(ImplicitConversion(
                 ty.to_lvalue(),
-                Some(ValueTypeCast(ty.clone(), Lvalue, Rvalue)),
+                Some(ValueTypeCast(*ty, Lvalue, Rvalue)),
                 None,
                 None,
                 None
