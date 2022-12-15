@@ -18,7 +18,7 @@ fn parse_from_str(source: &str) -> (rssl_ast::Module, SourceManager) {
     .expect("preprocess failed");
 
     // Run the lexer on the input
-    let tokens = match rssl_lexer::lex(&preprocessed_text) {
+    let tokens = match rssl_preprocess::lex(&preprocessed_text) {
         Ok(tokens) => tokens.stream,
         Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
     };

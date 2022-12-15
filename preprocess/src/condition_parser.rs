@@ -1,10 +1,11 @@
+use crate::minilex;
 use crate::preprocess::PreprocessError;
 use rssl_text::tokens::Token;
 
 /// Parse a condition for an #if and return if it passes
 pub fn parse(condition: &str) -> Result<bool, PreprocessError> {
     // Throw the line into the lexer to share all the literal, token, and whitespace parsing logic
-    let tokens = match rssl_lexer::minilex(condition) {
+    let tokens = match minilex(condition) {
         Ok(tokens) => tokens,
         Err(_) => {
             return Err(PreprocessError::FailedToParseIfCondition(

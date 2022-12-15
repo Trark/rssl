@@ -12,7 +12,6 @@ rssl-text = { path = "text" }
 rssl-ast = { path = "ast" }
 rssl-ir = { path = "ir" }
 rssl-preprocess = { path = "preprocess" }
-rssl-lexer = { path = "lexer" }
 rssl-parser = { path = "parser" }
 rssl-typer = { path = "typer" }
 rssl-hlsl = { path = "hlsl" }
@@ -21,7 +20,6 @@ rssl-hlsl = { path = "hlsl" }
 members = [
     "ast",
     "ir",
-    "lexer",
     "parser",
     "preprocess",
     "text",

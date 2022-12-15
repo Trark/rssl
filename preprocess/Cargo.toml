@@ -8,4 +8,3 @@ doctest = false
 
 [dependencies]
 rssl-text = { path = "../text" }
-rssl-lexer = { path = "../lexer" }

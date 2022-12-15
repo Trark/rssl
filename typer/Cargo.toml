@@ -13,5 +13,4 @@ rssl-ir = { path = "../ir" }
 
 [dev-dependencies]
 rssl-preprocess = { path = "../preprocess" }
-rssl-lexer = { path = "../lexer" }
 rssl-parser = { path = "../parser" }

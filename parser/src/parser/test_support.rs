@@ -80,7 +80,7 @@ fn lex_from_str(source: &str) -> (Vec<LexToken>, SourceManager) {
     .expect("preprocess failed");
 
     // Run the lexer on the input
-    match rssl_lexer::lex(&preprocessed_text) {
+    match rssl_preprocess::lex(&preprocessed_text) {
         Ok(tokens) => (tokens.stream, source_manager),
         Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
     }

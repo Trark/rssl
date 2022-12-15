@@ -12,4 +12,3 @@ rssl-ast = { path = "../ast" }
 
 [dev-dependencies]
 rssl-preprocess = { path = "../preprocess" }
-rssl-lexer = { path = "../lexer" }
