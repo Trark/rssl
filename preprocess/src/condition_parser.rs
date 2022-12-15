@@ -1,5 +1,5 @@
 use crate::preprocess::PreprocessError;
-use rssl_tok::Token;
+use rssl_text::tokens::Token;
 
 /// Parse a condition for an #if and return if it passes
 pub fn parse(condition: &str) -> Result<bool, PreprocessError> {

@@ -1,6 +1,6 @@
 use rssl_ast::*;
+use rssl_text::tokens::*;
 use rssl_text::*;
-use rssl_tok::*;
 use std::collections::HashSet;
 
 /// Failure cases

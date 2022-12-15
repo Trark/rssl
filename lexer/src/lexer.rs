@@ -1,5 +1,5 @@
+use rssl_text::tokens::*;
 use rssl_text::*;
-use rssl_tok::*;
 
 /// Provides details on why a lex operation failed
 #[derive(PartialEq, Clone)]

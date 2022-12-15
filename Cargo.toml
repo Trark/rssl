@@ -9,7 +9,6 @@ doctest = false
 
 [dependencies]
 rssl-text = { path = "text" }
-rssl-tok = { path = "tok" }
 rssl-ast = { path = "ast" }
 rssl-ir = { path = "ir" }
 rssl-preprocess = { path = "preprocess" }
@@ -26,7 +25,6 @@ members = [
     "parser",
     "preprocess",
     "text",
-    "tok",
     "typer",
     "hlsl",
 ]

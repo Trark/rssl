@@ -1,4 +1,8 @@
-use rssl_text::*;
+//! Tokens
+//!
+//! The tokens module contains all the definitions for tokens used by the RSSL lexer.
+
+use crate::*;
 
 /// An arbitrary identifier token string
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
