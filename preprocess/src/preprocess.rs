@@ -1,88 +1,135 @@
+use crate::lexer::LexerError;
+use rssl_text::tokens::*;
 use rssl_text::*;
 use std::collections::{HashMap, HashSet};
 
-/// An error which occurred when attempting to preprocessa a file
+/// An error which occurred when attempting to preprocess a file
 #[derive(PartialEq, Debug, Clone)]
 pub enum PreprocessError {
-    UnknownCommand(String),
-    InvalidInclude,
-    InvalidDefine,
+    LexerError(LexerError),
+    UnknownCommand(SourceLocation),
+    InvalidInclude(SourceLocation),
+    InvalidDefine(SourceLocation),
     MacroAlreadyDefined(String),
     MacroRequiresArguments(String),
     MacroArgumentsNeverEnd,
     MacroExpectsDifferentNumberOfArguments,
-    FailedToFindFile(String, IncludeError),
-    InvalidIf(String),
-    FailedToParseIfCondition(String),
-    InvalidIfndef(String),
-    InvalidElse,
-    InvalidElif(String),
-    InvalidEndIf,
+    FailedToFindFile(SourceLocation, String, IncludeError),
+    FailedToParseIfCondition(SourceLocation),
+    InvalidIfdef(SourceLocation),
+    InvalidIfndef(SourceLocation),
+    InvalidElse(SourceLocation),
+    InvalidEndIf(SourceLocation),
     ConditionChainNotFinished,
     ElseNotMatched,
     EndIfNotMatched,
+    UnknownPragma(SourceLocation),
     PragmaOnceInUnknownFile,
 }
 
-impl std::fmt::Display for PreprocessError {
+impl PreprocessError {
+    /// Get formatter to print the error
+    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> PreprocessErrorPrinter<'a> {
+        PreprocessErrorPrinter(self, source_manager)
+    }
+}
+
+/// Prints preprocessor errors
+pub struct PreprocessErrorPrinter<'a>(&'a PreprocessError, &'a SourceManager);
+
+impl<'a> std::fmt::Display for PreprocessErrorPrinter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            PreprocessError::UnknownCommand(s) => write!(f, "Unknown preprocessor command: {}", s),
-            PreprocessError::InvalidInclude => write!(f, "Invalid #include command"),
-            PreprocessError::InvalidDefine => write!(f, "Invalid #define command"),
-            PreprocessError::MacroAlreadyDefined(s) => write!(f, "Macro already defined: {}", s),
-            PreprocessError::MacroRequiresArguments(s) => {
-                write!(f, "Macro function \"{}\" requires arguments", s)
+        let PreprocessErrorPrinter(err, source_manager) = self;
+
+        // Shared error message printing logic
+        let mut write_message = |write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
+                                 loc: SourceLocation| {
+            if loc != SourceLocation::UNKNOWN {
+                // Get file location info
+                let file_location = source_manager.get_file_location(loc);
+
+                // Print basic failure reason
+                write!(f, "{}: error: ", file_location)?;
+                write(f)?;
+                writeln!(f)?;
+
+                // Print source that caused the error
+                source_manager.write_source_for_error(f, Some(loc))
+            } else {
+                // Print basic failure reason
+                write!(f, "error: ")?;
+                write(f)?;
+                writeln!(f)
             }
-            PreprocessError::MacroArgumentsNeverEnd => write!(f, "expected end of macro arguments"),
-            PreprocessError::MacroExpectsDifferentNumberOfArguments => {
-                write!(f, "Macro requires different number of arguments")
+        };
+
+        match err {
+            PreprocessError::LexerError(err) => {
+                write_message(&|f| write!(f, "{}", err.reason), err.location)
             }
-            PreprocessError::FailedToFindFile(name, _) => {
-                write!(f, "Failed to load file: {}", name)
+            PreprocessError::UnknownCommand(loc) => {
+                write_message(&|f| write!(f, "unknown preprocessing directive"), *loc)
             }
-            PreprocessError::InvalidIf(s) => write!(f, "invalid #if: {}", s),
-            PreprocessError::FailedToParseIfCondition(_) => {
-                write!(f, "#if condition parser failed")
+            PreprocessError::UnknownPragma(loc) => {
+                write_message(&|f| write!(f, "unknown pragma"), *loc)
             }
-            PreprocessError::InvalidIfndef(s) => write!(f, "Invalid #ifndef: {}", s),
-            PreprocessError::InvalidElse => write!(f, "Invalid #else"),
-            PreprocessError::InvalidElif(s) => write!(f, "invalid #elif: {}", s),
-            PreprocessError::InvalidEndIf => write!(f, "Invalid #endif"),
-            PreprocessError::ConditionChainNotFinished => {
-                write!(f, "Not enough #endif's encountered")
+            PreprocessError::InvalidInclude(loc) => {
+                write_message(&|f| write!(f, "invalid #include command"), *loc)
             }
-            PreprocessError::ElseNotMatched => {
-                write!(f, "Encountered #else but with no matching #if")
+            PreprocessError::InvalidDefine(loc) => {
+                write_message(&|f| write!(f, "invalid #define command"), *loc)
             }
-            PreprocessError::EndIfNotMatched => {
-                write!(f, "Encountered #endif but with no matching #if")
+            PreprocessError::MacroAlreadyDefined(s) => write_message(
+                &|f| write!(f, "macro '{}' already defined", s),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::MacroRequiresArguments(s) => write_message(
+                &|f| write!(f, "macro function '{}' requires arguments", s),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::MacroArgumentsNeverEnd => write_message(
+                &|f| write!(f, "expected end of macro arguments"),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::MacroExpectsDifferentNumberOfArguments => write_message(
+                &|f| write!(f, "macro requires different number of arguments"),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::FailedToFindFile(loc, name, _) => {
+                write_message(&|f| write!(f, "failed to load file: '{}'", name), *loc)
             }
-            PreprocessError::PragmaOnceInUnknownFile => {
-                write!(f, "Encountered #pragma once in an unknown file")
+            PreprocessError::FailedToParseIfCondition(loc) => {
+                write_message(&|f| write!(f, "#if condition parser failed"), *loc)
             }
+            PreprocessError::InvalidIfdef(loc) => {
+                write_message(&|f| write!(f, "invalid #ifdef"), *loc)
+            }
+            PreprocessError::InvalidIfndef(loc) => {
+                write_message(&|f| write!(f, "invalid #ifndef"), *loc)
+            }
+            PreprocessError::InvalidElse(loc) => {
+                write_message(&|f| write!(f, "invalid #else"), *loc)
+            }
+            PreprocessError::InvalidEndIf(loc) => {
+                write_message(&|f| write!(f, "invalid #endif"), *loc)
+            }
+            PreprocessError::ConditionChainNotFinished => write_message(
+                &|f| write!(f, "not enough #endif's encountered"),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::ElseNotMatched => write_message(
+                &|f| write!(f, "encountered #else but with no matching #if"),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::EndIfNotMatched => write_message(
+                &|f| write!(f, "rncountered #endif but with no matching #if"),
+                SourceLocation::UNKNOWN,
+            ),
+            PreprocessError::PragmaOnceInUnknownFile => write_message(
+                &|f| write!(f, "encountered #pragma once in an unknown file"),
+                SourceLocation::UNKNOWN,
+            ),
         }
-    }
-}
-
-struct IntermediateText {
-    buffer: String,
-    locations: StreamToSourceMap,
-}
-
-impl IntermediateText {
-    fn new() -> IntermediateText {
-        IntermediateText {
-            buffer: String::new(),
-            locations: StreamToSourceMap::default(),
-        }
-    }
-
-    fn push_str(&mut self, segment: &str, location: SourceLocation) {
-        assert!(!segment.is_empty());
-        let stream_location_in_buffer = StreamLocation(self.buffer.len() as u32);
-        self.locations.push(stream_location_in_buffer, location);
-        self.buffer.push_str(segment);
     }
 }
 
@@ -160,38 +207,44 @@ impl<'a> FileLoader<'a> {
     }
 }
 
-fn is_identifier_char(c: char) -> bool {
-    matches!(c, 'A'..='Z' | 'a'..='z' | '_' | '0'..='9')
-}
-
 #[derive(PartialEq, Debug, Clone)]
 struct MacroArg(u64);
 
 #[derive(PartialEq, Debug, Clone)]
 enum MacroSegment {
-    Text(String),
+    Text(Vec<LexToken>),
     Arg(MacroArg),
 }
 
 impl MacroSegment {
+    fn build_segments(params: &[String], body: &[LexToken]) -> Vec<MacroSegment> {
+        let mut last_segments = Vec::from([MacroSegment::Text(body.to_vec())]);
+        for (index, arg_name) in params.iter().enumerate() {
+            let mut next_segments = Vec::new();
+            for segment in last_segments {
+                segment.split(arg_name, index as u64, &mut next_segments);
+            }
+            last_segments = next_segments;
+        }
+        last_segments
+    }
+
     fn split(self, arg: &str, index: u64, segments: &mut Vec<MacroSegment>) {
         match self {
-            MacroSegment::Text(text) => {
-                if let Some(sz) = find_macro(&text, arg) {
-                    let before = &text[..sz];
-                    let after_offset = sz + arg.len();
-                    let after = &text[after_offset..];
-                    assert_eq!(before.to_string() + arg + after, text);
+            MacroSegment::Text(stream) => {
+                if let Some(sz) = find_macro(&stream, arg) {
+                    let before = &stream[..sz];
+                    let after = &stream[sz + 1..];
                     if !before.is_empty() {
-                        segments.push(MacroSegment::Text(before.to_string()));
+                        segments.push(MacroSegment::Text(before.to_vec()));
                     }
                     segments.push(MacroSegment::Arg(MacroArg(index)));
                     if !after.is_empty() {
-                        MacroSegment::Text(after.to_string()).split(arg, index, segments);
+                        MacroSegment::Text(after.to_vec()).split(arg, index, segments);
                     }
                     return;
                 }
-                segments.push(MacroSegment::Text(text))
+                segments.push(MacroSegment::Text(stream))
             }
             MacroSegment::Arg(arg) => segments.push(MacroSegment::Arg(arg)),
         }
@@ -199,146 +252,182 @@ impl MacroSegment {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-struct Macro(String, u64, Vec<MacroSegment>, SourceLocation);
+struct Macro {
+    name: String,
+    is_function: bool,
+    num_params: u64,
+    segments: Vec<MacroSegment>,
+    location: SourceLocation,
+}
 
 impl Macro {
-    fn from_definition(
-        head: &str,
-        body: &str,
-        location: SourceLocation,
-    ) -> Result<Macro, PreprocessError> {
-        Ok(match head.find('(') {
-            Some(sz) => {
-                let name = &head[..sz];
-                let mut arg_names = vec![];
-                let mut remaining = &head[(sz + 1)..];
-                loop {
-                    let (sz, last) = match remaining.find(',') {
-                        Some(sz) => (sz, false),
-                        None => match remaining.find(')') {
-                            Some(sz) => (sz, true),
-                            None => return Err(PreprocessError::InvalidDefine),
-                        },
-                    };
-                    let arg_name = &remaining[..sz];
-                    let arg_name = arg_name.trim();
-                    remaining = remaining[(sz + 1)..].trim_start();
-                    for c in arg_name.chars() {
-                        if !is_identifier_char(c) {
-                            return Err(PreprocessError::InvalidDefine);
-                        }
-                    }
-                    arg_names.push(arg_name);
-                    if last {
-                        if !remaining.is_empty() {
-                            return Err(PreprocessError::InvalidDefine);
-                        }
-                        break;
-                    }
-                }
-                let mut last_segments = vec![MacroSegment::Text(body.to_string())];
-                for (index, arg_name) in arg_names.iter().enumerate() {
-                    let mut next_segments = vec![];
-                    for segment in last_segments {
-                        segment.split(arg_name, index as u64, &mut next_segments);
-                    }
-                    last_segments = next_segments;
-                }
-                Macro(
-                    name.to_string(),
-                    arg_names.len() as u64,
-                    last_segments,
-                    location,
-                )
+    fn parse(command: &[LexToken], macros: &[Macro]) -> Result<Macro, PreprocessError> {
+        let command = trim_whitespace_start(command);
+
+        let location = match command.first() {
+            Some(tok) => tok.1,
+            None => SourceLocation::UNKNOWN,
+        };
+
+        // Consume define name
+        let (name, location, signature_and_body) =
+            if let Some((LexToken(Token::Id(id), name_loc), rest)) = command.split_first() {
+                (id.0.clone(), *name_loc, rest)
+            } else {
+                return Err(PreprocessError::InvalidDefine(location));
+            };
+
+        // Ensure the macro does not already exist
+        for current_macro in macros.iter() {
+            if *current_macro.name == name {
+                return Err(PreprocessError::MacroAlreadyDefined(
+                    current_macro.name.clone(),
+                ));
             }
-            None => Macro(
-                head.to_string(),
-                0,
-                vec![MacroSegment::Text(body.to_string())],
-                location,
-            ),
-        })
+        }
+
+        // Consume macro parameters from body
+        let (param_tokens, is_function, body) =
+            if let Some((LexToken(Token::LeftParen, _), rest)) = signature_and_body.split_first() {
+                if let Some(pos) = rest.iter().position(|t| t.0 == Token::RightParen) {
+                    (&rest[..pos], true, &rest[pos + 1..])
+                } else {
+                    return Err(PreprocessError::InvalidDefine(location));
+                }
+            } else {
+                (&[][..], false, signature_and_body)
+            };
+
+        // Find macro parameter names
+        let mut params = Vec::new();
+        {
+            let mut param_tokens = param_tokens;
+            while !param_tokens.is_empty() {
+                let next_param =
+                    if let Some(pos) = param_tokens.iter().position(|t| t.0 == Token::Comma) {
+                        let param = &param_tokens[..pos];
+                        param_tokens = &param_tokens[pos + 1..];
+                        param
+                    } else {
+                        let param = param_tokens;
+                        param_tokens = &[][..];
+                        param
+                    };
+
+                let next_param = trim_whitespace(next_param);
+
+                // We expect a single name for all macro arguments
+                // But a macro with zero arguments will have one empty item processed
+                if let [LexToken(Token::Id(id), _)] = next_param {
+                    params.push(id.0.clone());
+                } else if !(params.is_empty() && param_tokens.is_empty()) {
+                    return Err(PreprocessError::InvalidDefine(location));
+                }
+            }
+        }
+
+        // Remove whitespace at start and end of the body of the define
+        let body = trim_whitespace(body);
+
+        // Apply other defines into the body
+        let subbed_body = SubstitutedText::new(body)
+            .apply_all(macros, false)?
+            .resolve();
+
+        // Build segments of the body by splitting between parameters
+        let segments = MacroSegment::build_segments(&params, &subbed_body);
+
+        let def = Macro {
+            name,
+            is_function,
+            num_params: params.len() as u64,
+            segments,
+            location,
+        };
+
+        Ok(def)
     }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 enum SubstitutedSegment {
-    Text(String, SourceLocation),
-    Replaced(String, SourceLocation),
+    Text(Vec<LexToken>),
+    Replaced(Vec<LexToken>),
 }
 
-fn find_macro(text: &str, name: &str) -> Option<usize> {
-    let mut subtext = text;
-    loop {
-        let sz = match subtext.find(name) {
-            Some(sz) => sz,
-            None => return None,
-        };
-        let before = &subtext[..sz];
-        let after_offset = sz + name.len();
-        let after = &subtext[after_offset..];
-
-        let not_separated_before = match before.chars().last() {
-            Some(c) => is_identifier_char(c),
-            None => false,
-        };
-        let not_separated_after = match after.chars().next() {
-            Some(c) => is_identifier_char(c),
-            None => false,
-        };
-
-        if !not_separated_before && !not_separated_after {
-            let final_sz = sz + text.len() - subtext.len();
-            return Some(final_sz);
+/// Remove whitespace and comments from the start of a token stream - but not endlines
+fn trim_whitespace_start(mut tokens: &[LexToken]) -> &[LexToken] {
+    while let Some((LexToken(tok, _), rest)) = tokens.split_first() {
+        if tok.is_whitespace() && *tok != Token::Endline {
+            tokens = rest;
+        } else {
+            break;
         }
-
-        let mut subtext_chars = subtext[sz..].chars();
-        subtext = match subtext_chars.next() {
-            Some(_) => subtext_chars.as_str(),
-            None => return None,
-        };
     }
+    tokens
+}
+
+/// Remove whitespace and comments from the end of a token stream - but not endlines
+fn trim_whitespace_end(mut tokens: &[LexToken]) -> &[LexToken] {
+    while let Some((LexToken(tok, _), rest)) = tokens.split_last() {
+        if tok.is_whitespace() && *tok != Token::Endline {
+            tokens = rest;
+        } else {
+            break;
+        }
+    }
+    tokens
+}
+
+/// Remove whitespace and comments from the start and end of a token stream - but not endlines
+fn trim_whitespace(tokens: &[LexToken]) -> &[LexToken] {
+    trim_whitespace_end(trim_whitespace_start(tokens))
+}
+
+fn find_macro(stream: &[LexToken], name: &str) -> Option<usize> {
+    for (i, token) in stream.iter().enumerate() {
+        if let LexToken(Token::Id(id), _) = token {
+            if id.0 == name {
+                return Some(i);
+            }
+        }
+    }
+
+    None
 }
 
 fn split_macro_args<'stream>(
     macro_name: &str,
-    mut remaining: &'stream str,
-) -> Result<(&'stream str, Vec<&'stream str>), PreprocessError> {
+    remaining: &'stream [LexToken],
+) -> Result<(&'stream [LexToken], Vec<&'stream [LexToken]>), PreprocessError> {
     // Consume the starting bracket
-    let sz = match remaining.find(['(']) {
-        Some(sz) => {
-            let gap = remaining[..sz].trim();
-            if !gap.is_empty() {
-                return Err(PreprocessError::MacroRequiresArguments(
-                    macro_name.to_string(),
-                ));
-            }
-            sz
-        }
-        None => {
-            return Err(PreprocessError::MacroRequiresArguments(
-                macro_name.to_string(),
-            ))
-        }
+    let remaining = trim_whitespace_start(remaining);
+    let mut remaining = if let [LexToken(Token::LeftParen, _), rest @ ..] = remaining {
+        rest
+    } else {
+        return Err(PreprocessError::MacroRequiresArguments(
+            macro_name.to_string(),
+        ));
     };
-    remaining = &remaining[(sz + 1)..];
 
     let mut args = vec![];
     let mut brace_scope = 0;
     let mut remaining_offset = 0;
     loop {
-        let next_pos_result = remaining[remaining_offset..].find([',', '(', ')']);
+        let next_pos_result = remaining[remaining_offset..]
+            .iter()
+            .position(|t| matches!(t.0, Token::Comma | Token::LeftParen | Token::RightParen));
         let next_opt = next_pos_result.map(|next_pos| {
             (
-                remaining.as_bytes()[next_pos + remaining_offset] as char,
+                remaining[next_pos + remaining_offset].0.clone(),
                 next_pos + remaining_offset,
             )
         });
         match next_opt {
-            Some((',', pos)) => {
+            Some((Token::Comma, pos)) => {
                 if brace_scope == 0 {
                     // Next argument
-                    let arg = remaining[..pos].trim();
+                    let arg = trim_whitespace(&remaining[..pos]);
                     args.push(arg);
                     remaining = &remaining[(pos + 1)..];
                     remaining_offset = 0;
@@ -347,19 +436,19 @@ fn split_macro_args<'stream>(
                     remaining_offset = pos + 1;
                 }
             }
-            Some(('(', pos)) => {
+            Some((Token::LeftParen, pos)) => {
                 // Start of inner parenthesis
                 brace_scope += 1;
                 remaining_offset = pos + 1;
             }
-            Some((')', pos)) => {
+            Some((Token::RightParen, pos)) => {
                 if brace_scope > 0 {
                     // End of inner parenthesis
                     brace_scope -= 1;
                     remaining_offset = pos + 1;
                 } else {
                     // End of macro
-                    let arg = remaining[..pos].trim();
+                    let arg = trim_whitespace(&remaining[..pos]);
                     args.push(arg);
                     remaining = &remaining[(pos + 1)..];
                     break;
@@ -381,13 +470,13 @@ impl SubstitutedSegment {
         output: &mut Vec<SubstitutedSegment>,
     ) -> Result<Option<SubstitutedSegment>, PreprocessError> {
         match self {
-            SubstitutedSegment::Text(text, location) => {
+            SubstitutedSegment::Text(text) => {
                 // Find the first macro that matches the text
                 // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
                 let mut best_match_opt: Option<(&Macro, usize)> = None;
-                let mut search_range = text.as_str();
+                let mut search_range = text.as_slice();
                 for macro_def in macro_defs {
-                    if let Some(pos) = find_macro(search_range, &macro_def.0) {
+                    if let Some(pos) = find_macro(search_range, &macro_def.name) {
                         // As we limit the search range we don't expect
                         assert!(if let Some(best_match) = best_match_opt {
                             pos < best_match.1
@@ -395,73 +484,88 @@ impl SubstitutedSegment {
                             true
                         });
 
-                        best_match_opt = Some((macro_def, pos));
-                        // Limit search for future macros so we only get better matches
-                        search_range = &text[..pos];
+                        // Check we have the start of function parameters
+                        let mut valid_macro = true;
+                        if macro_def.is_function {
+                            valid_macro = false;
+                            if let [LexToken(Token::LeftParen, _), ..] =
+                                trim_whitespace_start(&text[pos + 1..])
+                            {
+                                valid_macro = true;
+                            }
+                        }
+
+                        if valid_macro {
+                            best_match_opt = Some((macro_def, pos));
+                            // Limit search for future macros so we only get better matches
+                            search_range = &text[..pos];
+                        }
                     }
                 }
 
                 if let Some((macro_def, sz)) = best_match_opt {
                     let before = &text[..sz];
-                    let after_offset = sz + macro_def.0.len();
-                    let mut remaining = &text[after_offset..];
+                    let mut remaining = &text[sz + 1..];
 
                     // Read macro arguments
-                    let args = if macro_def.1 > 0 {
-                        let (rest, args) = split_macro_args(&macro_def.0, remaining)?;
+                    let args = if macro_def.is_function {
+                        let (rest, args) = split_macro_args(&macro_def.name, remaining)?;
                         remaining = rest;
+
+                        if macro_def.num_params == 0 {
+                            if !(args.len() == 1 && args[0].is_empty()) {
+                                return Err(
+                                    PreprocessError::MacroExpectsDifferentNumberOfArguments,
+                                );
+                            }
+                        } else if args.len() as u64 != macro_def.num_params {
+                            return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                        }
+
                         args
                     } else {
                         vec![]
                     };
                     let after = remaining;
 
-                    if args.len() as u64 != macro_def.1 {
-                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                    }
-
                     // Substitute macros inside macro arguments
                     let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
                         let mut vec = vec?;
-                        let raw_text = SubstitutedText::new(arg, SourceLocation::UNKNOWN);
+                        let raw_text = SubstitutedText::new(arg);
                         let subbed_text = raw_text.apply_all(macro_defs, false)?;
                         let final_text = subbed_text.resolve();
                         vec.push(final_text);
                         Ok(vec)
                     })?;
 
-                    let after_location = location.offset((text.len() - after.len()) as u32);
                     if !before.is_empty() {
-                        output.push(SubstitutedSegment::Text(before.to_string(), location));
+                        output.push(SubstitutedSegment::Text(before.to_vec()));
                     }
-                    let mut replaced_text = String::new();
-                    for macro_segment in &macro_def.2 {
-                        match *macro_segment {
-                            MacroSegment::Text(ref text) => replaced_text.push_str(text),
-                            MacroSegment::Arg(MacroArg(ref index)) => {
-                                replaced_text.push_str(&args[*index as usize])
+                    let mut replaced_tokens = Vec::new();
+                    for macro_segment in &macro_def.segments {
+                        match macro_segment {
+                            MacroSegment::Text(tokens) => replaced_tokens.extend_from_slice(tokens),
+                            MacroSegment::Arg(MacroArg(index)) => {
+                                replaced_tokens.extend_from_slice(&args[*index as usize])
                             }
                         }
                     }
-                    if !replaced_text.is_empty() {
-                        output.push(SubstitutedSegment::Replaced(replaced_text, macro_def.3));
+                    if !replaced_tokens.is_empty() {
+                        output.push(SubstitutedSegment::Replaced(replaced_tokens));
                     }
                     if !after.is_empty() {
-                        Ok(Some(SubstitutedSegment::Text(
-                            after.to_string(),
-                            after_location,
-                        )))
+                        Ok(Some(SubstitutedSegment::Text(after.to_vec())))
                     } else {
                         Ok(None)
                     }
                 } else {
                     assert!(!text.is_empty());
-                    output.push(SubstitutedSegment::Text(text, location));
+                    output.push(SubstitutedSegment::Text(text));
                     Ok(None)
                 }
             }
-            SubstitutedSegment::Replaced(text, location) => {
-                output.push(SubstitutedSegment::Replaced(text, location));
+            SubstitutedSegment::Replaced(text) => {
+                output.push(SubstitutedSegment::Replaced(text));
                 Ok(None)
             }
         }
@@ -474,59 +578,73 @@ impl SubstitutedSegment {
     ) -> Result<(), PreprocessError> {
         let defined_name = "defined";
         match self {
-            SubstitutedSegment::Text(text, location) => {
+            SubstitutedSegment::Text(text) => {
                 if let Some(sz) = find_macro(&text, defined_name) {
                     let before = &text[..sz];
-                    let after_offset = sz + defined_name.len();
-                    let mut remaining = &text[after_offset..];
+                    let mut remaining = &text[sz + 1..];
 
-                    // Read macro arguments
-                    let args = {
+                    // Read argument
+                    let arg = {
                         // Allow "defined A" instead of traditional defined(A)
-                        if !remaining.is_empty() && remaining.as_bytes()[0] == b' ' {
-                            remaining = &remaining[1..];
-                            let next_non_identifier = remaining
-                                .find(|c| !is_identifier_char(c))
-                                .unwrap_or(remaining.len());
-                            let arg = &remaining[..next_non_identifier];
-                            remaining = &remaining[next_non_identifier..];
-                            Vec::from([arg])
+                        if let [LexToken(Token::Whitespace, _), LexToken(arg @ Token::Id(_), _), rest @ ..] =
+                            remaining
+                        {
+                            remaining = rest;
+                            arg
                         } else {
                             // Parse arguments like a normal macro called defined
                             let (rest, args) = split_macro_args(defined_name, remaining)?;
                             remaining = rest;
-                            args
+
+                            // Expect one argument
+                            if args.len() as u64 != 1 {
+                                return Err(
+                                    PreprocessError::MacroExpectsDifferentNumberOfArguments,
+                                );
+                            }
+
+                            // Expect a single name as the argument
+                            if let [LexToken(arg @ Token::Id(_), _)] = args[0] {
+                                arg
+                            } else {
+                                return Err(
+                                    PreprocessError::MacroExpectsDifferentNumberOfArguments,
+                                );
+                            }
                         }
                     };
 
                     let after = remaining;
 
-                    if args.len() as u64 != 1 {
-                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                    }
+                    let exists = macro_defs.iter().any(|m| {
+                        if let Token::Id(id) = arg {
+                            m.name == id.0
+                        } else {
+                            false
+                        }
+                    });
 
-                    let exists = macro_defs.iter().any(|m| m.0 == args[0]);
-
-                    let after_location = location.offset((text.len() - after.len()) as u32);
                     if !before.is_empty() {
-                        output.push(SubstitutedSegment::Text(before.to_string(), location));
+                        output.push(SubstitutedSegment::Text(before.to_vec()));
                     }
-                    output.push(SubstitutedSegment::Replaced(
-                        if exists { "1" } else { "0" }.to_string(),
+                    output.push(SubstitutedSegment::Replaced(Vec::from([LexToken(
+                        if exists {
+                            Token::LiteralInt(1)
+                        } else {
+                            Token::LiteralInt(0)
+                        },
                         SourceLocation::UNKNOWN,
-                    ));
+                    )])));
                     if !after.is_empty() {
-                        SubstitutedSegment::Text(after.to_string(), after_location)
+                        SubstitutedSegment::Text(after.to_vec())
                             .apply_defined(macro_defs, output)?;
                     }
                     return Ok(());
                 }
                 assert!(!text.is_empty());
-                output.push(SubstitutedSegment::Text(text, location))
+                output.push(SubstitutedSegment::Text(text))
             }
-            SubstitutedSegment::Replaced(text, location) => {
-                output.push(SubstitutedSegment::Replaced(text, location))
-            }
+            SubstitutedSegment::Replaced(text) => output.push(SubstitutedSegment::Replaced(text)),
         }
         Ok(())
     }
@@ -536,11 +654,11 @@ impl SubstitutedSegment {
 struct SubstitutedText(Vec<SubstitutedSegment>);
 
 impl SubstitutedText {
-    fn new(text: &str, location: SourceLocation) -> SubstitutedText {
-        if text.is_empty() {
+    fn new(stream: &[LexToken]) -> SubstitutedText {
+        if stream.is_empty() {
             SubstitutedText(Vec::new())
         } else {
-            SubstitutedText(vec![SubstitutedSegment::Text(text.to_string(), location)])
+            SubstitutedText(vec![SubstitutedSegment::Text(stream.to_vec())])
         }
     }
 
@@ -577,40 +695,24 @@ impl SubstitutedText {
         Ok(SubstitutedText(vec?))
     }
 
-    fn store(self, intermediate_text: &mut IntermediateText) {
+    fn store(self, output: &mut Vec<LexToken>) {
         for substituted_segment in self.0 {
             match substituted_segment {
-                SubstitutedSegment::Text(text, mut loc) => {
-                    assert!(!text.is_empty());
-                    let mut remaining = &text[..];
-                    loop {
-                        let (sz, last) = match remaining.find('\n') {
-                            Some(sz) => (sz + 1, false),
-                            None => (remaining.len(), true),
-                        };
-                        let before = &remaining[..sz];
-                        intermediate_text.push_str(before, loc);
-                        remaining = &remaining[sz..];
-                        loc = loc.offset(sz as u32);
-                        if last || remaining.is_empty() {
-                            break;
-                        }
-                    }
-                }
-                SubstitutedSegment::Replaced(text, location) => {
-                    assert!(!text.is_empty());
-                    intermediate_text.push_str(&text, location)
+                SubstitutedSegment::Text(stream) | SubstitutedSegment::Replaced(stream) => {
+                    assert!(!stream.is_empty());
+                    output.extend(stream)
                 }
             }
         }
     }
 
-    fn resolve(self) -> String {
-        let mut output = String::new();
+    fn resolve(self) -> Vec<LexToken> {
+        let mut output = Vec::new();
         for substituted_segment in self.0 {
             match substituted_segment {
-                SubstitutedSegment::Text(text, _) | SubstitutedSegment::Replaced(text, _) => {
-                    output.push_str(&text)
+                SubstitutedSegment::Text(stream) | SubstitutedSegment::Replaced(stream) => {
+                    assert!(!stream.is_empty());
+                    output.extend(stream)
                 }
             }
         }
@@ -620,84 +722,180 @@ impl SubstitutedText {
 
 #[test]
 fn macro_from_definition() {
+    let ll = |s: &str| {
+        let mut source_manager = SourceManager::new();
+        let (file_id, source_location) = source_manager.add_fragment(s);
+        assert_eq!(source_location, SourceLocation::first());
+        crate::lexer::lex_fragment(file_id, &source_manager).unwrap()
+    };
     assert_eq!(
-        Macro::from_definition("B", "0", SourceLocation::UNKNOWN).unwrap(),
-        Macro(
-            "B".to_string(),
-            0,
-            vec![MacroSegment::Text("0".to_string())],
-            SourceLocation::UNKNOWN
-        )
+        Macro::parse(&ll("B 0"), &[]).unwrap(),
+        Macro {
+            name: "B".to_string(),
+            is_function: false,
+            num_params: 0,
+            segments: Vec::from([MacroSegment::Text(Vec::from([LexToken(
+                Token::LiteralInt(0),
+                SourceLocation::first().offset(2)
+            )]))]),
+            location: SourceLocation::first(),
+        }
     );
     assert_eq!(
-        Macro::from_definition("B(x)", "x", SourceLocation::UNKNOWN).unwrap(),
-        Macro(
-            "B".to_string(),
-            1,
-            vec![MacroSegment::Arg(MacroArg(0))],
-            SourceLocation::UNKNOWN
-        )
+        Macro::parse(&ll("B(x) x"), &[]).unwrap(),
+        Macro {
+            name: "B".to_string(),
+            is_function: true,
+            num_params: 1,
+            segments: vec![MacroSegment::Arg(MacroArg(0))],
+            location: SourceLocation::first(),
+        }
     );
     assert_eq!(
-        Macro::from_definition("B(x,y)", "x", SourceLocation::UNKNOWN).unwrap(),
-        Macro(
-            "B".to_string(),
-            2,
-            vec![MacroSegment::Arg(MacroArg(0))],
-            SourceLocation::UNKNOWN
-        )
+        Macro::parse(&ll("B(x,y) x"), &[]).unwrap(),
+        Macro {
+            name: "B".to_string(),
+            is_function: true,
+            num_params: 2,
+            segments: vec![MacroSegment::Arg(MacroArg(0))],
+            location: SourceLocation::first(),
+        }
     );
     assert_eq!(
-        Macro::from_definition("B(x,y)", "y", SourceLocation::UNKNOWN).unwrap(),
-        Macro(
-            "B".to_string(),
-            2,
-            vec![MacroSegment::Arg(MacroArg(1))],
-            SourceLocation::UNKNOWN
-        )
+        Macro::parse(&ll("B(x,y) y"), &[]).unwrap(),
+        Macro {
+            name: "B".to_string(),
+            is_function: true,
+            num_params: 2,
+            segments: vec![MacroSegment::Arg(MacroArg(1))],
+            location: SourceLocation::first(),
+        }
     );
     assert_eq!(
-        Macro::from_definition("B(x,xy)", "(x || xy)", SourceLocation::UNKNOWN).unwrap(),
-        Macro(
-            "B".to_string(),
-            2,
-            vec![
-                MacroSegment::Text("(".to_string()),
+        Macro::parse(&ll("B(x,xy) (x || xy)"), &[]).unwrap(),
+        Macro {
+            name: "B".to_string(),
+            is_function: true,
+            num_params: 2,
+            segments: vec![
+                MacroSegment::Text(Vec::from([LexToken(
+                    Token::LeftParen,
+                    SourceLocation::first().offset(8)
+                )])),
                 MacroSegment::Arg(MacroArg(0)),
-                MacroSegment::Text(" || ".to_string()),
+                MacroSegment::Text(Vec::from([
+                    LexToken(Token::Whitespace, SourceLocation::first().offset(10)),
+                    LexToken(
+                        Token::VerticalBarVerticalBar,
+                        SourceLocation::first().offset(11)
+                    ),
+                    LexToken(Token::Whitespace, SourceLocation::first().offset(13)),
+                ])),
                 MacroSegment::Arg(MacroArg(1)),
-                MacroSegment::Text(")".to_string()),
+                MacroSegment::Text(Vec::from([LexToken(
+                    Token::RightParen,
+                    SourceLocation::first().offset(16)
+                )])),
             ],
-            SourceLocation::UNKNOWN
-        )
+            location: SourceLocation::first(),
+        }
     );
 }
 
 #[test]
 fn macro_resolve() {
-    fn run(input: &str, macros: &[Macro], expected_output: &str) {
-        let text = SubstitutedText::new(input, SourceLocation::UNKNOWN);
-        let resolved_text = text.apply_all(macros, false).unwrap().resolve();
-        assert_eq!(resolved_text, expected_output);
+    use crate::lexer::lex_fragment;
+    use crate::unlexer::unlex;
+
+    #[track_caller]
+    fn run(
+        input: &[LexToken],
+        macros: &[Macro],
+        expected_str: &str,
+        expected_tokens: &[LexToken],
+        source_manager: &SourceManager,
+    ) {
+        let text = SubstitutedText::new(input);
+        let resolved_tokens = text.apply_all(macros, false).unwrap().resolve();
+        assert_eq!(resolved_tokens, expected_tokens);
+
+        let output_str = unlex(&resolved_tokens, source_manager);
+        assert_eq!(output_str, expected_str);
     }
 
-    run(
-        "(A || B) && BC",
-        &[
-            Macro::from_definition("B", "0", SourceLocation::UNKNOWN).unwrap(),
-            Macro::from_definition("BC", "1", SourceLocation::UNKNOWN).unwrap(),
-        ],
-        "(A || 0) && 1",
-    );
+    {
+        let mut source_manager = SourceManager::new();
+        let (m1, m1_loc) = source_manager.add_fragment("B 0");
+        let (m2, m2_loc) = source_manager.add_fragment("BC 1");
+        let (main, main_loc) = source_manager.add_fragment("(A || B) && BC");
 
-    run(
-        "(A || B(0, 1)) && BC",
-        &[
-            Macro::from_definition("B(x, y)", "(x && y)", SourceLocation::UNKNOWN).unwrap(),
-            Macro::from_definition("BC", "1", SourceLocation::UNKNOWN).unwrap(),
-        ],
-        "(A || (0 && 1)) && 1",
-    );
+        let m1_tokens = lex_fragment(m1, &source_manager).unwrap();
+        let m2_tokens = lex_fragment(m2, &source_manager).unwrap();
+        let main_tokens = lex_fragment(main, &source_manager).unwrap();
+
+        run(
+            &main_tokens,
+            &[
+                Macro::parse(&m1_tokens, &[]).unwrap(),
+                Macro::parse(&m2_tokens, &[]).unwrap(),
+            ],
+            "(A || 0) && 1",
+            &[
+                LexToken(Token::LeftParen, main_loc.offset(0)),
+                LexToken(Token::Id(Identifier("A".to_string())), main_loc.offset(1)),
+                LexToken(Token::Whitespace, main_loc.offset(2)),
+                LexToken(Token::VerticalBarVerticalBar, main_loc.offset(3)),
+                LexToken(Token::Whitespace, main_loc.offset(5)),
+                LexToken(Token::LiteralInt(0), m1_loc.offset(2)),
+                LexToken(Token::RightParen, main_loc.offset(7)),
+                LexToken(Token::Whitespace, main_loc.offset(8)),
+                LexToken(Token::AmpersandAmpersand, main_loc.offset(9)),
+                LexToken(Token::Whitespace, main_loc.offset(11)),
+                LexToken(Token::LiteralInt(1), m2_loc.offset(3)),
+            ],
+            &source_manager,
+        );
+    }
+
+    {
+        let mut source_manager = SourceManager::new();
+        let (m1, m1_loc) = source_manager.add_fragment("BC 1");
+        let (m2, m2_loc) = source_manager.add_fragment("B(x, y) (x && y)");
+        let (main, main_loc) = source_manager.add_fragment("(A || B(0, 1)) && BC");
+
+        let m1_tokens = lex_fragment(m1, &source_manager).unwrap();
+        let m2_tokens = lex_fragment(m2, &source_manager).unwrap();
+        let main_tokens = lex_fragment(main, &source_manager).unwrap();
+
+        run(
+            &main_tokens,
+            &[
+                Macro::parse(&m1_tokens, &[]).unwrap(),
+                Macro::parse(&m2_tokens, &[]).unwrap(),
+            ],
+            "(A || (0 && 1)) && 1",
+            &[
+                LexToken(Token::LeftParen, main_loc.offset(0)),
+                LexToken(Token::Id(Identifier("A".to_string())), main_loc.offset(1)),
+                LexToken(Token::Whitespace, main_loc.offset(2)),
+                LexToken(Token::VerticalBarVerticalBar, main_loc.offset(3)),
+                LexToken(Token::Whitespace, main_loc.offset(5)),
+                LexToken(Token::LeftParen, m2_loc.offset(8)),
+                LexToken(Token::LiteralInt(0), main_loc.offset(8)),
+                LexToken(Token::Whitespace, m2_loc.offset(10)),
+                LexToken(Token::AmpersandAmpersand, m2_loc.offset(11)),
+                LexToken(Token::Whitespace, m2_loc.offset(13)),
+                LexToken(Token::LiteralInt(1), main_loc.offset(11)),
+                LexToken(Token::RightParen, m2_loc.offset(15)),
+                LexToken(Token::RightParen, main_loc.offset(13)),
+                LexToken(Token::Whitespace, main_loc.offset(14)),
+                LexToken(Token::AmpersandAmpersand, main_loc.offset(15)),
+                LexToken(Token::Whitespace, main_loc.offset(17)),
+                LexToken(Token::LiteralInt(1), m1_loc.offset(3)),
+            ],
+            &source_manager,
+        );
+    }
 }
 
 /// Stores the active #if blocks
@@ -751,435 +949,302 @@ impl ConditionChain {
     }
 }
 
-// Function to find end of definition past escaped endlines
-fn find_macro_end(mut remaining: &str) -> usize {
-    let initial_length = remaining.len();
-    loop {
-        match remaining.find('\n') {
-            Some(sz) => {
-                let before_c0 = &remaining[..sz];
-                let before_c1 = if sz > 0 { &remaining[..(sz - 1)] } else { "" };
-                remaining = &remaining[(sz + 1)..];
-                match (before_c0.chars().last(), before_c1.chars().last()) {
-                    (Some(x), _) if x == '\\' => {}
-                    (Some(x), Some(y)) if x == '\r' && y == '\\' => {}
-                    _ => break,
-                }
-            }
-            None => {
-                return remaining.len();
-            }
-        }
-    }
-    initial_length - remaining.len() - 1
-}
-
-fn get_after_single_line(remaining: &str) -> &str {
-    let len = match remaining.find('\n') {
-        Some(sz) => sz + 1,
-        None => remaining.len(),
-    };
-    &remaining[len..]
-}
-
-#[test]
-fn test_get_after_single_line() {
-    assert_eq!(get_after_single_line("one\ntwo"), "two");
-    assert_eq!(get_after_single_line("one\ntwo\nthree"), "two\nthree");
-    assert_eq!(get_after_single_line("one\\\ntwo\nthree"), "two\nthree");
-    assert_eq!(get_after_single_line("one\r\ntwo\r\nthree"), "two\r\nthree");
-    assert_eq!(
-        get_after_single_line("one\\\r\ntwo\r\nthree"),
-        "two\r\nthree"
-    );
-}
-
-fn get_after_macro(remaining: &str) -> &str {
-    let len = find_macro_end(remaining) + 1;
-    &remaining[len..]
-}
-
-#[test]
-fn test_get_after_macro() {
-    assert_eq!(get_after_macro("one\ntwo"), "two");
-    assert_eq!(get_after_macro("one\ntwo\nthree"), "two\nthree");
-    assert_eq!(get_after_macro("one\\\ntwo\nthree"), "three");
-    assert_eq!(get_after_macro("one\r\ntwo\r\nthree"), "two\r\nthree");
-    assert_eq!(get_after_macro("one\\\r\ntwo\r\nthree"), "three");
-}
-
-fn get_macro_line(remaining: &str) -> &str {
-    let len = find_macro_end(remaining);
-    remaining[..len].trim_end()
-}
-
-#[test]
-fn test_get_macro_line() {
-    assert_eq!(get_macro_line("one\ntwo"), "one");
-    assert_eq!(get_macro_line("one\ntwo\nthree"), "one");
-    assert_eq!(get_macro_line("one\\\ntwo\nthree"), "one\\\ntwo");
-    assert_eq!(get_macro_line("one\r\ntwo\r\nthree"), "one");
-    assert_eq!(get_macro_line("one\\\r\ntwo\r\nthree"), "one\\\r\ntwo");
-}
-
-fn preprocess_command<'a>(
-    buffer: &mut IntermediateText,
+fn preprocess_command(
+    buffer: &mut Vec<LexToken>,
     file_loader: &mut FileLoader,
-    command: &'a str,
+    command: &[LexToken],
     file_id: FileId,
-    location: SourceLocation,
     macros: &mut Vec<Macro>,
     condition_chain: &mut ConditionChain,
-) -> Result<&'a str, PreprocessError> {
+) -> Result<(), PreprocessError> {
+    let command_location = command[0].1;
+
+    // Split the base command name
+    let (command_name, command) = match command {
+        [LexToken(Token::Id(id), _), rest @ ..] => (id.0.as_str(), rest),
+        [LexToken(Token::If, _), rest @ ..] => ("if", rest),
+        [LexToken(Token::Else, _), rest @ ..] => ("else", rest),
+        _ => return Err(PreprocessError::UnknownCommand(command_location)),
+    };
+
     let skip = !condition_chain.is_active();
-    if let Some(next) = command.strip_prefix("include") {
-        if skip {
-            return Ok(get_after_single_line(command));
-        }
-        match next.chars().next() {
-            Some(' ') | Some('\t') | Some('"') | Some('<') => {
-                let args = next.trim_start();
-                let end = match args.chars().next() {
-                    Some('"') => '"',
-                    Some('<') => '>',
-                    _ => return Err(PreprocessError::InvalidInclude),
-                };
-                let args = &args[1..];
-                match args.find(end) {
-                    Some(sz) => {
-                        let file_name = &args[..sz];
-                        if file_name.contains('\n') {
-                            return Err(PreprocessError::InvalidInclude);
-                        }
 
-                        // Include the file
-                        match file_loader.load(file_name) {
-                            Ok(file) => {
-                                preprocess_included_file(
-                                    buffer,
-                                    file_loader,
-                                    file,
-                                    macros,
-                                    condition_chain,
-                                )?;
-
-                                let next = &args[(sz + 1)..];
-                                let end = match next.find('\n') {
-                                    Some(sz) => {
-                                        // Push a new line so the last line of the include file is
-                                        // on a separate line to the first line after the #include
-                                        buffer.push_str("\n", location);
-                                        sz + 1
-                                    }
-                                    None => next.len(),
-                                };
-                                let remains = &next[..end].trim();
-                                if !remains.is_empty() && !remains.starts_with("//") {
-                                    return Err(PreprocessError::InvalidInclude);
-                                }
-
-                                let next = &next[end..];
-
-                                Ok(next)
-                            }
-                            Err(err) => Err(PreprocessError::FailedToFindFile(
-                                file_name.to_string(),
-                                err,
-                            )),
-                        }
-                    }
-                    None => Err(PreprocessError::InvalidInclude),
-                }
+    match command_name {
+        "include" => {
+            if skip {
+                return Ok(());
             }
-            _ => Err(PreprocessError::InvalidInclude),
-        }
-    } else if command.starts_with("ifdef") || command.starts_with("ifndef") {
-        if skip {
-            condition_chain.push(ConditionState::DisabledInner);
-            return Ok(get_after_single_line(command));
-        }
-        let not = command.starts_with("ifndef");
-        let next = if not { &command[6..] } else { &command[5..] };
-        match next.chars().next() {
-            Some(' ') | Some('\t') => {
-                let args = next.trim_start();
-                let end = match args.find('\n') {
-                    Some(sz) => sz + 1,
-                    _ => return Err(PreprocessError::InvalidIfndef(command.to_string())),
-                };
-                let body = &args[..end].trim();
+            let command = trim_whitespace(command);
 
-                let exists = macros.iter().any(|m| &m.0 == body);
+            let file_name = match command {
+                [LexToken(Token::LiteralString(s), _)] => s.clone(),
+                [LexToken(Token::LeftAngleBracket(_), _), LexToken(Token::RightAngleBracket(_), _)] => {
+                    return Err(PreprocessError::InvalidInclude(command_location))
+                }
+                [LexToken(Token::LeftAngleBracket(_), _), rest @ .., LexToken(Token::RightAngleBracket(_), end_loc)] =>
+                {
+                    let start_loc = rest[0].1;
+
+                    // We do not have a token for header <> includes
+                    // Attempt to reconstruct the original string by refetching the source range from the source manager
+
+                    let (start_file, start_offset) = match file_loader
+                        .source_manager
+                        .get_file_offset_from_source_location(start_loc)
+                    {
+                        Some(ok) => ok,
+                        None => return Err(PreprocessError::InvalidInclude(command_location)),
+                    };
+
+                    let (end_file, end_offset) = match file_loader
+                        .source_manager
+                        .get_file_offset_from_source_location(*end_loc)
+                    {
+                        Some(ok) => ok,
+                        None => return Err(PreprocessError::InvalidInclude(command_location)),
+                    };
+
+                    if start_file != end_file || start_offset > end_offset {
+                        return Err(PreprocessError::InvalidInclude(command_location));
+                    }
+
+                    let contents = file_loader.source_manager.get_contents(start_file);
+                    let range_bytes =
+                        &contents.as_bytes()[start_offset.0 as usize..end_offset.0 as usize];
+
+                    let range = match std::str::from_utf8(range_bytes) {
+                        Ok(range) => range,
+                        Err(_) => return Err(PreprocessError::InvalidInclude(command_location)),
+                    };
+
+                    range.to_string()
+                }
+                _ => return Err(PreprocessError::InvalidInclude(command_location)),
+            };
+
+            // Include the file
+            match file_loader.load(&file_name) {
+                Ok(file) => {
+                    preprocess_included_file(buffer, file_loader, file, macros, condition_chain)?;
+                    Ok(())
+                }
+                Err(err) => Err(PreprocessError::FailedToFindFile(
+                    command_location,
+                    file_name.to_string(),
+                    err,
+                )),
+            }
+        }
+        "ifdef" | "ifndef" => {
+            if skip {
+                condition_chain.push(ConditionState::DisabledInner);
+                return Ok(());
+            }
+            let not = command_name == "ifndef";
+            let command = trim_whitespace(command);
+            if let [LexToken(Token::Id(id), _)] = command {
+                let exists = macros.iter().any(|m| m.name == id.0);
                 let active = if not { !exists } else { exists };
                 condition_chain.push(if active {
                     ConditionState::Enabled
                 } else {
                     ConditionState::DisabledInner
                 });
-
-                let remaining = &args[end..];
-                Ok(remaining)
+                Ok(())
+            } else if not {
+                Err(PreprocessError::InvalidIfndef(command_location))
+            } else {
+                Err(PreprocessError::InvalidIfdef(command_location))
             }
-            _ => Err(PreprocessError::InvalidIfndef(command.to_string())),
         }
-    } else if let Some(next) = command.strip_prefix("if") {
-        if skip {
-            condition_chain.push(ConditionState::DisabledInner);
-            return Ok(get_after_single_line(command));
-        }
-        match next.chars().next() {
-            Some(' ') | Some('\t') | Some('(') => {
-                let args = next.trim_start();
-                let end = match args.find('\n') {
-                    Some(sz) => sz + 1,
-                    _ => return Err(PreprocessError::InvalidIf(command.to_string())),
-                };
-                let body = &args[..end].trim();
-                let remaining = &args[end..];
-
-                let resolved = SubstitutedText::new(body, SourceLocation::UNKNOWN)
-                    .apply_all(macros, true)?
-                    .resolve();
-
-                let resolved_str: &str = &resolved;
-                // Sneaky hack to make `#if COND // comment` work
-                let resolved_no_comment = match resolved_str.find("//") {
-                    Some(sz) => resolved_str[..sz].trim(),
-                    None => resolved_str,
-                };
-
-                let active = crate::condition_parser::parse(resolved_no_comment)?;
-                condition_chain.push(if active {
-                    ConditionState::Enabled
-                } else {
-                    ConditionState::DisabledInner
-                });
-
-                Ok(remaining)
+        "if" => {
+            if skip {
+                condition_chain.push(ConditionState::DisabledInner);
+                return Ok(());
             }
-            _ => Err(PreprocessError::InvalidIf(command.to_string())),
-        }
-    } else if let Some(next) = command.strip_prefix("else") {
-        match next.chars().next() {
-            Some(' ') | Some('\t') | Some('\n') | Some('\r') => {
-                let args = next;
-                let end = match args.find('\n') {
-                    Some(sz) => sz + 1,
-                    _ => return Err(PreprocessError::InvalidElse),
-                };
-                let body = args[..end].trim();
-                if !body.is_empty() && !body.starts_with("//") {
-                    return Err(PreprocessError::InvalidElse);
-                }
+            let command = trim_whitespace(command);
+            let resolved = SubstitutedText::new(command)
+                .apply_all(macros, true)?
+                .resolve();
 
+            let active = crate::condition_parser::parse(&resolved, command_location)?;
+            condition_chain.push(if active {
+                ConditionState::Enabled
+            } else {
+                ConditionState::DisabledInner
+            });
+
+            Ok(())
+        }
+        "elif" => {
+            let command = trim_whitespace(command);
+            let resolved = SubstitutedText::new(command)
+                .apply_all(macros, true)?
+                .resolve();
+
+            let active = crate::condition_parser::parse(&resolved, command_location)?;
+            condition_chain.switch(active)?;
+
+            Ok(())
+        }
+        "else" => {
+            let command = trim_whitespace_start(command);
+            if !command.is_empty() {
+                Err(PreprocessError::InvalidElse(command_location))
+            } else {
                 condition_chain.switch(true)?;
-
-                let remaining = &args[end..];
-                Ok(remaining)
+                Ok(())
             }
-            _ => Err(PreprocessError::InvalidElse),
         }
-    } else if let Some(next) = command.strip_prefix("elif") {
-        match next.chars().next() {
-            Some(' ') | Some('\t') | Some('(') => {
-                let args = next.trim_start();
-                let end = match args.find('\n') {
-                    Some(sz) => sz + 1,
-                    _ => return Err(PreprocessError::InvalidElif(command.to_string())),
-                };
-                let body = &args[..end].trim();
-                let remaining = &args[end..];
-
-                let resolved = SubstitutedText::new(body, SourceLocation::UNKNOWN)
-                    .apply_all(macros, true)?
-                    .resolve();
-
-                let resolved_str: &str = &resolved;
-                // Sneaky hack to make `#if COND // comment` work
-                let resolved_no_comment = match resolved_str.find("//") {
-                    Some(sz) => resolved_str[..sz].trim(),
-                    None => resolved_str,
-                };
-
-                let active = crate::condition_parser::parse(resolved_no_comment)?;
-                condition_chain.switch(active)?;
-
-                if skip {
-                    Ok(get_after_single_line(command))
-                } else {
-                    Ok(remaining)
-                }
-            }
-            _ => Err(PreprocessError::InvalidElif(command.to_string())),
-        }
-    } else if let Some(next) = command.strip_prefix("endif") {
-        match next.chars().next() {
-            Some(' ') | Some('\t') | Some('\n') | Some('\r') | None => {
-                let args = next;
-                let end = match args.find('\n') {
-                    Some(sz) => sz + 1,
-                    None => args.len(),
-                };
-                let body = &args[..end].trim();
-                if !body.is_empty() && !body.starts_with("//") {
-                    return Err(PreprocessError::InvalidEndIf);
-                }
-
+        "endif" => {
+            let command = trim_whitespace_start(command);
+            if !command.is_empty() {
+                Err(PreprocessError::InvalidEndIf(command_location))
+            } else {
                 condition_chain.pop()?;
-
-                let remaining = &args[end..];
-                Ok(remaining)
+                Ok(())
             }
-            _ => Err(PreprocessError::InvalidEndIf),
         }
-    } else if let Some(next) = command.strip_prefix("define") {
-        if skip {
-            return Ok(get_after_macro(command));
+        "define" => {
+            if skip {
+                return Ok(());
+            }
+
+            let macro_def = Macro::parse(command, macros)?;
+            macros.push(macro_def);
+
+            Ok(())
         }
-        match next.chars().next() {
-            Some(' ') | Some('\t') => {
-                let mut remaining = next[1..].trim_start();
-
-                // Consume define name
-                let header_start = remaining;
-                loop {
-                    match remaining.chars().next() {
-                        Some(c) if is_identifier_char(c) => {
-                            remaining = &remaining[1..];
-                        }
-                        _ => break,
+        "pragma" => {
+            if skip {
+                return Ok(());
+            }
+            let pragma_command = trim_whitespace(command);
+            if let [LexToken(Token::Id(Identifier(s)), loc), ..] = pragma_command {
+                match s.as_str() {
+                    "once" => {
+                        file_loader.mark_as_pragma_once(file_id);
+                        Ok(())
                     }
+                    "warning" => {
+                        // Ignore warning disable commands for now
+                        Ok(())
+                    }
+                    _ => Err(PreprocessError::UnknownPragma(*loc)),
                 }
-
-                // Consume macro args
-                if let Some('(') = remaining.chars().next() {
-                    remaining = &remaining[1..];
-                    match remaining.find(')') {
-                        Some(sz) => {
-                            remaining = &remaining[(sz + 1)..];
-                        }
-                        None => return Err(PreprocessError::InvalidDefine),
-                    }
-                }
-
-                // Let the header be the name + args
-                let header = &header_start[..(header_start.len() - remaining.len())];
-
-                // Consume gap between macro name/args and body
-                let (body, remaining) = match remaining.chars().next() {
-                    Some(' ') | Some('\t') | Some('\r') => {
-                        remaining = &remaining[1..];
-                        let sz = find_macro_end(remaining);
-                        let body = &remaining[..sz];
-                        (body, &remaining[(sz + 1)..])
-                    }
-                    Some('\n') => (&remaining[..1], &remaining[1..]),
-                    None => ("", ""),
-                    _ => return Err(PreprocessError::InvalidDefine),
+            } else {
+                let pragma_command_location = match pragma_command.first() {
+                    Some(tok) => tok.1,
+                    None => SourceLocation::UNKNOWN,
                 };
-
-                let body = body.trim().replace("\\\n", "\n").replace("\\\r\n", "\r\n");
-                let subbed_body = SubstitutedText::new(&body, SourceLocation::UNKNOWN)
-                    .apply_all(macros, false)?
-                    .resolve();
-                let macro_def = Macro::from_definition(header, &subbed_body, location)?;
-
-                for current_macro in macros.iter() {
-                    if *current_macro.0 == macro_def.0 {
-                        return Err(PreprocessError::MacroAlreadyDefined(
-                            current_macro.0.clone(),
-                        ));
-                    }
-                }
-                macros.push(macro_def);
-
-                Ok(remaining)
+                Err(PreprocessError::UnknownPragma(pragma_command_location))
             }
-            _ => Err(PreprocessError::InvalidDefine),
         }
-    } else if let Some(next) = command.strip_prefix("pragma") {
-        if skip {
-            return Ok(get_after_macro(command));
-        }
-        let pragma_command = get_macro_line(next).trim();
-        if pragma_command == "once" {
-            file_loader.mark_as_pragma_once(file_id);
-            Ok(get_after_single_line(command))
-        } else if pragma_command.starts_with("warning") {
-            // Ignore warning disable commands for now
-            Ok(get_after_single_line(command))
-        } else {
-            Err(PreprocessError::UnknownCommand(format!(
-                "#pragma {}",
-                pragma_command
-            )))
-        }
-    } else if skip {
-        return Ok(get_after_macro(command));
-    } else {
-        Err(PreprocessError::UnknownCommand(format!(
-            "#{}",
-            get_macro_line(command)
-        )))
+        _ if skip => Ok(()),
+        _ => Err(PreprocessError::UnknownCommand(command_location)),
     }
 }
 
 /// Internal process a single file during preprocessing
 fn preprocess_included_file(
-    buffer: &mut IntermediateText,
+    buffer: &mut Vec<LexToken>,
     file_loader: &mut FileLoader,
     input_file: InputFile,
     macros: &mut Vec<Macro>,
     condition_chain: &mut ConditionChain,
 ) -> Result<(), PreprocessError> {
-    let file_length = input_file.contents.len() as u32;
+    let file_source_location_base =
+        file_loader.get_source_location_from_file_offset(input_file.file_id, StreamLocation(0));
 
-    let mut stream = input_file.contents.as_str();
+    let input_tokens = match crate::lexer::lex(&input_file.contents, file_source_location_base) {
+        Ok(tokens) => tokens,
+        Err(err) => return Err(PreprocessError::LexerError(err)),
+    };
+
+    let mut stream = input_tokens.as_slice();
     loop {
-        let stream_location_in_file = StreamLocation(file_length - stream.len() as u32);
-        let source_location = file_loader
-            .get_source_location_from_file_offset(input_file.file_id, stream_location_in_file);
-        let start_trimmed = stream.trim_start();
-        if let Some(command) = start_trimmed.strip_prefix('#') {
-            let command = command.trim_start();
-            stream = preprocess_command(
-                buffer,
-                file_loader,
-                command,
-                input_file.file_id,
-                source_location,
-                macros,
-                condition_chain,
-            )?;
-        } else {
-            fn find_region(mut stream: &str) -> (usize, bool) {
-                let mut size = 0;
-                let mut final_segment;
-                loop {
-                    let (sz, fs) = match stream.find('\n') {
-                        Some(sz) => (sz + 1, false),
-                        None => (stream.len(), true),
-                    };
-                    size += sz;
-                    final_segment = fs;
-                    stream = &stream[sz..];
-                    if final_segment || stream.trim_start().starts_with('#') {
-                        break;
+        // Find the next region to process
+        #[derive(PartialEq)]
+        enum RegionType {
+            None,
+            Normal(usize),
+            Command(usize, usize),
+        }
+        let mut region_type = RegionType::None;
+        {
+            let mut pos = 0;
+            let mut at_start_of_line = true;
+            while pos < stream.len() {
+                let next = &stream[pos];
+                if next.0 == Token::Endline {
+                    assert!(
+                        region_type == RegionType::None
+                            || matches!(region_type,  RegionType::Normal(sz) if sz < pos + 1)
+                    );
+                    region_type = RegionType::Normal(pos + 1);
+                    at_start_of_line = true;
+                } else if at_start_of_line {
+                    if next.0 == Token::Hash {
+                        match region_type {
+                            RegionType::None => {
+                                // Get the size of the command from # too endline
+                                // There should always be an endline at the end
+                                let command_size = stream[pos..]
+                                    .iter()
+                                    .position(|t| t.0 == Token::Endline)
+                                    .unwrap();
+
+                                // Start the command range after the #
+                                let start = pos + 1;
+
+                                // Get the end position in the input stream
+                                // This excludes the new line marker
+                                let end = pos + command_size;
+                                assert!(start < end);
+
+                                region_type = RegionType::Command(start, end);
+                                break;
+                            }
+                            RegionType::Normal(_) => {
+                                break;
+                            }
+                            RegionType::Command(_, _) => unreachable!(),
+                        }
+                    } else if !next.0.is_whitespace() {
+                        at_start_of_line = false;
                     }
                 }
-                (size, final_segment)
+                pos += 1;
             }
+        }
 
-            let (sz, final_segment) = find_region(stream);
-            let line = &stream[..sz];
-            stream = &stream[sz..];
-            if condition_chain.is_active() {
-                SubstitutedText::new(line, source_location)
-                    .apply_all(macros, false)?
-                    .store(buffer);
-            }
-            if final_segment {
+        match region_type {
+            RegionType::None => {
+                assert!(stream.is_empty());
                 break;
+            }
+            RegionType::Normal(sz) => {
+                if condition_chain.is_active() {
+                    SubstitutedText::new(&stream[..sz])
+                        .apply_all(macros, false)?
+                        .store(buffer);
+                }
+                assert_ne!(sz, 0);
+                stream = &stream[sz..];
+            }
+            RegionType::Command(start, end) => {
+                preprocess_command(
+                    buffer,
+                    file_loader,
+                    &stream[start..end],
+                    input_file.file_id,
+                    macros,
+                    condition_chain,
+                )?;
+
+                assert_ne!(end, 0);
+                assert_eq!(stream[end].0, Token::Endline);
+                stream = &stream[end + 1..];
             }
         }
     }
@@ -1191,13 +1256,13 @@ fn preprocess_included_file(
 fn preprocess_initial_file(
     input_file: InputFile,
     file_loader: &mut FileLoader,
-) -> Result<PreprocessedText, PreprocessError> {
-    let mut intermediate_text = IntermediateText::new();
+) -> Result<Vec<LexToken>, PreprocessError> {
+    let mut tokens = Vec::<LexToken>::default();
     let mut macros = vec![];
     let mut condition_chain = ConditionChain::new();
 
     preprocess_included_file(
-        &mut intermediate_text,
+        &mut tokens,
         file_loader,
         input_file,
         &mut macros,
@@ -1208,10 +1273,7 @@ fn preprocess_initial_file(
         return Err(PreprocessError::ConditionChainNotFinished);
     }
 
-    Ok(PreprocessedText::new(
-        intermediate_text.buffer,
-        intermediate_text.locations,
-    ))
+    Ok(tokens)
 }
 
 /// Preprocess a file - starting from memory
@@ -1220,7 +1282,7 @@ pub fn preprocess_direct(
     file_name: FileName,
     source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
-) -> Result<PreprocessedText, PreprocessError> {
+) -> Result<Vec<LexToken>, PreprocessError> {
     // Store the input in the source manager
     let file_id = source_manager.add_file(file_name, input.to_string());
     let input_file = InputFile {
@@ -1237,11 +1299,12 @@ pub fn preprocess(
     entry_file_name: &str,
     source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
-) -> Result<PreprocessedText, PreprocessError> {
+) -> Result<Vec<LexToken>, PreprocessError> {
     let mut file_loader = FileLoader::new(source_manager, include_handler);
     match file_loader.load(entry_file_name) {
         Ok(file) => preprocess_initial_file(file, &mut file_loader),
         Err(err) => Err(PreprocessError::FailedToFindFile(
+            SourceLocation::UNKNOWN,
             entry_file_name.to_string(),
             err,
         )),
@@ -1253,6 +1316,17 @@ pub fn preprocess_fragment(
     input: &str,
     file_name: FileName,
     source_manager: &mut SourceManager,
-) -> Result<PreprocessedText, PreprocessError> {
+) -> Result<Vec<LexToken>, PreprocessError> {
     preprocess_direct(input, file_name, source_manager, &mut NullIncludeHandler)
+}
+
+/// Convert a stream of preprocessor tokens for parsing
+pub fn prepare_tokens(source: &[LexToken]) -> Vec<LexToken> {
+    let mut source = source
+        .iter()
+        .cloned()
+        .filter(|t| !t.0.is_whitespace())
+        .collect::<Vec<_>>();
+    source.push(LexToken(Token::Eof, SourceLocation::UNKNOWN));
+    source
 }

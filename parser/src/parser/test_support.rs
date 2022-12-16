@@ -68,22 +68,17 @@ fn lex_from_str(source: &str) -> (Vec<LexToken>, SourceManager) {
     // Create source manager to store the source into
     let mut source_manager = SourceManager::new();
 
-    // Add a newline to the end of every test string as the lexer requires a clean ending
-    let modified_string = source.to_string() + "\n";
-
     // Preprocess the text
-    let preprocessed_text = rssl_preprocess::preprocess_fragment(
-        &modified_string,
+    let tokens = rssl_preprocess::preprocess_fragment(
+        source,
         FileName("parser_test.rssl".to_string()),
         &mut source_manager,
     )
     .expect("preprocess failed");
 
-    // Run the lexer on the input
-    match rssl_preprocess::lex(&preprocessed_text) {
-        Ok(tokens) => (tokens.stream, source_manager),
-        Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
-    }
+    let tokens = rssl_preprocess::prepare_tokens(&tokens);
+
+    (tokens, source_manager)
 }
 
 /// Helper type to invoke parsing on fragments of text

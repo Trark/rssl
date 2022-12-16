@@ -1,27 +1,30 @@
-use crate::minilex;
 use crate::preprocess::PreprocessError;
-use rssl_text::tokens::Token;
+use rssl_text::tokens::*;
+use rssl_text::SourceLocation;
 
 /// Parse a condition for an #if and return if it passes
-pub fn parse(condition: &str) -> Result<bool, PreprocessError> {
-    // Throw the line into the lexer to share all the literal, token, and whitespace parsing logic
-    let tokens = match minilex(condition) {
-        Ok(tokens) => tokens,
-        Err(_) => {
-            return Err(PreprocessError::FailedToParseIfCondition(
-                condition.to_string(),
-            ))
-        }
+pub fn parse(tokens: &[LexToken], base_location: SourceLocation) -> Result<bool, PreprocessError> {
+    let location = match tokens.first() {
+        Some(tok) => tok.1,
+        None => base_location,
     };
+
+    let tokens = tokens
+        .iter()
+        .filter_map(|t| {
+            if t.0.is_whitespace() {
+                assert_ne!(t.0, Token::Endline);
+                None
+            } else {
+                Some(t.0.clone())
+            }
+        })
+        .collect::<Vec<_>>();
 
     match parse_p15(&tokens) {
         Ok((&[], value)) => Ok(value != 0),
-        Ok((_, _)) => Err(PreprocessError::FailedToParseIfCondition(
-            condition.to_string(),
-        )),
-        Err(_) => Err(PreprocessError::FailedToParseIfCondition(
-            condition.to_string(),
-        )),
+        Ok((_, _)) => Err(PreprocessError::FailedToParseIfCondition(location)),
+        Err(_) => Err(PreprocessError::FailedToParseIfCondition(location)),
     }
 }
 
@@ -114,56 +117,67 @@ fn parse_leaf(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionP
 #[test]
 #[allow(clippy::bool_assert_comparison)]
 fn test_condition_parser() {
-    assert_eq!(parse("0").unwrap(), false);
-    assert_eq!(parse("1").unwrap(), true);
-    assert_eq!(parse("!0").unwrap(), true);
-    assert_eq!(parse("!1").unwrap(), false);
-    assert_eq!(parse("0 && 0").unwrap(), false);
-    assert_eq!(parse("0 && 1").unwrap(), false);
-    assert_eq!(parse("1 && 0").unwrap(), false);
-    assert_eq!(parse("1 && 1").unwrap(), true);
-    assert_eq!(parse("0 || 0").unwrap(), false);
-    assert_eq!(parse("0 || 1").unwrap(), true);
-    assert_eq!(parse("1 || 0").unwrap(), true);
-    assert_eq!(parse("1 || 1").unwrap(), true);
-    assert_eq!(parse("0 && 0 || 1").unwrap(), true);
-    assert_eq!(parse("0 && 1 || 1").unwrap(), true);
-    assert_eq!(parse("1 && 0 || 1").unwrap(), true);
-    assert_eq!(parse("1 && 1 || 1").unwrap(), true);
-    assert_eq!(parse("0 && 0 || 0").unwrap(), false);
-    assert_eq!(parse("0 && 1 || 0").unwrap(), false);
-    assert_eq!(parse("1 && 0 || 0").unwrap(), false);
-    assert_eq!(parse("1 && 1 || 0").unwrap(), true);
-    assert_eq!(parse("0 && (0 || 1)").unwrap(), false);
-    assert_eq!(parse("0 && (1 || 1)").unwrap(), false);
-    assert_eq!(parse("1 && (0 || 1)").unwrap(), true);
-    assert_eq!(parse("1 && (1 || 1)").unwrap(), true);
-    assert_eq!(parse("0 && (0 || 0)").unwrap(), false);
-    assert_eq!(parse("0 && (1 || 0)").unwrap(), false);
-    assert_eq!(parse("1 && (0 || 0)").unwrap(), false);
-    assert_eq!(parse("1 && (1 || 0)").unwrap(), true);
-    assert_eq!(parse("0 || 0 && 1").unwrap(), false);
-    assert_eq!(parse("0 || 1 && 1").unwrap(), true);
-    assert_eq!(parse("1 || 0 && 1").unwrap(), true);
-    assert_eq!(parse("1 || 1 && 1").unwrap(), true);
-    assert_eq!(parse("0 || 0 && 0").unwrap(), false);
-    assert_eq!(parse("0 || 1 && 0").unwrap(), false);
-    assert_eq!(parse("1 || 0 && 0").unwrap(), true);
-    assert_eq!(parse("1 || 1 && 0").unwrap(), true);
-    assert_eq!(parse("(0 || 0) && 1").unwrap(), false);
-    assert_eq!(parse("(0 || 1) && 1").unwrap(), true);
-    assert_eq!(parse("(1 || 0) && 1").unwrap(), true);
-    assert_eq!(parse("(1 || 1) && 1").unwrap(), true);
-    assert_eq!(parse("(0 || 0) && 0").unwrap(), false);
-    assert_eq!(parse("(0 || 1) && 0").unwrap(), false);
-    assert_eq!(parse("(1 || 0) && 0").unwrap(), false);
-    assert_eq!(parse("(1 || 1) && 0").unwrap(), false);
-    assert_eq!(parse("0 == 0").unwrap(), true);
-    assert_eq!(parse("0 == 1").unwrap(), false);
-    assert_eq!(parse("1 == 0").unwrap(), false);
-    assert_eq!(parse("1 == 1").unwrap(), true);
-    assert_eq!(parse("0 != 0").unwrap(), false);
-    assert_eq!(parse("0 != 1").unwrap(), true);
-    assert_eq!(parse("1 != 0").unwrap(), true);
-    assert_eq!(parse("1 != 1").unwrap(), false);
+    #[track_caller]
+    fn eval(s: &str) -> bool {
+        let mut source_manager = rssl_text::SourceManager::new();
+        let (file_id, _) = source_manager.add_fragment(s);
+        parse(
+            &crate::lexer::lex_fragment(file_id, &source_manager).unwrap(),
+            SourceLocation::UNKNOWN,
+        )
+        .unwrap()
+    }
+
+    assert_eq!(eval("0"), false);
+    assert_eq!(eval("1"), true);
+    assert_eq!(eval("!0"), true);
+    assert_eq!(eval("!1"), false);
+    assert_eq!(eval("0 && 0"), false);
+    assert_eq!(eval("0 && 1"), false);
+    assert_eq!(eval("1 && 0"), false);
+    assert_eq!(eval("1 && 1"), true);
+    assert_eq!(eval("0 || 0"), false);
+    assert_eq!(eval("0 || 1"), true);
+    assert_eq!(eval("1 || 0"), true);
+    assert_eq!(eval("1 || 1"), true);
+    assert_eq!(eval("0 && 0 || 1"), true);
+    assert_eq!(eval("0 && 1 || 1"), true);
+    assert_eq!(eval("1 && 0 || 1"), true);
+    assert_eq!(eval("1 && 1 || 1"), true);
+    assert_eq!(eval("0 && 0 || 0"), false);
+    assert_eq!(eval("0 && 1 || 0"), false);
+    assert_eq!(eval("1 && 0 || 0"), false);
+    assert_eq!(eval("1 && 1 || 0"), true);
+    assert_eq!(eval("0 && (0 || 1)"), false);
+    assert_eq!(eval("0 && (1 || 1)"), false);
+    assert_eq!(eval("1 && (0 || 1)"), true);
+    assert_eq!(eval("1 && (1 || 1)"), true);
+    assert_eq!(eval("0 && (0 || 0)"), false);
+    assert_eq!(eval("0 && (1 || 0)"), false);
+    assert_eq!(eval("1 && (0 || 0)"), false);
+    assert_eq!(eval("1 && (1 || 0)"), true);
+    assert_eq!(eval("0 || 0 && 1"), false);
+    assert_eq!(eval("0 || 1 && 1"), true);
+    assert_eq!(eval("1 || 0 && 1"), true);
+    assert_eq!(eval("1 || 1 && 1"), true);
+    assert_eq!(eval("0 || 0 && 0"), false);
+    assert_eq!(eval("0 || 1 && 0"), false);
+    assert_eq!(eval("1 || 0 && 0"), true);
+    assert_eq!(eval("1 || 1 && 0"), true);
+    assert_eq!(eval("(0 || 0) && 1"), false);
+    assert_eq!(eval("(0 || 1) && 1"), true);
+    assert_eq!(eval("(1 || 0) && 1"), true);
+    assert_eq!(eval("(1 || 1) && 1"), true);
+    assert_eq!(eval("(0 || 0) && 0"), false);
+    assert_eq!(eval("(0 || 1) && 0"), false);
+    assert_eq!(eval("(1 || 0) && 0"), false);
+    assert_eq!(eval("(1 || 1) && 0"), false);
+    assert_eq!(eval("0 == 0"), true);
+    assert_eq!(eval("0 == 1"), false);
+    assert_eq!(eval("1 == 0"), false);
+    assert_eq!(eval("1 == 1"), true);
+    assert_eq!(eval("0 != 0"), false);
+    assert_eq!(eval("0 != 1"), true);
+    assert_eq!(eval("1 != 0"), true);
+    assert_eq!(eval("1 != 1"), false);
 }

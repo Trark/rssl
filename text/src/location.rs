@@ -60,6 +60,13 @@ impl SourceManager {
         file_id
     }
 
+    /// Add a snippet of text into the source manager
+    pub fn add_fragment(&mut self, fragment: &str) -> (FileId, SourceLocation) {
+        let file_id = self.add_file(FileName(String::new()), fragment.to_string());
+        let base_location = self.files[file_id.0 as usize].base_location;
+        (file_id, base_location)
+    }
+
     /// Get the full source for a given file
     pub fn get_contents(&self, file_id: FileId) -> &str {
         &self.files[file_id.0 as usize].contents
@@ -292,141 +299,5 @@ impl<T> std::ops::Deref for Located<T> {
 impl<T: std::fmt::Debug> std::fmt::Debug for Located<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?} @ {}", self.node, self.location.get_raw())
-    }
-}
-
-/// Text that has source line association
-#[derive(PartialEq, Debug, Clone)]
-pub struct PreprocessedText {
-    code: String,
-    locations: StreamToSourceMap,
-}
-
-impl PreprocessedText {
-    pub fn new(code: String, locations: StreamToSourceMap) -> Self {
-        PreprocessedText { code, locations }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.code
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        self.code.as_bytes()
-    }
-
-    pub fn get_source_location(&self, stream_location: StreamLocation) -> SourceLocation {
-        self.locations.get_source_location(stream_location, 0).0
-    }
-
-    pub fn get_source_location_sequential(
-        &self,
-        stream_location: StreamLocation,
-        last_entry: usize,
-    ) -> (SourceLocation, usize) {
-        self.locations
-            .get_source_location(stream_location, last_entry)
-    }
-
-    /// Generate string from text with #line markers
-    pub fn export_with_line_markers(&self, source_manager: &SourceManager) -> String {
-        let mut output = Vec::with_capacity(self.code.len());
-
-        let bytes = self.code.as_bytes();
-        let mut processed = 0;
-        for entry in &self.locations.remap {
-            let next = entry.stream.0 as usize;
-            assert!((processed == 0 && next == 0) || processed < next);
-            let text_range = &bytes[processed..next];
-
-            // Add the text from the previous locations to the output
-            output.extend_from_slice(text_range);
-
-            // Emit #line marker
-            // If we are already at the start of a line we do not need to emit another before the #line
-            let start_newline = match output.last() {
-                Some(b'\n') => "\n",
-                _ => "",
-            };
-
-            // Get the file / line from the location
-            let file_location = source_manager.get_file_location(entry.source);
-            let (file_name, line) = match &file_location {
-                FileLocation::Known(file_name, line, _) => (file_name.0.as_str(), line.0),
-                FileLocation::Unknown => ("unknown", 1),
-            };
-
-            // Add the #line marker to the string
-            output.extend_from_slice(
-                format!("{}#line {} \"{}\"\n", start_newline, line, file_name).as_bytes(),
-            );
-
-            processed = next;
-        }
-
-        // Add the remaining text to the output
-        output.extend_from_slice(&bytes[processed..]);
-
-        // Get as a string
-        // This should always success as we should only put file location changes between valid UTF-8 chunks
-        match String::from_utf8(output) {
-            Ok(s) => s,
-            Err(_) => panic!("Line markers split created invalid UTF-8"),
-        }
-    }
-}
-
-/// Links streams offsets to source file locations
-#[derive(PartialEq, Debug, Default, Clone)]
-pub struct StreamToSourceMap {
-    remap: Vec<StreamToSourceEntry>,
-}
-
-#[derive(PartialEq, Debug, Clone)]
-struct StreamToSourceEntry {
-    stream: StreamLocation,
-    source: SourceLocation,
-}
-
-impl StreamToSourceMap {
-    /// Add a mapping from stream location back to source file location
-    pub fn push(&mut self, stream_location: StreamLocation, source_location: SourceLocation) {
-        // Ensure stream locations are in order and there are no duplicates
-        if let Some(previous) = self.remap.last() {
-            assert!(previous.stream < stream_location);
-        } else {
-            assert!(stream_location.0 == 0);
-        }
-        self.remap.push(StreamToSourceEntry {
-            stream: stream_location,
-            source: source_location,
-        })
-    }
-
-    /// Get the source location for a position in a stream
-    pub fn get_source_location(
-        &self,
-        stream_location: StreamLocation,
-        last_offset: usize,
-    ) -> (SourceLocation, usize) {
-        if self.remap.is_empty() {
-            return (SourceLocation::UNKNOWN, 0);
-        }
-
-        assert_eq!(self.remap[0].stream.0, 0);
-        assert!(last_offset < self.remap.len());
-        assert!(self.remap[last_offset].stream.0 <= stream_location.0);
-
-        let mut index = last_offset;
-        for i in last_offset..self.remap.len() {
-            if self.remap[i].stream > stream_location {
-                break;
-            }
-            index = i;
-        }
-
-        let previous = &self.remap[index];
-        let offset = stream_location.0 - previous.stream.0;
-        (previous.source.offset(offset), index)
     }
 }

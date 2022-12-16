@@ -6,22 +6,15 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
     // Create source manager to store the source into
     let mut source_manager = SourceManager::new();
 
-    // Add a newline to the end of every test string as the lexer requires a clean ending
-    let modified_string = source.to_string() + "\n";
-
     // Preprocess the text
-    let preprocessed_text = rssl_preprocess::preprocess_fragment(
-        &modified_string,
+    let tokens = rssl_preprocess::preprocess_fragment(
+        source,
         FileName("type_test.rssl".to_string()),
         &mut source_manager,
     )
     .expect("preprocess failed");
 
-    // Run the lexer on the input
-    let tokens = match rssl_preprocess::lex(&preprocessed_text) {
-        Ok(tokens) => tokens.stream,
-        Err(err) => panic!("{}{:?}", err.display(&source_manager), err),
-    };
+    let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
     // Run the parser
     let tree = match rssl_parser::parse(&tokens) {

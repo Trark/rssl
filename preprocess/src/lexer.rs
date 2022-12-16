@@ -4,8 +4,8 @@ use rssl_text::*;
 /// Provides details on why a lex operation failed
 #[derive(PartialEq, Clone)]
 pub struct LexerError {
-    reason: LexerErrorReason,
-    location: SourceLocation,
+    pub reason: LexerErrorReason,
+    pub location: SourceLocation,
 }
 
 /// The basic reason for a lex failure
@@ -21,11 +21,6 @@ impl LexerError {
     /// Create a new lexer error
     pub fn new(reason: LexerErrorReason, location: SourceLocation) -> Self {
         LexerError { reason, location }
-    }
-
-    /// Get formatter to print the error
-    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> LexerErrorPrinter<'a> {
-        LexerErrorPrinter(self, source_manager)
     }
 }
 
@@ -51,28 +46,10 @@ impl std::fmt::Debug for LexerError {
 impl std::fmt::Display for LexerErrorReason {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            LexerErrorReason::Unknown => write!(f, "Unknown lexer error"),
-            LexerErrorReason::FailedToParse(_) => write!(f, "Unexpected character"),
-            LexerErrorReason::UnexpectedEndOfStream => write!(f, "Unexpected end of stream"),
+            LexerErrorReason::Unknown => write!(f, "unknown lexer error"),
+            LexerErrorReason::FailedToParse(_) => write!(f, "unexpected character"),
+            LexerErrorReason::UnexpectedEndOfStream => write!(f, "unexpected end of stream"),
         }
-    }
-}
-
-/// Prints lexer errors
-pub struct LexerErrorPrinter<'a>(&'a LexerError, &'a SourceManager);
-
-impl<'a> std::fmt::Display for LexerErrorPrinter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let LexerErrorPrinter(err, source_manager) = self;
-
-        // Get file location info
-        let file_location = source_manager.get_file_location(err.location);
-
-        // Print basic failure reason
-        writeln!(f, "{}: {}", file_location, err.reason)?;
-
-        // Print source that caused the error
-        source_manager.write_source_for_error(f, Some(err.location))
     }
 }
 
@@ -1166,29 +1143,51 @@ fn token_stream(mut input: &[u8]) -> LexResult<Vec<StreamToken>> {
 }
 
 /// Run the lexer on input text to turn it into a token stream
-pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
-    let code_bytes = preprocessed.as_bytes();
+pub fn lex(text: &str, source_offset: SourceLocation) -> Result<Vec<LexToken>, LexerError> {
+    lex_internal(text, source_offset, true)
+}
+
+/// Run the lexer on input text fragment to turn it into a token stream
+#[cfg(test)]
+pub fn lex_fragment(
+    file_id: FileId,
+    source_manager: &SourceManager,
+) -> Result<Vec<LexToken>, LexerError> {
+    let contents = source_manager.get_contents(file_id);
+    let offset = source_manager.get_source_location_from_file_offset(file_id, StreamLocation(0));
+    lex_internal(contents, offset, false)
+}
+
+/// Run the lexer on input text to turn it into a token stream
+fn lex_internal(
+    text: &str,
+    source_offset: SourceLocation,
+    add_file_ending: bool,
+) -> Result<Vec<LexToken>, LexerError> {
+    let code_bytes = text.as_bytes();
     let total_length = code_bytes.len() as u32;
     match token_stream(code_bytes) {
         Ok((rest, mut stream)) => {
             if rest.is_empty() {
-                let stream = {
-                    stream.push(StreamToken(Token::Eof, StreamLocation(total_length)));
-                    stream
-                };
-                let mut lex_tokens = Vec::with_capacity(stream.len());
-                let mut last_entry = 0;
-                for StreamToken(ref token, stream_location) in stream {
-                    if token.is_whitespace() {
-                        continue;
+                if add_file_ending {
+                    // Insert a newline at the end of the file if it did not already end with a new empty line
+                    // This is what C++ does before token generation normally
+                    // This ensures when we return from the included file we are on a fresh line
+                    if let Some(StreamToken(tok, _)) = stream.last() {
+                        if *tok != Token::Endline {
+                            stream.push(StreamToken(Token::Endline, StreamLocation(total_length)));
+                        }
                     }
-                    let location_result =
-                        preprocessed.get_source_location_sequential(stream_location, last_entry);
-                    let source_location = location_result.0;
-                    last_entry = location_result.1;
+                }
+
+                // Translate from locations in the current local stream into original source locations
+                let mut lex_tokens = Vec::with_capacity(stream.len());
+                for StreamToken(ref token, stream_location) in stream {
+                    let source_location = source_offset.offset(stream_location.0);
                     lex_tokens.push(LexToken(token.clone(), source_location));
                 }
-                Ok(Tokens { stream: lex_tokens })
+
+                Ok(lex_tokens)
             } else {
                 // Find the next point where we can find a valid token
                 let mut after = rest;
@@ -1211,7 +1210,7 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
                 let offset = StreamLocation((code_bytes.len() - rest.len()) as u32);
                 Err(LexerError::new(
                     LexerErrorReason::FailedToParse(failing_bytes),
-                    preprocessed.get_source_location(offset),
+                    source_offset.offset(offset.0),
                 ))
             }
         }
@@ -1219,44 +1218,24 @@ pub fn lex(preprocessed: &PreprocessedText) -> Result<Tokens, LexerError> {
             if kind == LexErrorKind::Eof {
                 Err(LexerError::new(
                     LexerErrorReason::UnexpectedEndOfStream,
-                    preprocessed.get_source_location(StreamLocation(code_bytes.len() as u32)),
+                    source_offset.offset(code_bytes.len() as u32),
                 ))
             } else {
-                let offset = StreamLocation((code_bytes.len() - input.len()) as u32);
                 Err(LexerError::new(
                     LexerErrorReason::Unknown,
-                    preprocessed.get_source_location(offset),
+                    source_offset.offset((code_bytes.len() - input.len()) as u32),
                 ))
             }
         }
     }
 }
 
-/// Run the lexer on input text to turn it into tokens without location information or advanced error information
-pub fn minilex(text: &str) -> Result<Vec<Token>, LexerError> {
-    let code_bytes = text.as_bytes();
-    match token_stream(code_bytes) {
-        Ok((rest, stream)) => {
-            if rest.is_empty() {
-                let mut tokens = Vec::with_capacity(stream.len());
-                for StreamToken(ref token, _) in stream {
-                    if token.is_whitespace() {
-                        continue;
-                    }
-                    tokens.push(token.clone());
-                }
-                Ok(tokens)
-            } else {
-                Err(LexerError::new(
-                    LexerErrorReason::Unknown,
-                    SourceLocation::UNKNOWN,
-                ))
-            }
-        }
-        Err(LexErrorContext(_, _)) => Err(LexerError::new(
-            LexerErrorReason::Unknown,
-            SourceLocation::UNKNOWN,
-        )),
+/// Calculate the size of the next token read from the input string
+#[cfg(test)]
+pub fn get_next_token_size(input: &[u8]) -> Option<usize> {
+    match token(input) {
+        Ok((next, _)) => Some(input.len() - next.len()),
+        Err(_) => None,
     }
 }
 

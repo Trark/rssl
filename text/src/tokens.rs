@@ -159,9 +159,3 @@ impl std::fmt::Debug for LexToken {
         write!(f, "{:?} @ {}", self.0, self.1.get_raw())
     }
 }
-
-/// A stream of [LexToken]
-#[derive(PartialEq, Debug, Clone)]
-pub struct Tokens {
-    pub stream: Vec<LexToken>,
-}
