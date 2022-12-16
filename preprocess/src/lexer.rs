@@ -91,6 +91,9 @@ enum LexErrorKind {
     UnexpectedBytes,
     OtherTokenBytes,
     Eof,
+    StringWrapsLine,
+    StringWrapsFile,
+    StringContainsInvalidCharacters,
 }
 
 /// Internal error data when a lexer fails to lex
@@ -381,6 +384,59 @@ fn test_literal_int() {
     assert_eq!(p(b"0xA1 "), Ok((&b" "[..], Token::LiteralInt(161))));
     assert_eq!(p(b"0xA1u"), Ok((&b""[..], Token::LiteralUInt(161))));
     assert_eq!(p(b"0123u"), Ok((&b""[..], Token::LiteralUInt(83))));
+}
+
+/// Parse a literal string
+fn literal_string(input: &[u8]) -> LexResult<Token> {
+    if let Some((b'"', rest)) = input.split_first() {
+        let end_res = rest.iter().position(|c| *c == b'"');
+        match end_res {
+            Some(pos) => {
+                let (range, remaining) = input.split_at(pos + 2);
+                match std::str::from_utf8(range) {
+                    Ok(string_utf8) => {
+                        if string_utf8.contains('\n') {
+                            Err(LexErrorContext(input, LexErrorKind::StringWrapsLine))
+                        } else {
+                            Ok((remaining, Token::LiteralString(string_utf8.to_string())))
+                        }
+                    }
+                    Err(_) => Err(LexErrorContext(
+                        input,
+                        LexErrorKind::StringContainsInvalidCharacters,
+                    )),
+                }
+            }
+            None => Err(LexErrorContext(input, LexErrorKind::StringWrapsFile)),
+        }
+    } else {
+        wrong_chars(input)
+    }
+}
+
+#[test]
+fn test_literal_string() {
+    let p = literal_string;
+    assert_eq!(
+        p(b"\"\""),
+        Ok((&b""[..], Token::LiteralString("\"\"".to_string())))
+    );
+    assert_eq!(
+        p(b"\"abc\""),
+        Ok((&b""[..], Token::LiteralString("\"abc\"".to_string())))
+    );
+    assert_eq!(
+        p(b"\"a\nb\""),
+        Err(LexErrorContext(b"\"a\nb\"", LexErrorKind::StringWrapsLine))
+    );
+    assert_eq!(
+        p(b"\""),
+        Err(LexErrorContext(b"\"", LexErrorKind::StringWrapsFile))
+    );
+    assert_eq!(
+        p(b"\"\n"),
+        Err(LexErrorContext(b"\"\n", LexErrorKind::StringWrapsFile))
+    );
 }
 
 type DigitSequence = Vec<u64>;
@@ -1047,6 +1103,7 @@ fn token_intermediate(input: &[u8]) -> LexResult<Token> {
             // Literals
             &literal_float,
             &literal_int,
+            &literal_string,
             // Scope markers
             &symbol_single(b'{', Token::LeftBrace),
             &symbol_single(b'}', Token::RightBrace),

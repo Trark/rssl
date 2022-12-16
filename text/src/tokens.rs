@@ -33,6 +33,7 @@ pub enum Token {
     LiteralHalf(f32),
     LiteralFloat(f32),
     LiteralDouble(f64),
+    LiteralString(String),
     True,
     False,
 
