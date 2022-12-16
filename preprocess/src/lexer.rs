@@ -393,7 +393,9 @@ fn literal_string(input: &[u8]) -> LexResult<Token> {
         match end_res {
             Some(pos) => {
                 let (range, remaining) = input.split_at(pos + 2);
-                match std::str::from_utf8(range) {
+                // TODO: We do not currently support any special characters
+                let range_no_quotes = &range[1..pos + 1];
+                match std::str::from_utf8(range_no_quotes) {
                     Ok(string_utf8) => {
                         if string_utf8.contains('\n') {
                             Err(LexErrorContext(input, LexErrorKind::StringWrapsLine))
@@ -419,11 +421,11 @@ fn test_literal_string() {
     let p = literal_string;
     assert_eq!(
         p(b"\"\""),
-        Ok((&b""[..], Token::LiteralString("\"\"".to_string())))
+        Ok((&b""[..], Token::LiteralString("".to_string())))
     );
     assert_eq!(
         p(b"\"abc\""),
-        Ok((&b""[..], Token::LiteralString("\"abc\"".to_string())))
+        Ok((&b""[..], Token::LiteralString("abc".to_string())))
     );
     assert_eq!(
         p(b"\"a\nb\""),
@@ -777,6 +779,11 @@ fn whitespace_simple(input: &[u8]) -> LexResult<Token> {
 /// Parse trivial whitespace
 fn whitespace_endline(input: &[u8]) -> LexResult<Token> {
     match input {
+        // File has an actual line ending but it is ignored and treated as normal whitespace
+        [b'\\', b'\r', b'\n', rest @ ..] | [b'\\', b'\n', rest @ ..] => {
+            Ok((rest, Token::PhysicalEndline))
+        }
+        // A normal line ending
         [b'\r', b'\n', rest @ ..] | [b'\n', rest @ ..] => Ok((rest, Token::Endline)),
         _ => wrong_chars(input),
     }
@@ -785,10 +792,16 @@ fn whitespace_endline(input: &[u8]) -> LexResult<Token> {
 /// Parse a line comment
 fn line_comment(input: &[u8]) -> LexResult<Token> {
     if input.starts_with(b"//") {
-        match input.iter().enumerate().position(|c| *c.1 == b'\n') {
-            Some(len) => Ok((&input[len + 1..], Token::Comment)),
-            None => Ok((&[], Token::Comment)),
+        let mut pos = 2;
+        while pos < input.len() {
+            let input_at_pos = &input[pos..];
+            match whitespace_endline(&input[pos..]) {
+                Ok((_, Token::Endline)) => return Ok((input_at_pos, Token::Comment)),
+                Ok((rest, Token::PhysicalEndline)) => pos = input.len() - rest.len(),
+                _ => pos += 1,
+            }
         }
+        Ok((&[], Token::Comment))
     } else {
         wrong_chars(input)
     }
@@ -827,8 +840,11 @@ fn test_whitespace() {
     assert!(line_comment(b"").is_err());
     assert!(block_comment(b"").is_err());
     assert_eq!(whitespace_simple(b" "), end(Token::Whitespace));
-    assert_eq!(line_comment(b"//\n"), end(Token::Comment));
-    assert_eq!(line_comment(b"// comment\n"), end(Token::Comment));
+    assert_eq!(line_comment(b"//\n"), Ok((&b"\n"[..], Token::Comment)));
+    assert_eq!(
+        line_comment(b"// comment\n"),
+        Ok((&b"\n"[..], Token::Comment))
+    );
     assert_eq!(block_comment(b"/* comment */"), end(Token::Comment));
     assert_eq!(
         block_comment(b"/* line 1\n\t line 2\n\t line 3 */"),
@@ -1533,6 +1549,61 @@ fn test_token_stream() {
     assert_eq!(token_stream(&b""[..]), Ok((&b""[..], vec![])));
     assert_eq!(
         token_stream(&b"// Comment only source!\n"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([loc(Token::Comment, 0), loc(Token::Endline, 23)])
+        ))
+    );
+    assert_eq!(
+        token_stream(&b"// Comment only source!\nelse"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::Comment, 0),
+                loc(Token::Endline, 23),
+                loc(Token::Else, 24)
+            ])
+        ))
+    );
+    assert_eq!(
+        token_stream(&b"// Comment only source!\r\nelse"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::Comment, 0),
+                loc(Token::Endline, 23),
+                loc(Token::Else, 25)
+            ])
+        ))
+    );
+    assert_eq!(
+        token_stream(&b"a\nb"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::Id(Identifier("a".to_string())), 0),
+                loc(Token::Endline, 1),
+                loc(Token::Id(Identifier("b".to_string())), 2),
+            ])
+        ))
+    );
+    assert_eq!(
+        token_stream(&b"a\\\nb"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::Id(Identifier("a".to_string())), 0),
+                loc(Token::PhysicalEndline, 1),
+                loc(Token::Id(Identifier("b".to_string())), 3),
+            ])
+        ))
+    );
+    assert_eq!(
+        token_stream(&b"// Comment only source!\\\nelse"[..]),
+        Ok((&b""[..], Vec::from([loc(Token::Comment, 0)])))
+    );
+    assert_eq!(
+        token_stream(&b"// Comment only source!\\\r\nelse"[..]),
         Ok((&b""[..], Vec::from([loc(Token::Comment, 0)])))
     );
 

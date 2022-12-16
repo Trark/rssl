@@ -115,15 +115,26 @@ pub enum Token {
 
     ReservedWord(String),
 
+    /// Line ending
     Endline,
+
+    /// Physical line ending which does not end the logical line
+    PhysicalEndline,
+
+    /// Non-line ending whitespace
     Whitespace,
+
+    /// Line and block comments
     Comment,
 }
 
 impl Token {
     /// Test if the token is for whitespace, endlines, or comments
     pub fn is_whitespace(&self) -> bool {
-        matches!(self, Token::Endline | Token::Whitespace | Token::Comment)
+        matches!(
+            self,
+            Token::Endline | Token::PhysicalEndline | Token::Whitespace | Token::Comment
+        )
     }
 }
 
