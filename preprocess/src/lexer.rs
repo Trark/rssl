@@ -948,6 +948,11 @@ fn symbol_equals(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b'=', Token::Equals, Token::EqualsEquals, Token::Eof)(input)
 }
 
+/// Parse a # or ## token
+fn symbol_hash(input: &[u8]) -> LexResult<Token> {
+    symbol_op_or_op_equals(b'#', Token::Hash, Token::Eof, Token::Concat)(input)
+}
+
 /// Parse a : or :: token
 fn symbol_colon(input: &[u8]) -> LexResult<Token> {
     symbol_op_or_op_equals(b':', Token::Colon, Token::Eof, Token::ScopeResolution)(input)
@@ -1073,7 +1078,7 @@ fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
             &symbol_hat,
             &symbol_exclamation,
             &symbol_equals,
-            &symbol_single(b'#', Token::Hash),
+            &symbol_hash,
             &symbol_single(b'@', Token::At),
             &symbol_single(b'~', Token::Tilde),
             &symbol_single(b'.', Token::Period),
@@ -1409,6 +1414,15 @@ fn test_token() {
         Ok((&b" "[..], from_end(Token::Equals, 2)))
     );
     assert_eq!(token(&b"#"[..]), Ok((&b""[..], from_end(Token::Hash, 1))));
+    assert_eq!(token(&b"# "[..]), Ok((&b" "[..], from_end(Token::Hash, 2))));
+    assert_eq!(
+        token(&b"##"[..]),
+        Ok((&b""[..], from_end(Token::Concat, 2)))
+    );
+    assert_eq!(
+        token(&b"## "[..]),
+        Ok((&b" "[..], from_end(Token::Concat, 3)))
+    );
     assert_eq!(token(&b"@"[..]), Ok((&b""[..], from_end(Token::At, 1))));
     assert_eq!(
         token(&b"! "[..]),

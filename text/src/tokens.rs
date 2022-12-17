@@ -72,6 +72,7 @@ pub enum Token {
     Equals,
     EqualsEquals,
     Hash,
+    Concat,
     At,
     ExclamationPoint,
     ExclamationPointEquals,
