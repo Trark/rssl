@@ -929,9 +929,6 @@ fn symbol_op_or_op_equals(
     op_op_token: Token,
 ) -> impl Fn(&[u8]) -> LexResult<Token> {
     move |input: &[u8]| match input {
-        [c, b'=', b'=', ..] if *c == op_char && op_equals_token != Token::Eof => {
-            invalid_chars(input)
-        }
         [c, b'=', ..] if *c == op_char && op_equals_token != Token::Eof => {
             Ok((&input[2..], op_equals_token.clone()))
         }
@@ -967,7 +964,7 @@ fn test_symbol_equals() {
     assert_eq!(p(b"== "), Ok((&b" "[..], Token::EqualsEquals)));
     assert_eq!(p(b""), wrong_chars(b""));
     assert_eq!(p(b" "), wrong_chars(b" "));
-    assert_eq!(p(b"==="), invalid_chars(b"==="));
+    assert_eq!(p(b"==="), Ok((&b"="[..], Token::EqualsEquals)));
 }
 
 /// Parse a + token
@@ -1045,7 +1042,7 @@ fn test_symbol_exclamation() {
     assert_eq!(p(b"!= "), Ok((&b" "[..], Token::ExclamationPointEquals)));
     assert_eq!(p(b""), wrong_chars(b""));
     assert_eq!(p(b" "), wrong_chars(b" "));
-    assert_eq!(p(b"!=="), invalid_chars(b"!=="));
+    assert_eq!(p(b"!=="), Ok((&b"="[..], Token::ExclamationPointEquals)));
 }
 
 #[test]
@@ -1246,288 +1243,283 @@ pub fn get_next_token_size(input: &[u8]) -> Option<usize> {
 
 #[test]
 fn test_token() {
-    fn from_end(tok: Token, from: u32) -> IntermediateToken {
-        IntermediateToken(tok, IntermediateLocation(from))
+    macro_rules! assert_token {
+        ($input:expr, $token:expr) => {
+            assert_token!($input, $token, $input.as_bytes().len())
+        };
+
+        ($input:expr, $token:expr, $used:expr) => {
+            let input_bytes = $input.as_bytes();
+            let result = token(input_bytes);
+            let rest = &input_bytes[$used..];
+            assert_eq!(
+                result,
+                Ok((
+                    rest,
+                    IntermediateToken($token, IntermediateLocation(input_bytes.len() as u32))
+                ))
+            );
+        };
     }
 
     assert!(token(&b""[..]).is_err());
-    assert_eq!(
-        token(&b";"[..]),
-        Ok((&b""[..], from_end(Token::Semicolon, 1)))
-    );
-    assert_eq!(
-        token(&b"; "[..]),
-        Ok((&b" "[..], from_end(Token::Semicolon, 2)))
-    );
-    assert_eq!(
-        token(&b"name"[..]),
-        Ok((
-            &b""[..],
-            from_end(Token::Id(Identifier("name".to_string())), 4)
-        ))
+    assert_token!(";", Token::Semicolon);
+    assert_token!("; ", Token::Semicolon, 1);
+    assert_token!("name", Token::Id(Identifier("name".to_string())));
+
+    assert_token!("12 ", Token::LiteralInt(12), 2);
+    assert_token!("12u", Token::LiteralUInt(12));
+    assert_token!("12l", Token::LiteralLong(12));
+    assert_token!("12L", Token::LiteralLong(12));
+
+    assert_token!("1.0f", Token::LiteralFloat(1.0f32));
+    assert_token!("2.0 ", Token::LiteralFloat(2.0f32), 3);
+    assert_token!("2.0L", Token::LiteralDouble(2.0f64));
+    assert_token!("0.5h", Token::LiteralHalf(0.5f32));
+
+    assert_token!("\"\"", Token::LiteralString("".to_string()));
+
+    assert_token!("true", Token::True);
+    assert_token!("true ", Token::True, 4);
+    assert_token!("truea", Token::Id(Identifier("truea".to_string())));
+
+    assert_token!("false", Token::False);
+    assert_token!("false ", Token::False, 5);
+    assert_token!("falsea", Token::Id(Identifier("falsea".to_string())));
+
+    assert_token!("{", Token::LeftBrace);
+    assert_token!("}", Token::RightBrace);
+    assert_token!("(", Token::LeftParen);
+    assert_token!(")", Token::RightParen);
+    assert_token!("[", Token::LeftSquareBracket);
+    assert_token!("]", Token::RightSquareBracket);
+
+    assert_token!("< ", Token::LeftAngleBracket(FollowedBy::Whitespace), 1);
+    assert_token!("<", Token::LeftAngleBracket(FollowedBy::Whitespace));
+    assert_token!("<< ", Token::LeftAngleBracket(FollowedBy::Token), 1);
+    assert_token!("<<", Token::LeftAngleBracket(FollowedBy::Token), 1);
+    assert_token!("> ", Token::RightAngleBracket(FollowedBy::Whitespace), 1);
+    assert_token!(">", Token::RightAngleBracket(FollowedBy::Whitespace));
+    assert_token!(">> ", Token::RightAngleBracket(FollowedBy::Token), 1);
+    assert_token!(">>", Token::RightAngleBracket(FollowedBy::Token), 1);
+    assert_token!("<>", Token::LeftAngleBracket(FollowedBy::Token), 1);
+    assert_token!("><", Token::RightAngleBracket(FollowedBy::Token), 1);
+
+    assert_token!(";", Token::Semicolon);
+    assert_token!(",", Token::Comma);
+
+    assert_token!("+", Token::Plus);
+    assert_token!("+ ", Token::Plus, 1);
+    assert_token!("+=", Token::PlusEquals);
+    assert_token!("+= ", Token::PlusEquals, 2);
+    assert_token!("++", Token::PlusPlus);
+    assert_token!("++ ", Token::PlusPlus, 2);
+
+    assert_token!("-", Token::Minus);
+    assert_token!("- ", Token::Minus, 1);
+    assert_token!("-=", Token::MinusEquals);
+    assert_token!("-= ", Token::MinusEquals, 2);
+    assert_token!("--", Token::MinusMinus);
+    assert_token!("-- ", Token::MinusMinus, 2);
+
+    assert_token!("/", Token::ForwardSlash);
+    assert_token!("/ ", Token::ForwardSlash, 1);
+    assert_token!("/=", Token::ForwardSlashEquals);
+    assert_token!("/= ", Token::ForwardSlashEquals, 2);
+    assert_token!("//", Token::Comment, 2);
+    assert_token!("// ", Token::Comment, 3);
+
+    assert_token!("%", Token::Percent);
+    assert_token!("% ", Token::Percent, 1);
+    assert_token!("%=", Token::PercentEquals);
+    assert_token!("%= ", Token::PercentEquals, 2);
+    assert_token!("%%", Token::Percent, 1);
+    assert_token!("%% ", Token::Percent, 1);
+
+    assert_token!("*", Token::Asterix);
+    assert_token!("* ", Token::Asterix, 1);
+    assert_token!("*=", Token::AsterixEquals);
+    assert_token!("*= ", Token::AsterixEquals, 2);
+    assert_token!("**", Token::Asterix, 1);
+    assert_token!("** ", Token::Asterix, 1);
+
+    assert_token!("|", Token::VerticalBar);
+    assert_token!("| ", Token::VerticalBar, 1);
+    assert_token!("|=", Token::VerticalBarEquals);
+    assert_token!("|= ", Token::VerticalBarEquals, 2);
+    assert_token!("||", Token::VerticalBarVerticalBar);
+    assert_token!("|| ", Token::VerticalBarVerticalBar, 2);
+
+    assert_token!("&", Token::Ampersand);
+    assert_token!("& ", Token::Ampersand, 1);
+    assert_token!("&=", Token::AmpersandEquals);
+    assert_token!("&= ", Token::AmpersandEquals, 2);
+    assert_token!("&&", Token::AmpersandAmpersand);
+    assert_token!("&& ", Token::AmpersandAmpersand, 2);
+
+    assert_token!("^", Token::Hat);
+    assert_token!("^ ", Token::Hat, 1);
+    assert_token!("^=", Token::HatEquals);
+    assert_token!("^= ", Token::HatEquals, 2);
+    assert_token!("^^", Token::Hat, 1);
+    assert_token!("^^ ", Token::Hat, 1);
+
+    assert_token!("=", Token::Equals);
+    assert_token!("= ", Token::Equals, 1);
+    assert_token!("==", Token::EqualsEquals);
+    assert_token!("== ", Token::EqualsEquals, 2);
+    assert_token!("===", Token::EqualsEquals, 2);
+    assert_token!("=== ", Token::EqualsEquals, 2);
+
+    assert_token!("#", Token::Hash);
+    assert_token!("# ", Token::Hash, 1);
+    assert_token!("##", Token::Concat);
+    assert_token!("## ", Token::Concat, 2);
+
+    assert_token!("@", Token::At);
+
+    assert_token!("!", Token::ExclamationPoint);
+    assert_token!("! ", Token::ExclamationPoint, 1);
+    assert_token!("!=", Token::ExclamationPointEquals);
+    assert_token!("!= ", Token::ExclamationPointEquals, 2);
+    assert_token!("!==", Token::ExclamationPointEquals, 2);
+    assert_token!("!== ", Token::ExclamationPointEquals, 2);
+
+    assert_token!("~", Token::Tilde);
+    assert_token!("~ ", Token::Tilde, 1);
+
+    assert_token!(".", Token::Period);
+    assert_token!(". ", Token::Period, 1);
+
+    assert_token!("if", Token::If);
+    assert_token!("if ", Token::If, 2);
+    assert_token!("ifa", Token::Id(Identifier("ifa".to_string())));
+
+    assert_token!("else", Token::Else);
+    assert_token!("else ", Token::Else, 4);
+    assert_token!("elsea", Token::Id(Identifier("elsea".to_string())));
+
+    assert_token!("for", Token::For);
+    assert_token!("for ", Token::For, 3);
+    assert_token!("fora", Token::Id(Identifier("fora".to_string())));
+
+    assert_token!("while", Token::While);
+    assert_token!("while ", Token::While, 5);
+    assert_token!("whilea", Token::Id(Identifier("whilea".to_string())));
+
+    assert_token!("switch", Token::Switch);
+    assert_token!("switch ", Token::Switch, 6);
+    assert_token!("switcha", Token::Id(Identifier("switcha".to_string())));
+
+    assert_token!("return", Token::Return);
+    assert_token!("return ", Token::Return, 6);
+    assert_token!("returna", Token::Id(Identifier("returna".to_string())));
+
+    assert_token!("break", Token::Break);
+    assert_token!("break ", Token::Break, 5);
+    assert_token!("breaka", Token::Id(Identifier("breaka".to_string())));
+
+    assert_token!("continue", Token::Continue);
+    assert_token!("continue ", Token::Continue, 8);
+    assert_token!("continuea", Token::Id(Identifier("continuea".to_string())));
+
+    assert_token!("discard", Token::Discard);
+    assert_token!("discard ", Token::Discard, 7);
+    assert_token!("discarda", Token::Id(Identifier("discarda".to_string())));
+
+    assert_token!("struct", Token::Struct);
+    assert_token!("struct ", Token::Struct, 6);
+    assert_token!("structa", Token::Id(Identifier("structa".to_string())));
+    assert_token!(
+        "structName",
+        Token::Id(Identifier("structName".to_string()))
     );
 
-    assert_eq!(
-        token(&b"12 "[..]),
-        Ok((&b" "[..], from_end(Token::LiteralInt(12), 3)))
-    );
-    assert_eq!(
-        token(&b"12u"[..]),
-        Ok((&b""[..], from_end(Token::LiteralUInt(12), 3)))
-    );
-    assert_eq!(
-        token(&b"12l"[..]),
-        Ok((&b""[..], from_end(Token::LiteralLong(12), 3)))
-    );
-    assert_eq!(
-        token(&b"12L"[..]),
-        Ok((&b""[..], from_end(Token::LiteralLong(12), 3)))
+    assert_token!("enum", Token::Enum);
+    assert_token!("enum ", Token::Enum, 4);
+    assert_token!("enuma", Token::Id(Identifier("enuma".to_string())));
+
+    assert_token!("cbuffer", Token::ConstantBuffer);
+    assert_token!("cbuffer ", Token::ConstantBuffer, 7);
+    assert_token!("cbuffera", Token::Id(Identifier("cbuffera".to_string())));
+
+    assert_token!("namespace", Token::Namespace);
+    assert_token!("namespace ", Token::Namespace, 9);
+    assert_token!(
+        "namespacea",
+        Token::Id(Identifier("namespacea".to_string()))
     );
 
-    assert_eq!(
-        token(&b"1.0f"[..]),
-        Ok((&b""[..], from_end(Token::LiteralFloat(1.0f32), 4)))
-    );
-    assert_eq!(
-        token(&b"2.0 "[..]),
-        Ok((&b" "[..], from_end(Token::LiteralFloat(2.0f32), 4)))
-    );
-    assert_eq!(
-        token(&b"2.0L"[..]),
-        Ok((&b""[..], from_end(Token::LiteralDouble(2.0f64), 4)))
-    );
-    assert_eq!(
-        token(&b"0.5h"[..]),
-        Ok((&b""[..], from_end(Token::LiteralHalf(0.5f32), 4)))
+    assert_token!("register", Token::Register);
+    assert_token!("register ", Token::Register, 8);
+    assert_token!("registera", Token::Id(Identifier("registera".to_string())));
+
+    assert_token!("packoffset", Token::PackOffset);
+    assert_token!("packoffset ", Token::PackOffset, 10);
+    assert_token!(
+        "packoffseta",
+        Token::Id(Identifier("packoffseta".to_string()))
     );
 
-    assert_eq!(
-        token(&b"{"[..]),
-        Ok((&b""[..], from_end(Token::LeftBrace, 1)))
-    );
-    assert_eq!(
-        token(&b"}"[..]),
-        Ok((&b""[..], from_end(Token::RightBrace, 1)))
-    );
-    assert_eq!(
-        token(&b"("[..]),
-        Ok((&b""[..], from_end(Token::LeftParen, 1)))
-    );
-    assert_eq!(
-        token(&b")"[..]),
-        Ok((&b""[..], from_end(Token::RightParen, 1)))
-    );
-    assert_eq!(
-        token(&b"["[..]),
-        Ok((&b""[..], from_end(Token::LeftSquareBracket, 1)))
-    );
-    assert_eq!(
-        token(&b"]"[..]),
-        Ok((&b""[..], from_end(Token::RightSquareBracket, 1)))
+    assert_token!(":", Token::Colon);
+    assert_token!(": ", Token::Colon, 1);
+    assert_token!(":=", Token::Colon, 1);
+    assert_token!(":= ", Token::Colon, 1);
+    assert_token!("::", Token::ScopeResolution);
+    assert_token!(":: ", Token::ScopeResolution, 2);
+    assert_token!("::=", Token::ScopeResolution, 2);
+    assert_token!("::= ", Token::ScopeResolution, 2);
+
+    assert_token!("?", Token::QuestionMark);
+    assert_token!("? ", Token::QuestionMark, 1);
+    assert_token!("?=", Token::QuestionMark, 1);
+    assert_token!("??", Token::QuestionMark, 1);
+
+    assert_token!("in", Token::In);
+    assert_token!("in ", Token::In, 2);
+    assert_token!("inou", Token::Id(Identifier("inou".to_string())));
+
+    assert_token!("out", Token::Out);
+    assert_token!("out ", Token::Out, 3);
+    assert_token!("outa", Token::Id(Identifier("outa".to_string())));
+
+    assert_token!("inout", Token::InOut);
+    assert_token!("inout ", Token::InOut, 5);
+    assert_token!("inouta", Token::Id(Identifier("inouta".to_string())));
+
+    assert_token!("const", Token::Const);
+    assert_token!("const ", Token::Const, 5);
+    assert_token!("consta", Token::Id(Identifier("consta".to_string())));
+
+    assert_token!("extern", Token::Extern);
+    assert_token!("extern ", Token::Extern, 6);
+    assert_token!("external", Token::Id(Identifier("external".to_string())));
+
+    assert_token!("static", Token::Static);
+    assert_token!("static ", Token::Static, 6);
+    assert_token!(
+        "staticconst",
+        Token::Id(Identifier("staticconst".to_string()))
     );
 
-    assert_eq!(
-        token(&b"< "[..]),
-        Ok((
-            &b" "[..],
-            from_end(Token::LeftAngleBracket(FollowedBy::Whitespace), 2)
-        ))
-    );
-    assert_eq!(
-        token(&b"> "[..]),
-        Ok((
-            &b" "[..],
-            from_end(Token::RightAngleBracket(FollowedBy::Whitespace), 2)
-        ))
-    );
-    assert_eq!(
-        token(&b"<< "[..]),
-        Ok((
-            &b"< "[..],
-            from_end(Token::LeftAngleBracket(FollowedBy::Token), 3)
-        ))
-    );
-    assert_eq!(
-        token(&b">> "[..]),
-        Ok((
-            &b"> "[..],
-            from_end(Token::RightAngleBracket(FollowedBy::Token), 3)
-        ))
-    );
-    assert_eq!(
-        token(&b"<>"[..]),
-        Ok((
-            &b">"[..],
-            from_end(Token::LeftAngleBracket(FollowedBy::Token), 2)
-        ))
-    );
-    assert_eq!(
-        token(&b"><"[..]),
-        Ok((
-            &b"<"[..],
-            from_end(Token::RightAngleBracket(FollowedBy::Token), 2)
-        ))
+    assert_token!("groupshared", Token::GroupShared);
+    assert_token!("groupshared ", Token::GroupShared, 11);
+    assert_token!(
+        "groupsharedshared",
+        Token::Id(Identifier("groupsharedshared".to_string()))
     );
 
-    assert_eq!(
-        token(&b";"[..]),
-        Ok((&b""[..], from_end(Token::Semicolon, 1)))
-    );
-    assert_eq!(token(&b","[..]), Ok((&b""[..], from_end(Token::Comma, 1))));
+    assert_token!("sizeof", Token::SizeOf);
+    assert_token!("sizeof ", Token::SizeOf, 6);
+    assert_token!("sizeofa", Token::Id(Identifier("sizeofa".to_string())));
 
-    assert_eq!(token(&b"+ "[..]), Ok((&b" "[..], from_end(Token::Plus, 2))));
-    assert_eq!(
-        token(&b"- "[..]),
-        Ok((&b" "[..], from_end(Token::Minus, 2)))
-    );
-    assert_eq!(
-        token(&b"/ "[..]),
-        Ok((&b" "[..], from_end(Token::ForwardSlash, 2)))
-    );
-    assert_eq!(
-        token(&b"% "[..]),
-        Ok((&b" "[..], from_end(Token::Percent, 2)))
-    );
-    assert_eq!(
-        token(&b"* "[..]),
-        Ok((&b" "[..], from_end(Token::Asterix, 2)))
-    );
-    assert_eq!(
-        token(&b"| "[..]),
-        Ok((&b" "[..], from_end(Token::VerticalBar, 2)))
-    );
-    assert_eq!(
-        token(&b"|| "[..]),
-        Ok((&b" "[..], from_end(Token::VerticalBarVerticalBar, 3)))
-    );
-    assert_eq!(
-        token(&b"& "[..]),
-        Ok((&b" "[..], from_end(Token::Ampersand, 2)))
-    );
-    assert_eq!(
-        token(&b"&& "[..]),
-        Ok((&b" "[..], from_end(Token::AmpersandAmpersand, 3)))
-    );
-    assert_eq!(token(&b"^ "[..]), Ok((&b" "[..], from_end(Token::Hat, 2))));
-    assert_eq!(
-        token(&b"= "[..]),
-        Ok((&b" "[..], from_end(Token::Equals, 2)))
-    );
-    assert_eq!(token(&b"#"[..]), Ok((&b""[..], from_end(Token::Hash, 1))));
-    assert_eq!(token(&b"# "[..]), Ok((&b" "[..], from_end(Token::Hash, 2))));
-    assert_eq!(
-        token(&b"##"[..]),
-        Ok((&b""[..], from_end(Token::Concat, 2)))
-    );
-    assert_eq!(
-        token(&b"## "[..]),
-        Ok((&b" "[..], from_end(Token::Concat, 3)))
-    );
-    assert_eq!(token(&b"@"[..]), Ok((&b""[..], from_end(Token::At, 1))));
-    assert_eq!(
-        token(&b"! "[..]),
-        Ok((&b" "[..], from_end(Token::ExclamationPoint, 2)))
-    );
-    assert_eq!(token(&b"~"[..]), Ok((&b""[..], from_end(Token::Tilde, 1))));
-    assert_eq!(token(&b"."[..]), Ok((&b""[..], from_end(Token::Period, 1))));
+    assert_token!("template", Token::Template);
+    assert_token!("template ", Token::Template, 8);
+    assert_token!("templatea", Token::Id(Identifier("templatea".to_string())));
 
-    assert_eq!(token(&b"if"[..]), Ok((&b""[..], from_end(Token::If, 2))));
-    assert_eq!(
-        token(&b"else"[..]),
-        Ok((&b""[..], from_end(Token::Else, 4)))
-    );
-    assert_eq!(token(&b"for"[..]), Ok((&b""[..], from_end(Token::For, 3))));
-    assert_eq!(
-        token(&b"while"[..]),
-        Ok((&b""[..], from_end(Token::While, 5)))
-    );
-    assert_eq!(
-        token(&b"switch"[..]),
-        Ok((&b""[..], from_end(Token::Switch, 6)))
-    );
-    assert_eq!(
-        token(&b"return"[..]),
-        Ok((&b""[..], from_end(Token::Return, 6)))
-    );
-    assert_eq!(
-        token(&b"break"[..]),
-        Ok((&b""[..], from_end(Token::Break, 5)))
-    );
-    assert_eq!(
-        token(&b"continue"[..]),
-        Ok((&b""[..], from_end(Token::Continue, 8)))
-    );
-    assert_eq!(
-        token(&b"discard"[..]),
-        Ok((&b""[..], from_end(Token::Discard, 7)))
-    );
-
-    assert_eq!(
-        token(&b"struct"[..]),
-        Ok((&b""[..], from_end(Token::Struct, 6)))
-    );
-    assert_eq!(
-        token(&b"enum"[..]),
-        Ok((&b""[..], from_end(Token::Enum, 4)))
-    );
-    assert_eq!(
-        token(&b"cbuffer"[..]),
-        Ok((&b""[..], from_end(Token::ConstantBuffer, 7)))
-    );
-    assert_eq!(
-        token(&b"namespace"[..]),
-        Ok((&b""[..], from_end(Token::Namespace, 9)))
-    );
-    assert_eq!(
-        token(&b"register"[..]),
-        Ok((&b""[..], from_end(Token::Register, 8)))
-    );
-    assert_eq!(
-        token(&b"packoffset"[..]),
-        Ok((&b""[..], from_end(Token::PackOffset, 10)))
-    );
-    assert_eq!(token(&b":"[..]), Ok((&b""[..], from_end(Token::Colon, 1))));
-    assert_eq!(
-        token(&b"::"[..]),
-        Ok((&b""[..], from_end(Token::ScopeResolution, 2)))
-    );
-    assert_eq!(
-        token(&b"?"[..]),
-        Ok((&b""[..], from_end(Token::QuestionMark, 1)))
-    );
-
-    assert_eq!(token(&b"in"[..]), Ok((&b""[..], from_end(Token::In, 2))));
-    assert_eq!(token(&b"out"[..]), Ok((&b""[..], from_end(Token::Out, 3))));
-    assert_eq!(
-        token(&b"inout"[..]),
-        Ok((&b""[..], from_end(Token::InOut, 5)))
-    );
-
-    assert_eq!(
-        token(&b"const"[..]),
-        Ok((&b""[..], from_end(Token::Const, 5)))
-    );
-
-    assert_eq!(
-        token(&b"extern"[..]),
-        Ok((&b""[..], from_end(Token::Extern, 6)))
-    );
-    assert_eq!(
-        token(&b"static"[..]),
-        Ok((&b""[..], from_end(Token::Static, 6)))
-    );
-    assert_eq!(
-        token(&b"groupshared"[..]),
-        Ok((&b""[..], from_end(Token::GroupShared, 11)))
-    );
-
-    assert_eq!(
-        token(&b"structName"[..]),
-        Ok((
-            &b""[..],
-            from_end(Token::Id(Identifier("structName".to_string())), 10)
-        ))
-    );
+    assert_token!("typename", Token::Typename);
+    assert_token!("typename ", Token::Typename, 8);
+    assert_token!("typenamea", Token::Id(Identifier("typenamea".to_string())));
 }
 
 #[test]
@@ -1706,6 +1698,43 @@ fn test_token_stream() {
                 loc(Token::RightAngleBracket(FollowedBy::Whitespace), 0),
                 loc(Token::Whitespace, 1),
             ]
+        ))
+    );
+
+    assert_eq!(
+        token_stream(&b"+++++"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::PlusPlus, 0),
+                loc(Token::PlusPlus, 2),
+                loc(Token::Plus, 4),
+            ])
+        ))
+    );
+
+    assert_eq!(
+        token_stream(&b"-----"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::MinusMinus, 0),
+                loc(Token::MinusMinus, 2),
+                loc(Token::Minus, 4),
+            ])
+        ))
+    );
+
+    assert_eq!(
+        token_stream(&b"+++-+"[..]),
+        Ok((
+            &b""[..],
+            Vec::from([
+                loc(Token::PlusPlus, 0),
+                loc(Token::Plus, 2),
+                loc(Token::Minus, 3),
+                loc(Token::Plus, 4),
+            ])
         ))
     );
 }
