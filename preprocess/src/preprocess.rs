@@ -635,6 +635,7 @@ impl SubstitutedSegment {
                             },
                             SourceLocation::UNKNOWN,
                             0,
+                            0,
                         ),
                     ])));
                     if !after.is_empty() {
@@ -739,7 +740,8 @@ fn macro_from_definition() {
             segments: Vec::from([MacroSegment::Text(Vec::from([PreprocessToken::new(
                 Token::LiteralInt(0),
                 SourceLocation::first(),
-                2
+                2,
+                3
             )]))]),
             location: SourceLocation::first(),
         }
@@ -784,23 +786,26 @@ fn macro_from_definition() {
                 MacroSegment::Text(Vec::from([PreprocessToken::new(
                     Token::LeftParen,
                     SourceLocation::first(),
-                    8
+                    8,
+                    9
                 )])),
                 MacroSegment::Arg(MacroArg(0)),
                 MacroSegment::Text(Vec::from([
-                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10),
+                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10, 11),
                     PreprocessToken::new(
                         Token::VerticalBarVerticalBar,
                         SourceLocation::first(),
-                        11
+                        11,
+                        13
                     ),
-                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13),
+                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13, 14),
                 ])),
                 MacroSegment::Arg(MacroArg(1)),
                 MacroSegment::Text(Vec::from([PreprocessToken::new(
                     Token::RightParen,
                     SourceLocation::first(),
-                    16
+                    16,
+                    17
                 )])),
             ],
             location: SourceLocation::first(),
@@ -847,17 +852,17 @@ fn macro_resolve() {
             ],
             "(A || 0) && 1",
             &[
-                PreprocessToken::new(Token::LeftParen, main_loc, 0),
-                PreprocessToken::new(Token::Id(Identifier("A".to_string())), main_loc, 1),
-                PreprocessToken::new(Token::Whitespace, main_loc, 2),
-                PreprocessToken::new(Token::VerticalBarVerticalBar, main_loc, 3),
-                PreprocessToken::new(Token::Whitespace, main_loc, 5),
-                PreprocessToken::new(Token::LiteralInt(0), m1_loc, 2),
-                PreprocessToken::new(Token::RightParen, main_loc, 7),
-                PreprocessToken::new(Token::Whitespace, main_loc, 8),
-                PreprocessToken::new(Token::AmpersandAmpersand, main_loc, 9),
-                PreprocessToken::new(Token::Whitespace, main_loc, 11),
-                PreprocessToken::new(Token::LiteralInt(1), m2_loc, 3),
+                PreprocessToken::new(Token::LeftParen, main_loc, 0, 1),
+                PreprocessToken::new(Token::Id(Identifier("A".to_string())), main_loc, 1, 2),
+                PreprocessToken::new(Token::Whitespace, main_loc, 2, 3),
+                PreprocessToken::new(Token::VerticalBarVerticalBar, main_loc, 3, 5),
+                PreprocessToken::new(Token::Whitespace, main_loc, 5, 6),
+                PreprocessToken::new(Token::LiteralInt(0), m1_loc, 2, 3),
+                PreprocessToken::new(Token::RightParen, main_loc, 7, 8),
+                PreprocessToken::new(Token::Whitespace, main_loc, 8, 9),
+                PreprocessToken::new(Token::AmpersandAmpersand, main_loc, 9, 11),
+                PreprocessToken::new(Token::Whitespace, main_loc, 11, 12),
+                PreprocessToken::new(Token::LiteralInt(1), m2_loc, 3, 4),
             ],
             &source_manager,
         );
@@ -881,23 +886,23 @@ fn macro_resolve() {
             ],
             "(A || (0 && 1)) && 1",
             &[
-                PreprocessToken::new(Token::LeftParen, main_loc, 0),
-                PreprocessToken::new(Token::Id(Identifier("A".to_string())), main_loc, 1),
-                PreprocessToken::new(Token::Whitespace, main_loc, 2),
-                PreprocessToken::new(Token::VerticalBarVerticalBar, main_loc, 3),
-                PreprocessToken::new(Token::Whitespace, main_loc, 5),
-                PreprocessToken::new(Token::LeftParen, m2_loc, 8),
-                PreprocessToken::new(Token::LiteralInt(0), main_loc, 8),
-                PreprocessToken::new(Token::Whitespace, m2_loc, 10),
-                PreprocessToken::new(Token::AmpersandAmpersand, m2_loc, 11),
-                PreprocessToken::new(Token::Whitespace, m2_loc, 13),
-                PreprocessToken::new(Token::LiteralInt(1), main_loc, 11),
-                PreprocessToken::new(Token::RightParen, m2_loc, 15),
-                PreprocessToken::new(Token::RightParen, main_loc, 13),
-                PreprocessToken::new(Token::Whitespace, main_loc, 14),
-                PreprocessToken::new(Token::AmpersandAmpersand, main_loc, 15),
-                PreprocessToken::new(Token::Whitespace, main_loc, 17),
-                PreprocessToken::new(Token::LiteralInt(1), m1_loc, 3),
+                PreprocessToken::new(Token::LeftParen, main_loc, 0, 1),
+                PreprocessToken::new(Token::Id(Identifier("A".to_string())), main_loc, 1, 2),
+                PreprocessToken::new(Token::Whitespace, main_loc, 2, 3),
+                PreprocessToken::new(Token::VerticalBarVerticalBar, main_loc, 3, 5),
+                PreprocessToken::new(Token::Whitespace, main_loc, 5, 6),
+                PreprocessToken::new(Token::LeftParen, m2_loc, 8, 9),
+                PreprocessToken::new(Token::LiteralInt(0), main_loc, 8, 9),
+                PreprocessToken::new(Token::Whitespace, m2_loc, 10, 11),
+                PreprocessToken::new(Token::AmpersandAmpersand, m2_loc, 11, 13),
+                PreprocessToken::new(Token::Whitespace, m2_loc, 13, 14),
+                PreprocessToken::new(Token::LiteralInt(1), main_loc, 11, 12),
+                PreprocessToken::new(Token::RightParen, m2_loc, 15, 16),
+                PreprocessToken::new(Token::RightParen, main_loc, 13, 14),
+                PreprocessToken::new(Token::Whitespace, main_loc, 14, 15),
+                PreprocessToken::new(Token::AmpersandAmpersand, main_loc, 15, 17),
+                PreprocessToken::new(Token::Whitespace, main_loc, 17, 18),
+                PreprocessToken::new(Token::LiteralInt(1), m1_loc, 3, 4),
             ],
             &source_manager,
         );

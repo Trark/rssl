@@ -1184,11 +1184,16 @@ fn lex_internal(
 
                 // Translate from locations in the current local stream into original source locations
                 let mut lex_tokens = Vec::with_capacity(stream.len());
-                for StreamToken(ref token, stream_location) in stream {
+                for (i, StreamToken(ref token, stream_location)) in stream.iter().enumerate() {
+                    let next_location = match stream.get(i + 1) {
+                        Some(StreamToken(_, next_location)) => *next_location,
+                        None => StreamLocation(code_bytes.len() as u32),
+                    };
                     lex_tokens.push(PreprocessToken::new(
                         token.clone(),
                         source_offset,
                         stream_location.0,
+                        next_location.0,
                     ));
                 }
 

@@ -152,7 +152,11 @@ pub struct PreprocessToken(
 #[derive(PartialEq, Eq, Clone)]
 pub struct PreprocessTokenData {
     /// The location the token is sourced from
-    location: SourceLocation,
+    start_location: SourceLocation,
+
+    /// The location after the token
+    /// Must be from the same file and after start_location
+    end_location: SourceLocation,
 }
 
 /// A [Token] with source location information attached
@@ -160,11 +164,18 @@ pub struct PreprocessTokenData {
 pub struct LexToken(pub Token, pub SourceLocation);
 
 impl PreprocessToken {
-    pub fn new(tok: Token, base_location: SourceLocation, offset: u32) -> Self {
+    pub fn new(
+        tok: Token,
+        base_location: SourceLocation,
+        start_offset: u32,
+        end_offset: u32,
+    ) -> Self {
+        assert!(start_offset <= end_offset);
         PreprocessToken(
             tok,
             PreprocessTokenData {
-                location: base_location.offset(offset),
+                start_location: base_location.offset(start_offset),
+                end_location: base_location.offset(end_offset),
             },
         )
     }
@@ -172,20 +183,20 @@ impl PreprocessToken {
 
 impl Locate for PreprocessToken {
     fn get_location(&self) -> SourceLocation {
-        self.1.location
+        self.1.start_location
     }
 }
 
 impl Locate for PreprocessTokenData {
     fn get_location(&self) -> SourceLocation {
-        self.location
+        self.start_location
     }
 }
 
 impl Locate for Option<&PreprocessToken> {
     fn get_location(&self) -> SourceLocation {
         match self {
-            Some(tok) => tok.1.location,
+            Some(tok) => tok.1.start_location,
             None => SourceLocation::UNKNOWN,
         }
     }
@@ -205,7 +216,13 @@ impl LexToken {
 
 impl std::fmt::Debug for PreprocessToken {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?} @ {}", self.0, self.1.location.get_raw())
+        write!(
+            f,
+            "{:?} @ {}-{}",
+            self.0,
+            self.1.start_location.get_raw(),
+            self.1.end_location.get_raw()
+        )
     }
 }
 
