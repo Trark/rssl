@@ -170,6 +170,7 @@ impl PreprocessToken {
         start_offset: u32,
         end_offset: u32,
     ) -> Self {
+        assert_ne!(base_location, SourceLocation::UNKNOWN);
         assert!(start_offset <= end_offset);
         PreprocessToken(
             tok,
