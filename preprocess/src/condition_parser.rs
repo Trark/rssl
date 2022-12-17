@@ -1,11 +1,14 @@
 use crate::preprocess::PreprocessError;
 use rssl_text::tokens::*;
-use rssl_text::SourceLocation;
+use rssl_text::*;
 
 /// Parse a condition for an #if and return if it passes
-pub fn parse(tokens: &[LexToken], base_location: SourceLocation) -> Result<bool, PreprocessError> {
+pub fn parse(
+    tokens: &[PreprocessToken],
+    base_location: SourceLocation,
+) -> Result<bool, PreprocessError> {
     let location = match tokens.first() {
-        Some(tok) => tok.1,
+        Some(tok) => tok.get_location(),
         None => base_location,
     };
 

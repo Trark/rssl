@@ -212,12 +212,12 @@ struct MacroArg(u64);
 
 #[derive(PartialEq, Debug, Clone)]
 enum MacroSegment {
-    Text(Vec<LexToken>),
+    Text(Vec<PreprocessToken>),
     Arg(MacroArg),
 }
 
 impl MacroSegment {
-    fn build_segments(params: &[String], body: &[LexToken]) -> Vec<MacroSegment> {
+    fn build_segments(params: &[String], body: &[PreprocessToken]) -> Vec<MacroSegment> {
         let mut last_segments = Vec::from([MacroSegment::Text(body.to_vec())]);
         for (index, arg_name) in params.iter().enumerate() {
             let mut next_segments = Vec::new();
@@ -261,18 +261,15 @@ struct Macro {
 }
 
 impl Macro {
-    fn parse(command: &[LexToken], macros: &[Macro]) -> Result<Macro, PreprocessError> {
+    fn parse(command: &[PreprocessToken], macros: &[Macro]) -> Result<Macro, PreprocessError> {
         let command = trim_whitespace_start(command);
 
-        let location = match command.first() {
-            Some(tok) => tok.1,
-            None => SourceLocation::UNKNOWN,
-        };
+        let location = command.first().get_location();
 
         // Consume define name
         let (name, location, signature_and_body) =
-            if let Some((LexToken(Token::Id(id), name_loc), rest)) = command.split_first() {
-                (id.0.clone(), *name_loc, rest)
+            if let Some((PreprocessToken(Token::Id(id), ext), rest)) = command.split_first() {
+                (id.0.clone(), ext.get_location(), rest)
             } else {
                 return Err(PreprocessError::InvalidDefine(location));
             };
@@ -288,7 +285,9 @@ impl Macro {
 
         // Consume macro parameters from body
         let (param_tokens, is_function, body) =
-            if let Some((LexToken(Token::LeftParen, _), rest)) = signature_and_body.split_first() {
+            if let Some((PreprocessToken(Token::LeftParen, _), rest)) =
+                signature_and_body.split_first()
+            {
                 if let Some(pos) = rest.iter().position(|t| t.0 == Token::RightParen) {
                     (&rest[..pos], true, &rest[pos + 1..])
                 } else {
@@ -318,7 +317,7 @@ impl Macro {
 
                 // We expect a single name for all macro arguments
                 // But a macro with zero arguments will have one empty item processed
-                if let [LexToken(Token::Id(id), _)] = next_param {
+                if let [PreprocessToken(Token::Id(id), _)] = next_param {
                     params.push(id.0.clone());
                 } else if !(params.is_empty() && param_tokens.is_empty()) {
                     return Err(PreprocessError::InvalidDefine(location));
@@ -351,13 +350,13 @@ impl Macro {
 
 #[derive(PartialEq, Debug, Clone)]
 enum SubstitutedSegment {
-    Text(Vec<LexToken>),
-    Replaced(Vec<LexToken>),
+    Text(Vec<PreprocessToken>),
+    Replaced(Vec<PreprocessToken>),
 }
 
 /// Remove whitespace and comments from the start of a token stream - but not endlines
-fn trim_whitespace_start(mut tokens: &[LexToken]) -> &[LexToken] {
-    while let Some((LexToken(tok, _), rest)) = tokens.split_first() {
+fn trim_whitespace_start(mut tokens: &[PreprocessToken]) -> &[PreprocessToken] {
+    while let Some((PreprocessToken(tok, _), rest)) = tokens.split_first() {
         if tok.is_whitespace() && *tok != Token::Endline {
             tokens = rest;
         } else {
@@ -368,8 +367,8 @@ fn trim_whitespace_start(mut tokens: &[LexToken]) -> &[LexToken] {
 }
 
 /// Remove whitespace and comments from the end of a token stream - but not endlines
-fn trim_whitespace_end(mut tokens: &[LexToken]) -> &[LexToken] {
-    while let Some((LexToken(tok, _), rest)) = tokens.split_last() {
+fn trim_whitespace_end(mut tokens: &[PreprocessToken]) -> &[PreprocessToken] {
+    while let Some((PreprocessToken(tok, _), rest)) = tokens.split_last() {
         if tok.is_whitespace() && *tok != Token::Endline {
             tokens = rest;
         } else {
@@ -380,13 +379,13 @@ fn trim_whitespace_end(mut tokens: &[LexToken]) -> &[LexToken] {
 }
 
 /// Remove whitespace and comments from the start and end of a token stream - but not endlines
-fn trim_whitespace(tokens: &[LexToken]) -> &[LexToken] {
+fn trim_whitespace(tokens: &[PreprocessToken]) -> &[PreprocessToken] {
     trim_whitespace_end(trim_whitespace_start(tokens))
 }
 
-fn find_macro(stream: &[LexToken], name: &str) -> Option<usize> {
+fn find_macro(stream: &[PreprocessToken], name: &str) -> Option<usize> {
     for (i, token) in stream.iter().enumerate() {
-        if let LexToken(Token::Id(id), _) = token {
+        if let PreprocessToken(Token::Id(id), _) = token {
             if id.0 == name {
                 return Some(i);
             }
@@ -398,11 +397,11 @@ fn find_macro(stream: &[LexToken], name: &str) -> Option<usize> {
 
 fn split_macro_args<'stream>(
     macro_name: &str,
-    remaining: &'stream [LexToken],
-) -> Result<(&'stream [LexToken], Vec<&'stream [LexToken]>), PreprocessError> {
+    remaining: &'stream [PreprocessToken],
+) -> Result<(&'stream [PreprocessToken], Vec<&'stream [PreprocessToken]>), PreprocessError> {
     // Consume the starting bracket
     let remaining = trim_whitespace_start(remaining);
-    let mut remaining = if let [LexToken(Token::LeftParen, _), rest @ ..] = remaining {
+    let mut remaining = if let [PreprocessToken(Token::LeftParen, _), rest @ ..] = remaining {
         rest
     } else {
         return Err(PreprocessError::MacroRequiresArguments(
@@ -488,7 +487,7 @@ impl SubstitutedSegment {
                         let mut valid_macro = true;
                         if macro_def.is_function {
                             valid_macro = false;
-                            if let [LexToken(Token::LeftParen, _), ..] =
+                            if let [PreprocessToken(Token::LeftParen, _), ..] =
                                 trim_whitespace_start(&text[pos + 1..])
                             {
                                 valid_macro = true;
@@ -586,7 +585,7 @@ impl SubstitutedSegment {
                     // Read argument
                     let arg = {
                         // Allow "defined A" instead of traditional defined(A)
-                        if let [LexToken(Token::Whitespace, _), LexToken(arg @ Token::Id(_), _), rest @ ..] =
+                        if let [PreprocessToken(Token::Whitespace, _), PreprocessToken(arg @ Token::Id(_), _), rest @ ..] =
                             remaining
                         {
                             remaining = rest;
@@ -604,7 +603,7 @@ impl SubstitutedSegment {
                             }
 
                             // Expect a single name as the argument
-                            if let [LexToken(arg @ Token::Id(_), _)] = args[0] {
+                            if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
                                 arg
                             } else {
                                 return Err(
@@ -627,14 +626,17 @@ impl SubstitutedSegment {
                     if !before.is_empty() {
                         output.push(SubstitutedSegment::Text(before.to_vec()));
                     }
-                    output.push(SubstitutedSegment::Replaced(Vec::from([LexToken(
-                        if exists {
-                            Token::LiteralInt(1)
-                        } else {
-                            Token::LiteralInt(0)
-                        },
-                        SourceLocation::UNKNOWN,
-                    )])));
+                    output.push(SubstitutedSegment::Replaced(Vec::from([
+                        PreprocessToken::new(
+                            if exists {
+                                Token::LiteralInt(1)
+                            } else {
+                                Token::LiteralInt(0)
+                            },
+                            SourceLocation::UNKNOWN,
+                            0,
+                        ),
+                    ])));
                     if !after.is_empty() {
                         SubstitutedSegment::Text(after.to_vec())
                             .apply_defined(macro_defs, output)?;
@@ -654,7 +656,7 @@ impl SubstitutedSegment {
 struct SubstitutedText(Vec<SubstitutedSegment>);
 
 impl SubstitutedText {
-    fn new(stream: &[LexToken]) -> SubstitutedText {
+    fn new(stream: &[PreprocessToken]) -> SubstitutedText {
         if stream.is_empty() {
             SubstitutedText(Vec::new())
         } else {
@@ -695,7 +697,7 @@ impl SubstitutedText {
         Ok(SubstitutedText(vec?))
     }
 
-    fn store(self, output: &mut Vec<LexToken>) {
+    fn store(self, output: &mut Vec<PreprocessToken>) {
         for substituted_segment in self.0 {
             match substituted_segment {
                 SubstitutedSegment::Text(stream) | SubstitutedSegment::Replaced(stream) => {
@@ -706,7 +708,7 @@ impl SubstitutedText {
         }
     }
 
-    fn resolve(self) -> Vec<LexToken> {
+    fn resolve(self) -> Vec<PreprocessToken> {
         let mut output = Vec::new();
         for substituted_segment in self.0 {
             match substituted_segment {
@@ -734,9 +736,10 @@ fn macro_from_definition() {
             name: "B".to_string(),
             is_function: false,
             num_params: 0,
-            segments: Vec::from([MacroSegment::Text(Vec::from([LexToken(
+            segments: Vec::from([MacroSegment::Text(Vec::from([PreprocessToken::new(
                 Token::LiteralInt(0),
-                SourceLocation::first().offset(2)
+                SourceLocation::first(),
+                2
             )]))]),
             location: SourceLocation::first(),
         }
@@ -778,23 +781,26 @@ fn macro_from_definition() {
             is_function: true,
             num_params: 2,
             segments: vec![
-                MacroSegment::Text(Vec::from([LexToken(
+                MacroSegment::Text(Vec::from([PreprocessToken::new(
                     Token::LeftParen,
-                    SourceLocation::first().offset(8)
+                    SourceLocation::first(),
+                    8
                 )])),
                 MacroSegment::Arg(MacroArg(0)),
                 MacroSegment::Text(Vec::from([
-                    LexToken(Token::Whitespace, SourceLocation::first().offset(10)),
-                    LexToken(
+                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10),
+                    PreprocessToken::new(
                         Token::VerticalBarVerticalBar,
-                        SourceLocation::first().offset(11)
+                        SourceLocation::first(),
+                        11
                     ),
-                    LexToken(Token::Whitespace, SourceLocation::first().offset(13)),
+                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13),
                 ])),
                 MacroSegment::Arg(MacroArg(1)),
-                MacroSegment::Text(Vec::from([LexToken(
+                MacroSegment::Text(Vec::from([PreprocessToken::new(
                     Token::RightParen,
-                    SourceLocation::first().offset(16)
+                    SourceLocation::first(),
+                    16
                 )])),
             ],
             location: SourceLocation::first(),
@@ -809,10 +815,10 @@ fn macro_resolve() {
 
     #[track_caller]
     fn run(
-        input: &[LexToken],
+        input: &[PreprocessToken],
         macros: &[Macro],
         expected_str: &str,
-        expected_tokens: &[LexToken],
+        expected_tokens: &[PreprocessToken],
         source_manager: &SourceManager,
     ) {
         let text = SubstitutedText::new(input);
@@ -841,17 +847,17 @@ fn macro_resolve() {
             ],
             "(A || 0) && 1",
             &[
-                LexToken(Token::LeftParen, main_loc.offset(0)),
-                LexToken(Token::Id(Identifier("A".to_string())), main_loc.offset(1)),
-                LexToken(Token::Whitespace, main_loc.offset(2)),
-                LexToken(Token::VerticalBarVerticalBar, main_loc.offset(3)),
-                LexToken(Token::Whitespace, main_loc.offset(5)),
-                LexToken(Token::LiteralInt(0), m1_loc.offset(2)),
-                LexToken(Token::RightParen, main_loc.offset(7)),
-                LexToken(Token::Whitespace, main_loc.offset(8)),
-                LexToken(Token::AmpersandAmpersand, main_loc.offset(9)),
-                LexToken(Token::Whitespace, main_loc.offset(11)),
-                LexToken(Token::LiteralInt(1), m2_loc.offset(3)),
+                PreprocessToken::new(Token::LeftParen, main_loc, 0),
+                PreprocessToken::new(Token::Id(Identifier("A".to_string())), main_loc, 1),
+                PreprocessToken::new(Token::Whitespace, main_loc, 2),
+                PreprocessToken::new(Token::VerticalBarVerticalBar, main_loc, 3),
+                PreprocessToken::new(Token::Whitespace, main_loc, 5),
+                PreprocessToken::new(Token::LiteralInt(0), m1_loc, 2),
+                PreprocessToken::new(Token::RightParen, main_loc, 7),
+                PreprocessToken::new(Token::Whitespace, main_loc, 8),
+                PreprocessToken::new(Token::AmpersandAmpersand, main_loc, 9),
+                PreprocessToken::new(Token::Whitespace, main_loc, 11),
+                PreprocessToken::new(Token::LiteralInt(1), m2_loc, 3),
             ],
             &source_manager,
         );
@@ -875,23 +881,23 @@ fn macro_resolve() {
             ],
             "(A || (0 && 1)) && 1",
             &[
-                LexToken(Token::LeftParen, main_loc.offset(0)),
-                LexToken(Token::Id(Identifier("A".to_string())), main_loc.offset(1)),
-                LexToken(Token::Whitespace, main_loc.offset(2)),
-                LexToken(Token::VerticalBarVerticalBar, main_loc.offset(3)),
-                LexToken(Token::Whitespace, main_loc.offset(5)),
-                LexToken(Token::LeftParen, m2_loc.offset(8)),
-                LexToken(Token::LiteralInt(0), main_loc.offset(8)),
-                LexToken(Token::Whitespace, m2_loc.offset(10)),
-                LexToken(Token::AmpersandAmpersand, m2_loc.offset(11)),
-                LexToken(Token::Whitespace, m2_loc.offset(13)),
-                LexToken(Token::LiteralInt(1), main_loc.offset(11)),
-                LexToken(Token::RightParen, m2_loc.offset(15)),
-                LexToken(Token::RightParen, main_loc.offset(13)),
-                LexToken(Token::Whitespace, main_loc.offset(14)),
-                LexToken(Token::AmpersandAmpersand, main_loc.offset(15)),
-                LexToken(Token::Whitespace, main_loc.offset(17)),
-                LexToken(Token::LiteralInt(1), m1_loc.offset(3)),
+                PreprocessToken::new(Token::LeftParen, main_loc, 0),
+                PreprocessToken::new(Token::Id(Identifier("A".to_string())), main_loc, 1),
+                PreprocessToken::new(Token::Whitespace, main_loc, 2),
+                PreprocessToken::new(Token::VerticalBarVerticalBar, main_loc, 3),
+                PreprocessToken::new(Token::Whitespace, main_loc, 5),
+                PreprocessToken::new(Token::LeftParen, m2_loc, 8),
+                PreprocessToken::new(Token::LiteralInt(0), main_loc, 8),
+                PreprocessToken::new(Token::Whitespace, m2_loc, 10),
+                PreprocessToken::new(Token::AmpersandAmpersand, m2_loc, 11),
+                PreprocessToken::new(Token::Whitespace, m2_loc, 13),
+                PreprocessToken::new(Token::LiteralInt(1), main_loc, 11),
+                PreprocessToken::new(Token::RightParen, m2_loc, 15),
+                PreprocessToken::new(Token::RightParen, main_loc, 13),
+                PreprocessToken::new(Token::Whitespace, main_loc, 14),
+                PreprocessToken::new(Token::AmpersandAmpersand, main_loc, 15),
+                PreprocessToken::new(Token::Whitespace, main_loc, 17),
+                PreprocessToken::new(Token::LiteralInt(1), m1_loc, 3),
             ],
             &source_manager,
         );
@@ -950,20 +956,20 @@ impl ConditionChain {
 }
 
 fn preprocess_command(
-    buffer: &mut Vec<LexToken>,
+    buffer: &mut Vec<PreprocessToken>,
     file_loader: &mut FileLoader,
-    command: &[LexToken],
+    command: &[PreprocessToken],
     file_id: FileId,
     macros: &mut Vec<Macro>,
     condition_chain: &mut ConditionChain,
 ) -> Result<(), PreprocessError> {
-    let command_location = command[0].1;
+    let command_location = command[0].get_location();
 
     // Split the base command name
     let (command_name, command) = match command {
-        [LexToken(Token::Id(id), _), rest @ ..] => (id.0.as_str(), rest),
-        [LexToken(Token::If, _), rest @ ..] => ("if", rest),
-        [LexToken(Token::Else, _), rest @ ..] => ("else", rest),
+        [PreprocessToken(Token::Id(id), _), rest @ ..] => (id.0.as_str(), rest),
+        [PreprocessToken(Token::If, _), rest @ ..] => ("if", rest),
+        [PreprocessToken(Token::Else, _), rest @ ..] => ("else", rest),
         _ => return Err(PreprocessError::UnknownCommand(command_location)),
     };
 
@@ -977,13 +983,13 @@ fn preprocess_command(
             let command = trim_whitespace(command);
 
             let file_name = match command {
-                [LexToken(Token::LiteralString(s), _)] => s.clone(),
-                [LexToken(Token::LeftAngleBracket(_), _), LexToken(Token::RightAngleBracket(_), _)] => {
+                [PreprocessToken(Token::LiteralString(s), _)] => s.clone(),
+                [PreprocessToken(Token::LeftAngleBracket(_), _), PreprocessToken(Token::RightAngleBracket(_), _)] => {
                     return Err(PreprocessError::InvalidInclude(command_location))
                 }
-                [LexToken(Token::LeftAngleBracket(_), _), rest @ .., LexToken(Token::RightAngleBracket(_), end_loc)] =>
+                [PreprocessToken(Token::LeftAngleBracket(_), _), rest @ .., PreprocessToken(Token::RightAngleBracket(_), end_loc)] =>
                 {
-                    let start_loc = rest[0].1;
+                    let start_loc = rest[0].get_location();
 
                     // We do not have a token for header <> includes
                     // Attempt to reconstruct the original string by refetching the source range from the source manager
@@ -998,7 +1004,7 @@ fn preprocess_command(
 
                     let (end_file, end_offset) = match file_loader
                         .source_manager
-                        .get_file_offset_from_source_location(*end_loc)
+                        .get_file_offset_from_source_location(end_loc.get_location())
                     {
                         Some(ok) => ok,
                         None => return Err(PreprocessError::InvalidInclude(command_location)),
@@ -1042,7 +1048,7 @@ fn preprocess_command(
             }
             let not = command_name == "ifndef";
             let command = trim_whitespace(command);
-            if let [LexToken(Token::Id(id), _)] = command {
+            if let [PreprocessToken(Token::Id(id), _)] = command {
                 let exists = macros.iter().any(|m| m.name == id.0);
                 let active = if not { !exists } else { exists };
                 condition_chain.push(if active {
@@ -1120,7 +1126,7 @@ fn preprocess_command(
                 return Ok(());
             }
             let pragma_command = trim_whitespace(command);
-            if let [LexToken(Token::Id(Identifier(s)), loc), ..] = pragma_command {
+            if let [PreprocessToken(Token::Id(Identifier(s)), ext), ..] = pragma_command {
                 match s.as_str() {
                     "once" => {
                         file_loader.mark_as_pragma_once(file_id);
@@ -1130,14 +1136,12 @@ fn preprocess_command(
                         // Ignore warning disable commands for now
                         Ok(())
                     }
-                    _ => Err(PreprocessError::UnknownPragma(*loc)),
+                    _ => Err(PreprocessError::UnknownPragma(ext.get_location())),
                 }
             } else {
-                let pragma_command_location = match pragma_command.first() {
-                    Some(tok) => tok.1,
-                    None => SourceLocation::UNKNOWN,
-                };
-                Err(PreprocessError::UnknownPragma(pragma_command_location))
+                Err(PreprocessError::UnknownPragma(
+                    pragma_command.first().get_location(),
+                ))
             }
         }
         _ if skip => Ok(()),
@@ -1147,7 +1151,7 @@ fn preprocess_command(
 
 /// Internal process a single file during preprocessing
 fn preprocess_included_file(
-    buffer: &mut Vec<LexToken>,
+    buffer: &mut Vec<PreprocessToken>,
     file_loader: &mut FileLoader,
     input_file: InputFile,
     macros: &mut Vec<Macro>,
@@ -1256,8 +1260,8 @@ fn preprocess_included_file(
 fn preprocess_initial_file(
     input_file: InputFile,
     file_loader: &mut FileLoader,
-) -> Result<Vec<LexToken>, PreprocessError> {
-    let mut tokens = Vec::<LexToken>::default();
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
+    let mut tokens = Vec::<PreprocessToken>::default();
     let mut macros = vec![];
     let mut condition_chain = ConditionChain::new();
 
@@ -1282,7 +1286,7 @@ pub fn preprocess_direct(
     file_name: FileName,
     source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
-) -> Result<Vec<LexToken>, PreprocessError> {
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
     // Store the input in the source manager
     let file_id = source_manager.add_file(file_name, input.to_string());
     let input_file = InputFile {
@@ -1299,7 +1303,7 @@ pub fn preprocess(
     entry_file_name: &str,
     source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
-) -> Result<Vec<LexToken>, PreprocessError> {
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
     let mut file_loader = FileLoader::new(source_manager, include_handler);
     match file_loader.load(entry_file_name) {
         Ok(file) => preprocess_initial_file(file, &mut file_loader),
@@ -1316,16 +1320,23 @@ pub fn preprocess_fragment(
     input: &str,
     file_name: FileName,
     source_manager: &mut SourceManager,
-) -> Result<Vec<LexToken>, PreprocessError> {
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
     preprocess_direct(input, file_name, source_manager, &mut NullIncludeHandler)
 }
 
 /// Convert a stream of preprocessor tokens for parsing
-pub fn prepare_tokens(source: &[LexToken]) -> Vec<LexToken> {
+pub fn prepare_tokens(source: &[PreprocessToken]) -> Vec<LexToken> {
     let mut source = source
         .iter()
         .cloned()
-        .filter(|t| !t.0.is_whitespace())
+        .filter_map(|t| {
+            if t.0.is_whitespace() {
+                None
+            } else {
+                let loc = t.get_location();
+                Some(LexToken(t.0, loc))
+            }
+        })
         .collect::<Vec<_>>();
     source.push(LexToken(Token::Eof, SourceLocation::UNKNOWN));
     source

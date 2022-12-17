@@ -1145,7 +1145,7 @@ fn token_stream(mut input: &[u8]) -> LexResult<Vec<StreamToken>> {
 }
 
 /// Run the lexer on input text to turn it into a token stream
-pub fn lex(text: &str, source_offset: SourceLocation) -> Result<Vec<LexToken>, LexerError> {
+pub fn lex(text: &str, source_offset: SourceLocation) -> Result<Vec<PreprocessToken>, LexerError> {
     lex_internal(text, source_offset, true)
 }
 
@@ -1154,7 +1154,7 @@ pub fn lex(text: &str, source_offset: SourceLocation) -> Result<Vec<LexToken>, L
 pub fn lex_fragment(
     file_id: FileId,
     source_manager: &SourceManager,
-) -> Result<Vec<LexToken>, LexerError> {
+) -> Result<Vec<PreprocessToken>, LexerError> {
     let contents = source_manager.get_contents(file_id);
     let offset = source_manager.get_source_location_from_file_offset(file_id, StreamLocation(0));
     lex_internal(contents, offset, false)
@@ -1165,7 +1165,7 @@ fn lex_internal(
     text: &str,
     source_offset: SourceLocation,
     add_file_ending: bool,
-) -> Result<Vec<LexToken>, LexerError> {
+) -> Result<Vec<PreprocessToken>, LexerError> {
     let code_bytes = text.as_bytes();
     let total_length = code_bytes.len() as u32;
     match token_stream(code_bytes) {
@@ -1185,8 +1185,11 @@ fn lex_internal(
                 // Translate from locations in the current local stream into original source locations
                 let mut lex_tokens = Vec::with_capacity(stream.len());
                 for StreamToken(ref token, stream_location) in stream {
-                    let source_location = source_offset.offset(stream_location.0);
-                    lex_tokens.push(LexToken(token.clone(), source_location));
+                    lex_tokens.push(PreprocessToken::new(
+                        token.clone(),
+                        source_offset,
+                        stream_location.0,
+                    ));
                 }
 
                 Ok(lex_tokens)

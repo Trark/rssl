@@ -139,9 +139,57 @@ impl Token {
     }
 }
 
+/// A [Token] for use during preprocessing
+#[derive(PartialEq, Clone)]
+pub struct PreprocessToken(
+    /// The base token
+    pub Token,
+    /// Additional metadata for the token
+    pub PreprocessTokenData,
+);
+
+/// Additional data associated with a token for the preprocessing phase
+#[derive(PartialEq, Eq, Clone)]
+pub struct PreprocessTokenData {
+    /// The location the token is sourced from
+    location: SourceLocation,
+}
+
 /// A [Token] with source location information attached
 #[derive(PartialEq, Clone)]
 pub struct LexToken(pub Token, pub SourceLocation);
+
+impl PreprocessToken {
+    pub fn new(tok: Token, base_location: SourceLocation, offset: u32) -> Self {
+        PreprocessToken(
+            tok,
+            PreprocessTokenData {
+                location: base_location.offset(offset),
+            },
+        )
+    }
+}
+
+impl Locate for PreprocessToken {
+    fn get_location(&self) -> SourceLocation {
+        self.1.location
+    }
+}
+
+impl Locate for PreprocessTokenData {
+    fn get_location(&self) -> SourceLocation {
+        self.location
+    }
+}
+
+impl Locate for Option<&PreprocessToken> {
+    fn get_location(&self) -> SourceLocation {
+        match self {
+            Some(tok) => tok.1.location,
+            None => SourceLocation::UNKNOWN,
+        }
+    }
+}
 
 impl LexToken {
     /// Extract the file location from a lex token
@@ -152,6 +200,12 @@ impl LexToken {
     /// Create a token with no file location
     pub fn with_no_loc(token: Token) -> LexToken {
         LexToken(token, SourceLocation::UNKNOWN)
+    }
+}
+
+impl std::fmt::Debug for PreprocessToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?} @ {}", self.0, self.1.location.get_raw())
     }
 }
 

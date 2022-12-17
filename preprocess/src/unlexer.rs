@@ -2,10 +2,10 @@ use rssl_text::tokens::*;
 use rssl_text::*;
 
 /// Transforms tokens back into a string
-pub fn unlex(tokens: &[LexToken], source_manager: &SourceManager) -> String {
+pub fn unlex(tokens: &[PreprocessToken], source_manager: &SourceManager) -> String {
     let mut output = String::new();
     for token in tokens {
-        let location = token.1;
+        let location = token.get_location();
         let file_location = source_manager.get_file_offset_from_source_location(location);
         if let Some((file_id, offset)) = file_location {
             let file_contents = source_manager.get_contents(file_id);
