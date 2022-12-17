@@ -187,9 +187,21 @@ impl Locate for PreprocessToken {
     }
 }
 
+impl LocateEnd for PreprocessToken {
+    fn get_end_location(&self) -> SourceLocation {
+        self.1.end_location
+    }
+}
+
 impl Locate for PreprocessTokenData {
     fn get_location(&self) -> SourceLocation {
         self.start_location
+    }
+}
+
+impl LocateEnd for PreprocessTokenData {
+    fn get_end_location(&self) -> SourceLocation {
+        self.end_location
     }
 }
 
@@ -197,6 +209,15 @@ impl Locate for Option<&PreprocessToken> {
     fn get_location(&self) -> SourceLocation {
         match self {
             Some(tok) => tok.1.start_location,
+            None => SourceLocation::UNKNOWN,
+        }
+    }
+}
+
+impl LocateEnd for Option<&PreprocessToken> {
+    fn get_end_location(&self) -> SourceLocation {
+        match self {
+            Some(tok) => tok.1.end_location,
             None => SourceLocation::UNKNOWN,
         }
     }

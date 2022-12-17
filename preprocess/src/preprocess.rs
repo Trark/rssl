@@ -613,7 +613,17 @@ impl SubstitutedSegment {
                         }
                     };
 
-                    let after = remaining;
+                    // We are about to make a fake token for the result
+                    // This will take the start location from the start of the "defined" token
+                    let start_location = text[sz].get_location();
+
+                    // There must be at least one token after the "defined" - as it requires arguments
+                    // The end location will be at the end of the arguments
+                    let end_location = text[text.len() - remaining.len() - 1].get_end_location();
+
+                    // All the argument tokens should be from the same file as the defined command is executed immediatly in a preprocessor command
+                    // This means constructing the range between the start and end location should be contiguous
+                    let location_size = end_location.get_raw() - start_location.get_raw();
 
                     let exists = macro_defs.iter().any(|m| {
                         if let Token::Id(id) = arg {
@@ -623,23 +633,20 @@ impl SubstitutedSegment {
                         }
                     });
 
+                    let generated_token = if exists {
+                        Token::LiteralInt(1)
+                    } else {
+                        Token::LiteralInt(0)
+                    };
+
                     if !before.is_empty() {
                         output.push(SubstitutedSegment::Text(before.to_vec()));
                     }
                     output.push(SubstitutedSegment::Replaced(Vec::from([
-                        PreprocessToken::new(
-                            if exists {
-                                Token::LiteralInt(1)
-                            } else {
-                                Token::LiteralInt(0)
-                            },
-                            SourceLocation::UNKNOWN,
-                            0,
-                            0,
-                        ),
+                        PreprocessToken::new(generated_token, start_location, 0, location_size),
                     ])));
-                    if !after.is_empty() {
-                        SubstitutedSegment::Text(after.to_vec())
+                    if !remaining.is_empty() {
+                        SubstitutedSegment::Text(remaining.to_vec())
                             .apply_defined(macro_defs, output)?;
                     }
                     return Ok(());

@@ -253,6 +253,12 @@ pub trait Locate {
     fn get_location(&self) -> SourceLocation;
 }
 
+/// Types implementing `LocateEnd` are able to fetch the source location after the node
+pub trait LocateEnd {
+    /// Retrieve the end of the source location that this node is represented by
+    fn get_end_location(&self) -> SourceLocation;
+}
+
 /// Wrapper to pair a node with a source location
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 pub struct Located<T> {
