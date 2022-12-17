@@ -1240,15 +1240,6 @@ fn lex_internal(
     }
 }
 
-/// Calculate the size of the next token read from the input string
-#[cfg(test)]
-pub fn get_next_token_size(input: &[u8]) -> Option<usize> {
-    match token(input) {
-        Ok((next, _)) => Some(input.len() - next.len()),
-        Err(_) => None,
-    }
-}
-
 #[test]
 fn test_token() {
     macro_rules! assert_token {

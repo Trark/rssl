@@ -13,8 +13,9 @@ pub use preprocess::PreprocessError;
 
 mod lexer;
 
-#[cfg(test)]
 mod unlexer;
+
+pub use unlexer::unlex;
 
 #[cfg(test)]
 mod tests;

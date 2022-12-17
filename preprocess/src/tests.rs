@@ -1,5 +1,4 @@
 use crate::lexer::*;
-use crate::unlexer::unlex;
 use crate::*;
 use rssl_text::*;
 
