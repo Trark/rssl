@@ -208,55 +208,11 @@ impl<'a> FileLoader<'a> {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-struct MacroArg(u64);
-
-#[derive(PartialEq, Debug, Clone)]
-enum MacroSegment {
-    Text(Vec<PreprocessToken>),
-    Arg(MacroArg),
-}
-
-impl MacroSegment {
-    fn build_segments(params: &[String], body: &[PreprocessToken]) -> Vec<MacroSegment> {
-        let mut last_segments = Vec::from([MacroSegment::Text(body.to_vec())]);
-        for (index, arg_name) in params.iter().enumerate() {
-            let mut next_segments = Vec::new();
-            for segment in last_segments {
-                segment.split(arg_name, index as u64, &mut next_segments);
-            }
-            last_segments = next_segments;
-        }
-        last_segments
-    }
-
-    fn split(self, arg: &str, index: u64, segments: &mut Vec<MacroSegment>) {
-        match self {
-            MacroSegment::Text(stream) => {
-                if let Some(sz) = find_macro(&stream, arg) {
-                    let before = &stream[..sz];
-                    let after = &stream[sz + 1..];
-                    if !before.is_empty() {
-                        segments.push(MacroSegment::Text(before.to_vec()));
-                    }
-                    segments.push(MacroSegment::Arg(MacroArg(index)));
-                    if !after.is_empty() {
-                        MacroSegment::Text(after.to_vec()).split(arg, index, segments);
-                    }
-                    return;
-                }
-                segments.push(MacroSegment::Text(stream))
-            }
-            MacroSegment::Arg(arg) => segments.push(MacroSegment::Arg(arg)),
-        }
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
 struct Macro {
     name: String,
     is_function: bool,
     num_params: u64,
-    segments: Vec<MacroSegment>,
+    tokens: Vec<PreprocessToken>,
     location: SourceLocation,
 }
 
@@ -328,19 +284,31 @@ impl Macro {
         // Remove whitespace at start and end of the body of the define
         let body = trim_whitespace(body);
 
-        // Apply other defines into the body
-        let subbed_body = SubstitutedText::new(body)
+        // Replace identifiers to parameters with argument reference tokens
+        let mut tokens = body
+            .iter()
+            .map(|t| {
+                if let Token::Id(id) = &t.0 {
+                    for (i, param) in params.iter().enumerate() {
+                        if id.0 == *param {
+                            return PreprocessToken(Token::MacroArg(i as u32), t.1.clone());
+                        }
+                    }
+                }
+                t.clone()
+            })
+            .collect::<Vec<_>>();
+
+        // Apply other defines into the segment of the body
+        tokens = SubstitutedText::new(&tokens)
             .apply_all(macros, false)?
             .resolve();
-
-        // Build segments of the body by splitting between parameters
-        let segments = MacroSegment::build_segments(&params, &subbed_body);
 
         let def = Macro {
             name,
             is_function,
             num_params: params.len() as u64,
-            segments,
+            tokens,
             location,
         };
 
@@ -540,13 +508,12 @@ impl SubstitutedSegment {
                     if !before.is_empty() {
                         output.push(SubstitutedSegment::Text(before.to_vec()));
                     }
-                    let mut replaced_tokens = Vec::new();
-                    for macro_segment in &macro_def.segments {
-                        match macro_segment {
-                            MacroSegment::Text(tokens) => replaced_tokens.extend_from_slice(tokens),
-                            MacroSegment::Arg(MacroArg(index)) => {
-                                replaced_tokens.extend_from_slice(&args[*index as usize])
-                            }
+                    let mut replaced_tokens = Vec::with_capacity(macro_def.tokens.len());
+                    for token in &macro_def.tokens {
+                        if let Token::MacroArg(i) = token.0 {
+                            replaced_tokens.extend_from_slice(&args[i as usize])
+                        } else {
+                            replaced_tokens.push(token.clone());
                         }
                     }
                     if !replaced_tokens.is_empty() {
@@ -748,12 +715,12 @@ fn macro_from_definition() {
             name: "B".to_string(),
             is_function: false,
             num_params: 0,
-            segments: Vec::from([MacroSegment::Text(Vec::from([PreprocessToken::new(
+            tokens: Vec::from([PreprocessToken::new(
                 Token::LiteralInt(0),
                 SourceLocation::first(),
                 2,
                 3
-            )]))]),
+            )]),
             location: SourceLocation::first(),
         }
     );
@@ -763,7 +730,12 @@ fn macro_from_definition() {
             name: "B".to_string(),
             is_function: true,
             num_params: 1,
-            segments: vec![MacroSegment::Arg(MacroArg(0))],
+            tokens: Vec::from([PreprocessToken::new(
+                Token::MacroArg(0),
+                SourceLocation::first(),
+                5,
+                6,
+            )]),
             location: SourceLocation::first(),
         }
     );
@@ -773,7 +745,12 @@ fn macro_from_definition() {
             name: "B".to_string(),
             is_function: true,
             num_params: 2,
-            segments: vec![MacroSegment::Arg(MacroArg(0))],
+            tokens: Vec::from([PreprocessToken::new(
+                Token::MacroArg(0),
+                SourceLocation::first(),
+                7,
+                8,
+            )]),
             location: SourceLocation::first(),
         }
     );
@@ -783,7 +760,12 @@ fn macro_from_definition() {
             name: "B".to_string(),
             is_function: true,
             num_params: 2,
-            segments: vec![MacroSegment::Arg(MacroArg(1))],
+            tokens: Vec::from([PreprocessToken::new(
+                Token::MacroArg(1),
+                SourceLocation::first(),
+                7,
+                8,
+            )]),
             location: SourceLocation::first(),
         }
     );
@@ -793,32 +775,20 @@ fn macro_from_definition() {
             name: "B".to_string(),
             is_function: true,
             num_params: 2,
-            segments: vec![
-                MacroSegment::Text(Vec::from([PreprocessToken::new(
-                    Token::LeftParen,
+            tokens: Vec::from([
+                PreprocessToken::new(Token::LeftParen, SourceLocation::first(), 8, 9),
+                PreprocessToken::new(Token::MacroArg(0), SourceLocation::first(), 9, 10),
+                PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10, 11),
+                PreprocessToken::new(
+                    Token::VerticalBarVerticalBar,
                     SourceLocation::first(),
-                    8,
-                    9
-                )])),
-                MacroSegment::Arg(MacroArg(0)),
-                MacroSegment::Text(Vec::from([
-                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10, 11),
-                    PreprocessToken::new(
-                        Token::VerticalBarVerticalBar,
-                        SourceLocation::first(),
-                        11,
-                        13
-                    ),
-                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13, 14),
-                ])),
-                MacroSegment::Arg(MacroArg(1)),
-                MacroSegment::Text(Vec::from([PreprocessToken::new(
-                    Token::RightParen,
-                    SourceLocation::first(),
-                    16,
-                    17
-                )])),
-            ],
+                    11,
+                    13
+                ),
+                PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13, 14),
+                PreprocessToken::new(Token::MacroArg(1), SourceLocation::first(), 14, 16),
+                PreprocessToken::new(Token::RightParen, SourceLocation::first(), 16, 17),
+            ]),
             location: SourceLocation::first(),
         }
     );
@@ -1346,6 +1316,7 @@ pub fn prepare_tokens(source: &[PreprocessToken]) -> Vec<LexToken> {
         .iter()
         .cloned()
         .filter_map(|t| {
+            assert!(!matches!(t.0, Token::MacroArg(_)));
             if t.0.is_whitespace() {
                 None
             } else {

@@ -127,6 +127,9 @@ pub enum Token {
 
     /// Line and block comments
     Comment,
+
+    /// Temporary reference to macro argument used during define processing
+    MacroArg(u32),
 }
 
 impl Token {

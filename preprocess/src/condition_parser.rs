@@ -15,6 +15,7 @@ pub fn parse(
     let tokens = tokens
         .iter()
         .filter_map(|t| {
+            assert!(!matches!(t.0, Token::MacroArg(_)));
             if t.0.is_whitespace() {
                 assert_ne!(t.0, Token::Endline);
                 None

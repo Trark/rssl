@@ -67,27 +67,10 @@ fn test_define() {
 }
 
 #[test]
-fn test_define_function() {
+fn test_macro_function() {
     assert_text!("#define X(a) a\nX(2)", "2\n");
     assert_text!("#define X(a,b) a+b\nX(2,3)", "2+3\n");
     assert_text!("#define X(X,b) X+b\nX(2,3)", "2+3\n");
-    assert_text!("#define X() A\nX()", "A\n");
-    assert_text!("#define X()A\nX()", "A\n");
-    assert_text!("#define X() A\nX", "X\n");
-    assert_text!("#define X() A\nX ()", "A\n");
-    assert_text!("#define X() A\nX ( )", "A\n");
-
-    // Test multiple lines in function macro
-    assert_text!("#define X(a,b) a+\\\nb\nX(2,3)", "2+\n3\n");
-    assert_text!("#define X(a,b) a+\\\r\nb\nX(2,3)", "2+\r\n3\n");
-    assert_text!("#define X(a,b)a+\\\nb\nX(2,3)", "2+\n3\n");
-    assert_text!("#define X(a,b)\\\na+\\\nb\nX(2,3)", "2+\n3\n");
-    assert_text!("#define X(a,b)\\\r\na+\\\nb\nX(2,3)", "2+\n3\n");
-    assert_text!("#define X(\\\na,\\\nb) a+\\\nb\nX(2,3)", "2+\n3\n");
-    assert_text!("#define\\\nX(a,b) a+\\\nb\nX(2,3)", "2+\n3\n");
-
-    // Test invoking a macro with another define
-    assert_text!("#define X(a) a\n#define Y 1\nX(Y)", "1\n");
 
     // Test invoking a macro with values inside parenthesis
     assert_text!("#define X(a) a\nX((Y,Z))", "(Y,Z)\n");
@@ -97,7 +80,37 @@ fn test_define_function() {
         "#define X(a,ab,ba,b) a ab a ba b ab a\nX(0,1,2,3)",
         "0 1 0 2 3 1 0\n"
     );
+}
 
+#[test]
+fn test_macro_function_no_args() {
+    assert_text!("#define X() A\nX()", "A\n");
+    assert_text!("#define X()A\nX()", "A\n");
+    assert_text!("#define X() A\nX", "X\n");
+    assert_text!("#define X() A\nX ()", "A\n");
+    assert_text!("#define X() A\nX ( )", "A\n");
+}
+
+#[test]
+fn test_macro_function_line_continuation() {
+    // Test multiple lines in function macro
+    assert_text!("#define X(a,b) a+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(a,b) a+\\\r\nb\nX(2,3)", "2+\r\n3\n");
+    assert_text!("#define X(a,b)a+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(a,b)\\\na+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(a,b)\\\r\na+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(\\\na,\\\nb) a+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define\\\nX(a,b) a+\\\nb\nX(2,3)", "2+\n3\n");
+}
+
+#[test]
+fn test_macro_function_in_define() {
+    // Test invoking a macro with another define
+    assert_text!("#define X(a) a\n#define Y 1\nX(Y)", "1\n");
+}
+
+#[test]
+fn test_macro_function_chain() {
     // Base case for next text
     assert_text!(
         "#define Macro0(Arg0, Arg1) {Arg0,Arg1}\nMacro0(X, Y)",
@@ -133,6 +146,12 @@ fn test_define_function() {
         "#define Macro0(Arg0, Arg1) {0:Arg0;Arg1}\n#define Macro1(Arg2, Arg3) {1:Arg2;Arg3}\nMacro0(Macro1(X,Y),Macro1(Z,W))",
         "{0:{1:X;Y};{1:Z;W}}\n"
     );
+}
+
+#[test]
+fn test_macro_function_parameter_overrides_defines() {
+    // Test invoking a macro with another define
+    assert_text!("#define A 1\n#define B(A) A\nB(2)", "2\n");
 }
 
 #[test]
@@ -207,12 +226,14 @@ fn test_condition_defined() {
     assert_text!("#define A 1\n#if !defined(A)\nX\n#else\nY\n#endif", "Y\n");
     assert_text!("#define A 0\n#if defined(A)\nX\n#else\nY\n#endif", "X\n");
     assert_text!("#define A 0\n#if !defined(A)\nX\n#else\nY\n#endif", "Y\n");
-    assert_text!("defined(A)", "defined(A)\n");
-    assert_text!("!defined(A)", "!defined(A)\n");
     assert_text!(
         "#if defined(A)\ndefined(B)\n#else\ndefined(C)\n#endif",
         "defined(C)\n"
     );
+
+    // defined is not evaluated in other contexts
+    assert_text!("defined(A)", "defined(A)\n");
+    assert_text!("!defined(A)", "!defined(A)\n");
 }
 
 #[test]
