@@ -7,7 +7,6 @@ mod preprocess;
 
 pub use preprocess::prepare_tokens;
 pub use preprocess::preprocess;
-pub use preprocess::preprocess_direct;
 pub use preprocess::preprocess_fragment;
 pub use preprocess::PreprocessError;
 

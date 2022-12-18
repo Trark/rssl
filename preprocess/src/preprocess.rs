@@ -1252,24 +1252,6 @@ fn preprocess_initial_file(
     Ok(tokens)
 }
 
-/// Preprocess a file - starting from memory
-pub fn preprocess_direct(
-    input: &str,
-    file_name: FileName,
-    source_manager: &mut SourceManager,
-    include_handler: &mut dyn IncludeHandler,
-) -> Result<Vec<PreprocessToken>, PreprocessError> {
-    // Store the input in the source manager
-    let file_id = source_manager.add_file(file_name, input.to_string());
-    let input_file = InputFile {
-        file_id,
-        contents: source_manager.get_contents(file_id).to_string(),
-    };
-
-    let mut file_loader = FileLoader::new(source_manager, include_handler);
-    preprocess_initial_file(input_file, &mut file_loader)
-}
-
 /// Preprocess a file - starting from include handler
 pub fn preprocess(
     entry_file_name: &str,
@@ -1293,7 +1275,8 @@ pub fn preprocess_fragment(
     file_name: FileName,
     source_manager: &mut SourceManager,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
-    preprocess_direct(input, file_name, source_manager, &mut NullIncludeHandler)
+    let mut files = [(file_name.0.as_ref(), input)];
+    preprocess(&file_name.0, source_manager, &mut files)
 }
 
 /// Convert a stream of preprocessor tokens for parsing

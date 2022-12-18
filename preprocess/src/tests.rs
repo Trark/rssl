@@ -238,30 +238,15 @@ fn test_condition_defined() {
 
 #[test]
 fn test_include() {
-    struct TestFileLoader;
-    impl IncludeHandler for TestFileLoader {
-        fn load(&mut self, file_name: &str) -> Result<FileData, IncludeError> {
-            Ok(FileData {
-                real_name: format!("./test/{}", file_name),
-                contents: match file_name {
-                    "1.csh" => "X",
-                    "2.csh" => "Y",
-                    "p1.rssl" => "#pragma once\n1",
-                    "p2.rssl" => "2",
-                    _ => return Err(IncludeError::FileNotFound),
-                }
-                .to_string(),
-            })
-        }
-    }
-
     fn pf(contents: &str, source_manager: &mut SourceManager) -> Result<String, PreprocessError> {
-        let tokens = preprocess_direct(
-            contents,
-            FileName("test.rssl".to_string()),
-            source_manager,
-            &mut TestFileLoader,
-        )?;
+        let mut files = [
+            ("test.rssl", contents),
+            ("1.csh", "X"),
+            ("2.csh", "Y"),
+            ("p1.rssl", "#pragma once\n1"),
+            ("p2.rssl", "2"),
+        ];
+        let tokens = preprocess("test.rssl", source_manager, &mut files)?;
         let string = unlex(&tokens, source_manager);
         Ok(string)
     }

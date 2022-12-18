@@ -25,3 +25,17 @@ impl IncludeHandler for NullIncludeHandler {
         Err(IncludeError::FileNotFound)
     }
 }
+
+impl<'s, const N: usize> IncludeHandler for [(&'s str, &'s str); N] {
+    fn load(&mut self, file_name: &str) -> Result<FileData, IncludeError> {
+        for (name, data) in self {
+            if file_name == *name {
+                return Ok(FileData {
+                    real_name: name.to_string(),
+                    contents: data.to_string(),
+                });
+            }
+        }
+        Err(IncludeError::FileNotFound)
+    }
+}
