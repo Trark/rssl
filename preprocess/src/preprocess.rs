@@ -585,30 +585,34 @@ impl SubstitutedSegment {
                     // Read argument
                     let arg = {
                         // Allow "defined A" instead of traditional defined(A)
-                        if let [PreprocessToken(Token::Whitespace, _), PreprocessToken(arg @ Token::Id(_), _), rest @ ..] =
-                            remaining
-                        {
-                            remaining = rest;
-                            arg
-                        } else {
-                            // Parse arguments like a normal macro called defined
-                            let (rest, args) = split_macro_args(defined_name, remaining)?;
-                            remaining = rest;
-
-                            // Expect one argument
-                            if args.len() as u64 != 1 {
-                                return Err(
-                                    PreprocessError::MacroExpectsDifferentNumberOfArguments,
-                                );
-                            }
-
-                            // Expect a single name as the argument
-                            if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
+                        let remaining_trimmed = trim_whitespace_start(remaining);
+                        match remaining_trimmed {
+                            [PreprocessToken(arg @ Token::Id(_), _), rest @ ..]
+                                if remaining.len() != remaining_trimmed.len() =>
+                            {
+                                remaining = rest;
                                 arg
-                            } else {
-                                return Err(
-                                    PreprocessError::MacroExpectsDifferentNumberOfArguments,
-                                );
+                            }
+                            _ => {
+                                // Parse arguments like a normal macro called defined
+                                let (rest, args) = split_macro_args(defined_name, remaining)?;
+                                remaining = rest;
+
+                                // Expect one argument
+                                if args.len() as u64 != 1 {
+                                    return Err(
+                                        PreprocessError::MacroExpectsDifferentNumberOfArguments,
+                                    );
+                                }
+
+                                // Expect a single name as the argument
+                                if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
+                                    arg
+                                } else {
+                                    return Err(
+                                        PreprocessError::MacroExpectsDifferentNumberOfArguments,
+                                    );
+                                }
                             }
                         }
                     };

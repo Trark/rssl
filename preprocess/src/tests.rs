@@ -72,15 +72,19 @@ fn test_define_function() {
     assert_text!("#define X(a,b) a+b\nX(2,3)", "2+3\n");
     assert_text!("#define X(X,b) X+b\nX(2,3)", "2+3\n");
     assert_text!("#define X() A\nX()", "A\n");
+    assert_text!("#define X()A\nX()", "A\n");
     assert_text!("#define X() A\nX", "X\n");
     assert_text!("#define X() A\nX ()", "A\n");
     assert_text!("#define X() A\nX ( )", "A\n");
 
     // Test multiple lines in function macro
-    // The first line currently must have a space after the right parenthesis
-    // It can not immediately go into the new line
     assert_text!("#define X(a,b) a+\\\nb\nX(2,3)", "2+\n3\n");
     assert_text!("#define X(a,b) a+\\\r\nb\nX(2,3)", "2+\r\n3\n");
+    assert_text!("#define X(a,b)a+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(a,b)\\\na+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(a,b)\\\r\na+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define X(\\\na,\\\nb) a+\\\nb\nX(2,3)", "2+\n3\n");
+    assert_text!("#define\\\nX(a,b) a+\\\nb\nX(2,3)", "2+\n3\n");
 
     // Test invoking a macro with another define
     assert_text!("#define X(a) a\n#define Y 1\nX(Y)", "1\n");
@@ -143,6 +147,7 @@ fn test_condition() {
     assert_text!("#if 0\n#if 0\nX\n#else\nY\n#endif\n#endif", "");
     assert_text!("#if 0\n#if 1\nX\n#else\nY\n#endif\n#endif", "");
     assert_text!("#if\t 1  \n X  \n #else \n Y \n#endif \n\t", " X  \n\t\n");
+    assert_text!("#if\\\n 1  \n X  \n #else \n Y \n#endif \n\t", " X  \n\t\n");
     assert_text!("#define TRUE 1\n#if TRUE\nX\n#else\nY\n#endif", "X\n");
     assert_text!("#define TRUE\n#ifdef TRUE\nX\n#else\nY\n#endif", "X\n");
     assert_text!("#define TRUE\n#ifndef TRUE\nX\n#else\nY\n#endif", "Y\n");
@@ -189,6 +194,15 @@ fn test_condition_defined() {
     assert_text!("#if !defined A\nX\n#else\nY\n#endif", "X\n");
     assert_text!("#if defined A&&defined A\nX\n#else\nY\n#endif", "Y\n");
     assert_text!("#if !defined A&&!defined A\nX\n#else\nY\n#endif", "X\n");
+    assert_text!("#if (defined A&&defined A)\nX\n#else\nY\n#endif", "Y\n");
+    assert_text!("#if (!defined A&&!defined A)\nX\n#else\nY\n#endif", "X\n");
+    assert_text!("#if (defined A)&&(defined A)\nX\n#else\nY\n#endif", "Y\n");
+    assert_text!("#if (!defined A)&&(!defined A)\nX\n#else\nY\n#endif", "X\n");
+    assert_text!("#if defined(\t\\\n\tA\t\\\n\t)\nX\n#else\nY\n#endif", "Y\n");
+    assert_text!("#if defined\tA\nX\n#else\nY\n#endif", "Y\n");
+    assert_text!("#if defined \\\nA\nX\n#else\nY\n#endif", "Y\n");
+    assert_text!("#if defined\\\nA\nX\n#else\nY\n#endif", "Y\n");
+    assert_text!("#if defined/**/A\nX\n#else\nY\n#endif", "Y\n");
     assert_text!("#define A 1\n#if defined(A)\nX\n#else\nY\n#endif", "X\n");
     assert_text!("#define A 1\n#if !defined(A)\nX\n#else\nY\n#endif", "Y\n");
     assert_text!("#define A 0\n#if defined(A)\nX\n#else\nY\n#endif", "X\n");
