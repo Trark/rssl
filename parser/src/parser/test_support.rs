@@ -69,12 +69,14 @@ fn lex_from_str(source: &str) -> (Vec<LexToken>, SourceManager) {
     let mut source_manager = SourceManager::new();
 
     // Preprocess the text
-    let tokens = rssl_preprocess::preprocess_fragment(
+    let tokens = match rssl_preprocess::preprocess_fragment(
         source,
         FileName("parser_test.rssl".to_string()),
         &mut source_manager,
-    )
-    .expect("preprocess failed");
+    ) {
+        Ok(tokens) => tokens,
+        Err(err) => panic!("{}", err.display(&source_manager)),
+    };
 
     let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
