@@ -5,11 +5,6 @@ use super::*;
 pub struct ParseError(pub ParseErrorReason, pub Option<Vec<LexToken>>);
 
 impl ParseError {
-    /// Get formatter to print the error
-    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> ParserErrorPrinter<'a> {
-        ParserErrorPrinter(self, source_manager)
-    }
-
     /// Make an error for when there were unused tokens after parsing
     pub fn from_tokens_remaining(remaining: &[LexToken]) -> Self {
         ParseError(ParseErrorReason::TokensUnconsumed, Some(remaining.to_vec()))
@@ -35,15 +30,10 @@ impl std::fmt::Debug for ParseError {
     }
 }
 
-/// Prints parser errors
-pub struct ParserErrorPrinter<'a>(&'a ParseError, &'a SourceManager);
-
-impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let ParserErrorPrinter(err, source_manager) = self;
-
+impl CompileError for ParseError {
+    fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
         // Find the failing location
-        let loc = match &err.1 {
+        let loc = match &self.1 {
             Some(tokens) => match tokens.as_slice() {
                 [LexToken(_, loc), ..] => *loc,
                 _ => SourceLocation::UNKNOWN,
@@ -51,34 +41,13 @@ impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
             _ => SourceLocation::UNKNOWN,
         };
 
-        // Shared error message printing logic
-        let mut write_message = |write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
-                                 loc: SourceLocation| {
-            if loc != SourceLocation::UNKNOWN {
-                // Get file location info
-                let file_location = source_manager.get_file_location(loc);
-
-                // Print basic failure reason
-                write!(f, "{}: error: ", file_location)?;
-                write(f)?;
-                writeln!(f)?;
-
-                // Print source that caused the error
-                source_manager.write_source_for_error(f, Some(loc))
-            } else {
-                // Print basic failure reason
-                write!(f, "error: ")?;
-                write(f)?;
-                writeln!(f)
-            }
-        };
-
-        match &err.0 {
-            ParseErrorReason::InvalidSlotType(slot_string) => write_message(
+        match &self.0 {
+            ParseErrorReason::InvalidSlotType(slot_string) => w.write_message(
                 &|f| write!(f, "register type is not supported in '{}'", slot_string),
                 loc,
+                Severity::Error,
             ),
-            ParseErrorReason::InvalidSlotIndex(slot_string) => write_message(
+            ParseErrorReason::InvalidSlotIndex(slot_string) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -87,8 +56,13 @@ impl<'a> std::fmt::Display for ParserErrorPrinter<'a> {
                     )
                 },
                 loc,
+                Severity::Error,
             ),
-            _ => write_message(&|f| write!(f, "failed to parse source"), loc),
+            _ => w.write_message(
+                &|f| write!(f, "failed to parse source"),
+                loc,
+                Severity::Error,
+            ),
         }
     }
 }

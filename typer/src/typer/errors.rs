@@ -134,67 +134,24 @@ impl ToErrorType for ir::ExpressionType {
     }
 }
 
-impl TyperExternalError {
-    /// Get formatter to print the error
-    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> TyperErrorPrinter<'a> {
-        TyperErrorPrinter(self, source_manager)
-    }
-}
-
-/// Prints typer errors
-pub struct TyperErrorPrinter<'a>(&'a TyperExternalError, &'a SourceManager);
-
-enum Severity {
-    Error,
-    Note,
-}
-
-impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let TyperErrorPrinter(TyperExternalError(err, context), source_manager) = self;
-
-        // Shared error message printing logic
-        let mut write_message = |write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
-                                 loc: SourceLocation,
-                                 sev: Severity| {
-            let sev_str = match sev {
-                Severity::Error => "error",
-                Severity::Note => "note",
-            };
-            if loc != SourceLocation::UNKNOWN {
-                // Get file location info
-                let file_location = source_manager.get_file_location(loc);
-
-                // Print basic failure reason
-                write!(f, "{}: {}: ", file_location, sev_str)?;
-                write(f)?;
-                writeln!(f)?;
-
-                // Print source that caused the error
-                source_manager.write_source_for_error(f, Some(loc))
-            } else {
-                // Print basic failure reason
-                write!(f, "{}: ", sev_str)?;
-                write(f)?;
-                writeln!(f)
-            }
-        };
-
-        match err {
-            TyperError::ValueAlreadyDefined(name, _, _) => write_message(
+impl CompileError for TyperExternalError {
+    fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
+        let context = &self.1;
+        match &self.0 {
+            TyperError::ValueAlreadyDefined(name, _, _) => w.write_message(
                 &|f| write!(f, "redefinition of '{}'", name.node),
                 name.location,
                 Severity::Error,
             ),
             TyperError::StructAlreadyDefined(name, previous_type) => {
-                write_message(
+                w.write_message(
                     &|f| write!(f, "redefinition of '{}'", name.node),
                     name.location,
                     Severity::Error,
                 )?;
                 let previous_location = context.module.get_type_location(*previous_type);
                 if previous_location != SourceLocation::UNKNOWN {
-                    write_message(
+                    w.write_message(
                         &|f| write!(f, "previous definition is here"),
                         previous_location,
                         Severity::Note,
@@ -203,24 +160,24 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 Ok(())
             }
             TyperError::ConstantBufferAlreadyDefined(name, previous_id) => {
-                write_message(
+                w.write_message(
                     &|f| write!(f, "redefinition of '{}'", name.node),
                     name.location,
                     Severity::Error,
                 )?;
-                write_message(
+                w.write_message(
                     &|f| write!(f, "previous definition is here"),
                     context.module.get_cbuffer_location(*previous_id),
                     Severity::Note,
                 )
             }
             TyperError::TemplateTypeAlreadyDefined(name, previous_id) => {
-                write_message(
+                w.write_message(
                     &|f| write!(f, "redefinition of '{}'", name.node),
                     name.location,
                     Severity::Error,
                 )?;
-                write_message(
+                w.write_message(
                     &|f| {
                         write!(
                             f,
@@ -232,22 +189,22 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                     Severity::Note,
                 )
             }
-            TyperError::UnknownIdentifier(name) => write_message(
+            TyperError::UnknownIdentifier(name) => w.write_message(
                 &|f| write!(f, "'{}' was not declared in this scope", name),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::UnknownType(et) => write_message(
+            TyperError::UnknownType(et) => w.write_message(
                 &|f| write!(f, "unknown type name: {:?}", et),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::TypeDoesNotHaveMembers(_) => write_message(
+            TyperError::TypeDoesNotHaveMembers(_) => w.write_message(
                 &|f| write!(f, "unknown member (type has no members)"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::MemberDoesNotExist(ty, name) => write_message(
+            TyperError::MemberDoesNotExist(ty, name) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -259,7 +216,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::InvalidSwizzle(ty, swizzle) => write_message(
+            TyperError::InvalidSwizzle(ty, swizzle) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -271,7 +228,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::MemberIsForDifferentType(sampled_ty, found_tyl, path) => write_message(
+            TyperError::MemberIsForDifferentType(sampled_ty, found_tyl, path) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -284,7 +241,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::IdentifierIsNotAMember(ty, path) => write_message(
+            TyperError::IdentifierIsNotAMember(ty, path) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -296,22 +253,22 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ArrayIndexingNonArrayType => write_message(
+            TyperError::ArrayIndexingNonArrayType => w.write_message(
                 &|f| write!(f, "array index applied to non-array type"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ArraySubscriptIndexNotInteger => write_message(
+            TyperError::ArraySubscriptIndexNotInteger => w.write_message(
                 &|f| write!(f, "array subscripts must be integers"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::CallOnNonFunction => write_message(
+            TyperError::CallOnNonFunction => w.write_message(
                 &|f| write!(f, "function call applied to non-function type"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::FunctionPassedToAnotherFunction(_, _) => write_message(
+            TyperError::FunctionPassedToAnotherFunction(_, _) => w.write_message(
                 &|f| write!(f, "functions can not be passed to other functions"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
@@ -323,7 +280,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 ambiguous_success,
             ) => {
                 let func_name = context.module.get_function_name(overloads[0]);
-                write_message(
+                w.write_message(
                     &|f| {
                         if *ambiguous_success {
                             write!(f, "ambiguous call to {}(", func_name)?;
@@ -347,7 +304,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                         .module
                         .function_registry
                         .get_function_signature(*overload);
-                    write_message(
+                    w.write_message(
                         &|f| {
                             write!(
                                 f,
@@ -375,42 +332,42 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 }
                 Ok(())
             }
-            TyperError::ConstructorWrongArgumentCount(loc) => write_message(
+            TyperError::ConstructorWrongArgumentCount(loc) => w.write_message(
                 &|f| write!(f, "wrong number of arguments to constructor"),
                 *loc,
                 Severity::Error,
             ),
-            TyperError::UnaryOperationWrongTypes(_, _) => write_message(
+            TyperError::UnaryOperationWrongTypes(_, _) => w.write_message(
                 &|f| write!(f, "operation does not support the given types"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::BinaryOperationWrongTypes(_, _, _) => write_message(
+            TyperError::BinaryOperationWrongTypes(_, _, _) => w.write_message(
                 &|f| write!(f, "operation does not support the given types"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::BinaryOperationNonNumericType => write_message(
+            TyperError::BinaryOperationNonNumericType => w.write_message(
                 &|f| write!(f, "non-numeric type in binary operation"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::TernaryConditionRequiresBoolean(_) => write_message(
+            TyperError::TernaryConditionRequiresBoolean(_) => w.write_message(
                 &|f| write!(f, "ternary condition must be boolean"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::TernaryArmsMustHaveSameType(_, _) => write_message(
+            TyperError::TernaryArmsMustHaveSameType(_, _) => w.write_message(
                 &|f| write!(f, "ternary arms must have the same type"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::InvalidCast(_, _) => write_message(
+            TyperError::InvalidCast(_, _) => w.write_message(
                 &|f| write!(f, "invalid cast"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::InitializerExpressionWrongType(actual, expected, loc) => write_message(
+            TyperError::InitializerExpressionWrongType(actual, expected, loc) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -422,22 +379,22 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::InitializerAggregateDoesNotMatchType => write_message(
+            TyperError::InitializerAggregateDoesNotMatchType => w.write_message(
                 &|f| write!(f, "initializer does not match type"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::InitializerAggregateWrongDimension => write_message(
+            TyperError::InitializerAggregateWrongDimension => w.write_message(
                 &|f| write!(f, "initializer has incorrect number of elements"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::WrongTypeInConstructor => write_message(
+            TyperError::WrongTypeInConstructor => w.write_message(
                 &|f| write!(f, "wrong type in numeric constructor"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::WrongTypeInReturnStatement(actual, expected) => write_message(
+            TyperError::WrongTypeInReturnStatement(actual, expected) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -448,67 +405,67 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::FunctionNotCalled => write_message(
+            TyperError::FunctionNotCalled => w.write_message(
                 &|f| write!(f, "function not called"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::MutableRequired => write_message(
+            TyperError::MutableRequired => w.write_message(
                 &|f| write!(f, "non-const is required in this context"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::LvalueRequired => write_message(
+            TyperError::LvalueRequired => w.write_message(
                 &|f| write!(f, "lvalue is required in this context"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ArrayDimensionsMustBeConstantExpression(_) => write_message(
+            TyperError::ArrayDimensionsMustBeConstantExpression(_) => w.write_message(
                 &|f| write!(f, "array dimensions must be constant"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ArrayDimensionNotSpecified => write_message(
+            TyperError::ArrayDimensionNotSpecified => w.write_message(
                 &|f| write!(f, "array not given any dimensions"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ConstantDoesNotExist(_, name) => write_message(
+            TyperError::ConstantDoesNotExist(_, name) => w.write_message(
                 &|f| write!(f, "constant buffer does not contain member '{}'", name),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::StructMemberDoesNotExist(_, name) => write_message(
+            TyperError::StructMemberDoesNotExist(_, name) => w.write_message(
                 &|f| write!(f, "struct does not contain member '{}'", name),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ExpectedExpressionReceivedType(name, _) => write_message(
+            TyperError::ExpectedExpressionReceivedType(name, _) => w.write_message(
                 &|f| write!(f, "identifier '{}' is not expected to be a type", name),
                 name.get_location(),
                 Severity::Error,
             ),
-            TyperError::ExpectedTypeReceivedExpression(name) => write_message(
+            TyperError::ExpectedTypeReceivedExpression(name) => w.write_message(
                 &|f| write!(f, "identifier '{}' is expected to be a type", name),
                 name.get_location(),
                 Severity::Error,
             ),
-            TyperError::InvalidTypeForSwizzle(_) => write_message(
+            TyperError::InvalidTypeForSwizzle(_) => w.write_message(
                 &|f| write!(f, "invalid use of swizzle operation"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::MemberNodeMustBeUsedOnStruct(_, name) => write_message(
+            TyperError::MemberNodeMustBeUsedOnStruct(_, name) => w.write_message(
                 &|f| write!(f, "non-aggregate type can not contain member '{}'", name),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ArrayIndexMustBeUsedOnArrayType(_) => write_message(
+            TyperError::ArrayIndexMustBeUsedOnArrayType(_) => w.write_message(
                 &|f| write!(f, "non-indexable type can not be indexed"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ExpressionIsNotConstantExpression(loc) => write_message(
+            TyperError::ExpressionIsNotConstantExpression(loc) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -518,7 +475,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::VariableHasIncompleteType(ty, loc) => write_message(
+            TyperError::VariableHasIncompleteType(ty, loc) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -529,12 +486,12 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::StructMemberMayNotBeConst(loc) => write_message(
+            TyperError::StructMemberMayNotBeConst(loc) => w.write_message(
                 &|f| write!(f, "struct member was declared const"),
                 *loc,
                 Severity::Error,
             ),
-            TyperError::InvalidRegisterType(used, expected, loc) => write_message(
+            TyperError::InvalidRegisterType(used, expected, loc) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -545,7 +502,7 @@ impl<'a> std::fmt::Display for TyperErrorPrinter<'a> {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::InvalidRegisterAnnotation(ty, loc) => write_message(
+            TyperError::InvalidRegisterAnnotation(ty, loc) => w.write_message(
                 &|f| {
                     write!(
                         f,

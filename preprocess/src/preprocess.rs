@@ -27,107 +27,93 @@ pub enum PreprocessError {
     PragmaOnceInUnknownFile,
 }
 
-impl PreprocessError {
-    /// Get formatter to print the error
-    pub fn display<'a>(&'a self, source_manager: &'a SourceManager) -> PreprocessErrorPrinter<'a> {
-        PreprocessErrorPrinter(self, source_manager)
-    }
-}
-
-/// Prints preprocessor errors
-pub struct PreprocessErrorPrinter<'a>(&'a PreprocessError, &'a SourceManager);
-
-impl<'a> std::fmt::Display for PreprocessErrorPrinter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let PreprocessErrorPrinter(err, source_manager) = self;
-
-        // Shared error message printing logic
-        let mut write_message = |write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
-                                 loc: SourceLocation| {
-            if loc != SourceLocation::UNKNOWN {
-                // Get file location info
-                let file_location = source_manager.get_file_location(loc);
-
-                // Print basic failure reason
-                write!(f, "{}: error: ", file_location)?;
-                write(f)?;
-                writeln!(f)?;
-
-                // Print source that caused the error
-                source_manager.write_source_for_error(f, Some(loc))
-            } else {
-                // Print basic failure reason
-                write!(f, "error: ")?;
-                write(f)?;
-                writeln!(f)
-            }
-        };
-
-        match err {
-            PreprocessError::LexerError(err) => {
-                write_message(&|f| write!(f, "{}", err.reason), err.location)
-            }
-            PreprocessError::UnknownCommand(loc) => {
-                write_message(&|f| write!(f, "unknown preprocessing directive"), *loc)
-            }
+impl CompileError for PreprocessError {
+    fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
+        match self {
+            PreprocessError::LexerError(err) => w.write_message(
+                &|f| write!(f, "{}", err.reason),
+                err.location,
+                Severity::Error,
+            ),
+            PreprocessError::UnknownCommand(loc) => w.write_message(
+                &|f| write!(f, "unknown preprocessing directive"),
+                *loc,
+                Severity::Error,
+            ),
             PreprocessError::UnknownPragma(loc) => {
-                write_message(&|f| write!(f, "unknown pragma"), *loc)
+                w.write_message(&|f| write!(f, "unknown pragma"), *loc, Severity::Error)
             }
-            PreprocessError::InvalidInclude(loc) => {
-                write_message(&|f| write!(f, "invalid #include command"), *loc)
-            }
-            PreprocessError::InvalidDefine(loc) => {
-                write_message(&|f| write!(f, "invalid #define command"), *loc)
-            }
-            PreprocessError::MacroAlreadyDefined(s) => write_message(
+            PreprocessError::InvalidInclude(loc) => w.write_message(
+                &|f| write!(f, "invalid #include command"),
+                *loc,
+                Severity::Error,
+            ),
+            PreprocessError::InvalidDefine(loc) => w.write_message(
+                &|f| write!(f, "invalid #define command"),
+                *loc,
+                Severity::Error,
+            ),
+            PreprocessError::MacroAlreadyDefined(s) => w.write_message(
                 &|f| write!(f, "macro '{}' already defined", s),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::MacroRequiresArguments(s) => write_message(
+            PreprocessError::MacroRequiresArguments(s) => w.write_message(
                 &|f| write!(f, "macro function '{}' requires arguments", s),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::MacroArgumentsNeverEnd => write_message(
+            PreprocessError::MacroArgumentsNeverEnd => w.write_message(
                 &|f| write!(f, "expected end of macro arguments"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::MacroExpectsDifferentNumberOfArguments => write_message(
+            PreprocessError::MacroExpectsDifferentNumberOfArguments => w.write_message(
                 &|f| write!(f, "macro requires different number of arguments"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::FailedToFindFile(loc, name, _) => {
-                write_message(&|f| write!(f, "failed to load file: '{}'", name), *loc)
-            }
-            PreprocessError::FailedToParseIfCondition(loc) => {
-                write_message(&|f| write!(f, "#if condition parser failed"), *loc)
-            }
+            PreprocessError::FailedToFindFile(loc, name, _) => w.write_message(
+                &|f| write!(f, "failed to load file: '{}'", name),
+                *loc,
+                Severity::Error,
+            ),
+            PreprocessError::FailedToParseIfCondition(loc) => w.write_message(
+                &|f| write!(f, "#if condition parser failed"),
+                *loc,
+                Severity::Error,
+            ),
             PreprocessError::InvalidIfdef(loc) => {
-                write_message(&|f| write!(f, "invalid #ifdef"), *loc)
+                w.write_message(&|f| write!(f, "invalid #ifdef"), *loc, Severity::Error)
             }
             PreprocessError::InvalidIfndef(loc) => {
-                write_message(&|f| write!(f, "invalid #ifndef"), *loc)
+                w.write_message(&|f| write!(f, "invalid #ifndef"), *loc, Severity::Error)
             }
             PreprocessError::InvalidElse(loc) => {
-                write_message(&|f| write!(f, "invalid #else"), *loc)
+                w.write_message(&|f| write!(f, "invalid #else"), *loc, Severity::Error)
             }
             PreprocessError::InvalidEndIf(loc) => {
-                write_message(&|f| write!(f, "invalid #endif"), *loc)
+                w.write_message(&|f| write!(f, "invalid #endif"), *loc, Severity::Error)
             }
-            PreprocessError::ConditionChainNotFinished => write_message(
+            PreprocessError::ConditionChainNotFinished => w.write_message(
                 &|f| write!(f, "not enough #endif's encountered"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::ElseNotMatched => write_message(
+            PreprocessError::ElseNotMatched => w.write_message(
                 &|f| write!(f, "encountered #else but with no matching #if"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::EndIfNotMatched => write_message(
+            PreprocessError::EndIfNotMatched => w.write_message(
                 &|f| write!(f, "rncountered #endif but with no matching #if"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
-            PreprocessError::PragmaOnceInUnknownFile => write_message(
+            PreprocessError::PragmaOnceInUnknownFile => w.write_message(
                 &|f| write!(f, "encountered #pragma once in an unknown file"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
             ),
         }
     }
