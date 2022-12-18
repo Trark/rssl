@@ -947,7 +947,7 @@ fn symbol_equals(input: &[u8]) -> LexResult<Token> {
 
 /// Parse a # or ## token
 fn symbol_hash(input: &[u8]) -> LexResult<Token> {
-    symbol_op_or_op_equals(b'#', Token::Hash, Token::Eof, Token::Concat)(input)
+    symbol_op_or_op_equals(b'#', Token::Hash, Token::Eof, Token::HashHash)(input)
 }
 
 /// Parse a : or :: token
@@ -1372,8 +1372,8 @@ fn test_token() {
 
     assert_token!("#", Token::Hash);
     assert_token!("# ", Token::Hash, 1);
-    assert_token!("##", Token::Concat);
-    assert_token!("## ", Token::Concat, 2);
+    assert_token!("##", Token::HashHash);
+    assert_token!("## ", Token::HashHash, 2);
 
     assert_token!("@", Token::At);
 
