@@ -243,7 +243,8 @@ impl Macro {
         let mut params = Vec::new();
         {
             let mut param_tokens = param_tokens;
-            while !param_tokens.is_empty() {
+            let mut last = false;
+            while !last {
                 let next_param =
                     if let Some(pos) = param_tokens.iter().position(|t| t.0 == Token::Comma) {
                         let param = &param_tokens[..pos];
@@ -252,6 +253,7 @@ impl Macro {
                     } else {
                         let param = param_tokens;
                         param_tokens = &[][..];
+                        last = true;
                         param
                     };
 
@@ -261,7 +263,7 @@ impl Macro {
                 // But a macro with zero arguments will have one empty item processed
                 if let [PreprocessToken(Token::Id(id), _)] = next_param {
                     params.push(id.0.clone());
-                } else if !(params.is_empty() && param_tokens.is_empty()) {
+                } else if !(params.is_empty() && next_param.is_empty() && last) {
                     return Err(PreprocessError::InvalidDefine(location));
                 }
             }

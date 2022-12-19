@@ -68,8 +68,13 @@ fn test_define() {
 
 #[test]
 fn test_macro_function() {
+    // Single argument macro and invocation
     assert_text!("#define X(a) a\nX(2)", "2\n");
+
+    // Double argument macro and invocation
     assert_text!("#define X(a,b) a+b\nX(2,3)", "2+3\n");
+
+    // Macros can use their own name as one of their parameters - not that anyone should do this
     assert_text!("#define X(X,b) X+b\nX(2,3)", "2+3\n");
 
     // Test invoking a macro with values inside parenthesis
@@ -80,6 +85,36 @@ fn test_macro_function() {
         "#define X(a,ab,ba,b) a ab a ba b ab a\nX(0,1,2,3)",
         "0 1 0 2 3 1 0\n"
     );
+
+    // Macro parameter lists should be comma separated identifiers
+    assert_err!(
+        "#define X(a b)\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+
+    // Macro parameter lists should not be non-identifiers
+    assert_err!(
+        "#define X(&)\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+
+    // Macro parameter lists should not have empty elements
+    assert_err!(
+        "#define X(,a)\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+    assert_err!(
+        "#define X( ,a)\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+    assert_err!(
+        "#define X(a,)\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+    assert_err!(
+        "#define X(a, )\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
 }
 
 #[test]
@@ -89,6 +124,17 @@ fn test_macro_function_no_args() {
     assert_text!("#define X() A\nX", "X\n");
     assert_text!("#define X() A\nX ()", "A\n");
     assert_text!("#define X() A\nX ( )", "A\n");
+    assert_text!("#define X( ) A\nX ( )", "A\n");
+
+    assert_err!(
+        "#define X(,) A\nX ( )",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+
+    assert_err!(
+        "#define  X(\t,\t) A\nX ( )",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(9))
+    );
 }
 
 #[test]
