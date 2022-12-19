@@ -315,7 +315,7 @@ impl Macro {
             .collect::<Vec<_>>();
 
         // Apply other defines into the segment of the body
-        tokens = apply_macros(&tokens, macros, false, source_manager)?;
+        tokens = apply_macros(&tokens, macros, false, false, source_manager)?;
 
         let def = Macro {
             name,
@@ -440,6 +440,7 @@ fn split_macro_args<'stream>(
 fn apply_user_macros<'t>(
     text: &'t [PreprocessToken],
     macro_defs: &[Macro],
+    apply_concat: bool,
     output: &mut Vec<PreprocessToken>,
     source_manager: &mut SourceManager,
 ) -> Result<&'t [PreprocessToken], PreprocessError> {
@@ -501,7 +502,7 @@ fn apply_user_macros<'t>(
         // Substitute macros inside macro arguments
         let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
             let mut vec = vec?;
-            let subbed_text = apply_macros(arg, macro_defs, false, source_manager)?;
+            let subbed_text = apply_macros(arg, macro_defs, false, true, source_manager)?;
             vec.push(subbed_text);
             Ok(vec)
         })?;
@@ -523,50 +524,54 @@ fn apply_user_macros<'t>(
 
         // Apply ## operations and output
         let mut remaining_preconcat = preconcat_body.as_slice();
-        while !remaining_preconcat.is_empty() {
-            let concat_result = split_concat(remaining_preconcat)?;
-            if let Some((before, left_token, right_token)) = concat_result.0 {
-                // Emit all tokens before the ## operation
-                output.extend_from_slice(before);
+        if apply_concat {
+            while !remaining_preconcat.is_empty() {
+                let concat_result = split_concat(remaining_preconcat)?;
+                if let Some((before, left_token, right_token)) = concat_result.0 {
+                    // Emit all tokens before the ## operation
+                    output.extend_from_slice(before);
 
-                // Emit original strings from the tokens
-                let left_string = unlex(std::slice::from_ref(left_token), source_manager);
-                let right_string = unlex(std::slice::from_ref(right_token), source_manager);
+                    // Emit original strings from the tokens
+                    let left_string = unlex(std::slice::from_ref(left_token), source_manager);
+                    let right_string = unlex(std::slice::from_ref(right_token), source_manager);
 
-                // Combine the strings
-                let new_fragment = format!("{}{}", left_string, right_string);
+                    // Combine the strings
+                    let new_fragment = format!("{}{}", left_string, right_string);
 
-                // Register the combined string as a file
-                let file_id =
-                    source_manager.add_file(FileName("<scratch space>".to_string()), new_fragment);
-                let source_location =
-                    source_manager.get_source_location_from_file_offset(file_id, StreamLocation(0));
+                    // Register the combined string as a file
+                    let file_id = source_manager
+                        .add_file(FileName("<scratch space>".to_string()), new_fragment);
+                    let source_location = source_manager
+                        .get_source_location_from_file_offset(file_id, StreamLocation(0));
 
-                // String is now owned by the source manager - fetch a reference to it
-                let new_fragment = source_manager.get_contents(file_id);
+                    // String is now owned by the source manager - fetch a reference to it
+                    let new_fragment = source_manager.get_contents(file_id);
 
-                // Lex the new combined string file
-                let merged_token = match crate::lexer::lex(new_fragment, source_location) {
-                    Ok(tokens) => tokens,
-                    Err(_) => return Err(PreprocessError::ConcatFailed(source_location)),
-                };
+                    // Lex the new combined string file
+                    let merged_token = match crate::lexer::lex(new_fragment, source_location) {
+                        Ok(tokens) => tokens,
+                        Err(_) => return Err(PreprocessError::ConcatFailed(source_location)),
+                    };
 
-                // We expect a single token result with a new line marker after it
-                if let [token, PreprocessToken(Token::Endline, _)] = merged_token.as_slice() {
-                    // Insert the new combined token into the output stream
-                    output.push(token.clone());
+                    // We expect a single token result with a new line marker after it
+                    if let [token, PreprocessToken(Token::Endline, _)] = merged_token.as_slice() {
+                        // Insert the new combined token into the output stream
+                        output.push(token.clone());
+                    } else {
+                        return Err(PreprocessError::ConcatFailed(source_location));
+                    }
+
+                    // Set remaining tokens to all tokens after the right token
+                    remaining_preconcat = concat_result.1;
                 } else {
-                    return Err(PreprocessError::ConcatFailed(source_location));
+                    // No more ## - emit all the tokens to the output
+                    output.extend_from_slice(remaining_preconcat);
+                    remaining_preconcat = &[];
                 }
-
-                // Set remaining tokens to all tokens after the right token
-                remaining_preconcat = concat_result.1;
-            } else {
-                // No more ## - emit all the tokens to the output
-                output.extend_from_slice(remaining_preconcat);
-                remaining_preconcat = &[];
             }
-        }
+        } else {
+            output.extend_from_slice(remaining_preconcat);
+        };
 
         // Return everything after the macro so it can be processed next
         // Avoid recursion here as we can process large blocks of text with many macros
@@ -717,6 +722,7 @@ fn apply_macros(
     tokens: &[PreprocessToken],
     macro_defs: &[Macro],
     apply_defined: bool,
+    apply_concat: bool,
     source_manager: &mut SourceManager,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     // Apply defined() first
@@ -732,7 +738,13 @@ fn apply_macros(
     let mut next_tokens = Vec::with_capacity(tokens.len());
     let mut remaining = tokens;
     while !remaining.is_empty() {
-        remaining = apply_user_macros(remaining, macro_defs, &mut next_tokens, source_manager)?;
+        remaining = apply_user_macros(
+            remaining,
+            macro_defs,
+            apply_concat,
+            &mut next_tokens,
+            source_manager,
+        )?;
     }
     Ok(next_tokens)
 }
@@ -877,7 +889,7 @@ fn macro_resolve() {
         expected_tokens: &[PreprocessToken],
         source_manager: &mut SourceManager,
     ) {
-        let resolved_tokens = apply_macros(input, macros, false, source_manager).unwrap();
+        let resolved_tokens = apply_macros(input, macros, false, true, source_manager).unwrap();
         assert_eq!(resolved_tokens, expected_tokens);
 
         let output_str = unlex(&resolved_tokens, source_manager);
@@ -1124,7 +1136,7 @@ fn preprocess_command(
                 return Ok(());
             }
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command, macros, true, file_loader.source_manager)?;
+            let resolved = apply_macros(command, macros, true, true, file_loader.source_manager)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.push(if active {
                 ConditionState::Enabled
@@ -1136,7 +1148,7 @@ fn preprocess_command(
         }
         "elif" => {
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command, macros, true, file_loader.source_manager)?;
+            let resolved = apply_macros(command, macros, true, true, file_loader.source_manager)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.switch(active)?;
 
@@ -1278,8 +1290,13 @@ fn preprocess_included_file(
             }
             RegionType::Normal(sz) => {
                 if condition_chain.is_active() {
-                    let next_tokens =
-                        apply_macros(&stream[..sz], macros, false, file_loader.source_manager)?;
+                    let next_tokens = apply_macros(
+                        &stream[..sz],
+                        macros,
+                        false,
+                        true,
+                        file_loader.source_manager,
+                    )?;
                     buffer.extend(next_tokens);
                 }
                 assert_ne!(sz, 0);

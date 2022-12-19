@@ -400,4 +400,10 @@ fn test_concat() {
 
     // ## in the arguments should not apply
     assert_text!("#define M(a, b, c) a b c\nM(0, ##, 1)", "0 ## 1\n");
+
+    // ## in recursive macro calls only applies at the end
+    assert_text!(
+        "#define M1(a, b) a ## b\n#define M2(a, b) M1(a, b)\nM2(c, d)",
+        "cd\n"
+    );
 }
