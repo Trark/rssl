@@ -51,7 +51,7 @@ impl<'s, 'f> MessagePrinter<'s, 'f> {
 
 /// Extension trait for [CompileError]
 pub trait CompileErrorExt {
-    /// Return a type that can be used with [Display]
+    /// Return a type that can be used with [Display][std::fmt::Display]
     fn display<'p>(&'p self, source_manager: &'p SourceManager) -> CompileErrorPrinter<'p>;
 }
 
