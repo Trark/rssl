@@ -226,7 +226,7 @@ fn expr_p1<'t>(
                     input = rest;
                     rights.push(right);
                 }
-                Err(ParseErrorContext(rest, _)) if rest == input => {
+                Err(ParseErrorContext(rest, _)) if rest.len() == input.len() => {
                     break;
                 }
                 Err(err) => return Err(err),

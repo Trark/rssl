@@ -76,7 +76,7 @@ fn parse_list_base<'t, T, G>(
                         }
                         // If we failed to parse the element then finish
                         // We finish before the last separator so trailing separators are not captured
-                        Err(ParseErrorContext(rest, _)) if rest == after_sep => break,
+                        Err(ParseErrorContext(rest, _)) if rest.len() == after_sep.len() => break,
                         // If we failed to parse but made progress into parsing then fail
                         Err(err) => return Err(err),
                     }
@@ -85,7 +85,7 @@ fn parse_list_base<'t, T, G>(
                 Ok((input, values))
             }
             // If we failed to parse the first element at all then return an empty list
-            Err(ParseErrorContext(rest, _)) if allow_empty && rest == input => {
+            Err(ParseErrorContext(rest, _)) if allow_empty && rest.len() == input.len() => {
                 Ok((input, Vec::new()))
             }
             // If we failed to parse the first element but made progress in parsing it then fail
@@ -126,7 +126,7 @@ fn parse_optional<'t, T>(
             // If we succeeded then return the element
             Ok((rest, element)) => Ok((rest, Some(element))),
             // If we failed to parse the element at all then return nothing
-            Err(ParseErrorContext(rest, _)) if rest == input => Ok((input, None)),
+            Err(ParseErrorContext(rest, _)) if rest.len() == input.len() => Ok((input, None)),
             // If we failed to parse the element but made progress in parsing it then fail
             Err(err) => Err(err),
         }
