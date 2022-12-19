@@ -286,9 +286,7 @@ impl Macro {
             .collect::<Vec<_>>();
 
         // Apply other defines into the segment of the body
-        tokens = SubstitutedText::new(&tokens)
-            .apply_all(macros, false)?
-            .resolve();
+        tokens = apply_macros(tokens, macros, false)?;
 
         let def = Macro {
             name,
@@ -300,12 +298,6 @@ impl Macro {
 
         Ok(def)
     }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-enum SubstitutedSegment {
-    Text(Vec<PreprocessToken>),
-    Replaced(Vec<PreprocessToken>),
 }
 
 /// Remove whitespace and comments from the start of a token stream - but not endlines
@@ -416,275 +408,201 @@ fn split_macro_args<'stream>(
     Ok((remaining, args))
 }
 
-impl SubstitutedSegment {
-    fn apply(
-        self,
-        macro_defs: &[Macro],
-        output: &mut Vec<SubstitutedSegment>,
-    ) -> Result<Option<SubstitutedSegment>, PreprocessError> {
-        match self {
-            SubstitutedSegment::Text(text) => {
-                // Find the first macro that matches the text
-                // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
-                let mut best_match_opt: Option<(&Macro, usize)> = None;
-                let mut search_range = text.as_slice();
-                for macro_def in macro_defs {
-                    if let Some(pos) = find_macro(search_range, &macro_def.name) {
-                        // As we limit the search range we don't expect
-                        assert!(if let Some(best_match) = best_match_opt {
-                            pos < best_match.1
-                        } else {
-                            true
-                        });
+fn apply_user_macros(
+    text: &[PreprocessToken],
+    macro_defs: &[Macro],
+    output: &mut Vec<PreprocessToken>,
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
+    // Find the first macro that matches the text
+    // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
+    let mut best_match_opt: Option<(&Macro, usize)> = None;
+    let mut search_range = text;
+    for macro_def in macro_defs {
+        if let Some(pos) = find_macro(search_range, &macro_def.name) {
+            // As we limit the search range we don't expect
+            assert!(if let Some(best_match) = best_match_opt {
+                pos < best_match.1
+            } else {
+                true
+            });
 
-                        // Check we have the start of function parameters
-                        let mut valid_macro = true;
-                        if macro_def.is_function {
-                            valid_macro = false;
-                            if let [PreprocessToken(Token::LeftParen, _), ..] =
-                                trim_whitespace_start(&text[pos + 1..])
-                            {
-                                valid_macro = true;
-                            }
-                        }
-
-                        if valid_macro {
-                            best_match_opt = Some((macro_def, pos));
-                            // Limit search for future macros so we only get better matches
-                            search_range = &text[..pos];
-                        }
-                    }
-                }
-
-                if let Some((macro_def, sz)) = best_match_opt {
-                    let before = &text[..sz];
-                    let mut remaining = &text[sz + 1..];
-
-                    // Read macro arguments
-                    let args = if macro_def.is_function {
-                        let (rest, args) = split_macro_args(&macro_def.name, remaining)?;
-                        remaining = rest;
-
-                        if macro_def.num_params == 0 {
-                            if !(args.len() == 1 && args[0].is_empty()) {
-                                return Err(
-                                    PreprocessError::MacroExpectsDifferentNumberOfArguments,
-                                );
-                            }
-                        } else if args.len() as u64 != macro_def.num_params {
-                            return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                        }
-
-                        args
-                    } else {
-                        vec![]
-                    };
-                    let after = remaining;
-
-                    // Substitute macros inside macro arguments
-                    let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
-                        let mut vec = vec?;
-                        let raw_text = SubstitutedText::new(arg);
-                        let subbed_text = raw_text.apply_all(macro_defs, false)?;
-                        let final_text = subbed_text.resolve();
-                        vec.push(final_text);
-                        Ok(vec)
-                    })?;
-
-                    if !before.is_empty() {
-                        output.push(SubstitutedSegment::Text(before.to_vec()));
-                    }
-                    let mut replaced_tokens = Vec::with_capacity(macro_def.tokens.len());
-                    for token in &macro_def.tokens {
-                        if let Token::MacroArg(i) = token.0 {
-                            replaced_tokens.extend_from_slice(&args[i as usize])
-                        } else {
-                            replaced_tokens.push(token.clone());
-                        }
-                    }
-                    if !replaced_tokens.is_empty() {
-                        output.push(SubstitutedSegment::Replaced(replaced_tokens));
-                    }
-                    if !after.is_empty() {
-                        Ok(Some(SubstitutedSegment::Text(after.to_vec())))
-                    } else {
-                        Ok(None)
-                    }
-                } else {
-                    assert!(!text.is_empty());
-                    output.push(SubstitutedSegment::Text(text));
-                    Ok(None)
+            // Check we have the start of function parameters
+            let mut valid_macro = true;
+            if macro_def.is_function {
+                valid_macro = false;
+                if let [PreprocessToken(Token::LeftParen, _), ..] =
+                    trim_whitespace_start(&text[pos + 1..])
+                {
+                    valid_macro = true;
                 }
             }
-            SubstitutedSegment::Replaced(text) => {
-                output.push(SubstitutedSegment::Replaced(text));
-                Ok(None)
+
+            if valid_macro {
+                best_match_opt = Some((macro_def, pos));
+                // Limit search for future macros so we only get better matches
+                search_range = &text[..pos];
             }
         }
     }
 
-    fn apply_defined(
-        self,
-        macro_defs: &[Macro],
-        output: &mut Vec<SubstitutedSegment>,
-    ) -> Result<(), PreprocessError> {
-        let defined_name = "defined";
-        match self {
-            SubstitutedSegment::Text(text) => {
-                if let Some(sz) = find_macro(&text, defined_name) {
-                    let before = &text[..sz];
-                    let mut remaining = &text[sz + 1..];
+    if let Some((macro_def, sz)) = best_match_opt {
+        let before = &text[..sz];
+        let mut remaining = &text[sz + 1..];
 
-                    // Read argument
-                    let arg = {
-                        // Allow "defined A" instead of traditional defined(A)
-                        let remaining_trimmed = trim_whitespace_start(remaining);
-                        match remaining_trimmed {
-                            [PreprocessToken(arg @ Token::Id(_), _), rest @ ..]
-                                if remaining.len() != remaining_trimmed.len() =>
-                            {
-                                remaining = rest;
-                                arg
-                            }
-                            _ => {
-                                // Parse arguments like a normal macro called defined
-                                let (rest, args) = split_macro_args(defined_name, remaining)?;
-                                remaining = rest;
+        // Read macro arguments
+        let args = if macro_def.is_function {
+            let (rest, args) = split_macro_args(&macro_def.name, remaining)?;
+            remaining = rest;
 
-                                // Expect one argument
-                                if args.len() as u64 != 1 {
-                                    return Err(
-                                        PreprocessError::MacroExpectsDifferentNumberOfArguments,
-                                    );
-                                }
-
-                                // Expect a single name as the argument
-                                if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
-                                    arg
-                                } else {
-                                    return Err(
-                                        PreprocessError::MacroExpectsDifferentNumberOfArguments,
-                                    );
-                                }
-                            }
-                        }
-                    };
-
-                    // We are about to make a fake token for the result
-                    // This will take the start location from the start of the "defined" token
-                    let start_location = text[sz].get_location();
-
-                    // There must be at least one token after the "defined" - as it requires arguments
-                    // The end location will be at the end of the arguments
-                    let end_location = text[text.len() - remaining.len() - 1].get_end_location();
-
-                    // All the argument tokens should be from the same file as the defined command is executed immediatly in a preprocessor command
-                    // This means constructing the range between the start and end location should be contiguous
-                    let location_size = end_location.get_raw() - start_location.get_raw();
-
-                    let exists = macro_defs.iter().any(|m| {
-                        if let Token::Id(id) = arg {
-                            m.name == id.0
-                        } else {
-                            false
-                        }
-                    });
-
-                    let generated_token = if exists {
-                        Token::LiteralInt(1)
-                    } else {
-                        Token::LiteralInt(0)
-                    };
-
-                    if !before.is_empty() {
-                        output.push(SubstitutedSegment::Text(before.to_vec()));
-                    }
-                    output.push(SubstitutedSegment::Replaced(Vec::from([
-                        PreprocessToken::new(generated_token, start_location, 0, location_size),
-                    ])));
-                    if !remaining.is_empty() {
-                        SubstitutedSegment::Text(remaining.to_vec())
-                            .apply_defined(macro_defs, output)?;
-                    }
-                    return Ok(());
+            if macro_def.num_params == 0 {
+                if !(args.len() == 1 && args[0].is_empty()) {
+                    return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
                 }
-                assert!(!text.is_empty());
-                output.push(SubstitutedSegment::Text(text))
+            } else if args.len() as u64 != macro_def.num_params {
+                return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
             }
-            SubstitutedSegment::Replaced(text) => output.push(SubstitutedSegment::Replaced(text)),
+
+            args
+        } else {
+            vec![]
+        };
+        let after = remaining;
+
+        // Substitute macros inside macro arguments
+        let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
+            let mut vec = vec?;
+            let subbed_text = apply_macros(arg.to_vec(), macro_defs, false)?;
+            vec.push(subbed_text);
+            Ok(vec)
+        })?;
+
+        output.extend_from_slice(before);
+        for token in &macro_def.tokens {
+            if let Token::MacroArg(i) = token.0 {
+                output.extend_from_slice(&args[i as usize])
+            } else {
+                output.push(token.clone());
+            }
         }
+        Ok(after.to_vec())
+    } else {
+        output.extend_from_slice(text);
+        Ok(Vec::new())
+    }
+}
+
+fn apply_defined_macro(
+    text: &[PreprocessToken],
+    macro_defs: &[Macro],
+    output: &mut Vec<PreprocessToken>,
+) -> Result<(), PreprocessError> {
+    let defined_name = "defined";
+    if let Some(sz) = find_macro(text, defined_name) {
+        let before = &text[..sz];
+        let mut remaining = &text[sz + 1..];
+
+        // Read argument
+        let arg = {
+            // Allow "defined A" instead of traditional defined(A)
+            let remaining_trimmed = trim_whitespace_start(remaining);
+            match remaining_trimmed {
+                [PreprocessToken(arg @ Token::Id(_), _), rest @ ..]
+                    if remaining.len() != remaining_trimmed.len() =>
+                {
+                    remaining = rest;
+                    arg
+                }
+                _ => {
+                    // Parse arguments like a normal macro called defined
+                    let (rest, args) = split_macro_args(defined_name, remaining)?;
+                    remaining = rest;
+
+                    // Expect one argument
+                    if args.len() as u64 != 1 {
+                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                    }
+
+                    // Expect a single name as the argument
+                    if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
+                        arg
+                    } else {
+                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                    }
+                }
+            }
+        };
+
+        // We are about to make a fake token for the result
+        // This will take the start location from the start of the "defined" token
+        let start_location = text[sz].get_location();
+
+        // There must be at least one token after the "defined" - as it requires arguments
+        // The end location will be at the end of the arguments
+        let end_location = text[text.len() - remaining.len() - 1].get_end_location();
+
+        // All the argument tokens should be from the same file as the defined command is executed immediatly in a preprocessor command
+        // This means constructing the range between the start and end location should be contiguous
+        let location_size = end_location.get_raw() - start_location.get_raw();
+
+        let exists = macro_defs.iter().any(|m| {
+            if let Token::Id(id) = arg {
+                m.name == id.0
+            } else {
+                false
+            }
+        });
+
+        let generated_token = if exists {
+            Token::LiteralInt(1)
+        } else {
+            Token::LiteralInt(0)
+        };
+
+        output.extend_from_slice(before);
+        output.push(PreprocessToken::new(
+            generated_token,
+            start_location,
+            0,
+            location_size,
+        ));
+        if !remaining.is_empty() {
+            apply_defined_macro(remaining, macro_defs, output)?;
+        }
+        Ok(())
+    } else {
+        assert!(!text.is_empty());
+        output.extend_from_slice(text);
         Ok(())
     }
 }
 
-#[derive(Debug)]
-struct SubstitutedText(Vec<SubstitutedSegment>);
-
-impl SubstitutedText {
-    fn new(stream: &[PreprocessToken]) -> SubstitutedText {
-        if stream.is_empty() {
-            SubstitutedText(Vec::new())
-        } else {
-            SubstitutedText(vec![SubstitutedSegment::Text(stream.to_vec())])
-        }
+fn apply_macros(
+    tokens: Vec<PreprocessToken>,
+    macro_defs: &[Macro],
+    apply_defined: bool,
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
+    let mut last_tokens = tokens;
+    if apply_defined {
+        let mut next_tokens = Vec::with_capacity(last_tokens.len());
+        apply_defined_macro(&last_tokens, macro_defs, &mut next_tokens)?;
+        last_tokens = next_tokens;
     }
-
-    fn apply_all(
-        self,
-        macro_defs: &[Macro],
-        apply_defined: bool,
-    ) -> Result<SubstitutedText, PreprocessError> {
-        let length = self.0.len();
-        let segments_iter = self.0.into_iter();
-        let vec = segments_iter.fold(Ok(Vec::with_capacity(length)), |vec_res, segment| {
-            let mut vec = vec_res?;
-            let mut last_segments = vec![segment];
-            if apply_defined {
-                let mut next_segments = Vec::with_capacity(last_segments.len());
-                for substituted_segment in last_segments {
-                    substituted_segment.apply_defined(macro_defs, &mut next_segments)?;
-                }
-                last_segments = next_segments;
-            }
-            {
-                let mut next_segments = Vec::with_capacity(last_segments.len());
-                for substituted_segment in last_segments {
-                    let mut next_segment = Some(substituted_segment);
-                    while let Some(next) = next_segment {
-                        next_segment = next.apply(macro_defs, &mut next_segments)?;
-                    }
-                }
-                last_segments = next_segments;
-            }
-            vec.append(&mut last_segments);
-            Ok(vec)
-        });
-        Ok(SubstitutedText(vec?))
-    }
-
-    fn store(self, output: &mut Vec<PreprocessToken>) {
-        for substituted_segment in self.0 {
-            match substituted_segment {
-                SubstitutedSegment::Text(stream) | SubstitutedSegment::Replaced(stream) => {
-                    assert!(!stream.is_empty());
-                    output.extend(stream)
-                }
+    {
+        let mut next_tokens = Vec::with_capacity(last_tokens.len());
+        {
+            let mut next_segment = Some(last_tokens);
+            while let Some(next) = next_segment {
+                let recur_tokens = apply_user_macros(&next, macro_defs, &mut next_tokens)?;
+                next_segment = if recur_tokens.is_empty() {
+                    None
+                } else {
+                    Some(recur_tokens)
+                };
             }
         }
+        last_tokens = next_tokens;
     }
-
-    fn resolve(self) -> Vec<PreprocessToken> {
-        let mut output = Vec::new();
-        for substituted_segment in self.0 {
-            match substituted_segment {
-                SubstitutedSegment::Text(stream) | SubstitutedSegment::Replaced(stream) => {
-                    assert!(!stream.is_empty());
-                    output.extend(stream)
-                }
-            }
-        }
-        output
-    }
+    Ok(last_tokens)
 }
 
 #[test]
@@ -793,8 +711,7 @@ fn macro_resolve() {
         expected_tokens: &[PreprocessToken],
         source_manager: &SourceManager,
     ) {
-        let text = SubstitutedText::new(input);
-        let resolved_tokens = text.apply_all(macros, false).unwrap().resolve();
+        let resolved_tokens = apply_macros(input.to_vec(), macros, false).unwrap();
         assert_eq!(resolved_tokens, expected_tokens);
 
         let output_str = unlex(&resolved_tokens, source_manager);
@@ -1041,10 +958,7 @@ fn preprocess_command(
                 return Ok(());
             }
             let command = trim_whitespace(command);
-            let resolved = SubstitutedText::new(command)
-                .apply_all(macros, true)?
-                .resolve();
-
+            let resolved = apply_macros(command.to_vec(), macros, true)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.push(if active {
                 ConditionState::Enabled
@@ -1056,10 +970,7 @@ fn preprocess_command(
         }
         "elif" => {
             let command = trim_whitespace(command);
-            let resolved = SubstitutedText::new(command)
-                .apply_all(macros, true)?
-                .resolve();
-
+            let resolved = apply_macros(command.to_vec(), macros, true)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.switch(active)?;
 
@@ -1201,9 +1112,8 @@ fn preprocess_included_file(
             }
             RegionType::Normal(sz) => {
                 if condition_chain.is_active() {
-                    SubstitutedText::new(&stream[..sz])
-                        .apply_all(macros, false)?
-                        .store(buffer);
+                    let next_tokens = apply_macros(stream[..sz].to_vec(), macros, false)?;
+                    buffer.extend(next_tokens);
                 }
                 assert_ne!(sz, 0);
                 stream = &stream[sz..];
