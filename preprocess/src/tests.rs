@@ -366,3 +366,38 @@ fn test_include() {
         "1\n2\n2\n"
     );
 }
+
+#[test]
+fn test_concat() {
+    // Nothing occurs when not in a macro expanding context
+    assert_text!("a ## b", "a ## b\n");
+
+    // ## should be allowed inside a #define
+    assert_text!("#define M a ## b\n", "");
+
+    // ## is not allowed in macro arguments
+    assert_err!(
+        "#define M(a ## b)\n",
+        PreprocessError::InvalidDefine(SourceLocation::first().offset(8))
+    );
+
+    // ## in a non-function macro can combine tokens
+    assert_text!("#define M a ## b\nM", "ab\n");
+
+    // ## in a function macro can combine tokens from the arguments
+    assert_text!("#define M(a, b) a ## b\nM(c, d)", "cd\n");
+
+    // ## in a function macro applies to the individual tokens in the arguments
+    assert_text!("#define M(a, b) a ## b\nM(c d, e f)", "c de f\n");
+
+    // Ensure it still works with lots of pointless whitespace
+    // May want to review how much of the whitespace we want in the output
+    // currently the \n before the c also makes it
+    assert_text!(
+        "#define M(a, b) a\t\\\n##\t\\\nb\nM(\t\\\n\nc,\t\\\n\nd)",
+        "\ncd\n"
+    );
+
+    // ## in the arguments should not apply
+    assert_text!("#define M(a, b, c) a b c\nM(0, ##, 1)", "0 ## 1\n");
+}

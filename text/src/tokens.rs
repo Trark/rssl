@@ -130,6 +130,9 @@ pub enum Token {
 
     /// Temporary reference to macro argument used during define processing
     MacroArg(u32),
+
+    /// Temporary version of [Token::HashHash] for a concat operation which is pending
+    Concat,
 }
 
 impl Token {

@@ -1,4 +1,4 @@
-use crate::lexer::LexerError;
+use crate::{lexer::LexerError, unlex};
 use rssl_text::tokens::*;
 use rssl_text::*;
 use std::collections::{HashMap, HashSet};
@@ -14,6 +14,9 @@ pub enum PreprocessError {
     MacroRequiresArguments(String),
     MacroArgumentsNeverEnd,
     MacroExpectsDifferentNumberOfArguments,
+    ConcatMissingLeftToken(SourceLocation),
+    ConcatMissingRightToken(SourceLocation),
+    ConcatFailed(SourceLocation),
     FailedToFindFile(SourceLocation, String, IncludeError),
     FailedToParseIfCondition(SourceLocation),
     InvalidIfdef(SourceLocation),
@@ -71,6 +74,21 @@ impl CompileError for PreprocessError {
             PreprocessError::MacroExpectsDifferentNumberOfArguments => w.write_message(
                 &|f| write!(f, "macro requires different number of arguments"),
                 SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            PreprocessError::ConcatMissingLeftToken(loc) => w.write_message(
+                &|f| write!(f, "no token on left of ##"),
+                *loc,
+                Severity::Error,
+            ),
+            PreprocessError::ConcatMissingRightToken(loc) => w.write_message(
+                &|f| write!(f, "no token on right of ##"),
+                *loc,
+                Severity::Error,
+            ),
+            PreprocessError::ConcatFailed(loc) => w.write_message(
+                &|f| write!(f, "failed to merge tokens with ##"),
+                *loc,
                 Severity::Error,
             ),
             PreprocessError::FailedToFindFile(loc, name, _) => w.write_message(
@@ -203,7 +221,11 @@ struct Macro {
 }
 
 impl Macro {
-    fn parse(command: &[PreprocessToken], macros: &[Macro]) -> Result<Macro, PreprocessError> {
+    fn parse(
+        command: &[PreprocessToken],
+        macros: &[Macro],
+        source_manager: &mut SourceManager,
+    ) -> Result<Macro, PreprocessError> {
         let command = trim_whitespace_start(command);
 
         let location = command.first().get_location();
@@ -282,13 +304,18 @@ impl Macro {
                             return PreprocessToken(Token::MacroArg(i as u32), t.1.clone());
                         }
                     }
+                } else if let Token::HashHash = &t.0 {
+                    // Switch out normal tokens for ## with a special version when in a macro body
+                    // This means we can distinguish ## from macro arguments from ## in the body
+                    // Concatenation is only triggered from ## in the body - not the args
+                    return PreprocessToken(Token::Concat, t.1.clone());
                 }
                 t.clone()
             })
             .collect::<Vec<_>>();
 
         // Apply other defines into the segment of the body
-        tokens = apply_macros(&tokens, macros, false)?;
+        tokens = apply_macros(&tokens, macros, false, source_manager)?;
 
         let def = Macro {
             name,
@@ -414,6 +441,7 @@ fn apply_user_macros<'t>(
     text: &'t [PreprocessToken],
     macro_defs: &[Macro],
     output: &mut Vec<PreprocessToken>,
+    source_manager: &mut SourceManager,
 ) -> Result<&'t [PreprocessToken], PreprocessError> {
     // Find the first macro that matches the text
     // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
@@ -473,23 +501,130 @@ fn apply_user_macros<'t>(
         // Substitute macros inside macro arguments
         let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
             let mut vec = vec?;
-            let subbed_text = apply_macros(arg, macro_defs, false)?;
+            let subbed_text = apply_macros(arg, macro_defs, false, source_manager)?;
             vec.push(subbed_text);
             Ok(vec)
         })?;
 
+        // Copy everything before the macro
         output.extend_from_slice(before);
+
+        // Generate macro body into a local array
+        let mut preconcat_body = Vec::with_capacity(macro_def.tokens.len());
         for token in &macro_def.tokens {
             if let Token::MacroArg(i) = token.0 {
-                output.extend_from_slice(&args[i as usize])
+                // If we are a macro arg then replace the token with the argument
+                preconcat_body.extend_from_slice(&args[i as usize])
             } else {
-                output.push(token.clone());
+                // If we are a normal token then copy it across without modification
+                preconcat_body.push(token.clone());
             }
         }
+
+        // Apply ## operations and output
+        let mut remaining_preconcat = preconcat_body.as_slice();
+        while !remaining_preconcat.is_empty() {
+            let concat_result = split_concat(remaining_preconcat)?;
+            if let Some((before, left_token, right_token)) = concat_result.0 {
+                // Emit all tokens before the ## operation
+                output.extend_from_slice(before);
+
+                // Emit original strings from the tokens
+                let left_string = unlex(std::slice::from_ref(left_token), source_manager);
+                let right_string = unlex(std::slice::from_ref(right_token), source_manager);
+
+                // Combine the strings
+                let new_fragment = format!("{}{}", left_string, right_string);
+
+                // Register the combined string as a file
+                let file_id =
+                    source_manager.add_file(FileName("<scratch space>".to_string()), new_fragment);
+                let source_location =
+                    source_manager.get_source_location_from_file_offset(file_id, StreamLocation(0));
+
+                // String is now owned by the source manager - fetch a reference to it
+                let new_fragment = source_manager.get_contents(file_id);
+
+                // Lex the new combined string file
+                let merged_token = match crate::lexer::lex(new_fragment, source_location) {
+                    Ok(tokens) => tokens,
+                    Err(_) => return Err(PreprocessError::ConcatFailed(source_location)),
+                };
+
+                // We expect a single token result with a new line marker after it
+                if let [token, PreprocessToken(Token::Endline, _)] = merged_token.as_slice() {
+                    // Insert the new combined token into the output stream
+                    output.push(token.clone());
+                } else {
+                    return Err(PreprocessError::ConcatFailed(source_location));
+                }
+
+                // Set remaining tokens to all tokens after the right token
+                remaining_preconcat = concat_result.1;
+            } else {
+                // No more ## - emit all the tokens to the output
+                output.extend_from_slice(remaining_preconcat);
+                remaining_preconcat = &[];
+            }
+        }
+
+        // Return everything after the macro so it can be processed next
+        // Avoid recursion here as we can process large blocks of text with many macros
         Ok(after)
     } else {
         output.extend_from_slice(text);
         Ok(&[])
+    }
+}
+
+type ConcatSplit<'t> = (
+    Option<(
+        &'t [PreprocessToken],
+        &'t PreprocessToken,
+        &'t PreprocessToken,
+    )>,
+    &'t [PreprocessToken],
+);
+
+/// Find the next use of ## and split the slice into ranges so the operation can be applied
+fn split_concat(tokens: &[PreprocessToken]) -> Result<ConcatSplit, PreprocessError> {
+    if let Some(concat_position) = tokens.iter().position(|t| t.0 == Token::Concat) {
+        let concat_token = &tokens[concat_position];
+
+        // Get the left token to concat
+        let (before, left_token) = if let Some(left_position) = tokens[..concat_position]
+            .iter()
+            .rev()
+            .position(|t| !t.0.is_whitespace())
+        {
+            (
+                &tokens[..concat_position - left_position - 1],
+                &tokens[concat_position - left_position - 1],
+            )
+        } else {
+            return Err(PreprocessError::ConcatMissingLeftToken(
+                concat_token.get_location(),
+            ));
+        };
+
+        // Get the right token to concat
+        let (after, right_token) = if let Some(right_position) = tokens[concat_position + 1..]
+            .iter()
+            .position(|t| !t.0.is_whitespace())
+        {
+            (
+                &tokens[concat_position + right_position + 2..],
+                &tokens[concat_position + right_position + 1],
+            )
+        } else {
+            return Err(PreprocessError::ConcatMissingRightToken(
+                concat_token.get_location(),
+            ));
+        };
+
+        Ok((Some((before, left_token, right_token)), after))
+    } else {
+        Ok((None, tokens))
     }
 }
 
@@ -582,6 +717,7 @@ fn apply_macros(
     tokens: &[PreprocessToken],
     macro_defs: &[Macro],
     apply_defined: bool,
+    source_manager: &mut SourceManager,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     // Apply defined() first
     let mut post_defined_tokens;
@@ -596,102 +732,136 @@ fn apply_macros(
     let mut next_tokens = Vec::with_capacity(tokens.len());
     let mut remaining = tokens;
     while !remaining.is_empty() {
-        remaining = apply_user_macros(remaining, macro_defs, &mut next_tokens)?;
+        remaining = apply_user_macros(remaining, macro_defs, &mut next_tokens, source_manager)?;
     }
     Ok(next_tokens)
 }
 
 #[test]
 fn macro_from_definition() {
-    let ll = |s: &str| {
-        let mut source_manager = SourceManager::new();
+    fn ll(s: &str, source_manager: &mut SourceManager) -> Vec<PreprocessToken> {
         let (file_id, source_location) = source_manager.add_fragment(s);
         assert_eq!(source_location, SourceLocation::first());
-        crate::lexer::lex_fragment(file_id, &source_manager).unwrap()
-    };
-    assert_eq!(
-        Macro::parse(&ll("B 0"), &[]).unwrap(),
-        Macro {
-            name: "B".to_string(),
-            is_function: false,
-            num_params: 0,
-            tokens: Vec::from([PreprocessToken::new(
-                Token::LiteralInt(0),
-                SourceLocation::first(),
-                2,
-                3
-            )]),
-            location: SourceLocation::first(),
-        }
-    );
-    assert_eq!(
-        Macro::parse(&ll("B(x) x"), &[]).unwrap(),
-        Macro {
-            name: "B".to_string(),
-            is_function: true,
-            num_params: 1,
-            tokens: Vec::from([PreprocessToken::new(
-                Token::MacroArg(0),
-                SourceLocation::first(),
-                5,
-                6,
-            )]),
-            location: SourceLocation::first(),
-        }
-    );
-    assert_eq!(
-        Macro::parse(&ll("B(x,y) x"), &[]).unwrap(),
-        Macro {
-            name: "B".to_string(),
-            is_function: true,
-            num_params: 2,
-            tokens: Vec::from([PreprocessToken::new(
-                Token::MacroArg(0),
-                SourceLocation::first(),
-                7,
-                8,
-            )]),
-            location: SourceLocation::first(),
-        }
-    );
-    assert_eq!(
-        Macro::parse(&ll("B(x,y) y"), &[]).unwrap(),
-        Macro {
-            name: "B".to_string(),
-            is_function: true,
-            num_params: 2,
-            tokens: Vec::from([PreprocessToken::new(
-                Token::MacroArg(1),
-                SourceLocation::first(),
-                7,
-                8,
-            )]),
-            location: SourceLocation::first(),
-        }
-    );
-    assert_eq!(
-        Macro::parse(&ll("B(x,xy) (x || xy)"), &[]).unwrap(),
-        Macro {
-            name: "B".to_string(),
-            is_function: true,
-            num_params: 2,
-            tokens: Vec::from([
-                PreprocessToken::new(Token::LeftParen, SourceLocation::first(), 8, 9),
-                PreprocessToken::new(Token::MacroArg(0), SourceLocation::first(), 9, 10),
-                PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10, 11),
-                PreprocessToken::new(
-                    Token::VerticalBarVerticalBar,
+        crate::lexer::lex_fragment(file_id, source_manager).unwrap()
+    }
+
+    {
+        let mut source_manager = SourceManager::new();
+        assert_eq!(
+            Macro::parse(&ll("B 0", &mut source_manager), &[], &mut source_manager).unwrap(),
+            Macro {
+                name: "B".to_string(),
+                is_function: false,
+                num_params: 0,
+                tokens: Vec::from([PreprocessToken::new(
+                    Token::LiteralInt(0),
                     SourceLocation::first(),
-                    11,
-                    13
-                ),
-                PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13, 14),
-                PreprocessToken::new(Token::MacroArg(1), SourceLocation::first(), 14, 16),
-                PreprocessToken::new(Token::RightParen, SourceLocation::first(), 16, 17),
-            ]),
-            location: SourceLocation::first(),
-        }
-    );
+                    2,
+                    3
+                )]),
+                location: SourceLocation::first(),
+            }
+        );
+    }
+
+    {
+        let mut source_manager = SourceManager::new();
+        assert_eq!(
+            Macro::parse(&ll("B(x) x", &mut source_manager), &[], &mut source_manager).unwrap(),
+            Macro {
+                name: "B".to_string(),
+                is_function: true,
+                num_params: 1,
+                tokens: Vec::from([PreprocessToken::new(
+                    Token::MacroArg(0),
+                    SourceLocation::first(),
+                    5,
+                    6,
+                )]),
+                location: SourceLocation::first(),
+            }
+        );
+    }
+
+    {
+        let mut source_manager = SourceManager::new();
+        assert_eq!(
+            Macro::parse(
+                &ll("B(x,y) x", &mut source_manager),
+                &[],
+                &mut source_manager
+            )
+            .unwrap(),
+            Macro {
+                name: "B".to_string(),
+                is_function: true,
+                num_params: 2,
+                tokens: Vec::from([PreprocessToken::new(
+                    Token::MacroArg(0),
+                    SourceLocation::first(),
+                    7,
+                    8,
+                )]),
+                location: SourceLocation::first(),
+            }
+        );
+    }
+
+    {
+        let mut source_manager = SourceManager::new();
+        assert_eq!(
+            Macro::parse(
+                &ll("B(x,y) y", &mut source_manager),
+                &[],
+                &mut source_manager
+            )
+            .unwrap(),
+            Macro {
+                name: "B".to_string(),
+                is_function: true,
+                num_params: 2,
+                tokens: Vec::from([PreprocessToken::new(
+                    Token::MacroArg(1),
+                    SourceLocation::first(),
+                    7,
+                    8,
+                )]),
+                location: SourceLocation::first(),
+            }
+        );
+    }
+
+    {
+        let mut source_manager = SourceManager::new();
+        assert_eq!(
+            Macro::parse(
+                &ll("B(x,xy) (x || xy)", &mut source_manager),
+                &[],
+                &mut source_manager
+            )
+            .unwrap(),
+            Macro {
+                name: "B".to_string(),
+                is_function: true,
+                num_params: 2,
+                tokens: Vec::from([
+                    PreprocessToken::new(Token::LeftParen, SourceLocation::first(), 8, 9),
+                    PreprocessToken::new(Token::MacroArg(0), SourceLocation::first(), 9, 10),
+                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 10, 11),
+                    PreprocessToken::new(
+                        Token::VerticalBarVerticalBar,
+                        SourceLocation::first(),
+                        11,
+                        13
+                    ),
+                    PreprocessToken::new(Token::Whitespace, SourceLocation::first(), 13, 14),
+                    PreprocessToken::new(Token::MacroArg(1), SourceLocation::first(), 14, 16),
+                    PreprocessToken::new(Token::RightParen, SourceLocation::first(), 16, 17),
+                ]),
+                location: SourceLocation::first(),
+            }
+        );
+    }
 }
 
 #[test]
@@ -705,9 +875,9 @@ fn macro_resolve() {
         macros: &[Macro],
         expected_str: &str,
         expected_tokens: &[PreprocessToken],
-        source_manager: &SourceManager,
+        source_manager: &mut SourceManager,
     ) {
-        let resolved_tokens = apply_macros(input, macros, false).unwrap();
+        let resolved_tokens = apply_macros(input, macros, false, source_manager).unwrap();
         assert_eq!(resolved_tokens, expected_tokens);
 
         let output_str = unlex(&resolved_tokens, source_manager);
@@ -727,8 +897,8 @@ fn macro_resolve() {
         run(
             &main_tokens,
             &[
-                Macro::parse(&m1_tokens, &[]).unwrap(),
-                Macro::parse(&m2_tokens, &[]).unwrap(),
+                Macro::parse(&m1_tokens, &[], &mut source_manager).unwrap(),
+                Macro::parse(&m2_tokens, &[], &mut source_manager).unwrap(),
             ],
             "(A || 0) && 1",
             &[
@@ -744,7 +914,7 @@ fn macro_resolve() {
                 PreprocessToken::new(Token::Whitespace, main_loc, 11, 12),
                 PreprocessToken::new(Token::LiteralInt(1), m2_loc, 3, 4),
             ],
-            &source_manager,
+            &mut source_manager,
         );
     }
 
@@ -761,8 +931,8 @@ fn macro_resolve() {
         run(
             &main_tokens,
             &[
-                Macro::parse(&m1_tokens, &[]).unwrap(),
-                Macro::parse(&m2_tokens, &[]).unwrap(),
+                Macro::parse(&m1_tokens, &[], &mut source_manager).unwrap(),
+                Macro::parse(&m2_tokens, &[], &mut source_manager).unwrap(),
             ],
             "(A || (0 && 1)) && 1",
             &[
@@ -784,7 +954,7 @@ fn macro_resolve() {
                 PreprocessToken::new(Token::Whitespace, main_loc, 17, 18),
                 PreprocessToken::new(Token::LiteralInt(1), m1_loc, 3, 4),
             ],
-            &source_manager,
+            &mut source_manager,
         );
     }
 }
@@ -954,7 +1124,7 @@ fn preprocess_command(
                 return Ok(());
             }
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command, macros, true)?;
+            let resolved = apply_macros(command, macros, true, file_loader.source_manager)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.push(if active {
                 ConditionState::Enabled
@@ -966,7 +1136,7 @@ fn preprocess_command(
         }
         "elif" => {
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command, macros, true)?;
+            let resolved = apply_macros(command, macros, true, file_loader.source_manager)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.switch(active)?;
 
@@ -995,7 +1165,7 @@ fn preprocess_command(
                 return Ok(());
             }
 
-            let macro_def = Macro::parse(command, macros)?;
+            let macro_def = Macro::parse(command, macros, file_loader.source_manager)?;
             macros.push(macro_def);
 
             Ok(())
@@ -1108,7 +1278,8 @@ fn preprocess_included_file(
             }
             RegionType::Normal(sz) => {
                 if condition_chain.is_active() {
-                    let next_tokens = apply_macros(&stream[..sz], macros, false)?;
+                    let next_tokens =
+                        apply_macros(&stream[..sz], macros, false, file_loader.source_manager)?;
                     buffer.extend(next_tokens);
                 }
                 assert_ne!(sz, 0);
