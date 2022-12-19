@@ -824,13 +824,14 @@ pub fn parse_expression_resolve_symbols(
         other => other,
     });
 
-    let mut reduced_results = Vec::<(_, _)>::with_capacity(results.len());
+    let mut reduced_results = Vec::<((&[LexToken], _), _)>::with_capacity(results.len());
     for result in results {
         // Check for redundancy with previous expression
         // If the expression is the same and has a more restrictive symbol requirement then discard it
         let mut same = false;
         for selected_result in &reduced_results {
-            if selected_result.0 == result.0 {
+            if selected_result.0 .1 == result.0 .1 {
+                assert_eq!(selected_result.0 .0.len(), result.0 .0.len());
                 let mut symbol_not_covered = false;
                 for s in &selected_result.1 {
                     if !result.1.contains(s) {
