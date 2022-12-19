@@ -288,7 +288,7 @@ impl Macro {
             .collect::<Vec<_>>();
 
         // Apply other defines into the segment of the body
-        tokens = apply_macros(tokens, macros, false)?;
+        tokens = apply_macros(&tokens, macros, false)?;
 
         let def = Macro {
             name,
@@ -410,11 +410,11 @@ fn split_macro_args<'stream>(
     Ok((remaining, args))
 }
 
-fn apply_user_macros(
-    text: &[PreprocessToken],
+fn apply_user_macros<'t>(
+    text: &'t [PreprocessToken],
     macro_defs: &[Macro],
     output: &mut Vec<PreprocessToken>,
-) -> Result<Vec<PreprocessToken>, PreprocessError> {
+) -> Result<&'t [PreprocessToken], PreprocessError> {
     // Find the first macro that matches the text
     // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
     let mut best_match_opt: Option<(&Macro, usize)> = None;
@@ -473,7 +473,7 @@ fn apply_user_macros(
         // Substitute macros inside macro arguments
         let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
             let mut vec = vec?;
-            let subbed_text = apply_macros(arg.to_vec(), macro_defs, false)?;
+            let subbed_text = apply_macros(arg, macro_defs, false)?;
             vec.push(subbed_text);
             Ok(vec)
         })?;
@@ -486,10 +486,10 @@ fn apply_user_macros(
                 output.push(token.clone());
             }
         }
-        Ok(after.to_vec())
+        Ok(after)
     } else {
         output.extend_from_slice(text);
-        Ok(Vec::new())
+        Ok(&[])
     }
 }
 
@@ -579,32 +579,26 @@ fn apply_defined_macro(
 }
 
 fn apply_macros(
-    tokens: Vec<PreprocessToken>,
+    tokens: &[PreprocessToken],
     macro_defs: &[Macro],
     apply_defined: bool,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
-    let mut last_tokens = tokens;
-    if apply_defined {
-        let mut next_tokens = Vec::with_capacity(last_tokens.len());
-        apply_defined_macro(&last_tokens, macro_defs, &mut next_tokens)?;
-        last_tokens = next_tokens;
+    // Apply defined() first
+    let mut post_defined_tokens;
+    let tokens = if apply_defined {
+        post_defined_tokens = Vec::with_capacity(tokens.len());
+        apply_defined_macro(tokens, macro_defs, &mut post_defined_tokens)?;
+        post_defined_tokens.as_slice()
+    } else {
+        tokens
+    };
+
+    let mut next_tokens = Vec::with_capacity(tokens.len());
+    let mut remaining = tokens;
+    while !remaining.is_empty() {
+        remaining = apply_user_macros(remaining, macro_defs, &mut next_tokens)?;
     }
-    {
-        let mut next_tokens = Vec::with_capacity(last_tokens.len());
-        {
-            let mut next_segment = Some(last_tokens);
-            while let Some(next) = next_segment {
-                let recur_tokens = apply_user_macros(&next, macro_defs, &mut next_tokens)?;
-                next_segment = if recur_tokens.is_empty() {
-                    None
-                } else {
-                    Some(recur_tokens)
-                };
-            }
-        }
-        last_tokens = next_tokens;
-    }
-    Ok(last_tokens)
+    Ok(next_tokens)
 }
 
 #[test]
@@ -713,7 +707,7 @@ fn macro_resolve() {
         expected_tokens: &[PreprocessToken],
         source_manager: &SourceManager,
     ) {
-        let resolved_tokens = apply_macros(input.to_vec(), macros, false).unwrap();
+        let resolved_tokens = apply_macros(input, macros, false).unwrap();
         assert_eq!(resolved_tokens, expected_tokens);
 
         let output_str = unlex(&resolved_tokens, source_manager);
@@ -960,7 +954,7 @@ fn preprocess_command(
                 return Ok(());
             }
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command.to_vec(), macros, true)?;
+            let resolved = apply_macros(command, macros, true)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.push(if active {
                 ConditionState::Enabled
@@ -972,7 +966,7 @@ fn preprocess_command(
         }
         "elif" => {
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command.to_vec(), macros, true)?;
+            let resolved = apply_macros(command, macros, true)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.switch(active)?;
 
@@ -1114,7 +1108,7 @@ fn preprocess_included_file(
             }
             RegionType::Normal(sz) => {
                 if condition_chain.is_active() {
-                    let next_tokens = apply_macros(stream[..sz].to_vec(), macros, false)?;
+                    let next_tokens = apply_macros(&stream[..sz], macros, false)?;
                     buffer.extend(next_tokens);
                 }
                 assert_ne!(sz, 0);
