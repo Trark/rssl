@@ -1119,6 +1119,7 @@ fn export_intrinsic_function(
 
         Length => Form::Invoke("length"),
         Normalize => Form::Invoke("normalize"),
+        Rcp => Form::Invoke("rcp"),
 
         Saturate => Form::Invoke("saturate"),
 

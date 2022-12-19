@@ -126,6 +126,10 @@ void test() {
     float2 normalize_2 = normalize(float2(0.0, 0.0));
     float3 normalize_3 = normalize(float3(0.0, 0.0, 0.0));
     float4 normalize_4 = normalize(float4(0.0, 0.0, 0.0, 0.0));
+    float rcp_f1 = rcp(0.0);
+    float2 rcp_f2 = rcp(float2(0.0, 0.0));
+    float3 rcp_f3 = rcp(float3(0.0, 0.0, 0.0));
+    float4 rcp_f4 = rcp(float4(0.0, 0.0, 0.0, 0.0));
     float pow_f1 = pow(0.0, 0.0);
     float2 pow_f2 = pow(float2(0.0, 0.0), float2(0.0, 0.0));
     float3 pow_f3 = pow(float3(0.0, 0.0, 0.0), float3(0.0, 0.0, 0.0));

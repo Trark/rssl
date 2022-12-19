@@ -81,6 +81,7 @@ pub enum Intrinsic {
 
     Length,
     Normalize,
+    Rcp,
 
     Saturate,
 

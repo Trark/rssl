@@ -197,10 +197,8 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { M min(M, M) => Min | int, int2, int3, int4, float, float2, float3, float4 },
     f! { M max(M, M) => Max | int, int2, int3, int4, float, float2, float3, float4 },
 
-    f! { float1 normalize(float1) => Normalize },
-    f! { float2 normalize(float2) => Normalize },
-    f! { float3 normalize(float3) => Normalize },
-    f! { float4 normalize(float4) => Normalize },
+    f! { M normalize(M) => Normalize | float1, float2, float3, float4 },
+    f! { M rcp(M) => Rcp | float, float2, float3, float4 },
 
     f! { M pow(M, M) => Pow | float, float2, float3, float4 },
 
