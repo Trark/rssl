@@ -359,12 +359,30 @@ fn trim_whitespace(tokens: &[PreprocessToken]) -> &[PreprocessToken] {
 }
 
 /// Find the next instance of the named macro in a stream of tokens
-fn find_macro(stream: &[PreprocessToken], name: &str) -> Option<usize> {
+fn find_macro_invocation<'m>(
+    stream: &[PreprocessToken],
+    macros: &'m [Macro],
+) -> Option<(&'m Macro, usize)> {
     let mut i = 0;
     while i < stream.len() {
         if let Token::Id(id) = &stream[i].0 {
-            if id.0 == name {
-                return Some(i);
+            for macro_def in macros {
+                if id.0 == macro_def.name {
+                    // Check we have the start of function parameters
+                    let mut valid_macro = true;
+                    if macro_def.is_function {
+                        valid_macro = false;
+                        if let [PreprocessToken(Token::LeftParen, _), ..] =
+                            trim_whitespace_start(&stream[i + 1..])
+                        {
+                            valid_macro = true;
+                        }
+                    }
+
+                    if valid_macro {
+                        return Some((macro_def, i));
+                    }
+                }
             }
         }
         i += 1;
@@ -447,38 +465,8 @@ fn apply_user_macros<'t>(
     source_manager: &mut SourceManager,
 ) -> Result<&'t [PreprocessToken], PreprocessError> {
     // Find the first macro that matches the text
-    // We could try to apply defined() in this loop - but this is currently resolved in a prepass before all other macros
-    let mut best_match_opt: Option<(&Macro, usize)> = None;
-    let mut search_range = text;
-    for macro_def in macro_defs {
-        if let Some(pos) = find_macro(search_range, &macro_def.name) {
-            // As we limit the search range we don't expect
-            assert!(if let Some(best_match) = best_match_opt {
-                pos < best_match.1
-            } else {
-                true
-            });
-
-            // Check we have the start of function parameters
-            let mut valid_macro = true;
-            if macro_def.is_function {
-                valid_macro = false;
-                if let [PreprocessToken(Token::LeftParen, _), ..] =
-                    trim_whitespace_start(&text[pos + 1..])
-                {
-                    valid_macro = true;
-                }
-            }
-
-            if valid_macro {
-                best_match_opt = Some((macro_def, pos));
-                // Limit search for future macros so we only get better matches
-                search_range = &text[..pos];
-            }
-        }
-    }
-
-    if let Some((macro_def, sz)) = best_match_opt {
+    // We could try to apply defined() in this function - but this is currently resolved in a prepass before all other macros
+    if let Some((macro_def, sz)) = find_macro_invocation(text, macro_defs) {
         let before = &text[..sz];
         let mut remaining = &text[sz + 1..];
 
@@ -635,13 +623,27 @@ fn split_concat(tokens: &[PreprocessToken]) -> Result<ConcatSplit, PreprocessErr
     }
 }
 
+/// Find the next instance of the identifier in a stream of tokens
+fn find_named_identifier(stream: &[PreprocessToken], name: &str) -> Option<usize> {
+    let mut i = 0;
+    while i < stream.len() {
+        if let Token::Id(id) = &stream[i].0 {
+            if id.0 == name {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
 fn apply_defined_macro(
     text: &[PreprocessToken],
     macro_defs: &[Macro],
     output: &mut Vec<PreprocessToken>,
 ) -> Result<(), PreprocessError> {
     let defined_name = "defined";
-    if let Some(sz) = find_macro(text, defined_name) {
+    if let Some(sz) = find_named_identifier(text, defined_name) {
         let before = &text[..sz];
         let mut remaining = &text[sz + 1..];
 

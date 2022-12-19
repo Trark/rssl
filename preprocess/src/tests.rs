@@ -122,6 +122,7 @@ fn test_macro_function_no_args() {
     assert_text!("#define X() A\nX()", "A\n");
     assert_text!("#define X()A\nX()", "A\n");
     assert_text!("#define X() A\nX", "X\n");
+    assert_text!("#define X() A\nX X() X X()", "X A X A\n");
     assert_text!("#define X() A\nX ()", "A\n");
     assert_text!("#define X() A\nX ( )", "A\n");
     assert_text!("#define X( ) A\nX ( )", "A\n");
