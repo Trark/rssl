@@ -358,15 +358,17 @@ fn trim_whitespace(tokens: &[PreprocessToken]) -> &[PreprocessToken] {
     trim_whitespace_end(trim_whitespace_start(tokens))
 }
 
+/// Find the next instance of the named macro in a stream of tokens
 fn find_macro(stream: &[PreprocessToken], name: &str) -> Option<usize> {
-    for (i, token) in stream.iter().enumerate() {
-        if let PreprocessToken(Token::Id(id), _) = token {
+    let mut i = 0;
+    while i < stream.len() {
+        if let Token::Id(id) = &stream[i].0 {
             if id.0 == name {
                 return Some(i);
             }
         }
+        i += 1;
     }
-
     None
 }
 
