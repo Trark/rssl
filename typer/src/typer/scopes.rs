@@ -7,7 +7,7 @@ use super::types::apply_template_type_substitution;
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_text::Located;
+use rssl_text::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -300,7 +300,7 @@ impl Context {
                 // We do not currently support default arguments
                 if template_args.is_empty() {
                     // Generic error for now
-                    Err(TyperError::UnknownType(name.into()))
+                    Err(TyperError::UnknownType(name.into(), name.get_location()))
                 } else {
                     let struct_template_data = &self.struct_template_data[id.0 as usize];
                     let struct_template_def = &self.module.struct_template_registry[id.0 as usize];
@@ -340,7 +340,7 @@ impl Context {
                     Ok(ty)
                 } else {
                     // Generic error for now
-                    Err(TyperError::UnknownType(name.into()))
+                    Err(TyperError::UnknownType(name.into(), name.get_location()))
                 }
             }
         }
@@ -388,7 +388,11 @@ impl Context {
         assert!(id.0 < self.cbuffer_data.len() as u32);
         match self.cbuffer_data[id.0 as usize].members.get(name) {
             Some(ty) => Ok(ty.to_lvalue()),
-            None => Err(TyperError::ConstantDoesNotExist(id, name.to_string())),
+            None => Err(TyperError::ConstantDoesNotExist(
+                id,
+                name.to_string(),
+                SourceLocation::UNKNOWN,
+            )),
         }
     }
 
@@ -402,7 +406,11 @@ impl Context {
         assert!(id.0 < self.struct_data.len() as u32);
         match self.struct_data[id.0 as usize].members.get(name) {
             Some(ty) => Ok(ty.to_lvalue()),
-            None => Err(TyperError::StructMemberDoesNotExist(id, name.to_string())),
+            None => Err(TyperError::StructMemberDoesNotExist(
+                id,
+                name.to_string(),
+                SourceLocation::UNKNOWN,
+            )),
         }
     }
 
@@ -426,7 +434,11 @@ impl Context {
             return Ok(StructMemberValue::Method(overloads));
         }
 
-        Err(TyperError::StructMemberDoesNotExist(id, name.to_string()))
+        Err(TyperError::StructMemberDoesNotExist(
+            id,
+            name.to_string(),
+            SourceLocation::UNKNOWN,
+        ))
     }
 
     /// Find the signature of a function

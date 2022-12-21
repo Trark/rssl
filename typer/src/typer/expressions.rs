@@ -440,14 +440,18 @@ fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TypedExpression {
 
 fn parse_expr_unaryop(
     op: &ast::UnaryOp,
-    expr: &ast::Expression,
+    expr: &Located<ast::Expression>,
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
+    // Use argument expression as the error location
+    let base_location = expr.get_location();
+
     match parse_expr_internal(expr, context)? {
         TypedExpression::Value(expr_ir, expr_ty) => {
             fn enforce_increment_type(
                 ety: ExpressionType,
                 op: &ast::UnaryOp,
+                base_location: SourceLocation,
                 context: &mut Context,
             ) -> TyperResult<()> {
                 let ExpressionType(ty, vt) = ety;
@@ -455,6 +459,7 @@ fn parse_expr_unaryop(
                     return Err(TyperError::UnaryOperationWrongTypes(
                         op.clone(),
                         ErrorType::Unknown,
+                        base_location,
                     ));
                 }
                 let (tyl, modifier) = context.module.type_registry.extract_modifier(ty);
@@ -462,32 +467,45 @@ fn parse_expr_unaryop(
                     return Err(TyperError::UnaryOperationWrongTypes(
                         op.clone(),
                         ErrorType::Unknown,
+                        base_location,
                     ));
                 }
                 match context.module.type_registry.get_type_layer(tyl) {
-                    ir::TypeLayer::Scalar(ir::ScalarType::Bool) => Err(
-                        TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
-                    ),
-                    ir::TypeLayer::Vector(ir::ScalarType::Bool, _) => Err(
-                        TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
-                    ),
-                    ir::TypeLayer::Matrix(ir::ScalarType::Bool, _, _) => Err(
-                        TyperError::UnaryOperationWrongTypes(op.clone(), ErrorType::Unknown),
-                    ),
+                    ir::TypeLayer::Scalar(ir::ScalarType::Bool) => {
+                        Err(TyperError::UnaryOperationWrongTypes(
+                            op.clone(),
+                            ErrorType::Unknown,
+                            base_location,
+                        ))
+                    }
+                    ir::TypeLayer::Vector(ir::ScalarType::Bool, _) => {
+                        Err(TyperError::UnaryOperationWrongTypes(
+                            op.clone(),
+                            ErrorType::Unknown,
+                            base_location,
+                        ))
+                    }
+                    ir::TypeLayer::Matrix(ir::ScalarType::Bool, _, _) => {
+                        Err(TyperError::UnaryOperationWrongTypes(
+                            op.clone(),
+                            ErrorType::Unknown,
+                            base_location,
+                        ))
+                    }
                     _ => Ok(()),
                 }
             }
             let (intrinsic, eir, ety) = match *op {
                 ast::UnaryOp::PrefixIncrement => {
-                    enforce_increment_type(expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, base_location, context)?;
                     (ir::IntrinsicOp::PrefixIncrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PrefixDecrement => {
-                    enforce_increment_type(expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, base_location, context)?;
                     (ir::IntrinsicOp::PrefixDecrement, expr_ir, expr_ty)
                 }
                 ast::UnaryOp::PostfixIncrement => {
-                    enforce_increment_type(expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, base_location, context)?;
                     (
                         ir::IntrinsicOp::PostfixIncrement,
                         expr_ir,
@@ -495,7 +513,7 @@ fn parse_expr_unaryop(
                     )
                 }
                 ast::UnaryOp::PostfixDecrement => {
-                    enforce_increment_type(expr_ty, op, context)?;
+                    enforce_increment_type(expr_ty, op, base_location, context)?;
                     (
                         ir::IntrinsicOp::PostfixDecrement,
                         expr_ir,
@@ -518,6 +536,7 @@ fn parse_expr_unaryop(
                             return Err(TyperError::UnaryOperationWrongTypes(
                                 op.clone(),
                                 ErrorType::Unknown,
+                                base_location,
                             ))
                         }
                     };
@@ -536,6 +555,7 @@ fn parse_expr_unaryop(
                             return Err(TyperError::UnaryOperationWrongTypes(
                                 op.clone(),
                                 ErrorType::Unknown,
+                                base_location,
                             ))
                         }
                     }
@@ -549,6 +569,7 @@ fn parse_expr_unaryop(
         _ => Err(TyperError::UnaryOperationWrongTypes(
             op.clone(),
             ErrorType::Unknown,
+            base_location,
         )),
     }
 }
@@ -599,6 +620,7 @@ fn resolve_arithmetic_types(
     binop: &ast::BinOp,
     left: ExpressionType,
     right: ExpressionType,
+    source_location: SourceLocation,
     context: &mut Context,
 ) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp)> {
     use rssl_ir::ScalarType;
@@ -733,16 +755,20 @@ fn resolve_arithmetic_types(
             binop.clone(),
             left.to_error_type(),
             right.to_error_type(),
+            source_location,
         )),
     }
 }
 
 fn parse_expr_binop(
     op: &ast::BinOp,
-    lhs: &ast::Expression,
-    rhs: &ast::Expression,
+    lhs: &Located<ast::Expression>,
+    rhs: &Located<ast::Expression>,
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
+    // Use left side location for general error position
+    let base_location = lhs.get_location();
+
     let lhs_texp = parse_expr_internal(lhs, context)?;
     let rhs_texp = parse_expr_internal(rhs, context)?;
     let lhs_pt = lhs_texp.to_error_type();
@@ -751,6 +777,7 @@ fn parse_expr_binop(
         op.clone(),
         lhs_pt,
         rhs_pt,
+        base_location,
     ));
     let (lhs_ir, lhs_type) = match lhs_texp {
         TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
@@ -790,7 +817,7 @@ fn parse_expr_binop(
                     return err_bad_type;
                 }
             }
-            let types = resolve_arithmetic_types(op, lhs_type, rhs_type, context)?;
+            let types = resolve_arithmetic_types(op, lhs_type, rhs_type, base_location, context)?;
             let (lhs_cast, rhs_cast, output_intrinsic) = types;
             let lhs_final = lhs_cast.apply(lhs_ir, &mut context.module);
             let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
@@ -819,10 +846,10 @@ fn parse_expr_binop(
             } else {
                 let lhs_scalar = lhs_tyl
                     .to_scalar()
-                    .ok_or(TyperError::BinaryOperationNonNumericType)?;
+                    .ok_or(TyperError::BinaryOperationNonNumericType(base_location))?;
                 let rhs_scalar = rhs_tyl
                     .to_scalar()
-                    .ok_or(TyperError::BinaryOperationNonNumericType)?;
+                    .ok_or(TyperError::BinaryOperationNonNumericType(base_location))?;
                 match (lhs_scalar, rhs_scalar) {
                     (ir::ScalarType::Int, ir::ScalarType::Int) => ir::ScalarType::Int,
                     (ir::ScalarType::Int, ir::ScalarType::UInt) => ir::ScalarType::UInt,
@@ -885,11 +912,11 @@ fn parse_expr_binop(
                 .1
                 .is_const
             {
-                return Err(TyperError::MutableRequired);
+                return Err(TyperError::MutableRequired(lhs.get_location()));
             }
             let required_rtype = match lhs_type.1 {
                 ir::ValueType::Lvalue => ExpressionType(lhs_type.0, ir::ValueType::Rvalue),
-                _ => return Err(TyperError::LvalueRequired),
+                _ => return Err(TyperError::LvalueRequired(lhs.get_location())),
             };
             match ImplicitConversion::find(rhs_type, required_rtype, &mut context.module) {
                 Ok(rhs_cast) => {
@@ -920,11 +947,13 @@ fn parse_expr_binop(
 }
 
 fn parse_expr_ternary(
-    cond: &ast::Expression,
-    lhs: &ast::Expression,
-    rhs: &ast::Expression,
+    cond: &Located<ast::Expression>,
+    lhs: &Located<ast::Expression>,
+    rhs: &Located<ast::Expression>,
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
+    let cond_location = cond.get_location();
+
     // Generate sub expressions
     let (cond, cond_ety) = parse_expr_value_only(cond, context)?;
     let (lhs, lhs_ety) = parse_expr_value_only(lhs, context)?;
@@ -935,6 +964,7 @@ fn parse_expr_ternary(
     let wrong_types_err = Err(TyperError::TernaryArmsMustHaveSameType(
         lhs_ty.to_error_type(),
         rhs_ty.to_error_type(),
+        cond_location,
     ));
     let (lhs_ty_base, lhs_mod) = context.module.type_registry.extract_modifier(lhs_ty);
     let (rhs_ty_base, _) = context.module.type_registry.extract_modifier(rhs_ty);
@@ -1020,6 +1050,7 @@ fn parse_expr_ternary(
             Err(()) => {
                 return Err(TyperError::TernaryConditionRequiresBoolean(
                     cond_ety.to_error_type(),
+                    cond_location,
                 ))
             }
         };
@@ -1083,7 +1114,11 @@ fn parse_expr_unchecked(
                     let cast_to_int_result =
                         ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast_to_int_result {
-                        Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
+                        Err(_) => {
+                            return Err(TyperError::ArraySubscriptIndexNotInteger(
+                                subscript.get_location(),
+                            ))
+                        }
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
                     };
                     let array = Box::new(array_ir);
@@ -1101,7 +1136,11 @@ fn parse_expr_unchecked(
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
-                        Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
+                        Err(_) => {
+                            return Err(TyperError::ArraySubscriptIndexNotInteger(
+                                subscript.get_location(),
+                            ))
+                        }
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
                     };
                     let array = Box::new(array_ir);
@@ -1117,7 +1156,11 @@ fn parse_expr_unchecked(
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
-                        Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
+                        Err(_) => {
+                            return Err(TyperError::ArraySubscriptIndexNotInteger(
+                                subscript.get_location(),
+                            ))
+                        }
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
                     };
                     let array = Box::new(array_ir);
@@ -1133,7 +1176,11 @@ fn parse_expr_unchecked(
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
-                        Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
+                        Err(_) => {
+                            return Err(TyperError::ArraySubscriptIndexNotInteger(
+                                subscript.get_location(),
+                            ))
+                        }
                         Ok(cast) => cast.apply(subscript_ir, &mut context.module),
                     };
                     let array = Box::new(array_ir);
@@ -1157,7 +1204,12 @@ fn parse_expr_unchecked(
                 TypedExpression::Value(composite_ir, composite_type) => {
                     (composite_ir, composite_type)
                 }
-                _ => return Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
+                _ => {
+                    return Err(TyperError::TypeDoesNotHaveMembers(
+                        composite_pt,
+                        composite.get_location(),
+                    ))
+                }
             };
             let ExpressionType(composite_ty, vt) = composite_ety;
 
@@ -1251,7 +1303,12 @@ fn parse_expr_unchecked(
                         swizzle_slots.push(match c {
                             'x' | 'r' => ir::SwizzleSlot::X,
                             // Assume we were not trying to swizzle and accidentally accessed a member of a scalar
-                            _ => return Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
+                            _ => {
+                                return Err(TyperError::TypeDoesNotHaveMembers(
+                                    composite_pt,
+                                    composite.get_location(),
+                                ))
+                            }
                         });
                     }
                     let vt = get_swizzle_vt(&swizzle_slots, vt);
@@ -1291,6 +1348,7 @@ fn parse_expr_unchecked(
                                 return Err(TyperError::InvalidSwizzle(
                                     composite_ty,
                                     member.node.clone(),
+                                    member.get_location(),
                                 ))
                             }
                         });
@@ -1366,7 +1424,10 @@ fn parse_expr_unchecked(
                     }
                 }
                 // Todo: Matrix components + Object members
-                _ => Err(TyperError::TypeDoesNotHaveMembers(composite_pt)),
+                _ => Err(TyperError::TypeDoesNotHaveMembers(
+                    composite_pt,
+                    composite.get_location(),
+                )),
             }
         }
         ast::Expression::Call(ref func, ref template_args, ref args) => {
@@ -1401,6 +1462,7 @@ fn parse_expr_unchecked(
                 _ => Err(TyperError::InvalidCast(
                     expr_pt,
                     ErrorType::Untyped(ty.clone()),
+                    expr.get_location(),
                 )),
             }
         }
@@ -1469,6 +1531,7 @@ fn parse_expr_call(
                 return Err(TyperError::FunctionPassedToAnotherFunction(
                     func_texp.to_error_type(),
                     texp.to_error_type(),
+                    arg.get_location(),
                 ))
             }
         };
@@ -1503,7 +1566,7 @@ fn parse_expr_call(
             func.location,
             context,
         ),
-        _ => Err(TyperError::CallOnNonFunction),
+        _ => Err(TyperError::CallOnNonFunction(func.get_location())),
     }
 }
 
@@ -1532,7 +1595,7 @@ fn parse_expr_constructor(
         let expr_texp = parse_expr_internal(param, context)?;
         let (expr_base, ety) = match expr_texp {
             TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
-            _ => return Err(TyperError::FunctionNotCalled),
+            _ => return Err(TyperError::FunctionNotCalled(param.get_location())),
         };
         let expr_ty_nomod = context.module.type_registry.remove_modifier(ety.0);
         let expr_tyl = context.module.type_registry.get_type_layout(expr_ty_nomod);
@@ -1543,13 +1606,13 @@ fn parse_expr_constructor(
             ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(s),
             ir::TypeLayout::Vector(_, x) => ir::TypeLayout::Vector(s, x),
             ir::TypeLayout::Matrix(_, x, y) => ir::TypeLayout::Matrix(s, x, y),
-            _ => return Err(TyperError::WrongTypeInConstructor),
+            _ => return Err(TyperError::WrongTypeInConstructor(param.get_location())),
         };
         let target_ty = context.module.type_registry.register_type(target_tyl);
         let target_type = target_ty.to_rvalue();
         let cast = match ImplicitConversion::find(ety, target_type, &mut context.module) {
             Ok(cast) => cast,
-            Err(()) => return Err(TyperError::WrongTypeInConstructor),
+            Err(()) => return Err(TyperError::WrongTypeInConstructor(param.get_location())),
         };
         let expr = cast.apply(expr_base, &mut context.module);
         slots.push(ir::ConstructorSlot { arity, expr });
@@ -1596,9 +1659,11 @@ fn parse_expr_value_only(
     let expr_ir = parse_expr_internal(expr, context)?;
     match expr_ir {
         TypedExpression::Value(expr, ety) => Ok((expr, ety)),
-        TypedExpression::Function(_) => Err(TyperError::FunctionNotCalled),
-        TypedExpression::MethodInternal(_) => Err(TyperError::FunctionNotCalled),
-        TypedExpression::Method(_) => Err(TyperError::FunctionNotCalled),
+        TypedExpression::Function(_) => Err(TyperError::FunctionNotCalled(SourceLocation::UNKNOWN)),
+        TypedExpression::MethodInternal(_) => {
+            Err(TyperError::FunctionNotCalled(SourceLocation::UNKNOWN))
+        }
+        TypedExpression::Method(_) => Err(TyperError::FunctionNotCalled(SourceLocation::UNKNOWN)),
     }
 }
 
@@ -1688,7 +1753,12 @@ fn get_expression_type(
                         ir::TypeLayout::Vector(scalar, swizzle.len() as u32)
                     }
                 }
-                _ => return Err(TyperError::InvalidTypeForSwizzle(vec_ty_nomod)),
+                _ => {
+                    return Err(TyperError::InvalidTypeForSwizzle(
+                        vec_ty_nomod,
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
             };
             let ty = context.module.type_registry.register_type(tyl);
             let ty = context.module.type_registry.combine_modifier(ty, vec_mod);
@@ -1718,7 +1788,12 @@ fn get_expression_type(
                     let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty));
                     context.module.type_registry.register_type_layer(tyl)
                 }
-                _ => return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(array_ty_nomod)),
+                _ => {
+                    return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(
+                        array_ty_nomod,
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
             };
             Ok(ty.to_lvalue())
         }
@@ -1746,7 +1821,13 @@ fn get_expression_type(
 
             let id = match tyl {
                 ir::TypeLayer::Struct(id) => id,
-                _ => return Err(TyperError::MemberNodeMustBeUsedOnStruct(ty, name.clone())),
+                _ => {
+                    return Err(TyperError::MemberNodeMustBeUsedOnStruct(
+                        ty,
+                        name.clone(),
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
             };
             context.get_type_of_struct_member(id, name)
         }

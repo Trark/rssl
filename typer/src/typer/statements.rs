@@ -4,6 +4,7 @@ use crate::casting::ImplicitConversion;
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::*;
 
 use super::expressions::parse_expr;
 use super::types::parse_type;
@@ -128,6 +129,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 Err(()) => Err(TyperError::WrongTypeInReturnStatement(
                     expr_ty.0,
                     expected_type,
+                    expr.get_location(),
                 )),
             }
         }
@@ -143,6 +145,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                         .type_registry
                         .register_type(ir::TypeLayout::void()),
                     expected_type,
+                    SourceLocation::UNKNOWN,
                 ))
             }
         }
@@ -223,12 +226,19 @@ pub fn apply_variable_bind(
                 Ok(val) => val,
                 Err(()) => {
                     let p = (**dim_expr).clone();
-                    return Err(TyperError::ArrayDimensionsMustBeConstantExpression(p));
+                    return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
+                        p,
+                        dim_expr.get_location(),
+                    ));
                 }
             },
             None => match *init {
                 Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
-                _ => return Err(TyperError::ArrayDimensionNotSpecified),
+                _ => {
+                    return Err(TyperError::ArrayDimensionNotSpecified(
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
             },
         };
 
@@ -315,7 +325,9 @@ fn parse_initializer(
             match tyl {
                 ir::TypeLayer::Scalar(_) => {
                     if exprs.len() as u32 != 1 {
-                        return Err(TyperError::InitializerAggregateWrongDimension);
+                        return Err(TyperError::InitializerAggregateWrongDimension(
+                            SourceLocation::UNKNOWN,
+                        ));
                     }
 
                     // Reparse as if it was a single expression instead of a 1 element aggregate
@@ -325,7 +337,9 @@ fn parse_initializer(
                 }
                 ir::TypeLayer::Vector(ref scalar, ref dim) => {
                     if exprs.len() as u32 != *dim {
-                        return Err(TyperError::InitializerAggregateWrongDimension);
+                        return Err(TyperError::InitializerAggregateWrongDimension(
+                            SourceLocation::UNKNOWN,
+                        ));
                     }
 
                     let ty = context
@@ -339,7 +353,9 @@ fn parse_initializer(
                 }
                 ir::TypeLayer::Array(ref inner, ref dim) => {
                     if exprs.len() as u64 != *dim {
-                        return Err(TyperError::InitializerAggregateWrongDimension);
+                        return Err(TyperError::InitializerAggregateWrongDimension(
+                            SourceLocation::UNKNOWN,
+                        ));
                     }
 
                     let ety = inner.to_rvalue();
@@ -347,7 +363,11 @@ fn parse_initializer(
 
                     ir::Initializer::Aggregate(elements)
                 }
-                _ => return Err(TyperError::InitializerAggregateDoesNotMatchType),
+                _ => {
+                    return Err(TyperError::InitializerAggregateDoesNotMatchType(
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
             }
         }
     })

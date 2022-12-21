@@ -17,23 +17,23 @@ pub enum TyperError {
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
     UnknownIdentifier(ast::ScopedIdentifier),
-    UnknownType(ErrorType),
+    UnknownType(ErrorType, SourceLocation),
 
-    TypeDoesNotHaveMembers(ErrorType),
+    TypeDoesNotHaveMembers(ErrorType, SourceLocation),
     /// Failed to find member of a type
     MemberDoesNotExist(ir::TypeId, ast::ScopedIdentifier),
-    InvalidSwizzle(ir::TypeId, String),
+    InvalidSwizzle(ir::TypeId, String, SourceLocation),
     /// Member identifier is part of a different type
     MemberIsForDifferentType(ir::TypeId, ir::TypeId, ast::ScopedIdentifier),
     /// Member identifier does not point to a type member
     IdentifierIsNotAMember(ir::TypeId, ast::ScopedIdentifier),
 
     ArrayIndexingNonArrayType(SourceLocation),
-    ArraySubscriptIndexNotInteger,
+    ArraySubscriptIndexNotInteger(SourceLocation),
 
-    CallOnNonFunction,
+    CallOnNonFunction(SourceLocation),
 
-    FunctionPassedToAnotherFunction(ErrorType, ErrorType),
+    FunctionPassedToAnotherFunction(ErrorType, ErrorType, SourceLocation),
     FunctionArgumentTypeMismatch(
         Vec<ir::FunctionId>,
         Vec<ir::ExpressionType>,
@@ -42,32 +42,32 @@ pub enum TyperError {
     ),
     ConstructorWrongArgumentCount(SourceLocation),
 
-    UnaryOperationWrongTypes(ast::UnaryOp, ErrorType),
-    BinaryOperationWrongTypes(ast::BinOp, ErrorType, ErrorType),
-    BinaryOperationNonNumericType,
-    TernaryConditionRequiresBoolean(ErrorType),
-    TernaryArmsMustHaveSameType(ErrorType, ErrorType),
+    UnaryOperationWrongTypes(ast::UnaryOp, ErrorType, SourceLocation),
+    BinaryOperationWrongTypes(ast::BinOp, ErrorType, ErrorType, SourceLocation),
+    BinaryOperationNonNumericType(SourceLocation),
+    TernaryConditionRequiresBoolean(ErrorType, SourceLocation),
+    TernaryArmsMustHaveSameType(ErrorType, ErrorType, SourceLocation),
 
-    InvalidCast(ErrorType, ErrorType),
+    InvalidCast(ErrorType, ErrorType, SourceLocation),
 
     InitializerExpressionWrongType(ir::TypeId, ir::TypeId, SourceLocation),
-    InitializerAggregateDoesNotMatchType,
-    InitializerAggregateWrongDimension,
+    InitializerAggregateDoesNotMatchType(SourceLocation),
+    InitializerAggregateWrongDimension(SourceLocation),
 
-    WrongTypeInConstructor,
-    WrongTypeInReturnStatement(ir::TypeId, ir::TypeId),
-    FunctionNotCalled,
+    WrongTypeInConstructor(SourceLocation),
+    WrongTypeInReturnStatement(ir::TypeId, ir::TypeId, SourceLocation),
+    FunctionNotCalled(SourceLocation),
 
-    MutableRequired,
-    LvalueRequired,
-    ArrayDimensionsMustBeConstantExpression(ast::Expression),
-    ArrayDimensionNotSpecified,
+    MutableRequired(SourceLocation),
+    LvalueRequired(SourceLocation),
+    ArrayDimensionsMustBeConstantExpression(ast::Expression, SourceLocation),
+    ArrayDimensionNotSpecified(SourceLocation),
 
     /// Failed to find member of a constant buffer
-    ConstantDoesNotExist(ir::ConstantBufferId, String),
+    ConstantDoesNotExist(ir::ConstantBufferId, String, SourceLocation),
 
     /// Failed to find member of a struct
-    StructMemberDoesNotExist(ir::StructId, String),
+    StructMemberDoesNotExist(ir::StructId, String, SourceLocation),
 
     /// Identifier in an expression resolved as a type
     ExpectedExpressionReceivedType(ast::ScopedIdentifier, ir::TypeId),
@@ -76,13 +76,13 @@ pub enum TyperError {
     ExpectedTypeReceivedExpression(ast::ScopedIdentifier),
 
     /// Swizzle is not allowed on the type
-    InvalidTypeForSwizzle(ir::TypeId),
+    InvalidTypeForSwizzle(ir::TypeId, SourceLocation),
 
     /// Attempted to use member access on a non-composite type
-    MemberNodeMustBeUsedOnStruct(ir::TypeId, String),
+    MemberNodeMustBeUsedOnStruct(ir::TypeId, String, SourceLocation),
 
     /// Attempted to index into a non-indexable type
-    ArrayIndexMustBeUsedOnArrayType(ir::TypeId),
+    ArrayIndexMustBeUsedOnArrayType(ir::TypeId, SourceLocation),
 
     /// Expression in a constant context could not be evaluated
     ExpressionIsNotConstantExpression(SourceLocation),
@@ -194,14 +194,14 @@ impl CompileError for TyperExternalError {
                 name.get_location(),
                 Severity::Error,
             ),
-            TyperError::UnknownType(et) => w.write_message(
+            TyperError::UnknownType(et, loc) => w.write_message(
                 &|f| write!(f, "unknown type name: {:?}", et),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::TypeDoesNotHaveMembers(_) => w.write_message(
+            TyperError::TypeDoesNotHaveMembers(_, loc) => w.write_message(
                 &|f| write!(f, "unknown member (type has no members)"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
             TyperError::MemberDoesNotExist(ty, name) => w.write_message(
@@ -213,10 +213,10 @@ impl CompileError for TyperExternalError {
                         name
                     )
                 },
-                SourceLocation::UNKNOWN,
+                name.get_location(),
                 Severity::Error,
             ),
-            TyperError::InvalidSwizzle(ty, swizzle) => w.write_message(
+            TyperError::InvalidSwizzle(ty, swizzle, loc) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -225,7 +225,7 @@ impl CompileError for TyperExternalError {
                         get_type_id_string(*ty, context)
                     )
                 },
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
             TyperError::MemberIsForDifferentType(sampled_ty, found_tyl, path) => w.write_message(
@@ -258,19 +258,19 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::ArraySubscriptIndexNotInteger => w.write_message(
+            TyperError::ArraySubscriptIndexNotInteger(loc) => w.write_message(
                 &|f| write!(f, "array subscripts must be integers"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::CallOnNonFunction => w.write_message(
+            TyperError::CallOnNonFunction(loc) => w.write_message(
                 &|f| write!(f, "function call applied to non-function type"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::FunctionPassedToAnotherFunction(_, _) => w.write_message(
+            TyperError::FunctionPassedToAnotherFunction(_, _, loc) => w.write_message(
                 &|f| write!(f, "functions can not be passed to other functions"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
             TyperError::FunctionArgumentTypeMismatch(
@@ -337,36 +337,34 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::UnaryOperationWrongTypes(_, _) => w.write_message(
+            TyperError::UnaryOperationWrongTypes(_, _, loc) => w.write_message(
                 &|f| write!(f, "operation does not support the given types"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::BinaryOperationWrongTypes(_, _, _) => w.write_message(
+            TyperError::BinaryOperationWrongTypes(_, _, _, loc) => w.write_message(
                 &|f| write!(f, "operation does not support the given types"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::BinaryOperationNonNumericType => w.write_message(
+            TyperError::BinaryOperationNonNumericType(loc) => w.write_message(
                 &|f| write!(f, "non-numeric type in binary operation"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::TernaryConditionRequiresBoolean(_) => w.write_message(
+            TyperError::TernaryConditionRequiresBoolean(_, loc) => w.write_message(
                 &|f| write!(f, "ternary condition must be boolean"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::TernaryArmsMustHaveSameType(_, _) => w.write_message(
+            TyperError::TernaryArmsMustHaveSameType(_, _, loc) => w.write_message(
                 &|f| write!(f, "ternary arms must have the same type"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::InvalidCast(_, _) => w.write_message(
-                &|f| write!(f, "invalid cast"),
-                SourceLocation::UNKNOWN,
-                Severity::Error,
-            ),
+            TyperError::InvalidCast(_, _, loc) => {
+                w.write_message(&|f| write!(f, "invalid cast"), *loc, Severity::Error)
+            }
             TyperError::InitializerExpressionWrongType(actual, expected, loc) => w.write_message(
                 &|f| {
                     write!(
@@ -379,22 +377,22 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::InitializerAggregateDoesNotMatchType => w.write_message(
+            TyperError::InitializerAggregateDoesNotMatchType(loc) => w.write_message(
                 &|f| write!(f, "initializer does not match type"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::InitializerAggregateWrongDimension => w.write_message(
+            TyperError::InitializerAggregateWrongDimension(loc) => w.write_message(
                 &|f| write!(f, "initializer has incorrect number of elements"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::WrongTypeInConstructor => w.write_message(
+            TyperError::WrongTypeInConstructor(loc) => w.write_message(
                 &|f| write!(f, "wrong type in numeric constructor"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::WrongTypeInReturnStatement(actual, expected) => w.write_message(
+            TyperError::WrongTypeInReturnStatement(actual, expected, loc) => w.write_message(
                 &|f| {
                     write!(
                         f,
@@ -402,42 +400,47 @@ impl CompileError for TyperExternalError {
                         expected, actual
                     )
                 },
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::FunctionNotCalled => w.write_message(
-                &|f| write!(f, "function not called"),
-                SourceLocation::UNKNOWN,
-                Severity::Error,
-            ),
-            TyperError::MutableRequired => w.write_message(
+            TyperError::FunctionNotCalled(loc) => {
+                w.write_message(&|f| write!(f, "function not called"), *loc, Severity::Error)
+            }
+            TyperError::MutableRequired(loc) => w.write_message(
                 &|f| write!(f, "non-const is required in this context"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::LvalueRequired => w.write_message(
+            TyperError::LvalueRequired(loc) => w.write_message(
                 &|f| write!(f, "lvalue is required in this context"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::ArrayDimensionsMustBeConstantExpression(_) => w.write_message(
+            TyperError::ArrayDimensionsMustBeConstantExpression(_, loc) => w.write_message(
                 &|f| write!(f, "array dimensions must be constant"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::ArrayDimensionNotSpecified => w.write_message(
+            TyperError::ArrayDimensionNotSpecified(loc) => w.write_message(
                 &|f| write!(f, "array not given any dimensions"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::ConstantDoesNotExist(_, name) => w.write_message(
+            TyperError::ConstantDoesNotExist(_, name, loc) => w.write_message(
                 &|f| write!(f, "constant buffer does not contain member '{}'", name),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
-            TyperError::StructMemberDoesNotExist(_, name) => w.write_message(
-                &|f| write!(f, "struct does not contain member '{}'", name),
-                SourceLocation::UNKNOWN,
+            TyperError::StructMemberDoesNotExist(id, name, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "struct '{}' does not contain member '{}'",
+                        get_struct_name(*id, context),
+                        name
+                    )
+                },
+                *loc,
                 Severity::Error,
             ),
             TyperError::ExpectedExpressionReceivedType(name, _) => w.write_message(
@@ -450,19 +453,38 @@ impl CompileError for TyperExternalError {
                 name.get_location(),
                 Severity::Error,
             ),
-            TyperError::InvalidTypeForSwizzle(_) => w.write_message(
-                &|f| write!(f, "invalid use of swizzle operation"),
-                SourceLocation::UNKNOWN,
+            TyperError::InvalidTypeForSwizzle(ty, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "invalid use of swizzle operation on type '{}'",
+                        get_type_id_string(*ty, context)
+                    )
+                },
+                *loc,
                 Severity::Error,
             ),
-            TyperError::MemberNodeMustBeUsedOnStruct(_, name) => w.write_message(
-                &|f| write!(f, "non-aggregate type can not contain member '{}'", name),
-                SourceLocation::UNKNOWN,
+            TyperError::MemberNodeMustBeUsedOnStruct(ty, name, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "non-aggregate type '{}' can not contain member '{}'",
+                        get_type_id_string(*ty, context),
+                        name
+                    )
+                },
+                *loc,
                 Severity::Error,
             ),
-            TyperError::ArrayIndexMustBeUsedOnArrayType(_) => w.write_message(
-                &|f| write!(f, "non-indexable type can not be indexed"),
-                SourceLocation::UNKNOWN,
+            TyperError::ArrayIndexMustBeUsedOnArrayType(ty, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "non-indexable type '{}' can not be indexed",
+                        get_type_id_string(*ty, context),
+                    )
+                },
+                *loc,
                 Severity::Error,
             ),
             TyperError::ExpressionIsNotConstantExpression(loc) => w.write_message(
