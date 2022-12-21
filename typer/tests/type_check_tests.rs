@@ -108,6 +108,14 @@ fn check_void() {
 }
 
 #[test]
+fn check_array_dimension_arguments() {
+    check_types("static float4 g_myArray[2];");
+    check_types("#define SIZE 2\nstatic float4 g_myArray[SIZE];");
+    check_types("static const uint c_size = 2; static float4 g_myArray[c_size];");
+    check_fail("static uint c_size = 2; static float4 g_myArray[c_size];");
+}
+
+#[test]
 fn reject_invalid_initialisers() {
     check_fail("static uint3 x = float2(1, 2);");
     check_fail("static float4 c[2] = float4(0, 1, 2, 3);");

@@ -353,7 +353,7 @@ pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) ->
         .clone();
 
     // Apply the array modifier
-    let type_layout = apply_variable_bind(base_type_layout, &td.bind, &None)?;
+    let type_layout = apply_variable_bind(base_type_layout, &td.bind, &None, context)?;
     let type_id = context.module.type_registry.register_type(type_layout);
 
     // Register the typedef

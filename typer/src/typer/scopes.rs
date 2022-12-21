@@ -537,6 +537,7 @@ impl Context {
             lang_slot: None,
             api_slot: None,
             init: None,
+            constexpr_value: None,
         });
 
         let scope = &self.scopes[self.current_scope];

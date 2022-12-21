@@ -103,7 +103,7 @@ fn parse_struct_internal(
                 for def in &ast_member.defs {
                     let name = def.name.clone();
                     let type_layout =
-                        apply_variable_bind(base_type_layout.clone(), &def.bind, &None)?;
+                        apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
                     let type_id = context.module.type_registry.register_type(type_layout);
                     member_map.insert(name.clone(), type_id);
                     members.push(ir::StructMember { name, type_id });

@@ -309,6 +309,7 @@ fn test_ast_to_ir() {
                     init: Some(ir::Initializer::Expression(ir::Expression::Literal(
                         ir::Literal::Int(4),
                     ))),
+                    constexpr_value: None,
                 }])
             );
 

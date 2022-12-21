@@ -82,7 +82,7 @@ pub fn parse_function_signature(
                 .clone();
 
             // If the parameter has type information bound to the name then apply it to the type now
-            let type_layout = apply_variable_bind(type_layout, &param.bind, &None)?;
+            let type_layout = apply_variable_bind(type_layout, &param.bind, &None, context)?;
 
             var_type.0 = context.module.type_registry.register_type(type_layout);
 

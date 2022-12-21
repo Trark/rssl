@@ -170,6 +170,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             base_type_layout.clone(),
             &local_variable.bind,
             &local_variable.init,
+            context,
         )?;
 
         // Register the type
@@ -217,21 +218,25 @@ pub fn apply_variable_bind(
     mut ty: ir::TypeLayout,
     bind: &ast::VariableBind,
     init: &Option<ast::Initializer>,
+    context: &mut Context,
 ) -> TyperResult<ir::TypeLayout> {
     for dim in &bind.0 {
         let (layout, modifiers) = ty.extract_modifier();
 
         let constant_dim = match *dim {
-            Some(ref dim_expr) => match evaluate_constexpr_int(dim_expr) {
-                Ok(val) => val,
-                Err(()) => {
-                    let p = (**dim_expr).clone();
-                    return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
-                        p,
-                        dim_expr.get_location(),
-                    ));
+            Some(ref dim_expr) => {
+                let expr_ir = parse_expr(dim_expr, context)?.0;
+                match evaluate_constexpr_int(&expr_ir, context) {
+                    Ok(val) => val,
+                    Err(()) => {
+                        let p = (**dim_expr).clone();
+                        return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
+                            p,
+                            dim_expr.get_location(),
+                        ));
+                    }
                 }
-            },
+            }
             None => match *init {
                 Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
                 _ => {
@@ -249,23 +254,32 @@ pub fn apply_variable_bind(
 }
 
 /// Evaluate a subset of possible constant expressions
-fn evaluate_constexpr_int(expr: &ast::Expression) -> Result<u64, ()> {
+pub fn evaluate_constexpr_int(expr: &ir::Expression, context: &mut Context) -> Result<u64, ()> {
     Ok(match *expr {
-        ast::Expression::Literal(ast::Literal::UntypedInt(i)) => i,
-        ast::Expression::Literal(ast::Literal::Int(i)) => i,
-        ast::Expression::Literal(ast::Literal::UInt(i)) => i,
-        ast::Expression::BinaryOperation(ref op, ref left, ref right) => {
-            let lc = evaluate_constexpr_int(left)?;
-            let rc = evaluate_constexpr_int(right)?;
+        ir::Expression::Literal(ast::Literal::UntypedInt(i)) => i,
+        ir::Expression::Literal(ast::Literal::Int(i)) => i,
+        ir::Expression::Literal(ast::Literal::UInt(i)) => i,
+        ir::Expression::IntrinsicOp(ref op, _, ref args) => {
+            let mut arg_values = Vec::with_capacity(args.len());
+            for arg in args {
+                arg_values.push(evaluate_constexpr_int(arg, context)?);
+            }
             match *op {
-                ast::BinOp::Add => lc + rc,
-                ast::BinOp::Subtract => lc - rc,
-                ast::BinOp::Multiply => lc * rc,
-                ast::BinOp::Divide => lc / rc,
-                ast::BinOp::Modulus => lc % rc,
-                ast::BinOp::LeftShift => lc << rc,
-                ast::BinOp::RightShift => lc >> rc,
+                ir::IntrinsicOp::Add => arg_values[0] + arg_values[1],
+                ir::IntrinsicOp::Subtract => arg_values[0] - arg_values[1],
+                ir::IntrinsicOp::Multiply => arg_values[0] * arg_values[1],
+                ir::IntrinsicOp::Divide => arg_values[0] / arg_values[1],
+                ir::IntrinsicOp::Modulus => arg_values[0] % arg_values[1],
+                ir::IntrinsicOp::LeftShift => arg_values[0] << arg_values[1],
+                ir::IntrinsicOp::RightShift => arg_values[0] >> arg_values[1],
                 _ => return Err(()),
+            }
+        }
+        ir::Expression::Global(id) => {
+            if let Some(value) = context.module.global_registry[id.0 as usize].constexpr_value {
+                value
+            } else {
+                return Err(());
             }
         }
         _ => return Err(()),

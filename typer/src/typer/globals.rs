@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::errors::*;
 use super::scopes::*;
-use super::statements::{apply_variable_bind, parse_initializer_opt};
+use super::statements::{apply_variable_bind, evaluate_constexpr_int, parse_initializer_opt};
 use super::types::parse_type;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -26,6 +26,7 @@ pub fn parse_rootdefinition_globalvariable(
             base_type_layout.clone(),
             &global_variable.bind,
             &global_variable.init,
+            context,
         )?;
 
         // Register the type
@@ -33,6 +34,24 @@ pub fn parse_rootdefinition_globalvariable(
 
         // Parse the initializer
         let var_init = parse_initializer_opt(&global_variable.init, type_id, context)?;
+
+        // Attempt to resolve the initializer as a constant expression
+        let evaluated_value = (|| {
+            if let Some(ir::Initializer::Expression(expr)) = &var_init {
+                let (type_unmodified, type_mod) =
+                    context.module.type_registry.extract_modifier(type_id);
+                if type_mod.is_const {
+                    if let ir::TypeLayer::Scalar(ir::ScalarType::UInt) =
+                        context.module.type_registry.get_type_layer(type_unmodified)
+                    {
+                        if let Ok(value) = evaluate_constexpr_int(expr, context) {
+                            return Some(value);
+                        }
+                    }
+                }
+            }
+            None
+        })();
 
         // Insert variable
         let var_id = context.insert_global(global_variable.name.clone(), type_id, storage_class)?;
@@ -63,6 +82,8 @@ pub fn parse_rootdefinition_globalvariable(
             None => None,
         };
         gv_ir.init = var_init;
+
+        gv_ir.constexpr_value = evaluated_value;
 
         defs.push(ir::RootDefinition::GlobalVariable(var_id));
     }
@@ -123,7 +144,8 @@ pub fn parse_rootdefinition_constantbuffer(
         for def in &member.defs {
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
-            let var_type = apply_variable_bind(base_type_layout.clone(), &def.bind, &None)?;
+            let var_type =
+                apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
             let type_id = context.module.type_registry.register_type(var_type);
             members_map.insert(var_name.clone(), type_id);
             members.push(ir::ConstantVariable {
