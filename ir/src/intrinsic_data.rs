@@ -128,9 +128,6 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { M abs(M) => Abs | int, int2, int3, int4, float, float2, float3, float4 },
 
-    f! { M acos(M) => Acos | float, float2, float3, float4 },
-    f! { M asin(M) => Asin | float, float2, float3, float4 },
-
     f! { int asint(uint) => AsInt },
     f! { int2 asint(uint2) => AsInt },
     f! { int3 asint(uint3) => AsInt },
@@ -162,13 +159,22 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { float3 asfloat(float3) => AsFloat },
     f! { float4 asfloat(float4) => AsFloat },
 
+    f! { M acos(M) => Acos | float, float2, float3, float4 },
+    f! { M asin(M) => Asin | float, float2, float3, float4 },
+    f! { M cos(M) => Cos | float, float2, float3, float4 },
+    f! { M sin(M) => Sin | float, float2, float3, float4 },
+    f! { void sincos(M, out M, out M) => Sincos | float, float2, float3, float4 },
+    f! { M sqrt(M) => Sqrt | float, float2, float3, float4 },
+    f! { M pow(M, M) => Pow | float, float2, float3, float4 },
     f! { M exp(M) => Exp | float, float2, float3, float4 },
+    f! { M exp2(M) => Exp2 | float, float2, float3, float4 },
+    f! { M log(M) => Log | float, float2, float3, float4 },
+    f! { M log2(M) => Log2 | float, float2, float3, float4 },
+    f! { M log10(M) => Log10 | float, float2, float3, float4 },
 
     f! { double asdouble(uint, uint) => AsDouble },
 
     f! { M clamp(M, M, M) => Clamp | int, int2, int3, int4, float, float2, float3, float4 },
-
-    f! { M cos(M) => Cos | float, float2, float3, float4 },
 
     f! { float3 cross(float3, float3) => Cross },
 
@@ -200,8 +206,6 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { M normalize(M) => Normalize | float1, float2, float3, float4 },
     f! { M rcp(M) => Rcp | float, float2, float3, float4 },
 
-    f! { M pow(M, M) => Pow | float, float2, float3, float4 },
-
     f! { M saturate(M) => Saturate | float, float2, float3, float4 },
 
     f! { int sign(int) => Sign },
@@ -213,13 +217,7 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { int3 sign(float3) => Sign },
     f! { int4 sign(float4) => Sign },
 
-    f! { M sin(M) => Sin | float, float2, float3, float4 },
-
-    f! { void sincos(M, out M, out M) => Sincos | float, float2, float3, float4 },
-
     f! { M smoothstep(M, M, M) => SmoothStep | float, float2, float3, float4 },
-
-    f! { M sqrt(M) => Sqrt | float, float2, float3, float4 },
 
     f! { M step(M, M) => Step | float, float2, float3, float4 },
 
