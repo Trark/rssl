@@ -191,7 +191,7 @@ impl CompileError for TyperExternalError {
             }
             TyperError::UnknownIdentifier(name) => w.write_message(
                 &|f| write!(f, "'{}' was not declared in this scope", name),
-                SourceLocation::UNKNOWN,
+                name.get_location(),
                 Severity::Error,
             ),
             TyperError::UnknownType(et) => w.write_message(
@@ -238,7 +238,7 @@ impl CompileError for TyperExternalError {
                         get_type_id_string(*sampled_ty, context),
                     )
                 },
-                SourceLocation::UNKNOWN,
+                path.get_location(),
                 Severity::Error,
             ),
             TyperError::IdentifierIsNotAMember(ty, path) => w.write_message(
@@ -250,7 +250,7 @@ impl CompileError for TyperExternalError {
                         get_type_id_string(*ty, context)
                     )
                 },
-                SourceLocation::UNKNOWN,
+                path.get_location(),
                 Severity::Error,
             ),
             TyperError::ArrayIndexingNonArrayType(loc) => w.write_message(
