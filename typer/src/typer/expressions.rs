@@ -1060,11 +1060,11 @@ fn parse_expr_unchecked(
             let subscript_texp = parse_expr_internal(subscript, context)?;
             let (array_ir, array_ty) = match array_texp {
                 TypedExpression::Value(array_ir, array_ty) => (array_ir, array_ty),
-                _ => return Err(TyperError::ArrayIndexingNonArrayType),
+                _ => return Err(TyperError::ArrayIndexingNonArrayType(array.location)),
             };
             let (subscript_ir, subscript_ty) = match subscript_texp {
                 TypedExpression::Value(subscript_ir, subscript_ty) => (subscript_ir, subscript_ty),
-                _ => return Err(TyperError::ArrayIndexingNonArrayType),
+                _ => return Err(TyperError::ArrayIndexingNonArrayType(array.location)),
             };
             let ty_nomod = context.module.type_registry.remove_modifier(array_ty.0);
             let tyl_nomod = context.module.type_registry.get_type_layout(ty_nomod);
@@ -1140,7 +1140,7 @@ fn parse_expr_unchecked(
                     let sub_node = ir::Expression::ArraySubscript(array, sub);
                     Ok(sub_node)
                 }
-                _ => Err(TyperError::ArrayIndexingNonArrayType),
+                _ => Err(TyperError::ArrayIndexingNonArrayType(array.location)),
             }?;
             let ety = match get_expression_type(&node, context) {
                 Ok(ety) => ety,

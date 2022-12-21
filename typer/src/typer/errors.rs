@@ -28,7 +28,7 @@ pub enum TyperError {
     /// Member identifier does not point to a type member
     IdentifierIsNotAMember(ir::TypeId, ast::ScopedIdentifier),
 
-    ArrayIndexingNonArrayType,
+    ArrayIndexingNonArrayType(SourceLocation),
     ArraySubscriptIndexNotInteger,
 
     CallOnNonFunction,
@@ -253,9 +253,9 @@ impl CompileError for TyperExternalError {
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
-            TyperError::ArrayIndexingNonArrayType => w.write_message(
+            TyperError::ArrayIndexingNonArrayType(loc) => w.write_message(
                 &|f| write!(f, "array index applied to non-array type"),
-                SourceLocation::UNKNOWN,
+                *loc,
                 Severity::Error,
             ),
             TyperError::ArraySubscriptIndexNotInteger => w.write_message(
