@@ -1090,11 +1090,29 @@ fn parse_expr_unchecked(
                     let sub_node = ir::Expression::ArraySubscript(array, sub);
                     Ok(sub_node)
                 }
-                ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => {
+                ir::TypeLayout::Object(
+                    ir::ObjectType::Texture2D(_) | ir::ObjectType::Texture2DMipsSlice(_),
+                ) => {
                     let index_type = context
                         .module
                         .type_registry
                         .register_type(ir::TypeLayout::uintn(2));
+                    let index = index_type.to_rvalue();
+                    let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
+                    let subscript_final = match cast {
+                        Err(_) => return Err(TyperError::ArraySubscriptIndexNotInteger),
+                        Ok(cast) => cast.apply(subscript_ir, &mut context.module),
+                    };
+                    let array = Box::new(array_ir);
+                    let sub = Box::new(subscript_final);
+                    let sub_node = ir::Expression::ArraySubscript(array, sub);
+                    Ok(sub_node)
+                }
+                ir::TypeLayout::Object(ir::ObjectType::Texture2DMips(_)) => {
+                    let index_type = context
+                        .module
+                        .type_registry
+                        .register_type(ir::TypeLayout::uint());
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
@@ -1307,6 +1325,19 @@ fn parse_expr_unchecked(
                             ))
                         }
                     };
+
+                    // Handle mips mips member explicitly as it is the only member on an intrinsic object type
+                    if let ir::ObjectType::Texture2D(ty) = object_type {
+                        if member.node == "mips" {
+                            let composite = Box::new(composite_ir);
+                            let member = ir::Expression::Member(composite, member.node.clone());
+                            let mips_oty = ir::ObjectType::Texture2DMips(ty);
+                            let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                            let mips_ty =
+                                context.module.type_registry.register_type_layer(mips_tyl);
+                            return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
+                        }
+                    }
 
                     // Get the object id or register it if it was not already seen
                     let obj_id = context.module.register_object(object_type);
@@ -1671,12 +1702,17 @@ fn get_expression_type(
                 ir::TypeLayer::Array(element, _) => element,
                 ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty)) => {
+                | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty)) => {
                     context.module.type_registry.make_const(ty)
                 }
                 ir::TypeLayer::Object(ir::ObjectType::RWBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(ty)) => ty,
+                ir::TypeLayer::Object(ir::ObjectType::Texture2DMips(ty)) => {
+                    let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty));
+                    context.module.type_registry.register_type_layer(tyl)
+                }
                 _ => return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(array_ty_nomod)),
             };
             Ok(ty.to_lvalue())
@@ -1686,6 +1722,16 @@ fn get_expression_type(
 
             let mut ty = context.module.type_registry.remove_modifier(expr_type.0);
             let mut tyl = context.module.type_registry.get_type_layer(ty);
+
+            // Handle mips member of Texture2D
+            if let ir::TypeLayer::Object(ir::ObjectType::Texture2D(inner)) = tyl {
+                if name == "mips" {
+                    let mips_oty = ir::ObjectType::Texture2DMips(inner);
+                    let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                    let mips_ty = context.module.type_registry.register_type_layer(mips_tyl);
+                    return Ok(mips_ty.to_lvalue());
+                }
+            }
 
             // If it is a constant buffer then auto unwrap the inner type
             if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(inner)) = tyl {

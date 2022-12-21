@@ -30,4 +30,5 @@ void test() {
     const float4 load_uav = g_output.Load(int2(0, 0));
     const float4 load_uav_status = g_output.Load(int2(0, 0), outInt);
     g_output[uint2(2u, 2u)] = g_output[uint2(1u, 1u)] = (float4)g_input[uint2(1u, 1u)];
+    float4 mips_load = (float4)g_input.mips[0u][uint2(0u, 0u)];
 }

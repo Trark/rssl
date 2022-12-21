@@ -531,7 +531,7 @@ fn get_type_id_string(id: ir::TypeId, context: &Context) -> String {
 fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
     match *tyl {
         ir::TypeLayout::Struct(sid) => get_struct_name(sid, context),
-        ir::TypeLayout::Object(ref ot) => format!("{:?}", ot),
+        ir::TypeLayout::Object(ref ot) => get_object_type_string(ot, context),
         ir::TypeLayout::Array(ref ty, ref len) => {
             format!("{}[{}]", get_type_string(ty, context), len)
         }
@@ -539,6 +539,34 @@ fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
             format!("{:?}{}", modifier, get_type_string(ty, context))
         }
         _ => format!("{:?}", tyl),
+    }
+}
+
+/// Get a string name from an intrinsic object type for error display
+fn get_object_type_string(object_type: &ir::ObjectType, context: &Context) -> String {
+    use ir::ObjectType::*;
+    match *object_type {
+        Buffer(ty) => format!("Buffer<{}>", get_type_id_string(ty, context)),
+        RWBuffer(ty) => format!("RWBuffer<{:?}>", get_type_id_string(ty, context)),
+        ByteAddressBuffer => "ByteAddressBuffer".to_string(),
+        RWByteAddressBuffer => "RWByteAddressBuffer".to_string(),
+        BufferAddress => "BufferAddress".to_string(),
+        RWBufferAddress => "RWBufferAddress".to_string(),
+        StructuredBuffer(ty) => {
+            format!("StructuredBuffer<{}>", get_type_id_string(ty, context))
+        }
+        RWStructuredBuffer(ty) => {
+            format!("RWStructuredBuffer<{}>", get_type_id_string(ty, context))
+        }
+        Texture2D(ty) => format!("Texture2D<{}>", get_type_id_string(ty, context)),
+        Texture2DMips(ty) => format!("Texture2D<{}>::Mips", get_type_id_string(ty, context)),
+        Texture2DMipsSlice(ty) => {
+            format!("Texture2D<{}>::MipsSlice", get_type_id_string(ty, context))
+        }
+        RWTexture2D(ty) => format!("RWTexture2D<{}>", get_type_id_string(ty, context)),
+        ConstantBuffer(ty) => format!("ConstantBuffer<{}>", get_type_id_string(ty, context)),
+        SamplerState => "SamplerState".to_string(),
+        SamplerComparisonState => "SamplerComparisonState".to_string(),
     }
 }
 

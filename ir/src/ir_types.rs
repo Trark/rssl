@@ -270,6 +270,9 @@ pub enum ObjectType {
     RWStructuredBuffer(TypeId),
 
     Texture2D(TypeId),
+    Texture2DMips(TypeId),
+    Texture2DMipsSlice(TypeId),
+
     RWTexture2D(TypeId),
 
     ConstantBuffer(TypeId),
@@ -723,6 +726,10 @@ impl ObjectType {
             ObjectType::ConstantBuffer(_) => RegisterType::B,
 
             ObjectType::SamplerState | ObjectType::SamplerComparisonState => RegisterType::S,
+
+            ObjectType::Texture2DMips(_) | ObjectType::Texture2DMipsSlice(_) => {
+                panic!("get_register_type called on non-root object types")
+            }
         }
     }
 }
@@ -788,6 +795,8 @@ impl std::fmt::Debug for ObjectType {
             StructuredBuffer(ref st) => write!(f, "StructuredBuffer<{:?}>", st),
             RWStructuredBuffer(ref st) => write!(f, "RWStructuredBuffer<{:?}>", st),
             Texture2D(ref dt) => write!(f, "Texture2D<{:?}>", dt),
+            Texture2DMips(ref dt) => write!(f, "Texture2D<{:?}>::Mips", dt),
+            Texture2DMipsSlice(ref dt) => write!(f, "Texture2D<{:?}>::MipsSlice", dt),
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{:?}>", dt),
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{:?}>", st),
             SamplerState => write!(f, "SamplerState"),

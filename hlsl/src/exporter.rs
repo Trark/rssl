@@ -563,6 +563,12 @@ fn export_type_impl(
                     export_type(ty, output, context)?;
                     output.push('>');
                 }
+                ir::ObjectType::Texture2DMips(_) | ir::ObjectType::Texture2DMipsSlice(_) => {
+                    // We do not expect intermediate values for mips to get exported
+                    // It's possible to make shaders in HLSL that reference these but these are all silly use cases
+                    // Trying to use mips-slice will likely break HLSL anyway as you can't make intermediates of these
+                    panic!("trying to export Texture2D.mips intermediates");
+                }
                 ir::ObjectType::RWTexture2D(ty) => {
                     output.push_str("RWTexture2D<");
                     export_type(ty, output, context)?;
