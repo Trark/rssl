@@ -6,6 +6,7 @@ use super::statements::{apply_variable_bind, evaluate_constexpr_int, parse_initi
 use super::types::parse_type;
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::*;
 
 pub fn parse_rootdefinition_globalvariable(
     gv: &ast::GlobalVariable,
@@ -33,7 +34,12 @@ pub fn parse_rootdefinition_globalvariable(
         let type_id = context.module.type_registry.register_type(type_layout);
 
         // Parse the initializer
-        let var_init = parse_initializer_opt(&global_variable.init, type_id, context)?;
+        let var_init = parse_initializer_opt(
+            &global_variable.init,
+            type_id,
+            global_variable.name.get_location(),
+            context,
+        )?;
 
         // Attempt to resolve the initializer as a constant expression
         let evaluated_value = (|| {

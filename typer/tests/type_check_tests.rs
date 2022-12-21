@@ -122,6 +122,29 @@ fn reject_invalid_initialisers() {
 }
 
 #[test]
+fn check_aggregate_initializers_primitives() {
+    // Initialise an array with all the elements
+    check_types("static float g_myArray[2] = { 1.0, 2.0 };");
+
+    // Fail if there are too many elements
+    check_fail("static float g_myArray[2] = { 1.0, 2.0, 3.0 };");
+
+    // Fail if there are too few elements - we do not support initializing the unspecified members
+    check_fail("static float g_myArray[2] = { 1.0 };");
+
+    // Check that we can infer the array arguments from the initializer if required
+    // TODO: Trying this with multidimensional arrays is untested
+    check_types("static float g_myArray[] = { 1.0, 2.0 };");
+
+    // Check aggregate initializing float4 inside an array
+    // As above, the float4 must list all elements
+    // A single scalar outside an inner {} block is also valid as this casts up
+    check_types(
+        "static float4 g_myArray[3] = { { 1.0, 2.0, 3.0, 4.0 }, 3.0, { 1.0, 2.0, 3.0, 4.0 } };",
+    );
+}
+
+#[test]
 fn check_statements() {
     check_types("void f() { 7; }");
     check_types("int f() { int x = 5; int y = 3; int z = x + y; return z; }");

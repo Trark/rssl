@@ -51,7 +51,7 @@ pub enum TyperError {
     InvalidCast(ErrorType, ErrorType, SourceLocation),
 
     InitializerExpressionWrongType(ir::TypeId, ir::TypeId, SourceLocation),
-    InitializerAggregateDoesNotMatchType(SourceLocation),
+    InitializerAggregateDoesNotMatchType(ir::TypeId, SourceLocation),
     InitializerAggregateWrongDimension(SourceLocation),
 
     WrongTypeInConstructor(SourceLocation),
@@ -369,7 +369,7 @@ impl CompileError for TyperExternalError {
                 &|f| {
                     write!(
                         f,
-                        "Variable of type '{}' was initialised with an expression of type '{}'",
+                        "variable of type '{}' was initialised with an expression of type '{}'",
                         get_type_id_string(*expected, context),
                         get_type_id_string(*actual, context),
                     )
@@ -377,13 +377,19 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::InitializerAggregateDoesNotMatchType(loc) => w.write_message(
-                &|f| write!(f, "initializer does not match type"),
+            TyperError::InitializerAggregateDoesNotMatchType(ty, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "aggregate initializer does not match the members of type '{}'",
+                        get_type_id_string(*ty, context)
+                    )
+                },
                 *loc,
                 Severity::Error,
             ),
             TyperError::InitializerAggregateWrongDimension(loc) => w.write_message(
-                &|f| write!(f, "initializer has incorrect number of elements"),
+                &|f| write!(f, "aggregate initializer has incorrect number of elements"),
                 *loc,
                 Severity::Error,
             ),

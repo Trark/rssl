@@ -177,7 +177,12 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
         let type_id = context.module.type_registry.register_type(type_layout);
 
         // Parse the initializer
-        let var_init = parse_initializer_opt(&local_variable.init, type_id, context)?;
+        let var_init = parse_initializer_opt(
+            &local_variable.init,
+            type_id,
+            local_variable.name.get_location(),
+            context,
+        )?;
 
         // Register the variable
         let var_id = context.insert_variable(local_variable.name.clone(), type_id)?;
@@ -290,10 +295,11 @@ pub fn evaluate_constexpr_int(expr: &ir::Expression, context: &mut Context) -> R
 pub fn parse_initializer_opt(
     init_opt: &Option<ast::Initializer>,
     ty: ir::TypeId,
+    variable_location: SourceLocation,
     context: &mut Context,
 ) -> TyperResult<Option<ir::Initializer>> {
     Ok(match *init_opt {
-        Some(ref init) => Some(parse_initializer(init, ty, context)?),
+        Some(ref init) => Some(parse_initializer(init, ty, variable_location, context)?),
         None => None,
     })
 }
@@ -302,6 +308,7 @@ pub fn parse_initializer_opt(
 fn parse_initializer(
     init: &ast::Initializer,
     ty: ir::TypeId,
+    variable_location: SourceLocation,
     context: &mut Context,
 ) -> TyperResult<ir::Initializer> {
     Ok(match *init {
@@ -325,11 +332,12 @@ fn parse_initializer(
             fn build_elements(
                 ety: &ExpressionType,
                 inits: &[ast::Initializer],
+                variable_location: SourceLocation,
                 context: &mut Context,
             ) -> TyperResult<Vec<ir::Initializer>> {
                 let mut elements = Vec::with_capacity(inits.len());
                 for init in inits {
-                    let element = parse_initializer(init, ety.0, context)?;
+                    let element = parse_initializer(init, ety.0, variable_location, context)?;
                     elements.push(element);
                 }
                 Ok(elements)
@@ -340,19 +348,19 @@ fn parse_initializer(
                 ir::TypeLayer::Scalar(_) => {
                     if exprs.len() as u32 != 1 {
                         return Err(TyperError::InitializerAggregateWrongDimension(
-                            SourceLocation::UNKNOWN,
+                            variable_location,
                         ));
                     }
 
                     // Reparse as if it was a single expression instead of a 1 element aggregate
                     // Meaning '{ x }' is read as if it were 'x'
                     // Will also reduce '{{ x }}' to 'x'
-                    parse_initializer(&exprs[0], ty, context)?
+                    parse_initializer(&exprs[0], ty, variable_location, context)?
                 }
                 ir::TypeLayer::Vector(ref scalar, ref dim) => {
                     if exprs.len() as u32 != *dim {
                         return Err(TyperError::InitializerAggregateWrongDimension(
-                            SourceLocation::UNKNOWN,
+                            variable_location,
                         ));
                     }
 
@@ -361,25 +369,26 @@ fn parse_initializer(
                         .type_registry
                         .register_type(ir::TypeLayout::from_scalar(*scalar));
                     let ety = ty.to_rvalue();
-                    let elements = build_elements(&ety, exprs, context)?;
+                    let elements = build_elements(&ety, exprs, variable_location, context)?;
 
                     ir::Initializer::Aggregate(elements)
                 }
                 ir::TypeLayer::Array(ref inner, ref dim) => {
                     if exprs.len() as u64 != *dim {
                         return Err(TyperError::InitializerAggregateWrongDimension(
-                            SourceLocation::UNKNOWN,
+                            variable_location,
                         ));
                     }
 
                     let ety = inner.to_rvalue();
-                    let elements = build_elements(&ety, exprs, context)?;
+                    let elements = build_elements(&ety, exprs, variable_location, context)?;
 
                     ir::Initializer::Aggregate(elements)
                 }
                 _ => {
                     return Err(TyperError::InitializerAggregateDoesNotMatchType(
-                        SourceLocation::UNKNOWN,
+                        ty,
+                        variable_location,
                     ))
                 }
             }
