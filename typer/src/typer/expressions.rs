@@ -1070,6 +1070,7 @@ fn parse_expr_unchecked(
             let tyl_nomod = context.module.type_registry.get_type_layout(ty_nomod);
             let node = match tyl_nomod {
                 ir::TypeLayout::Array(_, _)
+                | ir::TypeLayout::Vector(_, _)
                 | ir::TypeLayout::Object(ir::ObjectType::Buffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_))
                 | ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_))
@@ -1700,6 +1701,10 @@ fn get_expression_type(
             let array_tyl_nomod = context.module.type_registry.get_type_layer(array_ty_nomod);
             let ty = match array_tyl_nomod {
                 ir::TypeLayer::Array(element, _) => element,
+                ir::TypeLayer::Vector(st, _) => {
+                    let tyl = ir::TypeLayer::Scalar(st);
+                    context.module.type_registry.register_type_layer(tyl)
+                }
                 ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty))

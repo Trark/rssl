@@ -237,6 +237,42 @@ void f() {
 }
 
 #[test]
+fn check_expression_vector_swizzle() {
+    check_rssl_to_hlsl(
+        "void f() {
+    float4 v0 = float4(1, 2, 3, 4);
+    float4 v1 = v0.xyzw;
+    float4 v2 = v0.wwww;
+}
+",
+        "void f() {
+    float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
+    float4 v1 = v0.xyzw;
+    float4 v2 = v0.wwww;
+}
+",
+    );
+}
+
+#[test]
+fn check_expression_vector_index() {
+    check_rssl_to_hlsl(
+        "void f() {
+    float4 v0 = float4(1, 2, 3, 4);
+    float v1 = v0[0];
+    float v2 = v0[3];
+}
+",
+        "void f() {
+    float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
+    float v1 = v0[0u];
+    float v2 = v0[3u];
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_block() {
     check_rssl_to_hlsl(
         "void f() {
