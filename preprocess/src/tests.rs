@@ -193,6 +193,40 @@ fn test_macro_function_chain() {
         "#define Macro0(Arg0, Arg1) {0:Arg0;Arg1}\n#define Macro1(Arg2, Arg3) {1:Arg2;Arg3}\nMacro0(Macro1(X,Y),Macro1(Z,W))",
         "{0:{1:X;Y};{1:Z;W}}\n"
     );
+
+    // A macro function can also be invoked in the caller after the substitution
+    assert_text!("#define A(x) [x]\n#define M() A\nM()(6)", "[6]\n");
+    assert_text!("#define A(x) [x]\n#define M A\nM(6)", "[6]\n");
+}
+
+#[test]
+fn test_macro_recursion() {
+    assert_text!(
+        "#define M1 M2 + M2\n#define M2 M1 + M1\nM1",
+        "M1 + M1 + M1 + M1\n"
+    );
+
+    assert_text!(
+        "#define M4() M2\n#define M1 M3 + M4\n#define M2 M1 + M1\nM1()",
+        "M3 + M3 + M4 + M3 + M4\n"
+    );
+
+    assert_text!(
+        "#define M4() M2\n#define M1 M3 + M4\n#define M2 M1 + M1\nM1()()",
+        "M3 + M3 + M4 + M3 + M4()\n"
+    );
+
+    assert_text!(
+        "#define M4() M2\n#define M1 M3 + M4()\n#define M2 M1 + M1\nM1()",
+        "M3 + M1 + M1()\n"
+    );
+}
+
+#[test]
+fn test_macro_function_construction_from_substitution() {
+    // A macro function can also be invoked in the caller after the substitution
+    assert_text!("#define A(x) [x]\n#define M() A\nM()(6)", "[6]\n");
+    assert_text!("#define A(x) [x]\n#define M A\nM(6)", "[6]\n");
 }
 
 #[test]
@@ -406,5 +440,42 @@ fn test_concat() {
     assert_text!(
         "#define M1(a, b) a ## b\n#define M2(a, b) M1(a, b)\nM2(c, d)",
         "cd\n"
+    );
+
+    // ## can construct a macro that is then replaced
+    assert_text!("#define cd ef\n#define M(a, b) a ## b\nM(c, d)", "ef\n");
+
+    // ## can construct a macro function that may then be invoked
+    assert_text!(
+        "#define AB(x) [x]\n#define M(a, b) a ## b\nM(A, B)(6)",
+        "[6]\n"
+    );
+
+    // Invoked functions can then chain as long as the last called macro changes
+    assert_text!(
+        "#define F1(x) [f1] + F ## x
+#define F2(x) [f2] + F ## x
+#define FN(x) [fn] + F ## x
+#define M() FN
+M()(2)(1)(2)(1)(2)(1)(2)",
+        "[fn] + [f2] + [f1] + [f2] + [f1] + [f2] + [f1] + F2\n"
+    );
+
+    assert_text!(
+        "#define F1(x) [f1] + F##x
+#define F2(x) [f2] + F##x
+#define FN(x) [fn] + F##x
+#define M() FN
+M()(2)(1)(2)(1)(2)(1)(2)",
+        "[fn] + [f2] + [f1] + [f2] + [f1] + [f2] + [f1] + F2\n"
+    );
+
+    assert_text!(
+        "#define F1(x) [f1] + F ## x
+#define F2(x) [f2] + F ## x
+#define FN(x) [fn] + F ## x
+#define M() FN
+M()(2)(1)(2)(3)(2)(1)(2)",
+        "[fn] + [f2] + [f1] + [f2] + F3(2)(1)(2)\n"
     );
 }

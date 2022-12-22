@@ -221,11 +221,7 @@ struct Macro {
 }
 
 impl Macro {
-    fn parse(
-        command: &[PreprocessToken],
-        macros: &[Macro],
-        source_manager: &mut SourceManager,
-    ) -> Result<Macro, PreprocessError> {
+    fn parse(command: &[PreprocessToken], macros: &[Macro]) -> Result<Macro, PreprocessError> {
         let command = trim_whitespace_start(command);
 
         let location = command.first().get_location();
@@ -295,7 +291,7 @@ impl Macro {
         let body = trim_whitespace(body);
 
         // Replace identifiers to parameters with argument reference tokens
-        let mut tokens = body
+        let tokens = body
             .iter()
             .map(|t| {
                 if let Token::Id(id) = &t.0 {
@@ -313,9 +309,6 @@ impl Macro {
                 t.clone()
             })
             .collect::<Vec<_>>();
-
-        // Apply other defines into the segment of the body
-        tokens = apply_macros(&tokens, macros, false, false, source_manager)?;
 
         let def = Macro {
             name,
@@ -356,38 +349,6 @@ fn trim_whitespace_end(mut tokens: &[PreprocessToken]) -> &[PreprocessToken] {
 /// Remove whitespace and comments from the start and end of a token stream - but not endlines
 fn trim_whitespace(tokens: &[PreprocessToken]) -> &[PreprocessToken] {
     trim_whitespace_end(trim_whitespace_start(tokens))
-}
-
-/// Find the next instance of the named macro in a stream of tokens
-fn find_macro_invocation<'m>(
-    stream: &[PreprocessToken],
-    macros: &'m [Macro],
-) -> Option<(&'m Macro, usize)> {
-    let mut i = 0;
-    while i < stream.len() {
-        if let Token::Id(id) = &stream[i].0 {
-            for macro_def in macros {
-                if id.0 == macro_def.name {
-                    // Check we have the start of function parameters
-                    let mut valid_macro = true;
-                    if macro_def.is_function {
-                        valid_macro = false;
-                        if let [PreprocessToken(Token::LeftParen, _), ..] =
-                            trim_whitespace_start(&stream[i + 1..])
-                        {
-                            valid_macro = true;
-                        }
-                    }
-
-                    if valid_macro {
-                        return Some((macro_def, i));
-                    }
-                }
-            }
-        }
-        i += 1;
-    }
-    None
 }
 
 fn split_macro_args<'stream>(
@@ -457,300 +418,384 @@ fn split_macro_args<'stream>(
     Ok((remaining, args))
 }
 
-fn apply_user_macros<'t>(
-    text: &'t [PreprocessToken],
-    macro_defs: &[Macro],
-    apply_concat: bool,
-    output: &mut Vec<PreprocessToken>,
-    source_manager: &mut SourceManager,
-) -> Result<&'t [PreprocessToken], PreprocessError> {
-    // Find the first macro that matches the text
-    // We could try to apply defined() in this function - but this is currently resolved in a prepass before all other macros
-    if let Some((macro_def, sz)) = find_macro_invocation(text, macro_defs) {
-        let before = &text[..sz];
-        let mut remaining = &text[sz + 1..];
-
-        // Read macro arguments
-        let args = if macro_def.is_function {
-            let (rest, args) = split_macro_args(&macro_def.name, remaining)?;
-            remaining = rest;
-
-            if macro_def.num_params == 0 {
-                if !(args.len() == 1 && args[0].is_empty()) {
-                    return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                }
-            } else if args.len() as u64 != macro_def.num_params {
-                return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-            }
-
-            args
-        } else {
-            vec![]
-        };
-        let after = remaining;
-
-        // Substitute macros inside macro arguments
-        let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
-            let mut vec = vec?;
-            let subbed_text = apply_macros(arg, macro_defs, false, true, source_manager)?;
-            vec.push(subbed_text);
-            Ok(vec)
-        })?;
-
-        // Copy everything before the macro
-        output.extend_from_slice(before);
-
-        // Generate macro body into a local array
-        let mut preconcat_body = Vec::with_capacity(macro_def.tokens.len());
-        for token in &macro_def.tokens {
-            if let Token::MacroArg(i) = token.0 {
-                // If we are a macro arg then replace the token with the argument
-                preconcat_body.extend_from_slice(&args[i as usize])
-            } else {
-                // If we are a normal token then copy it across without modification
-                preconcat_body.push(token.clone());
-            }
-        }
-
-        // Apply ## operations and output
-        let mut remaining_preconcat = preconcat_body.as_slice();
-        if apply_concat {
-            while !remaining_preconcat.is_empty() {
-                let concat_result = split_concat(remaining_preconcat)?;
-                if let Some((before, left_token, right_token)) = concat_result.0 {
-                    // Emit all tokens before the ## operation
-                    output.extend_from_slice(before);
-
-                    // Emit original strings from the tokens
-                    let left_string = unlex(std::slice::from_ref(left_token), source_manager);
-                    let right_string = unlex(std::slice::from_ref(right_token), source_manager);
-
-                    // Combine the strings
-                    let new_fragment = format!("{}{}", left_string, right_string);
-
-                    // Register the combined string as a file
-                    let file_id = source_manager
-                        .add_file(FileName("<scratch space>".to_string()), new_fragment);
-                    let source_location = source_manager
-                        .get_source_location_from_file_offset(file_id, StreamLocation(0));
-
-                    // String is now owned by the source manager - fetch a reference to it
-                    let new_fragment = source_manager.get_contents(file_id);
-
-                    // Lex the new combined string file
-                    let merged_token = match crate::lexer::lex(new_fragment, source_location) {
-                        Ok(tokens) => tokens,
-                        Err(_) => return Err(PreprocessError::ConcatFailed(source_location)),
-                    };
-
-                    // We expect a single token result with a new line marker after it
-                    if let [token, PreprocessToken(Token::Endline, _)] = merged_token.as_slice() {
-                        // Insert the new combined token into the output stream
-                        output.push(token.clone());
-                    } else {
-                        return Err(PreprocessError::ConcatFailed(source_location));
-                    }
-
-                    // Set remaining tokens to all tokens after the right token
-                    remaining_preconcat = concat_result.1;
-                } else {
-                    // No more ## - emit all the tokens to the output
-                    output.extend_from_slice(remaining_preconcat);
-                    remaining_preconcat = &[];
-                }
-            }
-        } else {
-            output.extend_from_slice(remaining_preconcat);
-        };
-
-        // Return everything after the macro so it can be processed next
-        // Avoid recursion here as we can process large blocks of text with many macros
-        Ok(after)
-    } else {
-        output.extend_from_slice(text);
-        Ok(&[])
-    }
-}
-
-type ConcatSplit<'t> = (
-    Option<(
-        &'t [PreprocessToken],
-        &'t PreprocessToken,
-        &'t PreprocessToken,
-    )>,
-    &'t [PreprocessToken],
-);
-
-/// Find the next use of ## and split the slice into ranges so the operation can be applied
-fn split_concat(tokens: &[PreprocessToken]) -> Result<ConcatSplit, PreprocessError> {
-    if let Some(concat_position) = tokens.iter().position(|t| t.0 == Token::Concat) {
-        let concat_token = &tokens[concat_position];
-
-        // Get the left token to concat
-        let (before, left_token) = if let Some(left_position) = tokens[..concat_position]
-            .iter()
-            .rev()
-            .position(|t| !t.0.is_whitespace())
-        {
-            (
-                &tokens[..concat_position - left_position - 1],
-                &tokens[concat_position - left_position - 1],
-            )
-        } else {
-            return Err(PreprocessError::ConcatMissingLeftToken(
-                concat_token.get_location(),
-            ));
-        };
-
-        // Get the right token to concat
-        let (after, right_token) = if let Some(right_position) = tokens[concat_position + 1..]
-            .iter()
-            .position(|t| !t.0.is_whitespace())
-        {
-            (
-                &tokens[concat_position + right_position + 2..],
-                &tokens[concat_position + right_position + 1],
-            )
-        } else {
-            return Err(PreprocessError::ConcatMissingRightToken(
-                concat_token.get_location(),
-            ));
-        };
-
-        Ok((Some((before, left_token, right_token)), after))
-    } else {
-        Ok((None, tokens))
-    }
-}
-
-/// Find the next instance of the identifier in a stream of tokens
-fn find_named_identifier(stream: &[PreprocessToken], name: &str) -> Option<usize> {
-    let mut i = 0;
-    while i < stream.len() {
-        if let Token::Id(id) = &stream[i].0 {
-            if id.0 == name {
-                return Some(i);
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-fn apply_defined_macro(
-    text: &[PreprocessToken],
-    macro_defs: &[Macro],
-    output: &mut Vec<PreprocessToken>,
-) -> Result<(), PreprocessError> {
-    let defined_name = "defined";
-    if let Some(sz) = find_named_identifier(text, defined_name) {
-        let before = &text[..sz];
-        let mut remaining = &text[sz + 1..];
-
-        // Read argument
-        let arg = {
-            // Allow "defined A" instead of traditional defined(A)
-            let remaining_trimmed = trim_whitespace_start(remaining);
-            match remaining_trimmed {
-                [PreprocessToken(arg @ Token::Id(_), _), rest @ ..]
-                    if remaining.len() != remaining_trimmed.len() =>
-                {
-                    remaining = rest;
-                    arg
-                }
-                _ => {
-                    // Parse arguments like a normal macro called defined
-                    let (rest, args) = split_macro_args(defined_name, remaining)?;
-                    remaining = rest;
-
-                    // Expect one argument
-                    if args.len() as u64 != 1 {
-                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                    }
-
-                    // Expect a single name as the argument
-                    if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
-                        arg
-                    } else {
-                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
-                    }
-                }
-            }
-        };
-
-        // We are about to make a fake token for the result
-        // This will take the start location from the start of the "defined" token
-        let start_location = text[sz].get_location();
-
-        // There must be at least one token after the "defined" - as it requires arguments
-        // The end location will be at the end of the arguments
-        let end_location = text[text.len() - remaining.len() - 1].get_end_location();
-
-        // All the argument tokens should be from the same file as the defined command is executed immediatly in a preprocessor command
-        // This means constructing the range between the start and end location should be contiguous
-        let location_size = end_location.get_raw() - start_location.get_raw();
-
-        let exists = macro_defs.iter().any(|m| {
-            if let Token::Id(id) = arg {
-                m.name == id.0
-            } else {
-                false
-            }
-        });
-
-        let generated_token = if exists {
-            Token::LiteralInt(1)
-        } else {
-            Token::LiteralInt(0)
-        };
-
-        output.extend_from_slice(before);
-        output.push(PreprocessToken::new(
-            generated_token,
-            start_location,
-            0,
-            location_size,
-        ));
-        if !remaining.is_empty() {
-            apply_defined_macro(remaining, macro_defs, output)?;
-        }
-        Ok(())
-    } else {
-        assert!(!text.is_empty());
-        output.extend_from_slice(text);
-        Ok(())
-    }
-}
-
+/// Apply all macros and special functions to a block of tokens
 fn apply_macros(
     tokens: &[PreprocessToken],
     macro_defs: &[Macro],
     apply_defined: bool,
-    apply_concat: bool,
     source_manager: &mut SourceManager,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
-    // Apply defined() first
-    let mut post_defined_tokens;
-    let tokens = if apply_defined {
-        post_defined_tokens = Vec::with_capacity(tokens.len());
-        apply_defined_macro(tokens, macro_defs, &mut post_defined_tokens)?;
-        post_defined_tokens.as_slice()
-    } else {
-        tokens
-    };
+    let mut macro_disabled = vec![false; macro_defs.len()];
+    apply_macros_internal(
+        tokens.to_vec(),
+        macro_defs,
+        &mut macro_disabled,
+        apply_defined,
+        source_manager,
+    )
+}
 
-    let mut next_tokens = Vec::with_capacity(tokens.len());
-    let mut remaining = tokens;
-    while !remaining.is_empty() {
-        remaining = apply_user_macros(
-            remaining,
+struct MacroSearchPosition {
+    /// The main next position we will be parsing from
+    next_pos: usize,
+
+    /// The position we can search for macro function names from
+    /// As long as the arguments are within next_pos we can invoke it
+    early_function_pos: usize,
+
+    /// The last function we applied - this can not be used in the early search region
+    last_macro_function_index: usize,
+}
+
+/// Internal version of apply_macros that has macro disabled states
+fn apply_macros_internal(
+    tokens: Vec<PreprocessToken>,
+    macro_defs: &[Macro],
+    macro_disabled: &mut [bool],
+    apply_defined: bool,
+    source_manager: &mut SourceManager,
+) -> Result<Vec<PreprocessToken>, PreprocessError> {
+    // Make a vec from the source range which we will modify in place
+    let mut tokens = tokens.to_vec();
+
+    // Process the text one operation at a time - starting at the last applied point
+    let mut pos = MacroSearchPosition {
+        next_pos: 0,
+        early_function_pos: 0,
+        last_macro_function_index: usize::MAX,
+    };
+    while pos.next_pos < tokens.len() {
+        // Apply the next operation we can find
+        pos = apply_single_macro(
+            &mut tokens,
+            pos,
             macro_defs,
-            apply_concat,
-            &mut next_tokens,
+            macro_disabled,
+            apply_defined,
             source_manager,
         )?;
     }
-    Ok(next_tokens)
+    Ok(tokens)
+}
+
+/// Attempt to replace the next macro in a region of text
+fn apply_single_macro(
+    tokens: &mut Vec<PreprocessToken>,
+    search_pos: MacroSearchPosition,
+    macro_defs: &[Macro],
+    macro_disabled: &mut [bool],
+    apply_defined: bool,
+    source_manager: &mut SourceManager,
+) -> Result<MacroSearchPosition, PreprocessError> {
+    // Find the first macro or special operation that matches the text
+    let found = find_single_macro(
+        tokens,
+        search_pos,
+        macro_defs,
+        macro_disabled,
+        apply_defined,
+    )?;
+    match found {
+        FoundMacro::User(macro_index, pos) => {
+            let macro_def = &macro_defs[macro_index];
+
+            // Read macro arguments
+            let mut remaining = &tokens[pos + 1..];
+            let args = if macro_def.is_function {
+                let (rest, args) = split_macro_args(&macro_def.name, remaining)?;
+                remaining = rest;
+
+                if macro_def.num_params == 0 {
+                    if !(args.len() == 1 && args[0].is_empty()) {
+                        return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                    }
+                } else if args.len() as u64 != macro_def.num_params {
+                    return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                }
+
+                args
+            } else {
+                Vec::new()
+            };
+            let end = tokens.len() - remaining.len();
+
+            // Substitute macros inside macro arguments
+            let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
+                let mut vec = vec?;
+                let subbed_text = apply_macros(arg, macro_defs, false, source_manager)?;
+                vec.push(subbed_text);
+                Ok(vec)
+            })?;
+
+            // Generate macro body into a local array
+            let mut output = Vec::with_capacity(macro_def.tokens.len());
+            for token in &macro_def.tokens {
+                if let Token::MacroArg(i) = token.0 {
+                    // If we are a macro arg then replace the token with the argument
+                    output.extend_from_slice(&args[i as usize])
+                } else {
+                    // If we are a normal token then copy it across without modification
+                    output.push(token.clone());
+                }
+            }
+
+            // Suppress the current macro
+            assert!(!macro_disabled[macro_index]);
+            macro_disabled[macro_index] = true;
+
+            // Apply macros to the inner region again
+            let output =
+                apply_macros_internal(output, macro_defs, macro_disabled, false, source_manager)?;
+
+            // Enable the current macro
+            assert!(macro_disabled[macro_index]);
+            macro_disabled[macro_index] = false;
+
+            assert!(end > pos);
+            let tokens_added = output.len();
+
+            // Replace the section of tokens
+            tokens.splice(pos..end, output);
+
+            let new_end = pos + tokens_added;
+
+            // Continue parsing after the replaced tokens
+            // With the exception that we start searching in the replaced region but only accept function invocations that reach into the next region
+            // And which are for a different macro function than we just invoked
+            Ok(MacroSearchPosition {
+                next_pos: new_end,
+                early_function_pos: pos,
+                last_macro_function_index: if macro_def.is_function {
+                    macro_index
+                } else {
+                    usize::MAX
+                },
+            })
+        }
+        FoundMacro::Defined(pos) => {
+            // Read argument
+            let mut remaining = &tokens[pos + 1..];
+            let arg = {
+                // Allow "defined A" instead of traditional defined(A)
+                let remaining_trimmed = trim_whitespace_start(remaining);
+                match remaining_trimmed {
+                    [PreprocessToken(arg @ Token::Id(_), _), rest @ ..]
+                        if remaining.len() != remaining_trimmed.len() =>
+                    {
+                        remaining = rest;
+                        arg
+                    }
+                    _ => {
+                        // Parse arguments like a normal macro called defined
+                        let (rest, args) = split_macro_args("defined", remaining)?;
+                        remaining = rest;
+
+                        // Expect one argument
+                        if args.len() as u64 != 1 {
+                            return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                        }
+
+                        // Expect a single name as the argument
+                        if let [PreprocessToken(arg @ Token::Id(_), _)] = args[0] {
+                            arg
+                        } else {
+                            return Err(PreprocessError::MacroExpectsDifferentNumberOfArguments);
+                        }
+                    }
+                }
+            };
+
+            // We are about to make a fake token for the result
+            // This will take the start location from the start of the "defined" token
+            let start_location = tokens[pos].get_location();
+
+            // There must be at least one token after the "defined" - as it requires arguments
+            // The end location will be at the end of the arguments
+            let end_location = tokens[tokens.len() - remaining.len() - 1].get_end_location();
+
+            // All the argument tokens should be from the same file as the defined command is executed immediatly in a preprocessor command
+            // This means constructing the range between the start and end location should be contiguous
+            let location_size = end_location.get_raw() - start_location.get_raw();
+
+            let exists = macro_defs.iter().any(|m| {
+                if let Token::Id(id) = arg {
+                    m.name == id.0
+                } else {
+                    false
+                }
+            });
+
+            let generated_token = if exists {
+                Token::LiteralInt(1)
+            } else {
+                Token::LiteralInt(0)
+            };
+
+            let output = Vec::from([PreprocessToken::new(
+                generated_token,
+                start_location,
+                0,
+                location_size,
+            )]);
+
+            let end = tokens.len() - remaining.len();
+
+            // Replace the section of tokens
+            tokens.splice(pos..end, output);
+
+            // Continue from after the generated token
+            Ok(MacroSearchPosition {
+                next_pos: pos + 1,
+                early_function_pos: pos + 1,
+                last_macro_function_index: usize::MAX,
+            })
+        }
+        FoundMacro::Concat(left_token_pos, right_token_pos) => {
+            let left_token = &tokens[left_token_pos];
+            let right_token = &tokens[right_token_pos];
+            assert!(left_token_pos + 1 < right_token_pos);
+
+            // Emit original strings from the tokens
+            let left_string = unlex(std::slice::from_ref(left_token), source_manager);
+            let right_string = unlex(std::slice::from_ref(right_token), source_manager);
+
+            // Combine the strings
+            let new_fragment = format!("{}{}", left_string, right_string);
+
+            // Register the combined string as a file
+            let file_id =
+                source_manager.add_file(FileName("<scratch space>".to_string()), new_fragment);
+            let source_location =
+                source_manager.get_source_location_from_file_offset(file_id, StreamLocation(0));
+
+            // String is now owned by the source manager - fetch a reference to it
+            let new_fragment = source_manager.get_contents(file_id);
+
+            // Lex the new combined string file
+            let merged_token = match crate::lexer::lex(new_fragment, source_location) {
+                Ok(tokens) => tokens,
+                Err(_) => return Err(PreprocessError::ConcatFailed(source_location)),
+            };
+
+            // We expect a single token result with a new line marker after it
+            let output =
+                if let [token, PreprocessToken(Token::Endline, _)] = merged_token.as_slice() {
+                    // Insert the new combined token into the output stream
+                    Vec::from([token.clone()])
+                } else {
+                    return Err(PreprocessError::ConcatFailed(source_location));
+                };
+
+            // Replace the section of tokens
+            tokens.splice(left_token_pos..=right_token_pos, output);
+
+            // Continue from the new token - so the new token may also invoke a macro
+            Ok(MacroSearchPosition {
+                next_pos: left_token_pos,
+                early_function_pos: left_token_pos,
+                last_macro_function_index: usize::MAX,
+            })
+        }
+        FoundMacro::None => Ok(MacroSearchPosition {
+            next_pos: tokens.len(),
+            early_function_pos: tokens.len(),
+            last_macro_function_index: usize::MAX,
+        }),
+    }
+}
+
+/// Possible operations we can find to apply to a stream of tokens
+enum FoundMacro {
+    /// Found a normal macro
+    User(usize, usize),
+
+    /// Found a defined() operation
+    Defined(usize),
+
+    /// Found a ## operation
+    Concat(usize, usize),
+
+    /// Nothing found
+    None,
+}
+
+/// Find the next instance of the named macro in a stream of tokens
+fn find_single_macro(
+    tokens: &[PreprocessToken],
+    search_pos: MacroSearchPosition,
+    macros: &[Macro],
+    macro_disabled: &mut [bool],
+    apply_defined: bool,
+) -> Result<FoundMacro, PreprocessError> {
+    assert!(search_pos.early_function_pos <= search_pos.next_pos);
+    let mut i = search_pos.early_function_pos;
+    while i < tokens.len() {
+        if let Token::Id(id) = &tokens[i].0 {
+            if i >= search_pos.next_pos && apply_defined && id.0 == "defined" {
+                return Ok(FoundMacro::Defined(i));
+            }
+
+            for macro_index in 0..macros.len() {
+                if macro_disabled[macro_index] {
+                    continue;
+                }
+                if search_pos.last_macro_function_index == macro_index && i < search_pos.next_pos {
+                    continue;
+                }
+                let macro_def = &macros[macro_index];
+                if id.0 == macro_def.name {
+                    let mut activate_pos = i;
+
+                    // Check we have the start of function parameters
+                    if macro_def.is_function {
+                        let trimmed = trim_whitespace_start(&tokens[i + 1..]);
+                        activate_pos = tokens.len() - trimmed.len();
+                        let [PreprocessToken(Token::LeftParen, _), ..] = trimmed else {
+                            continue;
+                        };
+                    }
+
+                    if activate_pos < search_pos.next_pos {
+                        continue;
+                    }
+
+                    return Ok(FoundMacro::User(macro_index, i));
+                }
+            }
+        } else if let Token::Concat = &tokens[i].0 {
+            if i < search_pos.next_pos {
+                continue;
+            }
+
+            let concat_token = &tokens[i];
+
+            // Get the left token to concat
+            let left_token_pos = if let Some(left_position) =
+                tokens[..i].iter().rev().position(|t| !t.0.is_whitespace())
+            {
+                i - left_position - 1
+            } else {
+                return Err(PreprocessError::ConcatMissingLeftToken(
+                    concat_token.get_location(),
+                ));
+            };
+
+            // Get the right token to concat
+            let right_token_pos = if let Some(right_position) =
+                tokens[i + 1..].iter().position(|t| !t.0.is_whitespace())
+            {
+                i + right_position + 1
+            } else {
+                return Err(PreprocessError::ConcatMissingRightToken(
+                    concat_token.get_location(),
+                ));
+            };
+
+            return Ok(FoundMacro::Concat(left_token_pos, right_token_pos));
+        }
+        i += 1;
+    }
+    Ok(FoundMacro::None)
 }
 
 #[test]
@@ -764,7 +809,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B 0", &mut source_manager), &[], &mut source_manager).unwrap(),
+            Macro::parse(&ll("B 0", &mut source_manager), &[]).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: false,
@@ -783,7 +828,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B(x) x", &mut source_manager), &[], &mut source_manager).unwrap(),
+            Macro::parse(&ll("B(x) x", &mut source_manager), &[]).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -802,12 +847,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(
-                &ll("B(x,y) x", &mut source_manager),
-                &[],
-                &mut source_manager
-            )
-            .unwrap(),
+            Macro::parse(&ll("B(x,y) x", &mut source_manager), &[]).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -826,12 +866,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(
-                &ll("B(x,y) y", &mut source_manager),
-                &[],
-                &mut source_manager
-            )
-            .unwrap(),
+            Macro::parse(&ll("B(x,y) y", &mut source_manager), &[]).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -850,12 +885,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(
-                &ll("B(x,xy) (x || xy)", &mut source_manager),
-                &[],
-                &mut source_manager
-            )
-            .unwrap(),
+            Macro::parse(&ll("B(x,xy) (x || xy)", &mut source_manager), &[]).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -893,7 +923,7 @@ fn macro_resolve() {
         expected_tokens: &[PreprocessToken],
         source_manager: &mut SourceManager,
     ) {
-        let resolved_tokens = apply_macros(input, macros, false, true, source_manager).unwrap();
+        let resolved_tokens = apply_macros(input, macros, false, source_manager).unwrap();
         assert_eq!(resolved_tokens, expected_tokens);
 
         let output_str = unlex(&resolved_tokens, source_manager);
@@ -913,8 +943,8 @@ fn macro_resolve() {
         run(
             &main_tokens,
             &[
-                Macro::parse(&m1_tokens, &[], &mut source_manager).unwrap(),
-                Macro::parse(&m2_tokens, &[], &mut source_manager).unwrap(),
+                Macro::parse(&m1_tokens, &[]).unwrap(),
+                Macro::parse(&m2_tokens, &[]).unwrap(),
             ],
             "(A || 0) && 1",
             &[
@@ -947,8 +977,8 @@ fn macro_resolve() {
         run(
             &main_tokens,
             &[
-                Macro::parse(&m1_tokens, &[], &mut source_manager).unwrap(),
-                Macro::parse(&m2_tokens, &[], &mut source_manager).unwrap(),
+                Macro::parse(&m1_tokens, &[]).unwrap(),
+                Macro::parse(&m2_tokens, &[]).unwrap(),
             ],
             "(A || (0 && 1)) && 1",
             &[
@@ -1140,7 +1170,7 @@ fn preprocess_command(
                 return Ok(());
             }
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command, macros, true, true, file_loader.source_manager)?;
+            let resolved = apply_macros(command, macros, true, file_loader.source_manager)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.push(if active {
                 ConditionState::Enabled
@@ -1152,7 +1182,7 @@ fn preprocess_command(
         }
         "elif" => {
             let command = trim_whitespace(command);
-            let resolved = apply_macros(command, macros, true, true, file_loader.source_manager)?;
+            let resolved = apply_macros(command, macros, true, file_loader.source_manager)?;
             let active = crate::condition_parser::parse(&resolved, command_location)?;
             condition_chain.switch(active)?;
 
@@ -1181,7 +1211,7 @@ fn preprocess_command(
                 return Ok(());
             }
 
-            let macro_def = Macro::parse(command, macros, file_loader.source_manager)?;
+            let macro_def = Macro::parse(command, macros)?;
             macros.push(macro_def);
 
             Ok(())
@@ -1294,13 +1324,8 @@ fn preprocess_included_file(
             }
             RegionType::Normal(sz) => {
                 if condition_chain.is_active() {
-                    let next_tokens = apply_macros(
-                        &stream[..sz],
-                        macros,
-                        false,
-                        true,
-                        file_loader.source_manager,
-                    )?;
+                    let next_tokens =
+                        apply_macros(&stream[..sz], macros, false, file_loader.source_manager)?;
                     buffer.extend(next_tokens);
                 }
                 assert_ne!(sz, 0);
