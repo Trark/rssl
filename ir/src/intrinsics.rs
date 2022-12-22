@@ -254,7 +254,8 @@ impl IntrinsicOp {
             }
             LogicalNot => {
                 assert_eq!(param_types.len(), 1);
-                match module.type_registry.get_type_layout(param_types[0].0) {
+                let type_id = module.type_registry.remove_modifier(param_types[0].0);
+                match module.type_registry.get_type_layout(type_id) {
                     TypeLayout::Scalar(_) => module
                         .type_registry
                         .register_type(TypeLayout::bool())
