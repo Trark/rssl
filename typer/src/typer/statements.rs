@@ -385,6 +385,26 @@ fn parse_initializer(
 
                     ir::Initializer::Aggregate(elements)
                 }
+                ir::TypeLayer::Struct(id) => {
+                    let sd = &context.module.struct_registry[id.0 as usize];
+                    if exprs.len() != sd.members.len() {
+                        return Err(TyperError::InitializerAggregateWrongDimension(
+                            variable_location,
+                        ));
+                    }
+
+                    let mut elements = Vec::with_capacity(sd.members.len());
+                    for (member, member_init) in sd.members.clone().iter().zip(exprs) {
+                        let element = parse_initializer(
+                            member_init,
+                            member.type_id,
+                            variable_location,
+                            context,
+                        )?;
+                        elements.push(element);
+                    }
+                    ir::Initializer::Aggregate(elements)
+                }
                 _ => {
                     return Err(TyperError::InitializerAggregateDoesNotMatchType(
                         ty,

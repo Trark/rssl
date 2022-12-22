@@ -142,6 +142,43 @@ fn check_aggregate_initializers_primitives() {
     check_types(
         "static float4 g_myArray[3] = { { 1.0, 2.0, 3.0, 4.0 }, 3.0, { 1.0, 2.0, 3.0, 4.0 } };",
     );
+
+    // Initialise a vector
+    check_types("static float2 g_vec = { 1.0, 2.0 };");
+
+    // Fail if there are too many elements
+    check_fail("static float2 g_vec = { 1.0, 2.0, 3.0 };");
+
+    // Fail if there are too few elements - we do not support initializing the unspecified members
+    check_fail("static float2 g_vec = { 1.0 };");
+}
+
+#[test]
+fn check_aggregate_initializers_structs() {
+    // Aggregate construct a struct with no members
+    check_types("struct S {}; static S g_test = {};");
+
+    // Wrong number of parameters fails
+    check_fail("struct S {}; static S g_test = { false };");
+
+    // Aggregate construct a struct with a single members
+    check_types("struct S { uint x; }; static S g_test = { 6u };");
+
+    // Wrong number of parameters fails
+    check_fail("struct S { uint x; }; static S g_test = {};");
+
+    // Aggregate construct a struct with multiple members
+    check_types(
+        "struct S { uint x; float3 y; uint z; }; static S g_test = { 6u, { 8.0, 4.0, 2.0 }, 4u };",
+    );
+
+    // Wrong number of parameters fails
+    check_fail("struct S { uint x; float y; uint z; }; static S g_test = { 6u };");
+
+    // Wrong typed member (which can not cast) fails
+    check_fail(
+        "struct S { uint x; float3 y; uint z; }; static S g_test = { 6u, float2(1, 2), 4u };",
+    );
 }
 
 #[test]

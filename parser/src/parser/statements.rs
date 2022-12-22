@@ -9,7 +9,7 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
 
     fn init_aggregate(input: &[LexToken]) -> ParseResult<Initializer> {
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
-        let (input, exprs) = parse_list_nonempty(parse_token(Token::Comma), init_any)(input)?;
+        let (input, exprs) = parse_list(parse_token(Token::Comma), init_any)(input)?;
         let (input, _) = parse_optional(parse_token(Token::Comma))(input)?;
         let (input, _) = parse_token(Token::RightBrace)(input)?;
         Ok((input, Initializer::Aggregate(exprs)))
@@ -128,14 +128,17 @@ fn test_initializer() {
         ))
     );
 
-    // = {} should fail
+    // = {}
     let aggr_0 = [
         LexToken::with_no_loc(Token::Equals),
         LexToken::with_no_loc(Token::LeftBrace),
         LexToken::with_no_loc(Token::RightBrace),
         semicolon,
     ];
-    assert!(initializer(&aggr_0).is_err());
+    assert_eq!(
+        initializer(&aggr_0),
+        Ok((done_toks, Some(Initializer::Aggregate(Vec::new()))))
+    );
 }
 
 /// Parse the type for a local variable
