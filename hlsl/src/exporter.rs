@@ -642,6 +642,9 @@ fn export_literal(literal: &ir::Literal, output: &mut String) -> Result<(), Expo
         ir::Literal::Float(v) if *v == (*v as i64 as f32) => {
             write!(output, "{}.0", *v as i64).unwrap()
         }
+        ir::Literal::Float(v) if *v > i64::MAX as f32 || *v < i64::MIN as f32 => {
+            write!(output, "{}.0", v).unwrap()
+        }
         ir::Literal::Float(v) => write!(output, "{}", v).unwrap(),
         ir::Literal::Double(v) => write!(output, "{}L", v).unwrap(),
     }

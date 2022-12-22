@@ -99,6 +99,30 @@ fn check_primitive_types() {
 }
 
 #[test]
+fn check_float_literal() {
+    check_rssl_to_hlsl("static float x = 0;", "static float x = 0.0;\n");
+    check_rssl_to_hlsl("static float x = 1;", "static float x = 1.0;\n");
+    check_rssl_to_hlsl("static float x = -1.0;", "static float x = -1.0;\n");
+    check_rssl_to_hlsl("static float x = 0.5;", "static float x = 0.5;\n");
+    check_rssl_to_hlsl(
+        "static float x = 3.402823466e+38f;",
+        "static float x = 340282350000000000000000000000000000000.0;\n",
+    );
+    check_rssl_to_hlsl(
+        "static float x = -3.402823466e+38f;",
+        "static float x = -340282350000000000000000000000000000000.0;\n",
+    );
+    check_rssl_to_hlsl(
+        "static float x = 1.175494351e-38f;",
+        "static float x = 0.000000000000000000000000000000000000011754944;\n",
+    );
+    check_rssl_to_hlsl(
+        "static float x = -1.175494351e-38f;",
+        "static float x = -0.000000000000000000000000000000000000011754944;\n",
+    );
+}
+
+#[test]
 fn check_functions() {
     check_rssl_to_hlsl("void f() {}", "void f() {}\n");
     check_rssl_to_hlsl("void f(int x) {}", "void f(int x) {}\n");
