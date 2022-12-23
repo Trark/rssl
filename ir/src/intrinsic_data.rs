@@ -267,6 +267,9 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { M QuadReadAcrossY(M) => QuadReadAcrossY | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
     f! { M QuadReadAcrossDiagonal(M) => QuadReadAcrossDiagonal | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
     f! { M QuadReadLaneAt(M, uint) => QuadReadLaneAt | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+
+    f! { void SetMeshOutputCounts(uint, uint) => SetMeshOutputCounts },
+    f! { void DispatchMesh(uint, uint, uint, T) => DispatchMesh },
 ];
 
 /// Create a collection of all the intrinsic functions

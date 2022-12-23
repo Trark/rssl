@@ -197,6 +197,14 @@ fn check_function_param_interp_modifiers() {
 }
 
 #[test]
+fn check_mesh_shader_basic() {
+    check_rssl_to_hlsl(
+        include_str!("mesh_shader_basic.rssl"),
+        include_str!("mesh_shader_basic.hlsl"),
+    );
+}
+
+#[test]
 fn check_expressions() {
     check_rssl_to_hlsl(
         "void f() {

@@ -1231,6 +1231,9 @@ fn export_intrinsic_function(
         QuadReadAcrossDiagonal => Form::Invoke("QuadReadAcrossDiagonal"),
         QuadReadLaneAt => Form::Invoke("QuadReadLaneAt"),
 
+        SetMeshOutputCounts => Form::Invoke("SetMeshOutputCounts"),
+        DispatchMesh => Form::Invoke("DispatchMesh"),
+
         BufferGetDimensions => Form::Method("GetDimensions"),
         BufferLoad => Form::Method("Load"),
 
