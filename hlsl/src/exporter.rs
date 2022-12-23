@@ -449,6 +449,10 @@ fn export_function_param(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     match param.param_type.1 {
+        // payload modified parameters require an explicit in instead of an implicit in
+        ir::InputModifier::In if param.param_type.2 == Some(ir::InterpolationModifier::Payload) => {
+            output.push_str("in ")
+        }
         ir::InputModifier::In => {}
         ir::InputModifier::Out => output.push_str("out "),
         ir::InputModifier::InOut => output.push_str("inout "),
@@ -481,6 +485,10 @@ fn export_interpolation_modifier(
             ir::InterpolationModifier::Centroid => output.push_str("centroid "),
             ir::InterpolationModifier::NoPerspective => output.push_str("noperspective "),
             ir::InterpolationModifier::Sample => output.push_str("sample "),
+            ir::InterpolationModifier::Vertices => output.push_str("vertices "),
+            ir::InterpolationModifier::Primitives => output.push_str("primitives "),
+            ir::InterpolationModifier::Indices => output.push_str("indices "),
+            ir::InterpolationModifier::Payload => output.push_str("payload "),
         }
     }
     Ok(())

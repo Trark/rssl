@@ -20,6 +20,10 @@ pub fn parse_interp_modifier(input: &[LexToken]) -> (&[LexToken], Option<Interpo
             "nointerpolation" => (rest, Some(InterpolationModifier::NoInterpolation)),
             "noperspective" => (rest, Some(InterpolationModifier::NoPerspective)),
             "sample" => (rest, Some(InterpolationModifier::Sample)),
+            "vertices" => (rest, Some(InterpolationModifier::Vertices)),
+            "primitives" => (rest, Some(InterpolationModifier::Primitives)),
+            "indices" => (rest, Some(InterpolationModifier::Indices)),
+            "payload" => (rest, Some(InterpolationModifier::Payload)),
             _ => (input, None),
         }
     } else {

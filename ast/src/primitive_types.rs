@@ -65,6 +65,18 @@ pub enum InterpolationModifier {
     Centroid,
     NoPerspective,
     Sample,
+
+    /// Mesh shader vertices output type - not exactly an interpolation modifier but appears in the same place
+    Vertices,
+
+    /// Mesh shader primitives output type - not exactly an interpolation modifier but appears in the same place
+    Primitives,
+
+    /// Mesh shader indices output type - not exactly an interpolation modifier but appears in the same place
+    Indices,
+
+    /// Mesh shader payload input type - not exactly an interpolation modifier but appears in the same place
+    Payload,
 }
 
 /// Semantic identifier for linking inputs / outputs
@@ -175,6 +187,10 @@ impl std::fmt::Debug for InterpolationModifier {
             InterpolationModifier::Centroid => write!(f, "centroid"),
             InterpolationModifier::NoPerspective => write!(f, "noperspective"),
             InterpolationModifier::Sample => write!(f, "sample"),
+            InterpolationModifier::Vertices => write!(f, "vertices"),
+            InterpolationModifier::Primitives => write!(f, "primitives"),
+            InterpolationModifier::Indices => write!(f, "indices"),
+            InterpolationModifier::Payload => write!(f, "payload"),
         }
     }
 }
