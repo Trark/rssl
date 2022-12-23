@@ -1,7 +1,4 @@
-use crate::ast_functions::FunctionDefinition;
-use crate::ast_statements::VariableBind;
-use crate::ast_types::{TemplateParamList, Type};
-use crate::primitive_types::Semantic;
+use crate::*;
 use rssl_text::Located;
 
 /// A definition for a struct in RSSL
@@ -24,6 +21,7 @@ pub enum StructEntry {
 pub struct StructMember {
     pub ty: Type,
     pub defs: Vec<StructMemberName>,
+    pub interpolation_modifier: Option<InterpolationModifier>,
 }
 
 /// The name part of a [StructMember] - to support multiple named variables declared on the same line

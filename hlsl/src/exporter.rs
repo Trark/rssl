@@ -453,9 +453,9 @@ fn export_function_param(
         ir::InputModifier::Out => output.push_str("out "),
         ir::InputModifier::InOut => output.push_str("inout "),
     }
-    if param.param_type.2.is_some() {
-        todo!("Interpolation modifier: {:?}", param.param_type.2);
-    }
+
+    export_interpolation_modifier(&param.param_type.2, output)?;
+
     let mut array_part = String::new();
     export_type_for_def(param.param_type.0, output, &mut array_part, context)?;
 
@@ -466,6 +466,23 @@ fn export_function_param(
 
     export_semantic_annotation(&param.semantic, output)?;
 
+    Ok(())
+}
+
+/// Export variable interpolation modifier to HLSL
+fn export_interpolation_modifier(
+    interpolation_modifier: &Option<ir::InterpolationModifier>,
+    output: &mut String,
+) -> Result<(), ExportError> {
+    if let Some(interpolation_modifier) = &interpolation_modifier {
+        match interpolation_modifier {
+            ir::InterpolationModifier::NoInterpolation => output.push_str("nointerpolation "),
+            ir::InterpolationModifier::Linear => output.push_str("linear "),
+            ir::InterpolationModifier::Centroid => output.push_str("centroid "),
+            ir::InterpolationModifier::NoPerspective => output.push_str("noperspective "),
+            ir::InterpolationModifier::Sample => output.push_str("sample "),
+        }
+    }
     Ok(())
 }
 
@@ -1477,6 +1494,7 @@ fn export_struct(
 
     for member in &decl.members {
         context.new_line(output);
+        export_interpolation_modifier(&member.interpolation_modifier, output)?;
         let mut array_part = String::new();
         export_type_for_def(member.type_id, output, &mut array_part, context)?;
         output.push(' ');

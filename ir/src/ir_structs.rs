@@ -35,6 +35,9 @@ pub struct StructMember {
 
     /// Optional semantic for when the struct is used in an entry point
     pub semantic: Option<Semantic>,
+
+    /// Optional interpolation modifier for when the struct is used in an entry point
+    pub interpolation_modifier: Option<InterpolationModifier>,
 }
 
 /// A declaration for a struct template which is still in AST form

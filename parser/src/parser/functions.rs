@@ -11,15 +11,35 @@ fn parse_input_modifier(input: &[LexToken]) -> ParseResult<InputModifier> {
     }
 }
 
+/// Parse an interpolation modifier
+pub fn parse_interp_modifier(input: &[LexToken]) -> (&[LexToken], Option<InterpolationModifier>) {
+    if let [LexToken(Token::Id(id), _), rest @ ..] = input {
+        match id.0.as_str() {
+            "linear" => (rest, Some(InterpolationModifier::Linear)),
+            "centroid" => (rest, Some(InterpolationModifier::Centroid)),
+            "nointerpolation" => (rest, Some(InterpolationModifier::NoInterpolation)),
+            "noperspective" => (rest, Some(InterpolationModifier::NoPerspective)),
+            "sample" => (rest, Some(InterpolationModifier::Sample)),
+            _ => (input, None),
+        }
+    } else {
+        (input, None)
+    }
+}
+
 /// Parse the type of a function parameter
 fn parse_param_type(input: &[LexToken]) -> ParseResult<ParamType> {
     let (input, it) = match parse_input_modifier(input) {
         Ok((input, it)) => (input, it),
         Err(_) => (input, InputModifier::default()),
     };
-    // Todo: interpolation modifiers
+
+    // Try to sample an interpolation modifier
+    // HLSL permits these on any types like a modifier and allows duplicates - but we only allow one
+    let (input, im) = parse_interp_modifier(input);
+
     match parse_type(input) {
-        Ok((rest, ty)) => Ok((rest, ParamType(ty, it, None))),
+        Ok((rest, ty)) => Ok((rest, ParamType(ty, it, im))),
         Err(err) => Err(err),
     }
 }

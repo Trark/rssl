@@ -110,6 +110,7 @@ fn parse_struct_internal(
                         name,
                         type_id,
                         semantic: def.semantic.clone(),
+                        interpolation_modifier: ast_member.interpolation_modifier.clone(),
                     });
                 }
             }

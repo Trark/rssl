@@ -164,6 +164,39 @@ fn check_function_attributes() {
 }
 
 #[test]
+fn check_function_param_interp_modifiers() {
+    check_rssl_to_hlsl(
+        "void VSMAIN(out float4 x : TEXCOORD) {}",
+        "void VSMAIN(out float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out linear float4 x : TEXCOORD) {}",
+        "void VSMAIN(out linear float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out centroid float4 x : TEXCOORD) {}",
+        "void VSMAIN(out centroid float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}",
+        "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out noperspective float4 x : TEXCOORD) {}",
+        "void VSMAIN(out noperspective float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out sample float4 x : TEXCOORD) {}",
+        "void VSMAIN(out sample float4 x : TEXCOORD) {}\n",
+    );
+}
+
+#[test]
 fn check_expressions() {
     check_rssl_to_hlsl(
         "void f() {
@@ -541,6 +574,33 @@ void main() {
     s.x = 4;
     s.g();
 }
+",
+    );
+}
+
+#[test]
+fn check_struct_member_interp_modifiers() {
+    check_rssl_to_hlsl(
+        "struct S
+{
+    int m0 : USER0;
+    linear float m1 : USER1;
+    centroid float m2;
+    nointerpolation float m3[2], m4[3][4] : USER4;
+    noperspective float m5;
+    sample float m6;
+};
+",
+        "struct S
+{
+    int m0 : USER0;
+    linear float m1 : USER1;
+    centroid float m2;
+    nointerpolation float m3[2];
+    nointerpolation float m4[3][4] : USER4;
+    noperspective float m5;
+    sample float m6;
+};
 ",
     );
 }
