@@ -109,10 +109,23 @@ fn check_void() {
 
 #[test]
 fn check_array_dimension_arguments() {
+    // Literal size argument
     check_types("static float4 g_myArray[2];");
+
+    // #define argument
     check_types("#define SIZE 2\nstatic float4 g_myArray[SIZE];");
+
+    // static const argument
     check_types("static const uint c_size = 2; static float4 g_myArray[c_size];");
+
+    // static non-const argument fails
     check_fail("static uint c_size = 2; static float4 g_myArray[c_size];");
+
+    // zero sized array fails
+    check_fail("static const uint c_size = 0; static float4 g_myArray[c_size];");
+
+    // inferred zero sized array fails
+    check_fail("static float4 g_myArray[] = {};");
 }
 
 #[test]

@@ -232,6 +232,11 @@ pub fn apply_variable_bind(
             Some(ref dim_expr) => {
                 let expr_ir = parse_expr(dim_expr, context)?.0;
                 match evaluate_constexpr_int(&expr_ir, context) {
+                    Ok(val) if val == 0 => {
+                        return Err(TyperError::ArrayDimensionsMustBeNonZero(
+                            dim_expr.get_location(),
+                        ))
+                    }
                     Ok(val) => val,
                     Err(()) => {
                         let p = (**dim_expr).clone();
@@ -243,6 +248,11 @@ pub fn apply_variable_bind(
                 }
             }
             None => match *init {
+                Some(ast::Initializer::Aggregate(ref exprs)) if exprs.is_empty() => {
+                    return Err(TyperError::ArrayDimensionsMustBeNonZero(
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
                 Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
                 _ => {
                     return Err(TyperError::ArrayDimensionNotSpecified(

@@ -61,6 +61,7 @@ pub enum TyperError {
     MutableRequired(SourceLocation),
     LvalueRequired(SourceLocation),
     ArrayDimensionsMustBeConstantExpression(ast::Expression, SourceLocation),
+    ArrayDimensionsMustBeNonZero(SourceLocation),
     ArrayDimensionNotSpecified(SourceLocation),
 
     /// Failed to find member of a constant buffer
@@ -424,6 +425,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::ArrayDimensionsMustBeConstantExpression(_, loc) => w.write_message(
                 &|f| write!(f, "array dimensions must be constant"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::ArrayDimensionsMustBeNonZero(loc) => w.write_message(
+                &|f| write!(f, "array dimensions must be non-zero"),
                 *loc,
                 Severity::Error,
             ),
