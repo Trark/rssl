@@ -1471,6 +1471,7 @@ fn export_struct(
         output.push(' ');
         output.push_str(&member.name);
         output.push_str(&array_part);
+        export_semantic_annotation(&member.semantic, output)?;
         output.push(';');
     }
 

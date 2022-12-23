@@ -1,13 +1,24 @@
-use super::functions::parse_function_definition;
+use super::functions::{parse_function_definition, parse_semantic};
 use super::*;
 
 /// Parse a struct member name in an entry
 fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName> {
     let (input, name) = parse_variable_name(input)?;
     let (input, bind) = parse_multiple(parse_arraydim)(input)?;
+
+    // Parse semantic if present
+    let (input, semantic) = match parse_token(Token::Colon)(input) {
+        Ok((input, _)) => match parse_semantic(input) {
+            Ok((input, semantic)) => (input, Some(semantic)),
+            Err(err) => return Err(err),
+        },
+        Err(_) => (input, None),
+    };
+
     let member_name = StructMemberName {
         name: name.to_node(),
         bind: VariableBind(bind),
+        semantic,
     };
     Ok((input, member_name))
 }
@@ -84,6 +95,7 @@ fn test_struct() {
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
                     bind: Default::default(),
+                    semantic: Default::default(),
                 }],
             })],
         },
@@ -100,10 +112,12 @@ fn test_struct() {
                     StructMemberName {
                         name: "a".to_string(),
                         bind: Default::default(),
+                        semantic: Default::default(),
                     },
                     StructMemberName {
                         name: "b".to_string(),
                         bind: Default::default(),
+                        semantic: Default::default(),
                     },
                 ],
             })],
@@ -123,6 +137,7 @@ fn test_struct() {
                         bind: VariableBind(Vec::from([Some(
                             Expression::Literal(Literal::UntypedInt(2)).loc(25),
                         )])),
+                        semantic: Default::default(),
                     },
                     StructMemberName {
                         name: "b".to_string(),
@@ -130,6 +145,7 @@ fn test_struct() {
                             Some(Expression::Literal(Literal::UntypedInt(3)).loc(31)),
                             Some(Expression::Literal(Literal::UntypedInt(4)).loc(34)),
                         ])),
+                        semantic: Default::default(),
                     },
                 ],
             })],
@@ -147,6 +163,7 @@ fn test_struct() {
                     defs: vec![StructMemberName {
                         name: "a".to_string(),
                         bind: Default::default(),
+                        semantic: Default::default(),
                     }],
                 }),
                 StructEntry::Method(FunctionDefinition {
@@ -172,10 +189,40 @@ fn test_struct() {
                     StructMemberName {
                         name: "a".to_string(),
                         bind: Default::default(),
+                        semantic: Default::default(),
                     },
                     StructMemberName {
                         name: "b".to_string(),
                         bind: Default::default(),
+                        semantic: Default::default(),
+                    },
+                ],
+            })],
+        },
+    );
+
+    structdefinition.check(
+        "struct MyStruct { uint a[2] : USER0, b[3][4] : USER1; };",
+        StructDefinition {
+            name: "MyStruct".to_string().loc(7),
+            template_params: TemplateParamList(Vec::new()),
+            members: vec![StructEntry::Variable(StructMember {
+                ty: Type::from("uint".loc(18)),
+                defs: vec![
+                    StructMemberName {
+                        name: "a".to_string(),
+                        bind: VariableBind(Vec::from([Some(
+                            Expression::Literal(Literal::UntypedInt(2)).loc(25),
+                        )])),
+                        semantic: Some(Semantic::User("USER0".to_string())),
+                    },
+                    StructMemberName {
+                        name: "b".to_string(),
+                        bind: VariableBind(Vec::from([
+                            Some(Expression::Literal(Literal::UntypedInt(3)).loc(39)),
+                            Some(Expression::Literal(Literal::UntypedInt(4)).loc(42)),
+                        ])),
+                        semantic: Some(Semantic::User("USER1".to_string())),
                     },
                 ],
             })],

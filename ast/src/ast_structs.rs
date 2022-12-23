@@ -1,6 +1,7 @@
 use crate::ast_functions::FunctionDefinition;
 use crate::ast_statements::VariableBind;
 use crate::ast_types::{TemplateParamList, Type};
+use crate::primitive_types::Semantic;
 use rssl_text::Located;
 
 /// A definition for a struct in RSSL
@@ -30,4 +31,5 @@ pub struct StructMember {
 pub struct StructMemberName {
     pub name: String,
     pub bind: VariableBind,
+    pub semantic: Option<Semantic>,
 }

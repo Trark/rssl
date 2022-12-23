@@ -479,8 +479,8 @@ fn check_struct() {
         "struct S
 {
     int x;
-    float y;
-    float z[2], w[3][4];
+    float y : USER0;
+    float z[2], w[3][4] : USER1;
 
     void f(int z) {}
     void g() { f(x); }
@@ -496,9 +496,9 @@ void main() {
         "struct S
 {
     int x;
-    float y;
+    float y : USER0;
     float z[2];
-    float w[3][4];
+    float w[3][4] : USER1;
 
     void f(int z) {}
 

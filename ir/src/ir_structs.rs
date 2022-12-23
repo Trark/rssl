@@ -1,4 +1,4 @@
-use crate::{FunctionId, ScopedName, StructId, StructTemplateId, TypeId};
+use crate::*;
 use rssl_text::Located;
 
 /// A definition for a struct in RSSL
@@ -32,6 +32,9 @@ pub struct StructMember {
 
     /// Type of the member
     pub type_id: TypeId,
+
+    /// Optional semantic for when the struct is used in an entry point
+    pub semantic: Option<Semantic>,
 }
 
 /// A declaration for a struct template which is still in AST form

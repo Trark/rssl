@@ -90,6 +90,7 @@ fn test_struct() {
                 defs: vec![StructMemberName {
                     name: "a".to_string(),
                     bind: Default::default(),
+                    semantic: Default::default(),
                 }],
             }),
             StructEntry::Variable(StructMember {
@@ -97,6 +98,7 @@ fn test_struct() {
                 defs: vec![StructMemberName {
                     name: "b".to_string(),
                     bind: Default::default(),
+                    semantic: Default::default(),
                 }],
             }),
         ],

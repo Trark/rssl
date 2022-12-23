@@ -54,7 +54,7 @@ fn parse_function_attribute(input: &[LexToken]) -> ParseResult<FunctionAttribute
 }
 
 /// Parse a semantic
-fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
+pub fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
     match input.first() {
         Some(LexToken(Token::Id(Identifier(name)), _)) => {
             let semantic = match name[..].to_lowercase().as_str() {

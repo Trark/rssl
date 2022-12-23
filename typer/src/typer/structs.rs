@@ -106,7 +106,11 @@ fn parse_struct_internal(
                         apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
                     let type_id = context.module.type_registry.register_type(type_layout);
                     member_map.insert(name.clone(), type_id);
-                    members.push(ir::StructMember { name, type_id });
+                    members.push(ir::StructMember {
+                        name,
+                        type_id,
+                        semantic: def.semantic.clone(),
+                    });
                 }
             }
             ast::StructEntry::Method(ast_func) => {
