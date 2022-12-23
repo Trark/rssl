@@ -29,23 +29,52 @@ fn parse_type_layout_internal<'t>(
 
 /// Parse a type
 fn parse_type_internal<'t>(
-    input: &'t [LexToken],
+    mut input: &'t [LexToken],
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, Type> {
     let original_input = input;
 
-    // Todo: modifiers that aren't const
-    let (input, is_const) = match parse_token(Token::Const)(input) {
-        Ok((input, _)) => (input, true),
-        Err(_) => (input, false),
-    };
+    let mut modifier = TypeModifier::default();
 
-    let (input, tl) = parse_type_layout_internal(input, st)?;
+    // Modifiers on left of type
+    loop {
+        match input {
+            [LexToken(Token::Const, _), rest @ ..] => {
+                modifier.is_const = true;
+                input = rest;
+            }
+            [LexToken(Token::Volatile, _), rest @ ..] => {
+                modifier.volatile = true;
+                input = rest;
+            }
+            [LexToken(Token::RowMajor, _), rest @ ..] => {
+                modifier.row_major = true;
+                input = rest;
+            }
+            [LexToken(Token::ColumnMajor, _), rest @ ..] => {
+                modifier.column_major = true;
+                input = rest;
+            }
+            _ => break,
+        }
+    }
 
-    let tm = TypeModifier {
-        is_const,
-        ..TypeModifier::default()
-    };
+    let (mut input, tl) = parse_type_layout_internal(input, st)?;
+
+    // Modifiers on right of type
+    loop {
+        match input {
+            [LexToken(Token::Const, _), rest @ ..] => {
+                modifier.is_const = true;
+                input = rest;
+            }
+            [LexToken(Token::Volatile, _), rest @ ..] => {
+                modifier.volatile = true;
+                input = rest;
+            }
+            _ => break,
+        }
+    }
 
     assert_ne!(original_input.len(), input.len());
 
@@ -53,7 +82,7 @@ fn parse_type_internal<'t>(
         input,
         Type {
             layout: tl,
-            modifier: tm,
+            modifier,
             location: original_input[0].1,
         },
     ))
@@ -70,6 +99,125 @@ pub fn parse_type_with_symbols<'t>(
 /// Parse a type
 pub fn parse_type(input: &[LexToken]) -> ParseResult<Type> {
     parse_type_internal(input, None)
+}
+
+#[test]
+fn test_type() {
+    use test_support::*;
+    let ty = ParserTester::new(parse_type);
+
+    // Normal type name
+    ty.check(
+        "uint",
+        Type {
+            layout: "uint".loc(0).into(),
+            modifier: TypeModifier::default(),
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as const on left
+    ty.check(
+        "const uint",
+        Type {
+            layout: "uint".loc(6).into(),
+            modifier: TypeModifier::const_only(),
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked with const twice is also valid
+    ty.check(
+        "const const uint",
+        Type {
+            layout: "uint".loc(12).into(),
+            modifier: TypeModifier::const_only(),
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as const on right
+    ty.check(
+        "uint const",
+        Type {
+            layout: "uint".loc(0).into(),
+            modifier: TypeModifier::const_only(),
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as volatile on left
+    ty.check(
+        "volatile uint",
+        Type {
+            layout: "uint".loc(9).into(),
+            modifier: TypeModifier {
+                volatile: true,
+                ..Default::default()
+            },
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as volatile on right
+    ty.check(
+        "uint volatile",
+        Type {
+            layout: "uint".loc(0).into(),
+            modifier: TypeModifier {
+                volatile: true,
+                ..Default::default()
+            },
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as row_major
+    ty.check(
+        "row_major uint",
+        Type {
+            layout: "uint".loc(10).into(),
+            modifier: TypeModifier {
+                row_major: true,
+                ..Default::default()
+            },
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as column_major
+    ty.check(
+        "column_major uint",
+        Type {
+            layout: "uint".loc(13).into(),
+            modifier: TypeModifier {
+                column_major: true,
+                ..Default::default()
+            },
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as row_major must be before the type
+    ty.expect_fail("uint row_major", ParseErrorReason::TokensUnconsumed, 5);
+
+    // Type marked as column_major must be before the type
+    ty.expect_fail("uint column_major", ParseErrorReason::TokensUnconsumed, 5);
+
+    // Many modifiers
+    ty.check(
+        "row_major column_major const volatile row_major column_major const volatile uint const volatile",
+        Type {
+            layout: "uint".loc(76).into(),
+            modifier: TypeModifier {
+                is_const: true,
+                volatile: true,
+                row_major: true,
+                column_major: true,
+            },
+            location: SourceLocation::first(),
+        },
+    );
 }
 
 /// Parse a list of template parameters or no template parameters

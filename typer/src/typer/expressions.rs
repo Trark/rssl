@@ -1010,8 +1010,9 @@ fn parse_expr_ternary(
 
     let target_mod = ir::TypeModifier {
         is_const: false,
-        row_order: lhs_mod.row_order, // TODO: ???
         volatile: false,
+        row_major: lhs_mod.row_major,
+        column_major: lhs_mod.column_major,
     };
 
     let comb_unmodified_ty_id = context.module.type_registry.register_type(comb_tyl);

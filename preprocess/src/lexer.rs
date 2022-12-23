@@ -711,6 +711,10 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "inout" => Token::InOut,
 
         "const" => Token::Const,
+        "volatile" => Token::Volatile,
+        "row_major" => Token::RowMajor,
+        "column_major" => Token::ColumnMajor,
+
         "extern" => Token::Extern,
         "static" => Token::Static,
         "groupshared" => Token::GroupShared,
@@ -1489,6 +1493,23 @@ fn test_token() {
     assert_token!("const", Token::Const);
     assert_token!("const ", Token::Const, 5);
     assert_token!("consta", Token::Id(Identifier("consta".to_string())));
+
+    assert_token!("volatile", Token::Volatile);
+    assert_token!("volatile ", Token::Volatile, 8);
+    assert_token!("volatilea", Token::Id(Identifier("volatilea".to_string())));
+
+    assert_token!("row_major", Token::RowMajor);
+    assert_token!("row_major ", Token::RowMajor, 9);
+    assert_token!("column_major", Token::ColumnMajor);
+    assert_token!("column_major ", Token::ColumnMajor, 12);
+    assert_token!(
+        "row_column_major",
+        Token::Id(Identifier("row_column_major".to_string()))
+    );
+    assert_token!(
+        "column_row_major",
+        Token::Id(Identifier("column_row_major".to_string()))
+    );
 
     assert_token!("extern", Token::Extern);
     assert_token!("extern ", Token::Extern, 6);

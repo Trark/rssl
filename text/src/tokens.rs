@@ -104,6 +104,9 @@ pub enum Token {
     InOut,
 
     Const,
+    Volatile,
+    RowMajor,
+    ColumnMajor,
 
     Extern,
     Static,

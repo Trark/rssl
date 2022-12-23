@@ -1,16 +1,19 @@
 /// Modifiers that can apply to any type
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub struct TypeModifier {
+    // If the type has the const modifier
     pub is_const: bool,
-    pub row_order: RowOrder,
-    pub volatile: bool,
-}
 
-/// Matrix ordering
-#[derive(PartialEq, Eq, Hash, Debug, Copy, Clone)]
-pub enum RowOrder {
-    Row,
-    Column,
+    // If the type has the volatile modifier
+    pub volatile: bool,
+
+    // If the type has row_major modifier.
+    // While not valid with column_major or with non-matrix types during type checking - this is valid in the syntax tree
+    pub row_major: bool,
+
+    // If the type has column_major modifier.
+    // While not valid with row_major or with non-matrix types during type checking - this is valid in the syntax tree
+    pub column_major: bool,
 }
 
 /// Storage type for global variables
@@ -81,8 +84,9 @@ impl TypeModifier {
     pub const fn new() -> TypeModifier {
         TypeModifier {
             is_const: false,
-            row_order: RowOrder::Column,
             volatile: false,
+            row_major: false,
+            column_major: false,
         }
     }
 
@@ -96,6 +100,15 @@ impl TypeModifier {
         TypeModifier {
             is_const: true,
             ..TypeModifier::default()
+        }
+    }
+
+    pub fn combine(self, other: TypeModifier) -> Self {
+        TypeModifier {
+            is_const: self.is_const || other.is_const,
+            volatile: self.volatile || other.volatile,
+            row_major: self.row_major || other.row_major,
+            column_major: self.column_major || other.column_major,
         }
     }
 }
@@ -158,8 +171,11 @@ impl std::fmt::Debug for InterpolationModifier {
 
 impl std::fmt::Debug for TypeModifier {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        if self.row_order == RowOrder::Row {
+        if self.row_major {
             write!(f, "row_major ")?;
+        }
+        if self.column_major {
+            write!(f, "column_major ")?;
         }
         if self.is_const {
             write!(f, "const ")?;

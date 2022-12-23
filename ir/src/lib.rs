@@ -16,7 +16,7 @@ mod ir_variables;
 
 pub use rssl_ast::{
     GlobalStorage, InputModifier, InterpolationModifier, Literal, LocalStorage, PackOffset,
-    PackSubOffset, RegisterType, RowOrder, Semantic, TypeModifier,
+    PackSubOffset, RegisterType, Semantic, TypeModifier,
 };
 
 pub use intrinsics::*;

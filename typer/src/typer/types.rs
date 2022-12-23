@@ -11,13 +11,7 @@ pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::Type
     let direct_modifier = ty.modifier;
     let parsed_id = parse_typelayout(&ty.layout, context)?;
     let (ir_ty, base_modifier) = context.module.type_registry.extract_modifier(parsed_id);
-    // Matrix ordering not properly handled
-    assert_eq!(base_modifier.row_order, direct_modifier.row_order);
-    let modifier = ir::TypeModifier {
-        is_const: base_modifier.is_const || direct_modifier.is_const,
-        row_order: direct_modifier.row_order,
-        volatile: base_modifier.volatile || direct_modifier.volatile,
-    };
+    let modifier = base_modifier.combine(direct_modifier);
     let ty = context
         .module
         .type_registry
