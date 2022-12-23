@@ -107,6 +107,8 @@ pub enum Token {
     Volatile,
     RowMajor,
     ColumnMajor,
+    Unorm,
+    Snorm,
 
     Extern,
     Static,

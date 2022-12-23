@@ -1013,6 +1013,8 @@ fn parse_expr_ternary(
         volatile: false,
         row_major: lhs_mod.row_major,
         column_major: lhs_mod.column_major,
+        unorm: false,
+        snorm: false,
     };
 
     let comb_unmodified_ty_id = context.module.type_registry.register_type(comb_tyl);

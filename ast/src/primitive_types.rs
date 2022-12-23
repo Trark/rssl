@@ -14,6 +14,12 @@ pub struct TypeModifier {
     // If the type has column_major modifier.
     // While not valid with row_major or with non-matrix types during type checking - this is valid in the syntax tree
     pub column_major: bool,
+
+    // If the type has unorm modifier
+    pub unorm: bool,
+
+    // If the type has snorm modifier
+    pub snorm: bool,
 }
 
 /// Storage type for global variables
@@ -87,6 +93,8 @@ impl TypeModifier {
             volatile: false,
             row_major: false,
             column_major: false,
+            unorm: false,
+            snorm: false,
         }
     }
 
@@ -109,6 +117,8 @@ impl TypeModifier {
             volatile: self.volatile || other.volatile,
             row_major: self.row_major || other.row_major,
             column_major: self.column_major || other.column_major,
+            unorm: self.unorm || other.unorm,
+            snorm: self.snorm || other.snorm,
         }
     }
 }
@@ -176,6 +186,12 @@ impl std::fmt::Debug for TypeModifier {
         }
         if self.column_major {
             write!(f, "column_major ")?;
+        }
+        if self.unorm {
+            write!(f, "unorm ")?;
+        }
+        if self.snorm {
+            write!(f, "snorm ")?;
         }
         if self.is_const {
             write!(f, "const ")?;

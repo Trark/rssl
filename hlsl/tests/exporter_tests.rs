@@ -595,6 +595,19 @@ fn check_object_types() {
 }
 
 #[test]
+fn check_unorm_snorm() {
+    check_rssl_to_hlsl(
+        "Buffer<unorm float4> g_buffer;",
+        "Buffer<unorm float4> g_buffer;\n",
+    );
+
+    check_rssl_to_hlsl(
+        "Buffer<snorm float4> g_buffer;",
+        "Buffer<snorm float4> g_buffer;\n",
+    );
+}
+
+#[test]
 fn check_object_intrinsics() {
     check_rssl_to_hlsl(
         "ByteAddressBuffer g_buffer; void f() { g_buffer.Load(0); }",

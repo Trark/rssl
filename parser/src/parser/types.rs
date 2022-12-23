@@ -55,6 +55,14 @@ fn parse_type_internal<'t>(
                 modifier.column_major = true;
                 input = rest;
             }
+            [LexToken(Token::Unorm, _), rest @ ..] => {
+                modifier.unorm = true;
+                input = rest;
+            }
+            [LexToken(Token::Snorm, _), rest @ ..] => {
+                modifier.snorm = true;
+                input = rest;
+            }
             _ => break,
         }
     }
@@ -185,6 +193,9 @@ fn test_type() {
         },
     );
 
+    // Type marked as row_major must be before the type
+    ty.expect_fail("uint row_major", ParseErrorReason::TokensUnconsumed, 5);
+
     // Type marked as column_major
     ty.check(
         "column_major uint",
@@ -198,22 +209,53 @@ fn test_type() {
         },
     );
 
-    // Type marked as row_major must be before the type
-    ty.expect_fail("uint row_major", ParseErrorReason::TokensUnconsumed, 5);
-
     // Type marked as column_major must be before the type
     ty.expect_fail("uint column_major", ParseErrorReason::TokensUnconsumed, 5);
 
+    // Type marked as unorm
+    ty.check(
+        "unorm uint",
+        Type {
+            layout: "uint".loc(6).into(),
+            modifier: TypeModifier {
+                unorm: true,
+                ..Default::default()
+            },
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as unorm must be before the type
+    ty.expect_fail("uint unorm", ParseErrorReason::TokensUnconsumed, 5);
+
+    // Type marked as snorm
+    ty.check(
+        "snorm uint",
+        Type {
+            layout: "uint".loc(6).into(),
+            modifier: TypeModifier {
+                snorm: true,
+                ..Default::default()
+            },
+            location: SourceLocation::first(),
+        },
+    );
+
+    // Type marked as snorm must be before the type
+    ty.expect_fail("uint snorm", ParseErrorReason::TokensUnconsumed, 5);
+
     // Many modifiers
     ty.check(
-        "row_major column_major const volatile row_major column_major const volatile uint const volatile",
+        "row_major column_major unorm snorm const volatile row_major column_major unorm snorm const volatile uint const volatile",
         Type {
-            layout: "uint".loc(76).into(),
+            layout: "uint".loc(100).into(),
             modifier: TypeModifier {
                 is_const: true,
                 volatile: true,
                 row_major: true,
                 column_major: true,
+                unorm: true,
+                snorm: true,
             },
             location: SourceLocation::first(),
         },

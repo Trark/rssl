@@ -714,6 +714,8 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "volatile" => Token::Volatile,
         "row_major" => Token::RowMajor,
         "column_major" => Token::ColumnMajor,
+        "unorm" => Token::Unorm,
+        "snorm" => Token::Snorm,
 
         "extern" => Token::Extern,
         "static" => Token::Static,
@@ -1509,6 +1511,19 @@ fn test_token() {
     assert_token!(
         "column_row_major",
         Token::Id(Identifier("column_row_major".to_string()))
+    );
+
+    assert_token!("unorm", Token::Unorm);
+    assert_token!("unorm ", Token::Unorm, 5);
+    assert_token!("snorm", Token::Snorm);
+    assert_token!("snorm ", Token::Snorm, 5);
+    assert_token!(
+        "unormsnorm",
+        Token::Id(Identifier("unormsnorm".to_string()))
+    );
+    assert_token!(
+        "snormunorm",
+        Token::Id(Identifier("snormunorm".to_string()))
     );
 
     assert_token!("extern", Token::Extern);
