@@ -222,31 +222,107 @@ fn test_init_statement() {
     );
 }
 
-/// Parse an attribute that is attached to a statement
-fn statement_attribute(input: &[LexToken]) -> ParseResult<()> {
+/// Parse an attribute
+pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
-    let (input, _) = match_identifier(input)?;
 
-    // Currently do not support arguments to attributes
+    let (input, name) = locate(match_identifier)(input)?;
+
+    let (input, has_args) = match parse_token(Token::LeftParen)(input) {
+        Ok((input, _)) => (input, true),
+        Err(_) => (input, false),
+    };
+
+    let (input, args) = if has_args {
+        let mut input = input;
+        let mut args = Vec::new();
+        if parse_token(Token::RightParen)(input).is_err() {
+            loop {
+                let (rest, arg) = parse_expression_no_seq(input)?;
+
+                args.push(arg);
+                input = rest;
+
+                match parse_token(Token::Comma)(input) {
+                    Ok((rest, _)) => {
+                        input = rest;
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+
+        let (input, _) = parse_token(Token::RightParen)(input)?;
+        (input, args)
+    } else {
+        (input, Vec::new())
+    };
 
     let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
-    Ok((input, ()))
+
+    let attr = Attribute {
+        name: Located::new(name.node.0.clone(), name.location),
+        arguments: args,
+    };
+
+    Ok((input, attr))
 }
 
 #[test]
-fn test_statement_attribute() {
-    let fastopt = &[
-        LexToken::with_no_loc(Token::LeftSquareBracket),
-        LexToken::with_no_loc(Token::Id(Identifier("fastopt".to_string()))),
-        LexToken::with_no_loc(Token::RightSquareBracket),
-    ];
-    assert_eq!(statement_attribute(fastopt), Ok((&[][..], ())));
+fn test_attribute() {
+    assert_eq!(
+        parse_attribute(&[
+            LexToken::with_no_loc(Token::LeftSquareBracket),
+            LexToken::with_no_loc(Token::Id(Identifier("fastopt".to_string()))),
+            LexToken::with_no_loc(Token::RightSquareBracket),
+        ]),
+        Ok((
+            &[][..],
+            Attribute {
+                name: Located::none("fastopt".to_string()),
+                arguments: Vec::new()
+            }
+        ))
+    );
+
+    assert_eq!(
+        parse_attribute(&[
+            LexToken::with_no_loc(Token::LeftSquareBracket),
+            LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
+            LexToken::with_no_loc(Token::RightSquareBracket),
+        ]),
+        Ok((
+            &[][..],
+            Attribute {
+                name: Located::none("unroll".to_string()),
+                arguments: Vec::new()
+            }
+        ))
+    );
+
+    assert_eq!(
+        parse_attribute(&[
+            LexToken::with_no_loc(Token::LeftSquareBracket),
+            LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
+            LexToken::with_no_loc(Token::LeftParen),
+            LexToken::with_no_loc(Token::LiteralInt(4)),
+            LexToken::with_no_loc(Token::RightParen),
+            LexToken::with_no_loc(Token::RightSquareBracket),
+        ]),
+        Ok((
+            &[][..],
+            Attribute {
+                name: Located::none("unroll".to_string()),
+                arguments: Vec::from([Located::none(Expression::Literal(Literal::UntypedInt(4)))])
+            }
+        ))
+    );
 }
 
 /// Parse a single statement
 fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
     // Parse and ignore attributes before a statement
-    let input = match parse_multiple(statement_attribute)(input) {
+    let input = match parse_multiple(parse_attribute)(input) {
         Ok((rest, _)) => rest,
         Err(err) => return Err(err),
     };

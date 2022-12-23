@@ -322,6 +322,20 @@ fn check_function_templates() {
 }
 
 #[test]
+fn check_function_attributes() {
+    check_types("[numthreads(64, 1, 1)] void Main() {}");
+    check_fail("[numthreads] void Main() {}");
+    check_fail("[numthreads(64)] void Main() {}");
+
+    check_types("[WaveSize(64)] void Main() {}");
+    check_types("[wavesize(64)] void Main() {}");
+    check_fail("[WaveSize] void Main() {}");
+    check_fail("[WaveSize(64, 32)] void Main() {}");
+
+    check_types("[WaveSize(64)] [numthreads(64, 1, 1)] void Main() {}");
+}
+
+#[test]
 fn check_intrinsic_calls() {
     check_types("void f() { AllMemoryBarrier(); }");
     check_types("void f() { AllMemoryBarrierWithGroupSync(); }");

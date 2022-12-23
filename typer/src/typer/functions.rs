@@ -204,7 +204,7 @@ fn parse_paramtype(
 
 /// Process all function attributes
 fn parse_function_attributes(
-    ast_attributes: &[ast::FunctionAttribute],
+    ast_attributes: &[ast::Attribute],
     context: &mut Context,
 ) -> TyperResult<Vec<ir::FunctionAttribute>> {
     let mut ir_attributes = Vec::new();
@@ -216,15 +216,37 @@ fn parse_function_attributes(
 
 /// Process a single function attribute
 fn parse_function_attribute(
-    attribute: &ast::FunctionAttribute,
+    attribute: &ast::Attribute,
     context: &mut Context,
 ) -> TyperResult<ir::FunctionAttribute> {
-    Ok(match attribute {
-        ast::FunctionAttribute::NumThreads(x, y, z) => {
-            let x = parse_expr(x, context)?.0;
-            let y = parse_expr(y, context)?.0;
-            let z = parse_expr(z, context)?.0;
-            ir::FunctionAttribute::NumThreads(x, y, z)
+    match attribute.name.to_lowercase().as_str() {
+        "numthreads" => {
+            if attribute.arguments.len() == 3 {
+                let x = parse_expr(&attribute.arguments[0], context)?.0;
+                let y = parse_expr(&attribute.arguments[1], context)?.0;
+                let z = parse_expr(&attribute.arguments[2], context)?.0;
+                Ok(ir::FunctionAttribute::NumThreads(x, y, z))
+            } else {
+                Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
+                    attribute.name.node.clone(),
+                    attribute.name.location,
+                ))
+            }
         }
-    })
+        "wavesize" => {
+            if attribute.arguments.len() == 1 {
+                let size = parse_expr(&attribute.arguments[0], context)?.0;
+                Ok(ir::FunctionAttribute::WaveSize(size))
+            } else {
+                Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
+                    attribute.name.node.clone(),
+                    attribute.name.location,
+                ))
+            }
+        }
+        _ => Err(TyperError::FunctionAttributeUnknown(
+            attribute.name.node.clone(),
+            attribute.name.location,
+        )),
+    }
 }

@@ -136,6 +136,29 @@ fn check_functions() {
 }
 
 #[test]
+fn check_function_attributes() {
+    check_rssl_to_hlsl(
+        "[numthreads(64, 1, 1)] void Main() {}",
+        "[numthreads(64, 1, 1)]\nvoid Main() {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "[WaveSize(64)] void Main() {}",
+        "[WaveSize(64)]\nvoid Main() {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "[wavesize(64)] void Main() {}",
+        "[WaveSize(64)]\nvoid Main() {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "[WaveSize(64)] [numthreads(64, 1, 1)] void Main() {}",
+        "[WaveSize(64)]\n[numthreads(64, 1, 1)]\nvoid Main() {}\n",
+    );
+}
+
+#[test]
 fn check_expressions() {
     check_rssl_to_hlsl(
         "void f() {

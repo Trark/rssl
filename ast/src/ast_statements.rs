@@ -1,6 +1,6 @@
 use crate::ast_expressions::Expression;
 use crate::ast_types::Type;
-use crate::primitive_types::*;
+use crate::*;
 use rssl_text::Located;
 
 /// An RSSL statement
@@ -65,6 +65,16 @@ pub enum Initializer {
     Aggregate(Vec<Initializer>),
 }
 
+/// An attribute that is applied to a block of code
+#[derive(PartialEq, Debug, Clone)]
+pub struct Attribute {
+    /// Name of the attribute
+    pub name: Located<String>,
+
+    /// Arguments for the attribute
+    pub arguments: Vec<Located<Expression>>,
+}
+
 impl From<Type> for LocalType {
     fn from(ty: Type) -> LocalType {
         LocalType(ty, LocalStorage::default())
@@ -94,6 +104,18 @@ impl VarDef {
                 bind: Default::default(),
                 init: Some(Initializer::Expression(expr)),
             }],
+        }
+    }
+}
+
+impl Attribute {
+    pub fn numthreads(x: u64, y: u64, z: u64) -> Attribute {
+        let x_node = Located::none(Expression::Literal(Literal::UntypedInt(x)));
+        let y_node = Located::none(Expression::Literal(Literal::UntypedInt(y)));
+        let z_node = Located::none(Expression::Literal(Literal::UntypedInt(z)));
+        Attribute {
+            name: Located::none("numthreads".to_string()),
+            arguments: Vec::from([x_node, y_node, z_node]),
         }
     }
 }

@@ -427,6 +427,11 @@ fn export_function_attribute(
             export_expression(z, output, context)?;
             output.push_str(")]");
         }
+        ir::FunctionAttribute::WaveSize(size) => {
+            output.push_str("[WaveSize(");
+            export_expression(size, output, context)?;
+            output.push_str(")]");
+        }
     }
     context.new_line(output);
     Ok(())

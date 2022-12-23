@@ -99,6 +99,12 @@ pub enum TyperError {
 
     /// Register annotation not allowed on type
     InvalidRegisterAnnotation(ir::TypeId, SourceLocation),
+
+    /// Attribute on a function has an unknown name
+    FunctionAttributeUnknown(String, SourceLocation),
+
+    /// Attribute on a function has an unexpected number of arguments
+    FunctionAttributeUnexpectedArgumentCount(String, SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -542,6 +548,22 @@ impl CompileError for TyperExternalError {
                         f,
                         "register() is not allowed on '{}'",
                         get_type_id_string(*ty, context)
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::FunctionAttributeUnknown(name, loc) => w.write_message(
+                &|f| write!(f, "unknown function attribute '{}'", name),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::FunctionAttributeUnexpectedArgumentCount(name, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "unexpected number of arguments to function attribute '{}'",
+                        name
                     )
                 },
                 *loc,

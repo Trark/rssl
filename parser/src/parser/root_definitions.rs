@@ -133,11 +133,6 @@ fn test_function() {
     functiondefinition.check(test_func_str, test_func_ast.clone());
     rootdefinition.check(test_func_str, RootDefinition::Function(test_func_ast));
 
-    let numthreads = FunctionAttribute::NumThreads(
-        Expression::Literal(Literal::UntypedInt(16)).loc(12),
-        Expression::Literal(Literal::UntypedInt(16)).loc(16),
-        Expression::Literal(Literal::UntypedInt(1)).loc(20),
-    );
     rootdefinition.check(
         "[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }",
         RootDefinition::Function(FunctionDefinition {
@@ -159,7 +154,14 @@ fn test_function() {
                 .loc(49),
                 Box::new(Statement::Block(vec![Statement::Return(None)])),
             )],
-            attributes: vec![numthreads],
+            attributes: vec![Attribute {
+                name: "numthreads".to_string().loc(1),
+                arguments: Vec::from([
+                    Expression::Literal(Literal::UntypedInt(16)).loc(12),
+                    Expression::Literal(Literal::UntypedInt(16)).loc(16),
+                    Expression::Literal(Literal::UntypedInt(1)).loc(20),
+                ]),
+            }],
         }),
     );
 }

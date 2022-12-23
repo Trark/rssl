@@ -1,3 +1,4 @@
+use super::statements::parse_attribute;
 use super::*;
 
 /// Parse an input modifier for a function parameter
@@ -21,36 +22,6 @@ fn parse_param_type(input: &[LexToken]) -> ParseResult<ParamType> {
         Ok((rest, ty)) => Ok((rest, ParamType(ty, it, None))),
         Err(err) => Err(err),
     }
-}
-
-/// Parse the [numthreads] attribute
-fn parse_numthreads(input: &[LexToken]) -> ParseResult<()> {
-    match input.first() {
-        Some(LexToken(Token::Id(Identifier(name)), _)) => match &name[..] {
-            "numthreads" => Ok((&input[1..], ())),
-            _ => ParseErrorReason::UnexpectedAttribute(name.clone()).into_result(input),
-        },
-        _ => ParseErrorReason::wrong_token(input),
-    }
-}
-
-/// Parse an attribute for a function
-fn parse_function_attribute(input: &[LexToken]) -> ParseResult<FunctionAttribute> {
-    let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
-
-    // Only currently support [numthreads]
-    let (input, _) = parse_numthreads(input)?;
-    let (input, _) = parse_token(Token::LeftParen)(input)?;
-    let (input, x) = parse_expression_no_seq(input)?;
-    let (input, _) = parse_token(Token::Comma)(input)?;
-    let (input, y) = parse_expression_no_seq(input)?;
-    let (input, _) = parse_token(Token::Comma)(input)?;
-    let (input, z) = parse_expression_no_seq(input)?;
-    let (input, _) = parse_token(Token::RightParen)(input)?;
-    let attr = FunctionAttribute::NumThreads(x, y, z);
-
-    let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
-    Ok((input, attr))
 }
 
 /// Parse a semantic
@@ -187,7 +158,7 @@ pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<FunctionDefi
     // Not clear on ordering of template args and attributes
     // Attributes are used on entry points which can not be template functions
     let (input, template_params) = parse_template_params(input)?;
-    let (input, attributes) = parse_multiple(parse_function_attribute)(input)?;
+    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, ret) = parse_type(input)?;
     let (input, func_name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;

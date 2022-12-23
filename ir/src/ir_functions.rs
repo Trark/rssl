@@ -61,6 +61,7 @@ pub struct ParamType(
 #[derive(PartialEq, Debug, Clone)]
 pub enum FunctionAttribute {
     NumThreads(Expression, Expression, Expression),
+    WaveSize(Expression),
 }
 
 impl FunctionRegistry {

@@ -156,7 +156,7 @@ fn test_ast_pass() {
                         vec![make_id("testOut")],
                     ))),
                 ],
-                attributes: vec![ast::FunctionAttribute::numthreads(8, 8, 1)],
+                attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
             }),
         ],
     };
@@ -195,7 +195,7 @@ fn test_ast_to_ir() {
                         Vec::new(),
                     ))),
                 ],
-                attributes: vec![ast::FunctionAttribute::numthreads(8, 8, 1)],
+                attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
             }),
         ],
     };
