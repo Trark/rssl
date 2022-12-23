@@ -317,6 +317,26 @@ fn test_attribute() {
             }
         ))
     );
+
+    assert_eq!(
+        parse_attribute(&[
+            LexToken::with_no_loc(Token::LeftSquareBracket),
+            LexToken::with_no_loc(Token::Id(Identifier("outputtopology".to_string()))),
+            LexToken::with_no_loc(Token::LeftParen),
+            LexToken::with_no_loc(Token::LiteralString("triangle".to_string())),
+            LexToken::with_no_loc(Token::RightParen),
+            LexToken::with_no_loc(Token::RightSquareBracket),
+        ]),
+        Ok((
+            &[][..],
+            Attribute {
+                name: Located::none("outputtopology".to_string()),
+                arguments: Vec::from([Located::none(Expression::Literal(Literal::String(
+                    "triangle".to_string()
+                )))])
+            }
+        ))
+    );
 }
 
 /// Parse a single statement

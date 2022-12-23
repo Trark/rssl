@@ -13,6 +13,7 @@ fn expr_literal(input: &[LexToken]) -> ParseResult<Located<Expression>> {
                 Token::LiteralHalf(v) => Literal::Half(v),
                 Token::LiteralFloat(v) => Literal::Float(v),
                 Token::LiteralDouble(v) => Literal::Double(v),
+                Token::LiteralString(ref s) => Literal::String(s.clone()),
                 Token::True => Literal::Bool(true),
                 Token::False => Literal::Bool(false),
                 _ => return ParseErrorReason::wrong_token(input),

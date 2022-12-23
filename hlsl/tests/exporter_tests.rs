@@ -156,6 +156,11 @@ fn check_function_attributes() {
         "[WaveSize(64)] [numthreads(64, 1, 1)] void Main() {}",
         "[WaveSize(64)]\n[numthreads(64, 1, 1)]\nvoid Main() {}\n",
     );
+
+    check_rssl_to_hlsl(
+        "[outputtopology(\"triangle\")] void Main() {}",
+        "[outputtopology(\"triangle\")]\nvoid Main() {}\n",
+    );
 }
 
 #[test]

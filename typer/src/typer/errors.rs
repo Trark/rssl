@@ -105,6 +105,9 @@ pub enum TyperError {
 
     /// Attribute on a function has an unexpected number of arguments
     FunctionAttributeUnexpectedArgumentCount(String, SourceLocation),
+
+    /// String types should not appear in main language
+    StringNotSupported(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -566,6 +569,11 @@ impl CompileError for TyperExternalError {
                         name
                     )
                 },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StringNotSupported(loc) => w.write_message(
+                &|f| write!(f, "string may not be used"),
                 *loc,
                 Severity::Error,
             ),

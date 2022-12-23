@@ -62,6 +62,7 @@ pub struct ParamType(
 pub enum FunctionAttribute {
     NumThreads(Expression, Expression, Expression),
     WaveSize(Expression),
+    OutputTopology(String),
 }
 
 impl FunctionRegistry {

@@ -244,6 +244,24 @@ fn parse_function_attribute(
                 ))
             }
         }
+        "outputtopology" => {
+            if attribute.arguments.len() == 1 {
+                match &attribute.arguments[0].node {
+                    ast::Expression::Literal(ast::Literal::String(s)) => {
+                        Ok(ir::FunctionAttribute::OutputTopology(s.clone()))
+                    }
+                    _ => Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
+                        attribute.name.node.clone(),
+                        attribute.name.location,
+                    )),
+                }
+            } else {
+                Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
+                    attribute.name.node.clone(),
+                    attribute.name.location,
+                ))
+            }
+        }
         _ => Err(TyperError::FunctionAttributeUnknown(
             attribute.name.node.clone(),
             attribute.name.location,

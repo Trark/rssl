@@ -432,6 +432,11 @@ fn export_function_attribute(
             export_expression(size, output, context)?;
             output.push_str(")]");
         }
+        ir::FunctionAttribute::OutputTopology(s) => {
+            output.push_str("[outputtopology(\"");
+            output.push_str(s);
+            output.push_str("\")]");
+        }
     }
     context.new_line(output);
     Ok(())
@@ -652,6 +657,7 @@ fn export_literal(literal: &ir::Literal, output: &mut String) -> Result<(), Expo
         }
         ir::Literal::Float(v) => write!(output, "{}", v).unwrap(),
         ir::Literal::Double(v) => write!(output, "{}L", v).unwrap(),
+        ir::Literal::String(_) => panic!("literal string not expected in output"),
     }
     Ok(())
 }

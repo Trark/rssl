@@ -332,6 +332,9 @@ fn check_function_attributes() {
     check_fail("[WaveSize] void Main() {}");
     check_fail("[WaveSize(64, 32)] void Main() {}");
 
+    check_types("[outputtopology(\"triangle\")] void Main() {}");
+    check_fail("[outputtopology(4)] void Main() {}");
+
     check_types("[WaveSize(64)] [numthreads(64, 1, 1)] void Main() {}");
 }
 

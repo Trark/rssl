@@ -369,8 +369,8 @@ fn create_intrinsic(
     ir::Expression::Call(id, call_type, template_args.to_vec(), exprs)
 }
 
-fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TypedExpression {
-    match ast {
+fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TyperResult<TypedExpression> {
+    Ok(match ast {
         ast::Literal::Bool(b) => TypedExpression::Value(
             ir::Expression::Literal(ir::Literal::Bool(*b)),
             context
@@ -435,7 +435,10 @@ fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TypedExpression {
                 .register_type(ir::TypeLayout::double())
                 .to_rvalue(),
         ),
-    }
+        ast::Literal::String(_) => {
+            return Err(TyperError::StringNotSupported(SourceLocation::UNKNOWN))
+        }
+    })
 }
 
 fn parse_expr_unaryop(
@@ -1080,7 +1083,7 @@ fn parse_expr_unchecked(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     match *ast {
-        ast::Expression::Literal(ref lit) => Ok(parse_literal(lit, context)),
+        ast::Expression::Literal(ref lit) => parse_literal(lit, context),
         ast::Expression::Identifier(ref id) => parse_identifier(id, context),
         ast::Expression::UnaryOperation(ref op, ref expr) => parse_expr_unaryop(op, expr, context),
         ast::Expression::BinaryOperation(ref op, ref lhs, ref rhs) => {
@@ -1705,6 +1708,7 @@ fn get_literal_type(literal: &ir::Literal, context: &mut Context) -> ExpressionT
         ir::Literal::Half(_) => ir::TypeLayout::from_scalar(ir::ScalarType::Half),
         ir::Literal::Float(_) => ir::TypeLayout::float(),
         ir::Literal::Double(_) => ir::TypeLayout::double(),
+        ir::Literal::String(_) => panic!("strings not supported"),
     };
     context.module.type_registry.register_type(tyl).to_rvalue()
 }

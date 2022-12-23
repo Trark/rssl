@@ -42,6 +42,7 @@ pub enum Literal {
     Half(f32),
     Float(f32),
     Double(f64),
+    String(String),
 }
 
 /// An identifier in an expression that may be qualified in a namespace or type
