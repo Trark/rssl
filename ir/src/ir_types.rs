@@ -371,10 +371,17 @@ pub enum ObjectType {
 /// A constant value
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Constant {
+    /// Boolean value
     Bool(bool),
+
+    /// Int literal before it receives a proper int type
     UntypedInt(u64),
-    Int(u64),
-    UInt(u64),
+
+    /// 32-bit signed integer
+    Int(i32),
+
+    /// 32-bit unsigned integer
+    UInt(u32),
 }
 
 /// Either a type or a constant
@@ -880,6 +887,28 @@ impl ObjectType {
             ObjectType::Texture2DMips(_) | ObjectType::Texture2DMipsSlice(_) => {
                 panic!("get_register_type called on non-root object types")
             }
+        }
+    }
+}
+
+impl Constant {
+    /// Cast a constant to a u64 value
+    pub fn to_uint64(&self) -> Option<u64> {
+        match self {
+            Constant::Bool(v) => Some(u64::from(*v)),
+            Constant::UntypedInt(v) => Some(*v),
+            Constant::Int(v) if *v >= 0 => Some(*v as u64),
+            Constant::UInt(v) => Some(*v as u64),
+            _ => None,
+        }
+    }
+}
+
+impl TypeOrConstant {
+    pub fn as_constant(&self) -> Option<&Constant> {
+        match self {
+            TypeOrConstant::Type(_) => None,
+            TypeOrConstant::Constant(val) => Some(val),
         }
     }
 }

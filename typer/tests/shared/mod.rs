@@ -37,6 +37,7 @@ pub fn check_types(source: &str) {
     }
 }
 
+#[allow(unused)]
 #[track_caller]
 pub fn check_fail(source: &str) {
     let (tree, _) = parse_from_str(source);
@@ -46,6 +47,7 @@ pub fn check_fail(source: &str) {
     }
 }
 
+#[allow(unused)]
 #[track_caller]
 pub fn check_fail_message(source: &str, expected_message: &str) {
     let (tree, source_manager) = parse_from_str(source);

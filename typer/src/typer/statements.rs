@@ -1,6 +1,7 @@
 use super::errors::*;
 use super::scopes::*;
 use crate::casting::ImplicitConversion;
+use crate::evaluator::evaluate_constexpr;
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -272,14 +273,18 @@ pub fn apply_variable_bind(
         let constant_dim = match *dim {
             Some(ref dim_expr) => {
                 let expr_ir = parse_expr(dim_expr, context)?.0;
-                match evaluate_constexpr_int(&expr_ir, context) {
-                    Ok(val) if val == 0 => {
+                let value = match evaluate_constexpr(&expr_ir, &mut context.module) {
+                    Ok(val) => val.to_uint64(),
+                    Err(()) => None,
+                };
+                match value {
+                    Some(0) => {
                         return Err(TyperError::ArrayDimensionsMustBeNonZero(
                             dim_expr.get_location(),
                         ))
                     }
-                    Ok(val) => val,
-                    Err(()) => {
+                    Some(val) => val,
+                    None => {
                         let p = (**dim_expr).clone();
                         return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
                             p,
@@ -307,39 +312,6 @@ pub fn apply_variable_bind(
     }
 
     Ok(ty)
-}
-
-/// Evaluate a subset of possible constant expressions
-pub fn evaluate_constexpr_int(expr: &ir::Expression, context: &mut Context) -> Result<u64, ()> {
-    Ok(match *expr {
-        ir::Expression::Literal(ast::Literal::UntypedInt(i)) => i,
-        ir::Expression::Literal(ast::Literal::Int(i)) => i,
-        ir::Expression::Literal(ast::Literal::UInt(i)) => i,
-        ir::Expression::IntrinsicOp(ref op, _, ref args) => {
-            let mut arg_values = Vec::with_capacity(args.len());
-            for arg in args {
-                arg_values.push(evaluate_constexpr_int(arg, context)?);
-            }
-            match *op {
-                ir::IntrinsicOp::Add => arg_values[0] + arg_values[1],
-                ir::IntrinsicOp::Subtract => arg_values[0] - arg_values[1],
-                ir::IntrinsicOp::Multiply => arg_values[0] * arg_values[1],
-                ir::IntrinsicOp::Divide => arg_values[0] / arg_values[1],
-                ir::IntrinsicOp::Modulus => arg_values[0] % arg_values[1],
-                ir::IntrinsicOp::LeftShift => arg_values[0] << arg_values[1],
-                ir::IntrinsicOp::RightShift => arg_values[0] >> arg_values[1],
-                _ => return Err(()),
-            }
-        }
-        ir::Expression::Global(id) => {
-            if let Some(value) = context.module.global_registry[id.0 as usize].constexpr_value {
-                value
-            } else {
-                return Err(());
-            }
-        }
-        _ => return Err(()),
-    })
 }
 
 /// Process an optional variable initialisation expression

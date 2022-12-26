@@ -29,7 +29,7 @@ pub struct GlobalVariable {
     pub init: Option<Initializer>,
 
     /// Compile time evaluated value
-    pub constexpr_value: Option<u64>,
+    pub constexpr_value: Option<Constant>,
 }
 
 /// A constant buffer definition

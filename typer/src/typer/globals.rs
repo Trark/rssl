@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use super::errors::*;
 use super::scopes::*;
-use super::statements::{apply_variable_bind, evaluate_constexpr_int, parse_initializer_opt};
+use super::statements::{apply_variable_bind, parse_initializer_opt};
 use super::types::{parse_type, parse_type_for_usage, TypePosition};
+use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
@@ -44,15 +45,10 @@ pub fn parse_rootdefinition_globalvariable(
         // Attempt to resolve the initializer as a constant expression
         let evaluated_value = (|| {
             if let Some(ir::Initializer::Expression(expr)) = &var_init {
-                let (type_unmodified, type_mod) =
-                    context.module.type_registry.extract_modifier(type_id);
+                let (_, type_mod) = context.module.type_registry.extract_modifier(type_id);
                 if type_mod.is_const {
-                    if let ir::TypeLayer::Scalar(ir::ScalarType::UInt) =
-                        context.module.type_registry.get_type_layer(type_unmodified)
-                    {
-                        if let Ok(value) = evaluate_constexpr_int(expr, context) {
-                            return Some(value);
-                        }
+                    if let Ok(value) = evaluate_constexpr(expr, &mut context.module) {
+                        return Some(value);
                     }
                 }
             }

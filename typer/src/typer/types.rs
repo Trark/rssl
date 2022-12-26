@@ -166,16 +166,11 @@ pub fn parse_data_layout(
                             _ => return None,
                         };
 
-                        let dim_x = match template_args[1] {
-                            ir::TypeOrConstant::Constant(ir::Constant::UntypedInt(v))
-                            | ir::TypeOrConstant::Constant(ir::Constant::Int(v))
-                            | ir::TypeOrConstant::Constant(ir::Constant::UInt(v))
-                                if (1..=4).contains(&v) =>
-                            {
-                                v
-                            }
-                            _ => return None,
-                        };
+                        let dim_x =
+                            match template_args[1].as_constant().map(ir::Constant::to_uint64) {
+                                Some(Some(v)) if (1..=4).contains(&v) => v,
+                                _ => return None,
+                            };
 
                         Some(ir::TypeLayout::Vector(s, dim_x as u32))
                     } else {
@@ -195,27 +190,17 @@ pub fn parse_data_layout(
                             _ => return None,
                         };
 
-                        let dim_x = match template_args[1] {
-                            ir::TypeOrConstant::Constant(ir::Constant::UntypedInt(v))
-                            | ir::TypeOrConstant::Constant(ir::Constant::Int(v))
-                            | ir::TypeOrConstant::Constant(ir::Constant::UInt(v))
-                                if (1..=4).contains(&v) =>
-                            {
-                                v
-                            }
-                            _ => return None,
-                        };
+                        let dim_x =
+                            match template_args[1].as_constant().map(ir::Constant::to_uint64) {
+                                Some(Some(v)) if (1..=4).contains(&v) => v,
+                                _ => return None,
+                            };
 
-                        let dim_y = match template_args[2] {
-                            ir::TypeOrConstant::Constant(ir::Constant::UntypedInt(v))
-                            | ir::TypeOrConstant::Constant(ir::Constant::Int(v))
-                            | ir::TypeOrConstant::Constant(ir::Constant::UInt(v))
-                                if (1..=4).contains(&v) =>
-                            {
-                                v
-                            }
-                            _ => return None,
-                        };
+                        let dim_y =
+                            match template_args[2].as_constant().map(ir::Constant::to_uint64) {
+                                Some(Some(v)) if (1..=4).contains(&v) => v,
+                                _ => return None,
+                            };
 
                         Some(ir::TypeLayout::Matrix(s, dim_x as u32, dim_y as u32))
                     } else {
@@ -646,8 +631,8 @@ fn evaluate_constant_expression(
     let c = match *expr {
         ir::Expression::Literal(ir::Literal::Bool(v)) => ir::Constant::Bool(v),
         ir::Expression::Literal(ir::Literal::UntypedInt(v)) => ir::Constant::UntypedInt(v),
-        ir::Expression::Literal(ir::Literal::Int(v)) => ir::Constant::Int(v),
-        ir::Expression::Literal(ir::Literal::UInt(v)) => ir::Constant::UInt(v),
+        ir::Expression::Literal(ir::Literal::Int(v)) => ir::Constant::Int(v as i32),
+        ir::Expression::Literal(ir::Literal::UInt(v)) => ir::Constant::UInt(v as u32),
         _ => {
             return Err(TyperError::ExpressionIsNotConstantExpression(
                 source_location,
