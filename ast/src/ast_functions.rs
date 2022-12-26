@@ -1,6 +1,5 @@
 use crate::ast_statements::{Attribute, Statement, VariableBind};
-use crate::ast_types::{TemplateParamList, Type};
-use crate::primitive_types::*;
+use crate::ast_types::*;
 use rssl_text::Located;
 
 /// A definition for a function in RSSL
@@ -25,18 +24,10 @@ pub struct FunctionReturn {
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionParam {
     pub name: Located<String>,
-    pub param_type: ParamType,
+    pub param_type: Type,
     pub bind: VariableBind,
     pub semantic: Option<Semantic>,
 }
-
-/// The type of any parameter declaration
-#[derive(PartialEq, Debug, Clone)]
-pub struct ParamType(
-    pub Type,
-    pub InputModifier,
-    pub Option<InterpolationModifier>,
-);
 
 impl From<Type> for FunctionReturn {
     fn from(ty: Type) -> FunctionReturn {
@@ -44,11 +35,5 @@ impl From<Type> for FunctionReturn {
             return_type: ty,
             semantic: None,
         }
-    }
-}
-
-impl From<Type> for ParamType {
-    fn from(ty: Type) -> ParamType {
-        ParamType(ty, InputModifier::default(), None)
     }
 }

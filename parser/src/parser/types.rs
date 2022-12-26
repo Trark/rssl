@@ -29,60 +29,15 @@ fn parse_type_layout_internal<'t>(
 
 /// Parse a type
 fn parse_type_internal<'t>(
-    mut input: &'t [LexToken],
+    input: &'t [LexToken],
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, Type> {
     let original_input = input;
 
-    let mut modifier = TypeModifier::default();
-
-    // Modifiers on left of type
-    loop {
-        match input {
-            [LexToken(Token::Const, _), rest @ ..] => {
-                modifier.is_const = true;
-                input = rest;
-            }
-            [LexToken(Token::Volatile, _), rest @ ..] => {
-                modifier.volatile = true;
-                input = rest;
-            }
-            [LexToken(Token::RowMajor, _), rest @ ..] => {
-                modifier.row_major = true;
-                input = rest;
-            }
-            [LexToken(Token::ColumnMajor, _), rest @ ..] => {
-                modifier.column_major = true;
-                input = rest;
-            }
-            [LexToken(Token::Unorm, _), rest @ ..] => {
-                modifier.unorm = true;
-                input = rest;
-            }
-            [LexToken(Token::Snorm, _), rest @ ..] => {
-                modifier.snorm = true;
-                input = rest;
-            }
-            _ => break,
-        }
-    }
-
-    let (mut input, tl) = parse_type_layout_internal(input, st)?;
-
-    // Modifiers on right of type
-    loop {
-        match input {
-            [LexToken(Token::Const, _), rest @ ..] => {
-                modifier.is_const = true;
-                input = rest;
-            }
-            [LexToken(Token::Volatile, _), rest @ ..] => {
-                modifier.volatile = true;
-                input = rest;
-            }
-            _ => break,
-        }
-    }
+    let mut modifiers = TypeModifierSet::default();
+    let input = parse_type_modifiers_before(input, &mut modifiers);
+    let (input, tl) = parse_type_layout_internal(input, st)?;
+    let input = parse_type_modifiers_after(input, &mut modifiers);
 
     assert_ne!(original_input.len(), input.len());
 
@@ -90,10 +45,74 @@ fn parse_type_internal<'t>(
         input,
         Type {
             layout: tl,
-            modifier,
+            modifiers,
             location: original_input[0].1,
         },
     ))
+}
+
+/// Parse a set of type modifiers before the type name
+fn parse_type_modifiers_before<'t>(
+    mut input: &'t [LexToken],
+    modifiers: &mut TypeModifierSet,
+) -> &'t [LexToken] {
+    loop {
+        let (modifier, loc, rest) = match input {
+            [LexToken(Token::Const, loc), rest @ ..] => (TypeModifier::Const, *loc, rest),
+            [LexToken(Token::Volatile, loc), rest @ ..] => (TypeModifier::Volatile, *loc, rest),
+            [LexToken(Token::RowMajor, loc), rest @ ..] => (TypeModifier::RowMajor, *loc, rest),
+            [LexToken(Token::ColumnMajor, loc), rest @ ..] => {
+                (TypeModifier::ColumnMajor, *loc, rest)
+            }
+            [LexToken(Token::Unorm, loc), rest @ ..] => (TypeModifier::Unorm, *loc, rest),
+            [LexToken(Token::Snorm, loc), rest @ ..] => (TypeModifier::Snorm, *loc, rest),
+            [LexToken(Token::In, loc), rest @ ..] => (TypeModifier::In, *loc, rest),
+            [LexToken(Token::Out, loc), rest @ ..] => (TypeModifier::Out, *loc, rest),
+            [LexToken(Token::InOut, loc), rest @ ..] => (TypeModifier::InOut, *loc, rest),
+            [LexToken(Token::Extern, loc), rest @ ..] => (TypeModifier::Extern, *loc, rest),
+            [LexToken(Token::Static, loc), rest @ ..] => (TypeModifier::Static, *loc, rest),
+            [LexToken(Token::GroupShared, loc), rest @ ..] => {
+                (TypeModifier::GroupShared, *loc, rest)
+            }
+            [LexToken(Token::Id(id), loc), rest @ ..] => {
+                // Handle non-keyword modifiers
+                let modifier = match id.0.as_str() {
+                    "nointerpolation" => TypeModifier::NoInterpolation,
+                    "linear" => TypeModifier::Linear,
+                    "centroid" => TypeModifier::Centroid,
+                    "noperspective" => TypeModifier::NoPerspective,
+                    "sample" => TypeModifier::Sample,
+                    "vertices" => TypeModifier::Vertices,
+                    "primitives" => TypeModifier::Primitives,
+                    "indices" => TypeModifier::Indices,
+                    "payload" => TypeModifier::Payload,
+                    _ => break,
+                };
+                (modifier, *loc, rest)
+            }
+            _ => break,
+        };
+        modifiers.modifiers.push(Located::new(modifier, loc));
+        input = rest;
+    }
+    input
+}
+
+/// Parse a set of type modifiers after the type name
+fn parse_type_modifiers_after<'t>(
+    mut input: &'t [LexToken],
+    modifiers: &mut TypeModifierSet,
+) -> &'t [LexToken] {
+    loop {
+        let (modifier, loc, rest) = match input {
+            [LexToken(Token::Const, loc), rest @ ..] => (TypeModifier::Const, *loc, rest),
+            [LexToken(Token::Volatile, loc), rest @ ..] => (TypeModifier::Volatile, *loc, rest),
+            _ => break,
+        };
+        modifiers.modifiers.push(Located::new(modifier, loc));
+        input = rest;
+    }
+    input
 }
 
 /// Parse a type
@@ -119,7 +138,7 @@ fn test_type() {
         "uint",
         Type {
             layout: "uint".loc(0).into(),
-            modifier: TypeModifier::default(),
+            modifiers: TypeModifierSet::default(),
             location: SourceLocation::first(),
         },
     );
@@ -129,7 +148,7 @@ fn test_type() {
         "const uint",
         Type {
             layout: "uint".loc(6).into(),
-            modifier: TypeModifier::const_only(),
+            modifiers: TypeModifierSet::from(&[TypeModifier::Const.loc(0)]),
             location: SourceLocation::first(),
         },
     );
@@ -139,7 +158,10 @@ fn test_type() {
         "const const uint",
         Type {
             layout: "uint".loc(12).into(),
-            modifier: TypeModifier::const_only(),
+            modifiers: TypeModifierSet::from(&[
+                TypeModifier::Const.loc(0),
+                TypeModifier::Const.loc(6),
+            ]),
             location: SourceLocation::first(),
         },
     );
@@ -149,7 +171,7 @@ fn test_type() {
         "uint const",
         Type {
             layout: "uint".loc(0).into(),
-            modifier: TypeModifier::const_only(),
+            modifiers: TypeModifierSet::from(&[TypeModifier::Const.loc(5)]),
             location: SourceLocation::first(),
         },
     );
@@ -159,10 +181,7 @@ fn test_type() {
         "volatile uint",
         Type {
             layout: "uint".loc(9).into(),
-            modifier: TypeModifier {
-                volatile: true,
-                ..Default::default()
-            },
+            modifiers: TypeModifierSet::from(&[TypeModifier::Volatile.loc(0)]),
             location: SourceLocation::first(),
         },
     );
@@ -172,10 +191,7 @@ fn test_type() {
         "uint volatile",
         Type {
             layout: "uint".loc(0).into(),
-            modifier: TypeModifier {
-                volatile: true,
-                ..Default::default()
-            },
+            modifiers: TypeModifierSet::from(&[TypeModifier::Volatile.loc(5)]),
             location: SourceLocation::first(),
         },
     );
@@ -185,10 +201,7 @@ fn test_type() {
         "row_major uint",
         Type {
             layout: "uint".loc(10).into(),
-            modifier: TypeModifier {
-                row_major: true,
-                ..Default::default()
-            },
+            modifiers: TypeModifierSet::from(&[TypeModifier::RowMajor.loc(0)]),
             location: SourceLocation::first(),
         },
     );
@@ -201,10 +214,7 @@ fn test_type() {
         "column_major uint",
         Type {
             layout: "uint".loc(13).into(),
-            modifier: TypeModifier {
-                column_major: true,
-                ..Default::default()
-            },
+            modifiers: TypeModifierSet::from(&[TypeModifier::ColumnMajor.loc(0)]),
             location: SourceLocation::first(),
         },
     );
@@ -217,10 +227,7 @@ fn test_type() {
         "unorm uint",
         Type {
             layout: "uint".loc(6).into(),
-            modifier: TypeModifier {
-                unorm: true,
-                ..Default::default()
-            },
+            modifiers: TypeModifierSet::from(&[TypeModifier::Unorm.loc(0)]),
             location: SourceLocation::first(),
         },
     );
@@ -233,10 +240,7 @@ fn test_type() {
         "snorm uint",
         Type {
             layout: "uint".loc(6).into(),
-            modifier: TypeModifier {
-                snorm: true,
-                ..Default::default()
-            },
+            modifiers: TypeModifierSet::from(&[TypeModifier::Snorm.loc(0)]),
             location: SourceLocation::first(),
         },
     );
@@ -249,14 +253,22 @@ fn test_type() {
         "row_major column_major unorm snorm const volatile row_major column_major unorm snorm const volatile uint const volatile",
         Type {
             layout: "uint".loc(100).into(),
-            modifier: TypeModifier {
-                is_const: true,
-                volatile: true,
-                row_major: true,
-                column_major: true,
-                unorm: true,
-                snorm: true,
-            },
+            modifiers: TypeModifierSet::from(&[
+                TypeModifier::RowMajor.loc(0),
+                TypeModifier::ColumnMajor.loc(10),
+                TypeModifier::Unorm.loc(23),
+                TypeModifier::Snorm.loc(29),
+                TypeModifier::Const.loc(35),
+                TypeModifier::Volatile.loc(41),
+                TypeModifier::RowMajor.loc(50),
+                TypeModifier::ColumnMajor.loc(60),
+                TypeModifier::Unorm.loc(73),
+                TypeModifier::Snorm.loc(79),
+                TypeModifier::Const.loc(85),
+                TypeModifier::Volatile.loc(91),
+                TypeModifier::Const.loc(105),
+                TypeModifier::Volatile.loc(111),
+            ]),
             location: SourceLocation::first(),
         },
     );

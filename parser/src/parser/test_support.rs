@@ -30,6 +30,7 @@ where
 
 impl TestLocationExt for Expression {}
 impl TestLocationExt for Type {}
+impl TestLocationExt for TypeModifier {}
 impl TestLocationExt for String {}
 impl TestLocationExt for &str {}
 

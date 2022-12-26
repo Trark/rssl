@@ -191,7 +191,7 @@ impl From<Located<&str>> for ExpressionOrType {
             Located::new(Expression::Identifier(name.clone().into()), name.location),
             Type {
                 layout: name.into(),
-                modifier: Default::default(),
+                modifiers: Default::default(),
                 location,
             },
         )

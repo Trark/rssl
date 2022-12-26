@@ -7,7 +7,7 @@ use rssl_ir as ir;
 use rssl_text::*;
 
 use super::expressions::parse_expr;
-use super::types::parse_type;
+use super::types::{parse_type_for_usage, TypePosition};
 
 /// Type check a list of ast statements into ir statements
 pub fn parse_statement_list(
@@ -165,6 +165,16 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
     // Build multiple output VarDefs for each variable inside the source VarDef
     let mut vardefs = vec![];
     for local_variable in &ast.defs {
+        // Deny restricted non-keyword names
+        if matches!(
+            local_variable.name.as_str(),
+            "nointerpolation" | "linear" | "centroid" | "noperspective"
+        ) {
+            return Err(TyperError::IllegalLocalVariableName(
+                local_variable.name.get_location(),
+            ));
+        }
+
         // Build type from ast type + bind
         let type_layout = apply_variable_bind(
             base_type_layout.clone(),
@@ -201,21 +211,52 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
 
 /// Convert a type for a local variable
 fn parse_localtype(
-    local_type: &ast::LocalType,
+    local_type: &ast::Type,
     context: &mut Context,
 ) -> TyperResult<(ir::TypeId, ir::LocalStorage)> {
-    let ty = parse_type(&local_type.0, context)?;
+    let ty = parse_type_for_usage(local_type, TypePosition::Local, context)?;
+
+    // Calculate the local storage type
+    let mut local_storage = None;
+    for modifier in &local_type.modifiers.modifiers {
+        let next_ls = match &modifier.node {
+            ast::TypeModifier::Static => ir::LocalStorage::Static,
+            ast::TypeModifier::Extern | ast::TypeModifier::GroupShared => {
+                return Err(TyperError::ModifierNotSupported(
+                    modifier.node,
+                    modifier.get_location(),
+                    TypePosition::Local,
+                ))
+            }
+            _ => continue,
+        };
+
+        if let Some((current_ls, _)) = local_storage {
+            if current_ls == next_ls {
+                // TODO: Warn for duplicate modifier
+            } else {
+                // These are two local storage variants - but only one valid modifier
+                // Every iteration of this loop must return the same modifier to set so we can never have a conflict
+                unreachable!("multiple different local storage modifiers detected")
+            }
+        } else {
+            local_storage = Some((next_ls, modifier.node));
+        }
+    }
+    let local_storage = local_storage
+        .map(|(ls, _)| ls)
+        .unwrap_or(ir::LocalStorage::Local);
 
     let ty_unmodified = context.module.type_registry.remove_modifier(ty);
     let ty_layout_unmodified = context.module.type_registry.get_type_layout(ty_unmodified);
     if ty_layout_unmodified.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
-            local_type.0.location,
+            local_type.location,
         ));
     }
 
-    Ok((ty, local_type.1))
+    Ok((ty, local_storage))
 }
 
 /// Apply part of type applied to variable name onto the type itself

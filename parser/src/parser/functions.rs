@@ -1,53 +1,6 @@
 use super::statements::parse_attribute;
 use super::*;
 
-/// Parse an input modifier for a function parameter
-fn parse_input_modifier(input: &[LexToken]) -> ParseResult<InputModifier> {
-    match input {
-        [LexToken(Token::In, _), rest @ ..] => Ok((rest, InputModifier::In)),
-        [LexToken(Token::Out, _), rest @ ..] => Ok((rest, InputModifier::Out)),
-        [LexToken(Token::InOut, _), rest @ ..] => Ok((rest, InputModifier::InOut)),
-        _ => ParseErrorReason::wrong_token(input),
-    }
-}
-
-/// Parse an interpolation modifier
-pub fn parse_interp_modifier(input: &[LexToken]) -> (&[LexToken], Option<InterpolationModifier>) {
-    if let [LexToken(Token::Id(id), _), rest @ ..] = input {
-        match id.0.as_str() {
-            "linear" => (rest, Some(InterpolationModifier::Linear)),
-            "centroid" => (rest, Some(InterpolationModifier::Centroid)),
-            "nointerpolation" => (rest, Some(InterpolationModifier::NoInterpolation)),
-            "noperspective" => (rest, Some(InterpolationModifier::NoPerspective)),
-            "sample" => (rest, Some(InterpolationModifier::Sample)),
-            "vertices" => (rest, Some(InterpolationModifier::Vertices)),
-            "primitives" => (rest, Some(InterpolationModifier::Primitives)),
-            "indices" => (rest, Some(InterpolationModifier::Indices)),
-            "payload" => (rest, Some(InterpolationModifier::Payload)),
-            _ => (input, None),
-        }
-    } else {
-        (input, None)
-    }
-}
-
-/// Parse the type of a function parameter
-fn parse_param_type(input: &[LexToken]) -> ParseResult<ParamType> {
-    let (input, it) = match parse_input_modifier(input) {
-        Ok((input, it)) => (input, it),
-        Err(_) => (input, InputModifier::default()),
-    };
-
-    // Try to sample an interpolation modifier
-    // HLSL permits these on any types like a modifier and allows duplicates - but we only allow one
-    let (input, im) = parse_interp_modifier(input);
-
-    match parse_type(input) {
-        Ok((rest, ty)) => Ok((rest, ParamType(ty, it, im))),
-        Err(err) => Err(err),
-    }
-}
-
 /// Parse a semantic
 pub fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
     match input.first() {
@@ -83,7 +36,7 @@ pub fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
 
 /// Parse a parameter for a function
 fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
-    let (input, ty) = parse_param_type(input)?;
+    let (input, ty) = parse_type(input)?;
     let (input, param) = parse_variable_name(input)?;
     let (input, bind) = parse_multiple(parse_arraydim)(input)?;
 
@@ -114,7 +67,7 @@ fn test_function_param() {
         "float x",
         FunctionParam {
             name: "x".to_string().loc(6),
-            param_type: Type::from("float".loc(0)).into(),
+            param_type: Type::from("float".loc(0)),
             bind: Default::default(),
             semantic: None,
         },
@@ -123,7 +76,11 @@ fn test_function_param() {
         "in float x",
         FunctionParam {
             name: "x".to_string().loc(9),
-            param_type: ParamType(Type::from("float".loc(3)), InputModifier::In, None),
+            param_type: Type {
+                layout: TypeLayout::from("float".loc(3)),
+                modifiers: TypeModifierSet::from(&[TypeModifier::In.loc(0)]),
+                location: SourceLocation::first(),
+            },
             bind: Default::default(),
             semantic: None,
         },
@@ -132,7 +89,11 @@ fn test_function_param() {
         "out float x",
         FunctionParam {
             name: "x".to_string().loc(10),
-            param_type: ParamType(Type::from("float".loc(4)), InputModifier::Out, None),
+            param_type: Type {
+                layout: TypeLayout::from("float".loc(4)),
+                modifiers: TypeModifierSet::from(&[TypeModifier::Out.loc(0)]),
+                location: SourceLocation::first(),
+            },
             bind: Default::default(),
             semantic: None,
         },
@@ -141,7 +102,11 @@ fn test_function_param() {
         "inout float x",
         FunctionParam {
             name: "x".to_string().loc(12),
-            param_type: ParamType(Type::from("float".loc(6)), InputModifier::InOut, None),
+            param_type: Type {
+                layout: TypeLayout::from("float".loc(6)),
+                modifiers: TypeModifierSet::from(&[TypeModifier::InOut.loc(0)]),
+                location: SourceLocation::first(),
+            },
             bind: Default::default(),
             semantic: None,
         },
@@ -150,7 +115,11 @@ fn test_function_param() {
         "in uint vertex_id : SV_VertexID",
         FunctionParam {
             name: "vertex_id".to_string().loc(8),
-            param_type: ParamType(Type::from("uint".loc(3)), InputModifier::In, None),
+            param_type: Type {
+                layout: TypeLayout::from("uint".loc(3)),
+                modifiers: TypeModifierSet::from(&[TypeModifier::In.loc(0)]),
+                location: SourceLocation::first(),
+            },
             bind: Default::default(),
             semantic: Some(Semantic::VertexId),
         },
@@ -159,7 +128,11 @@ fn test_function_param() {
         "in float2 uv : TEXCOORD",
         FunctionParam {
             name: "uv".to_string().loc(10),
-            param_type: ParamType(Type::from("float2".loc(3)), InputModifier::In, None),
+            param_type: Type {
+                layout: TypeLayout::from("float2".loc(3)),
+                modifiers: TypeModifierSet::from(&[TypeModifier::In.loc(0)]),
+                location: SourceLocation::first(),
+            },
             bind: Default::default(),
             semantic: Some(Semantic::User("TEXCOORD".to_string())),
         },
@@ -168,7 +141,7 @@ fn test_function_param() {
         "float v[4]",
         FunctionParam {
             name: "v".to_string().loc(6),
-            param_type: Type::from("float".loc(0)).into(),
+            param_type: Type::from("float".loc(0)),
             bind: VariableBind(Vec::from([Some(
                 Expression::Literal(Literal::UntypedInt(4)).loc(8),
             )])),
@@ -224,7 +197,7 @@ fn test_template_function() {
             template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
             params: vec![FunctionParam {
                 name: "arg".to_string().loc(30),
-                param_type: Type::from("T".loc(28)).into(),
+                param_type: Type::from("T".loc(28)),
                 bind: Default::default(),
                 semantic: None,
             }],

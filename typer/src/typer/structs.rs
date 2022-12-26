@@ -2,7 +2,7 @@ use super::errors::*;
 use super::functions::{parse_function_body, parse_function_signature};
 use super::scopes::*;
 use super::statements::apply_variable_bind;
-use super::types::parse_type;
+use super::types::{parse_interpolation_modifier, parse_type_for_usage, TypePosition};
 use rssl_ast as ast;
 use rssl_ir as ir;
 use std::collections::hash_map::Entry;
@@ -13,6 +13,22 @@ pub fn parse_rootdefinition_struct(
     sd: &ast::StructDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
+    // Deny restricted non-keyword names
+    if matches!(
+        sd.name.as_str(),
+        "nointerpolation"
+            | "linear"
+            | "centroid"
+            | "noperspective"
+            | "sample"
+            | "vertices"
+            | "primitives"
+            | "indices"
+            | "payload"
+    ) {
+        return Err(TyperError::IllegalStructName(sd.name.location));
+    }
+
     if !sd.template_params.0.is_empty() {
         // Register the struct template
         let name = &sd.name;
@@ -75,17 +91,30 @@ fn parse_struct_internal(
     for ast_entry in &sd.members {
         match ast_entry {
             ast::StructEntry::Variable(ast_member) => {
-                let base_type = parse_type(&ast_member.ty, context)?;
+                let base_type =
+                    parse_type_for_usage(&ast_member.ty, TypePosition::StructMember, context)?;
                 let base_type_layout = context
                     .module
                     .type_registry
                     .get_type_layout(base_type)
                     .clone();
 
-                if base_type_layout.is_const() {
-                    return Err(TyperError::StructMemberMayNotBeConst(
-                        ast_member.ty.location,
-                    ));
+                // Forbid storage classes except static
+                // We do not handle static in any special way either currently
+                // Forbid const when used directly on the member (but it can still appear on the type)
+                for modifier in &ast_member.ty.modifiers.modifiers {
+                    if matches!(
+                        &modifier.node,
+                        ast::TypeModifier::Const
+                            | ast::TypeModifier::Extern
+                            | ast::TypeModifier::GroupShared
+                    ) {
+                        return Err(TyperError::ModifierNotSupported(
+                            modifier.node,
+                            modifier.location,
+                            TypePosition::StructMember,
+                        ));
+                    }
                 }
 
                 let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
@@ -100,6 +129,10 @@ fn parse_struct_internal(
                     ));
                 }
 
+                let interpolation_modifier =
+                    parse_interpolation_modifier(&ast_member.ty.modifiers)?;
+                let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
+
                 for def in &ast_member.defs {
                     let name = def.name.clone();
                     let type_layout =
@@ -110,7 +143,7 @@ fn parse_struct_internal(
                         name,
                         type_id,
                         semantic: def.semantic.clone(),
-                        interpolation_modifier: ast_member.interpolation_modifier.clone(),
+                        interpolation_modifier,
                     });
                 }
             }

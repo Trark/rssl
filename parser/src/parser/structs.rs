@@ -1,4 +1,4 @@
-use super::functions::{parse_function_definition, parse_interp_modifier, parse_semantic};
+use super::functions::{parse_function_definition, parse_semantic};
 use super::*;
 
 /// Parse a struct member name in an entry
@@ -25,16 +25,11 @@ fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName>
 
 /// Parse a struct member variable - with potentially multiple members per line
 fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
-    let (input, interpolation_modifier) = parse_interp_modifier(input);
     let (input, typename) = parse_type(input)?;
     let (input, defs) =
         parse_list_nonempty(parse_token(Token::Comma), parse_struct_member_name)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
-    let sm = StructMember {
-        ty: typename,
-        defs,
-        interpolation_modifier,
-    };
+    let sm = StructMember { ty: typename, defs };
     Ok((input, sm))
 }
 
@@ -102,7 +97,6 @@ fn test_struct() {
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
-                interpolation_modifier: None,
             })],
         },
     );
@@ -126,7 +120,6 @@ fn test_struct() {
                         semantic: Default::default(),
                     },
                 ],
-                interpolation_modifier: None,
             })],
         },
     );
@@ -155,7 +148,6 @@ fn test_struct() {
                         semantic: Default::default(),
                     },
                 ],
-                interpolation_modifier: None,
             })],
         },
     );
@@ -173,7 +165,6 @@ fn test_struct() {
                         bind: Default::default(),
                         semantic: Default::default(),
                     }],
-                    interpolation_modifier: None,
                 }),
                 StructEntry::Method(FunctionDefinition {
                     name: "f".to_string().loc(31),
@@ -206,7 +197,6 @@ fn test_struct() {
                         semantic: Default::default(),
                     },
                 ],
-                interpolation_modifier: None,
             })],
         },
     );
@@ -235,7 +225,6 @@ fn test_struct() {
                         semantic: Some(Semantic::User("USER1".to_string())),
                     },
                 ],
-                interpolation_modifier: None,
             })],
         },
     );

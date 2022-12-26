@@ -92,7 +92,6 @@ fn test_struct() {
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
-                interpolation_modifier: None,
             }),
             StructEntry::Variable(StructMember {
                 ty: Type::from("float".loc(26)),
@@ -101,7 +100,6 @@ fn test_struct() {
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
-                interpolation_modifier: None,
             }),
         ],
     };
@@ -125,7 +123,7 @@ fn test_function() {
         template_params: TemplateParamList(Vec::new()),
         params: vec![FunctionParam {
             name: "x".to_string().loc(17),
-            param_type: Type::from("float".loc(11)).into(),
+            param_type: Type::from("float".loc(11)),
             bind: Default::default(),
             semantic: None,
         }],
@@ -143,7 +141,7 @@ fn test_function() {
             template_params: TemplateParamList(Vec::new()),
             params: vec![FunctionParam {
                 name: "x".to_string().loc(40),
-                param_type: Type::from("float".loc(34)).into(),
+                param_type: Type::from("float".loc(34)),
                 bind: Default::default(),
                 semantic: None,
             }],

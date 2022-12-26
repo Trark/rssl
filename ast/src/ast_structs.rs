@@ -21,7 +21,6 @@ pub enum StructEntry {
 pub struct StructMember {
     pub ty: Type,
     pub defs: Vec<StructMemberName>,
-    pub interpolation_modifier: Option<InterpolationModifier>,
 }
 
 /// The name part of a [StructMember] - to support multiple named variables declared on the same line

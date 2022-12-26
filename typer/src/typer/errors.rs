@@ -1,4 +1,4 @@
-use super::scopes::Context;
+use super::{scopes::Context, types::TypePosition};
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
@@ -91,9 +91,6 @@ pub enum TyperError {
     /// A variable was declared with an incomplete type
     VariableHasIncompleteType(ir::TypeId, SourceLocation),
 
-    /// A struct member was declared with const
-    StructMemberMayNotBeConst(SourceLocation),
-
     /// Incorrect register type was used for a resource
     InvalidRegisterType(ir::RegisterType, ir::RegisterType, SourceLocation),
 
@@ -108,6 +105,37 @@ pub enum TyperError {
 
     /// String types should not appear in main language
     StringNotSupported(SourceLocation),
+
+    /// A type modifier was used in a context where it is not allowed to be used
+    ModifierNotSupported(ast::TypeModifier, SourceLocation, TypePosition),
+
+    /// A type modifier was used with a conflicting modifier
+    ModifierConflict(ast::TypeModifier, SourceLocation, ast::TypeModifier),
+
+    /// row_major/column_major require a matrix type
+    MatrixOrderRequiresMatrixType(ast::TypeModifier, SourceLocation, ir::TypeId),
+
+    /// unorm/snorm require a float type
+    ModifierRequiresFloatType(ast::TypeModifier, SourceLocation, ir::TypeId),
+
+    // An interpolation-style modifier requires a certain input modifier type
+    InterpolationModifierRequiresInputModifier(
+        ir::InterpolationModifier,
+        SourceLocation,
+        ir::InputModifier,
+    ),
+
+    /// indices modifier only supports uint2/uint3
+    MeshShaderIndicesRequiresIndexType(SourceLocation, ir::TypeId),
+
+    /// Reserved name used for a local variable
+    IllegalLocalVariableName(SourceLocation),
+
+    /// Reserved name used for a struct
+    IllegalStructName(SourceLocation),
+
+    /// Reserved name used for a typedef
+    IllegalTypedefName(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -529,11 +557,6 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::StructMemberMayNotBeConst(loc) => w.write_message(
-                &|f| write!(f, "struct member was declared const"),
-                *loc,
-                Severity::Error,
-            ),
             TyperError::InvalidRegisterType(used, expected, loc) => w.write_message(
                 &|f| {
                     write!(
@@ -574,6 +597,92 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::StringNotSupported(loc) => w.write_message(
                 &|f| write!(f, "string may not be used"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::ModifierNotSupported(modifier, loc, type_position) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "modifier '{:?}' is not valid {}",
+                        modifier,
+                        match type_position {
+                            TypePosition::Free => "in this position",
+                            TypePosition::Local => "on a local variable",
+                            TypePosition::Parameter => "on a function parameter",
+                            TypePosition::StructMember => "on a field",
+                            TypePosition::Global => "on a global variable",
+                        }
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::ModifierConflict(modifier, loc, existing_modifier) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "modifier '{:?}' may not be used with '{:?}'",
+                        modifier, existing_modifier,
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::MatrixOrderRequiresMatrixType(modifier, loc, type_id) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "{:?} may not be used with type '{}'",
+                        modifier,
+                        get_type_id_string(*type_id, context),
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::ModifierRequiresFloatType(modifier, loc, type_id) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "{:?} may not be used with type '{}'",
+                        modifier,
+                        get_type_id_string(*type_id, context),
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::InterpolationModifierRequiresInputModifier(interp, loc, input) => w
+                .write_message(
+                    &|f| write!(f, "'{:?}' modifier requires '{:?}' modifier", interp, input),
+                    *loc,
+                    Severity::Error,
+                ),
+            TyperError::MeshShaderIndicesRequiresIndexType(loc, type_id) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "'{:?}' modifier does not support type '{}'",
+                        ir::InterpolationModifier::Indices,
+                        get_type_id_string(*type_id, context)
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::IllegalLocalVariableName(loc) => w.write_message(
+                &|f| write!(f, "unexpected identifier for local variable name"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::IllegalStructName(loc) => w.write_message(
+                &|f| write!(f, "unexpected identifier for struct name"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::IllegalTypedefName(loc) => w.write_message(
+                &|f| write!(f, "unexpected identifier for typedef"),
                 *loc,
                 Severity::Error,
             ),

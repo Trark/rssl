@@ -1,18 +1,13 @@
 use crate::ast_statements::{Initializer, VariableBind};
 use crate::ast_types::Type;
-use crate::primitive_types::*;
 use rssl_text::Located;
 
 /// A global variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariable {
-    pub global_type: GlobalType,
+    pub global_type: Type,
     pub defs: Vec<GlobalVariableName>,
 }
-
-/// The type of any global declaration
-#[derive(PartialEq, Debug, Clone)]
-pub struct GlobalType(pub Type, pub GlobalStorage);
 
 /// The name part of a global variable definition - to support multiple definitions in a single line
 #[derive(PartialEq, Debug, Clone)]
@@ -76,12 +71,6 @@ pub enum PackSubOffset {
     Y,
     Z,
     W,
-}
-
-impl From<Type> for GlobalType {
-    fn from(ty: Type) -> GlobalType {
-        GlobalType(ty, GlobalStorage::default())
-    }
 }
 
 impl std::fmt::Display for RegisterType {

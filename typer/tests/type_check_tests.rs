@@ -2,7 +2,7 @@ mod shared;
 use shared::*;
 
 #[test]
-fn check_static_primitive_variables() {
+fn check_global_primitive_variables() {
     check_types("static uint x = 4;");
     check_types("groupshared float lds_data[7];");
 }
@@ -91,6 +91,57 @@ fn check_primitive_types() {
     // This also does not work as expected with HLSL / DXC
     check_fail("vector<const float, 4> x;");
     check_fail("matrix<const float, 4, 4> x;");
+}
+
+#[test]
+fn check_global_type_modifiers() {
+    // trivial case
+    check_types("float x;");
+
+    // all storage types are allowed
+    check_types("static float x;");
+    check_types("extern float x;");
+    check_types("groupshared float x;");
+    check_types("static static float x;");
+    check_types("extern extern float x;");
+    check_types("groupshared groupshared float x;");
+    check_fail("static extern float x;");
+    check_fail("extern groupshared float x;");
+    check_fail("groupshared static float x;");
+
+    // const is allowed
+    check_types("const float x;");
+    check_types("static const float x;");
+    check_types("extern const float x;");
+    check_types("groupshared const float x;");
+
+    // volatile is not allowed
+    check_fail("volatile float x;");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("row_major float4x4 x;");
+    check_types("column_major float4x4 x;");
+    check_fail("row_major column_major float4x4 x;");
+    check_fail("row_major float4 x;");
+    check_fail("column_major float4 x;");
+
+    // parameter output types are not allowed
+    check_fail("in float x;");
+    check_fail("out float x;");
+    check_fail("inout float x;");
+
+    // Interpolation modifiers are not allowed
+    check_fail("nointerpolation float x;");
+    check_fail("linear float x;");
+    check_fail("centroid float x;");
+    check_fail("noperspective float x;");
+    check_fail("sample float x;");
+
+    // Mesh shader output modifiers are not allowed
+    check_fail("vertices float x;");
+    check_fail("primitives float x;");
+    check_fail("indices uint3 x;");
+    check_fail("payload float x;");
 }
 
 #[test]
@@ -282,6 +333,157 @@ struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
 }
 
 #[test]
+fn check_function_param_type_modifiers() {
+    // trivial cases
+    check_types("void f(float x) {}");
+
+    check_types("void f(const float x) {}");
+    check_types("void f(float const x) {}");
+    check_types("void f(volatile float x) {}");
+    check_types("void f(float volatile x) {}");
+    check_types("void f(const volatile float x) {}");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("void f(row_major float4x4 x) {}");
+    check_types("void f(column_major float4x4 x) {}");
+    check_fail("void f(row_major column_major float4x4 x) {}");
+    check_fail("void f(row_major float x) {}");
+    check_fail("void f(column_major float x) {}");
+
+    // unorm/snorm are allowed
+    check_types("void f(unorm float x) {}");
+    check_types("void f(snorm float x) {}");
+    check_fail("void f(unorm snorm float x) {}");
+    check_fail("void f(unorm uint x) {}");
+    check_fail("void f(snorm uint x) {}");
+
+    // storage types are not allowed
+    check_fail("void f(static float x) {}");
+    check_fail("void f(extern float x) {}");
+    check_fail("void f(groupshared float x) {}");
+
+    // parameter output types are allowed
+    check_types("void f(in float x) {}");
+    check_types("void f(out float x) {}");
+    check_types("void f(inout float x) {}");
+    check_fail("void f(in out float x) {}");
+    check_fail("void f(out inout float x) {}");
+    check_fail("void f(inout in float x) {}");
+}
+
+#[test]
+fn check_function_param_type_interpolators() {
+    // interpolation modifiers are allowed
+    check_types("void f(nointerpolation float x) {}");
+    check_types("void f(linear float x) {}");
+    check_types("void f(centroid float x) {}");
+    check_types("void f(noperspective float x) {}");
+    check_types("void f(sample float x) {}");
+
+    // Only one interpolation modifier is allowed
+    check_fail("void f(nointerpolation linear float x) {}");
+    check_fail("void f(linear centroid float x) {}");
+    check_fail("void f(centroid noperspective float x) {}");
+    check_fail("void f(noperspective sample float x) {}");
+    check_fail("void f(sample nointerpolation float x) {}");
+}
+
+#[test]
+fn check_function_param_type_mesh_modifiers() {
+    check_types("void f(out vertices float x[1]) {}");
+    check_fail("void f(vertices float x[1]) {}");
+    check_fail("void f(out nointerpolation vertices float x[1]) {}");
+
+    check_types("void f(out primitives float x[1]) {}");
+    check_fail("void f(primitives float x[1]) {}");
+    check_fail("void f(out primitives nointerpolation float x[1]) {}");
+
+    check_types("void f(out indices uint3 x[1]) {}");
+    check_types("void f(out indices uint2 x[1]) {}");
+    check_fail("void f(out indices uint x[1]) {}");
+    check_fail("void f(indices uint3 x[1]) {}");
+    check_fail("void f(out nointerpolation indices uint3 x[1]) {}");
+
+    check_types("void f(in payload float x) {}");
+    check_fail("void f(payload float x) {}");
+    check_fail("void f(in nointerpolation payload float x) {}");
+}
+
+#[test]
+fn check_function_with_contextual_keyword_names() {
+    check_types("void nointerpolation() { nointerpolation(); }");
+    check_types("void linear() { linear(); }");
+    check_types("void centroid() { centroid(); }");
+    check_types("void noperspective() { noperspective(); }");
+    check_types("void sample() { sample(); }");
+    check_types("void vertices() { vertices(); }");
+    check_types("void primitives() { primitives(); }");
+    check_types("void indices() { indices(); }");
+    check_types("void payload() { payload(); }");
+}
+
+#[test]
+fn check_local_variable_type_modifiers() {
+    // trivial case
+    check_types("void f() { float x; }");
+
+    // only default (local) and static storage types are allowed
+    check_types("void f() { static float x; }");
+    check_fail("void f() { extern float x; }");
+    check_fail("void f() { groupshared float x; }");
+    check_types("void f() { static static float x; }");
+
+    // const is allowed
+    check_types("void f() { const float x; }");
+    check_types("void f() { static const float x; }");
+    check_fail("void f() { extern const float x; }");
+    check_fail("void f() { groupshared const float x; }");
+
+    // volatile is allowed
+    check_types("void f() { volatile float x; }");
+    check_types("void f() { const volatile float x; }");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("void f() { row_major float4x4 x; }");
+    check_types("void f() { column_major float4x4 x; }");
+    check_fail("void f() { row_major column_major float4x4 x; }");
+    check_fail("void f() { row_major float4 x; }");
+    check_fail("void f() { column_major float4 x; }");
+
+    // parameter output types are not allowed
+    check_fail("void f() { in float x; }");
+    check_fail("void f() { out float x; }");
+    check_fail("void f() { inout float x; }");
+
+    // Interpolation modifiers are not allowed
+    check_fail("void f() { nointerpolation float x; }");
+    check_fail("void f() { linear float x; }");
+    check_fail("void f() { centroid float x; }");
+    check_fail("void f() { noperspective float x; }");
+    check_fail("void f() { sample float x; }");
+
+    // Mesh shader output modifiers are not allowed
+    check_fail("void f() { vertices float x; }");
+    check_fail("void f() { primitives float x; }");
+    check_fail("void f() { indices uint3 x; }");
+    check_fail("void f() { payload float x; }");
+}
+
+#[test]
+fn check_local_variable_with_contextual_keyword_names() {
+    // Mirror HLSL's interesting selection of names that work
+    check_fail("void f() { uint nointerpolation; }");
+    check_fail("void f() { uint linear; }");
+    check_fail("void f() { uint centroid; }");
+    check_fail("void f() { uint noperspective; }");
+    check_types("void f() { uint sample; }");
+    check_types("void f() { uint vertices; vertices = vertices; }");
+    check_types("void f() { uint primitives; primitives = (primitives); }");
+    check_types("void f() { uint indices; (indices) = indices; }");
+    check_types("void f() { uint payload; payload = payload; }");
+}
+
+#[test]
 fn check_function_templates() {
     check_types("template<typename T> void f() {}");
     check_types("template<typename T> void f(T v) {}");
@@ -390,6 +592,94 @@ fn check_structs() {
 }
 
 #[test]
+fn check_struct_with_contextual_keyword_names() {
+    check_types("struct NormalIdentifier {};");
+    check_fail("struct nointerpolation {};");
+    check_fail("struct linear {};");
+    check_fail("struct centroid {};");
+    check_fail("struct noperspective {};");
+    check_fail("struct sample {};");
+    check_fail("struct vertices {};");
+    check_fail("struct primitives {};");
+    check_fail("struct indices {};");
+    check_fail("struct payload {};");
+}
+
+#[test]
+fn check_struct_member_type_modifiers() {
+    // trivial cases
+    check_types("struct S { uint x; };");
+    check_types("struct S { float x; uint y; };");
+
+    // const and volatile are not allowed on struct fields directly
+    check_fail("struct S { const float x; };");
+    check_fail("struct S { volatile float x; };");
+
+    // but they can sneak in indirectly
+    check_types("typedef const float X; struct S { X x; };");
+    check_types("typedef volatile float X; struct S { X x; };");
+    check_types("typedef const volatile float X; struct S { X x; };");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("struct S { row_major float4x4 x; };");
+    check_types("struct S { column_major float4x4 x; };");
+    check_fail("struct S { row_major float4 x; };");
+    check_fail("struct S { column_major float4 x; };");
+    check_fail("struct S { row_major column_major float4x4 x; };");
+
+    // unorm/snorm are allowed
+    check_types("struct S { unorm float x; };");
+    check_types("struct S { snorm float x; };");
+    check_fail("struct S { unorm snorm float4 x; };");
+    check_fail("struct S { unorm uint x; };");
+    check_fail("struct S { snorm uint x; };");
+
+    // only static storage type is allowed
+    check_types("struct S { static float x; };");
+    check_fail("struct S { extern float x; };");
+    check_fail("struct S { groupshared float x; };");
+    check_types("struct S { static static float x; };");
+
+    // Interpolation modifiers are valid on structs
+    check_types("struct S { nointerpolation float x; };");
+    check_types("struct S { linear float x; };");
+    check_types("struct S { centroid float x; };");
+    check_types("struct S { noperspective float x; };");
+    check_types("struct S { sample float x; };");
+
+    // Only one interpolation modifier is allowed
+    check_fail("struct S { nointerpolation linear float x; };");
+    check_fail("struct S { linear centroid float x; };");
+    check_fail("struct S { centroid noperspective float x; };");
+    check_fail("struct S { noperspective sample float x; };");
+    check_fail("struct S { sample nointerpolation float x; };");
+
+    // Mesh shader output modifiers are not allowed
+    check_fail("struct S { vertices float x; };");
+    check_fail("struct S { primitives float x; };");
+    check_fail("struct S { indices float x; };");
+    check_fail("struct S { payload float x; };");
+
+    // parameter output types are not allowed
+    check_fail("struct S { in float x; };");
+    check_fail("struct S { out float x; };");
+    check_fail("struct S { inout float x; };");
+}
+
+#[test]
+fn check_struct_member_with_contextual_keyword_names() {
+    check_types("struct S { uint nointerpolation; }; void f(S s) { s.nointerpolation; }");
+    check_types("struct S { uint linear; }; void f(S s) { s.linear; }");
+    check_types("struct S { uint centroid; }; void f(S s) { s.centroid; }");
+    check_types("struct S { uint noperspective; }; void f(S s) { s.noperspective; }");
+    check_types("struct S { uint sample; }; void f(S s) { s.sample; }");
+    check_types("struct S { uint vertices; }; void f(S s) { s.vertices; }");
+    check_types("struct S { uint primitives; }; void f(S s) { s.primitives; }");
+    check_types("struct S { uint indices; }; void f(S s) { s.indices; }");
+    check_types("struct S { uint payload; }; void f(S s) { s.payload; }");
+}
+
+#[test]
 fn check_struct_methods() {
     check_types("struct S { void f() {} }; void main() { S s; s.f(); }");
     check_fail("struct S { void f() {} }; void main() { f(); }");
@@ -469,6 +759,66 @@ fn check_typedef() {
     check_types("typedef uint u32; u32 x = 1;");
     check_types("typedef uint u32x4[4];");
     check_types("typedef uint u32x4[4]; u32x4 v = { 2, 3, 4, 5 };");
+}
+
+#[test]
+fn check_typedef_type_modifiers() {
+    // const and volatile are allowed
+    check_types("typedef const float X;");
+    check_types("typedef volatile float X;");
+    check_types("typedef const volatile float X;");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("typedef row_major float4x4 X;");
+    check_types("typedef column_major float4x4 X;");
+    check_fail("typedef row_major float4 X;");
+    check_fail("typedef column_major float4 X;");
+    check_fail("typedef row_major column_major float4x4 X;");
+
+    // unorm/snorm are allowed
+    check_types("typedef unorm float X;");
+    check_types("typedef snorm float X;");
+    check_fail("typedef unorm snorm float X;");
+    check_fail("typedef unorm uint X;");
+    check_fail("typedef snorm uint X;");
+
+    // Storage classes are not allowed
+    check_fail("typedef static uint X;");
+    check_fail("typedef extern uint X;");
+    check_fail("typedef groupshared uint X;");
+
+    // Interpolation modifiers are not allowed
+    check_fail("typedef nointerpolation uint X;");
+    check_fail("typedef linear uint X;");
+    check_fail("typedef centroid uint X;");
+    check_fail("typedef noperspective uint X;");
+    check_fail("typedef sample uint X;");
+
+    // Mesh shader output modifiers are not allowed
+    check_fail("typedef vertices uint X;");
+    check_fail("typedef primitives uint X;");
+    check_fail("typedef indices uint3 X;");
+    check_fail("typedef payload uint X;");
+
+    // parameter output types are not allowed
+    check_fail("typedef in uint X;");
+    check_fail("typedef out uint X;");
+    check_fail("typedef inout uint X;");
+}
+
+#[test]
+fn check_typedef_with_contextual_keyword_names() {
+    check_fail("typedef uint nointerpolation;");
+    check_fail("typedef uint linear;");
+    check_fail("typedef uint centroid;");
+    check_fail("typedef uint noperspective;");
+
+    // HLSL permits these but then they are mostly unusable
+    check_types("typedef uint sample;");
+    check_types("typedef uint vertices;");
+    check_types("typedef uint primitives;");
+    check_types("typedef uint3 indices;");
+    check_types("typedef uint payload;");
 }
 
 #[test]

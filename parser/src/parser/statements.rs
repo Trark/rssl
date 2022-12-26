@@ -141,18 +141,10 @@ fn test_initializer() {
     );
 }
 
-/// Parse the type for a local variable
-fn parse_local_type(input: &[LexToken]) -> ParseResult<LocalType> {
-    // TODO: This may defeat expressions
-    match parse_type(input) {
-        Ok((rest, ty)) => Ok((rest, LocalType(ty, LocalStorage::default()))),
-        Err(err) => Err(err),
-    }
-}
-
 /// Parse a local variable definition
 fn parse_vardef(input: &[LexToken]) -> ParseResult<VarDef> {
-    let (input, typename) = parse_local_type(input)?;
+    // TODO: This may defeat expressions
+    let (input, typename) = parse_type(input)?;
     let (input, defs) = parse_list_nonempty(parse_token(Token::Comma), |input| {
         let (input, varname) = parse_variable_name(input)?;
         let (input, bind) = parse_multiple(parse_arraydim)(input)?;
@@ -178,7 +170,7 @@ fn test_vardef() {
 
     vardef.check(
         "uint x",
-        VarDef::one("x".to_string().loc(5), Type::from("uint".loc(0)).into()),
+        VarDef::one("x".to_string().loc(5), Type::from("uint".loc(0))),
     );
 }
 
@@ -209,14 +201,14 @@ fn test_init_statement() {
         "uint x",
         InitStatement::Declaration(VarDef::one(
             "x".to_string().loc(5),
-            Type::from("uint".loc(0)).into(),
+            Type::from("uint".loc(0)),
         )),
     );
     init_statement.check(
         "uint x = y",
         InitStatement::Declaration(VarDef::one_with_expr(
             "x".to_string().loc(5),
-            Type::from("uint".loc(0)).into(),
+            Type::from("uint".loc(0)),
             "y".as_var(9),
         )),
     );
@@ -487,14 +479,14 @@ fn test_local_variables() {
         "uint x = y;",
         Statement::Var(VarDef::one_with_expr(
             "x".to_string().loc(5),
-            Type::from("uint".loc(0)).into(),
+            Type::from("uint".loc(0)),
             "y".as_var(9),
         )),
     );
     statement.check(
         "float x[3], y[2][4];",
         Statement::Var(VarDef {
-            local_type: Type::from("float".loc(0)).into(),
+            local_type: Type::from("float".loc(0)),
             defs: Vec::from([
                 LocalVariableName {
                     name: "x".to_string().loc(6),
@@ -530,8 +522,7 @@ fn test_local_variables() {
                     identifiers: Vec::from(["My".to_string().loc(0), "Type".to_string().loc(4)]),
                 },
                 Default::default(),
-            ))
-            .into(),
+            )),
             "y".as_var(13),
         )),
     );
@@ -645,7 +636,7 @@ fn test_for() {
         Statement::For(
             InitStatement::Declaration(VarDef::one_with_expr(
                 "i".to_string().loc(10),
-                Type::from("uint".loc(5)).into(),
+                Type::from("uint".loc(5)),
                 Expression::Literal(Literal::UntypedInt(0)).loc(14),
             )),
             "i".as_var(17),

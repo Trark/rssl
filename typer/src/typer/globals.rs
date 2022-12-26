@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::errors::*;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, evaluate_constexpr_int, parse_initializer_opt};
-use super::types::parse_type;
+use super::types::{parse_type, parse_type_for_usage, TypePosition};
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
@@ -97,27 +97,56 @@ pub fn parse_rootdefinition_globalvariable(
     Ok(defs)
 }
 
+/// Parse a type used for a global variable
 fn parse_globaltype(
-    global_type: &ast::GlobalType,
+    global_type: &ast::Type,
     context: &mut Context,
 ) -> TyperResult<(ir::TypeId, ir::GlobalStorage)> {
-    let mut ty = parse_type(&global_type.0, context)?;
+    let mut ty = parse_type_for_usage(global_type, TypePosition::Global, context)?;
+
+    // Calculate the global storage type
+    let mut global_storage = None;
+    for modifier in &global_type.modifiers.modifiers {
+        let next_gs = match &modifier.node {
+            ast::TypeModifier::Extern => ir::GlobalStorage::Extern,
+            ast::TypeModifier::Static => ir::GlobalStorage::Static,
+            ast::TypeModifier::GroupShared => ir::GlobalStorage::GroupShared,
+            _ => continue,
+        };
+
+        if let Some((current_gs, current_source)) = global_storage {
+            if current_gs == next_gs {
+                // TODO: Warn for duplicate modifier
+            } else {
+                return Err(TyperError::ModifierConflict(
+                    modifier.node,
+                    modifier.location,
+                    current_source,
+                ));
+            }
+        } else {
+            global_storage = Some((next_gs, modifier.node));
+        }
+    }
+    let global_storage = global_storage
+        .map(|(gs, _)| gs)
+        .unwrap_or(ir::GlobalStorage::Extern);
 
     let ty_unmodified = context.module.type_registry.remove_modifier(ty);
     let tyl = context.module.type_registry.get_type_layout(ty_unmodified);
     if tyl.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
-            global_type.0.location,
+            global_type.location,
         ));
     }
 
     // All extern variables are implicitly const
-    if global_type.1 == ir::GlobalStorage::Extern {
+    if global_storage == ir::GlobalStorage::Extern {
         ty = context.module.type_registry.make_const(ty);
     }
 
-    Ok((ty, global_type.1))
+    Ok((ty, global_storage))
 }
 
 pub fn parse_rootdefinition_constantbuffer(

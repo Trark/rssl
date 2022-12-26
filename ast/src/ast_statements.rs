@@ -36,13 +36,9 @@ pub enum InitStatement {
 /// A local variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct VarDef {
-    pub local_type: LocalType,
+    pub local_type: Type,
     pub defs: Vec<LocalVariableName>,
 }
-
-/// The type of any local variable declaration
-#[derive(PartialEq, Debug, Clone)]
-pub struct LocalType(pub Type, pub LocalStorage);
 
 /// The name part of a local variable definition - to support multiple definitions in a single line
 #[derive(PartialEq, Debug, Clone)]
@@ -75,14 +71,8 @@ pub struct Attribute {
     pub arguments: Vec<Located<Expression>>,
 }
 
-impl From<Type> for LocalType {
-    fn from(ty: Type) -> LocalType {
-        LocalType(ty, LocalStorage::default())
-    }
-}
-
 impl VarDef {
-    pub fn one(name: Located<String>, local_type: LocalType) -> VarDef {
+    pub fn one(name: Located<String>, local_type: Type) -> VarDef {
         VarDef {
             local_type,
             defs: vec![LocalVariableName {
@@ -94,7 +84,7 @@ impl VarDef {
     }
     pub fn one_with_expr(
         name: Located<String>,
-        local_type: LocalType,
+        local_type: Type,
         expr: Located<Expression>,
     ) -> VarDef {
         VarDef {

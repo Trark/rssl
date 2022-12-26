@@ -6,16 +6,74 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum TypePosition {
+    /// Type is not for a definition or does not support any special modifiers
+    Free,
+
+    /// Type is for a local variable
+    Local,
+
+    /// Type is for a function parameter
+    Parameter,
+
+    /// Type is for a member of a struct
+    StructMember,
+
+    /// Type is for a global definition
+    Global,
+}
+
 /// Attempt to get an ir type from an ast type
 pub fn parse_type(ty: &ast::Type, context: &mut Context) -> TyperResult<ir::TypeId> {
-    let direct_modifier = ty.modifier;
+    parse_type_for_usage(ty, TypePosition::Free, context)
+}
+
+/// Attempt to get an ir type from an ast type
+pub fn parse_type_for_usage(
+    ty: &ast::Type,
+    position: TypePosition,
+    context: &mut Context,
+) -> TyperResult<ir::TypeId> {
     let parsed_id = parse_typelayout(&ty.layout, context)?;
+
+    // Process the primary type modifiers
+    let direct_modifier = parse_type_modifier(&ty.modifiers, parsed_id, position, context)?;
+
+    // Storage classes only exist on certain definition types
+    // This does not check the storage class is valid for the types where any are valid
+    if !matches!(
+        position,
+        TypePosition::Local | TypePosition::Global | TypePosition::StructMember
+    ) {
+        deny_storage_class(&ty.modifiers, position)?;
+    }
+
+    // Only function parameters may have input modifiers
+    if !matches!(position, TypePosition::Parameter) {
+        deny_input_modifier(&ty.modifiers, position)?;
+    }
+
+    // Only function parameters and struct members may have interpolation modifiers
+    if !matches!(
+        position,
+        TypePosition::Parameter | TypePosition::StructMember
+    ) {
+        deny_interpolation_modifier(&ty.modifiers, position)?;
+    }
+
+    // Only function parameters may have mesh shader modifiers
+    if !matches!(position, TypePosition::Parameter) {
+        deny_mesh_shader_modifiers(&ty.modifiers, position)?;
+    }
+
     let (ir_ty, base_modifier) = context.module.type_registry.extract_modifier(parsed_id);
     let modifier = base_modifier.combine(direct_modifier);
     let ty = context
         .module
         .type_registry
         .combine_modifier(ir_ty, modifier);
+
     Ok(ty)
 }
 
@@ -282,6 +340,269 @@ fn parse_object_type(
     }
 }
 
+/// Generate the primary type modifiers from the ast type modifiers
+fn parse_type_modifier(
+    modifiers: &ast::TypeModifierSet,
+    applied_type: ir::TypeId,
+    position: TypePosition,
+    context: &Context,
+) -> TyperResult<ir::TypeModifier> {
+    let tyl = context.module.type_registry.get_type_layer(applied_type);
+
+    let mut full_modifier = ir::TypeModifier::new();
+    for modifier in &modifiers.modifiers {
+        match &modifier.node {
+            ast::TypeModifier::Const => {
+                full_modifier.is_const = true;
+            }
+            ast::TypeModifier::Volatile => {
+                if matches!(position, TypePosition::Global | TypePosition::StructMember) {
+                    return Err(TyperError::ModifierNotSupported(
+                        modifier.node,
+                        modifier.location,
+                        position,
+                    ));
+                }
+                full_modifier.volatile = true;
+            }
+            ast::TypeModifier::RowMajor => {
+                if full_modifier.column_major {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        ast::TypeModifier::ColumnMajor,
+                    ));
+                }
+                if !matches!(tyl, ir::TypeLayer::Matrix(..)) {
+                    return Err(TyperError::MatrixOrderRequiresMatrixType(
+                        modifier.node,
+                        modifier.location,
+                        applied_type,
+                    ));
+                }
+                full_modifier.row_major = true;
+            }
+            ast::TypeModifier::ColumnMajor => {
+                if full_modifier.row_major {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        ast::TypeModifier::RowMajor,
+                    ));
+                }
+                if !matches!(tyl, ir::TypeLayer::Matrix(..)) {
+                    return Err(TyperError::MatrixOrderRequiresMatrixType(
+                        modifier.node,
+                        modifier.location,
+                        applied_type,
+                    ));
+                }
+                full_modifier.column_major = true;
+            }
+            ast::TypeModifier::Unorm => {
+                if full_modifier.snorm {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        ast::TypeModifier::Snorm,
+                    ));
+                }
+                if !matches!(
+                    tyl,
+                    ir::TypeLayer::Scalar(ir::ScalarType::Float)
+                        | ir::TypeLayer::Vector(ir::ScalarType::Float, ..)
+                        | ir::TypeLayer::Matrix(ir::ScalarType::Float, ..)
+                ) {
+                    return Err(TyperError::ModifierRequiresFloatType(
+                        modifier.node,
+                        modifier.location,
+                        applied_type,
+                    ));
+                }
+                full_modifier.unorm = true;
+            }
+            ast::TypeModifier::Snorm => {
+                if full_modifier.unorm {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        ast::TypeModifier::Unorm,
+                    ));
+                }
+                if !matches!(
+                    tyl,
+                    ir::TypeLayer::Scalar(ir::ScalarType::Float)
+                        | ir::TypeLayer::Vector(ir::ScalarType::Float, ..)
+                        | ir::TypeLayer::Matrix(ir::ScalarType::Float, ..)
+                ) {
+                    return Err(TyperError::ModifierRequiresFloatType(
+                        modifier.node,
+                        modifier.location,
+                        applied_type,
+                    ));
+                }
+                full_modifier.snorm = true;
+            }
+            _ => continue,
+        }
+
+        // TODO: Warn for duplicate modifier
+    }
+    Ok(full_modifier)
+}
+
+/// Ensure storage class modifiers do not appear as a type modifier
+fn deny_storage_class(modifiers: &ast::TypeModifierSet, position: TypePosition) -> TyperResult<()> {
+    for modifier in &modifiers.modifiers {
+        if matches!(
+            &modifier.node,
+            ast::TypeModifier::Extern | ast::TypeModifier::Static | ast::TypeModifier::GroupShared
+        ) {
+            return Err(TyperError::ModifierNotSupported(
+                modifier.node,
+                modifier.location,
+                position,
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Generate the input modifier from the type modifiers
+pub fn parse_input_modifier(
+    modifiers: &ast::TypeModifierSet,
+) -> TyperResult<Option<ir::InputModifier>> {
+    let mut current_modifier = None;
+    for modifier in &modifiers.modifiers {
+        let next_im = match &modifier.node {
+            ast::TypeModifier::In => ir::InputModifier::In,
+            ast::TypeModifier::Out => ir::InputModifier::Out,
+            ast::TypeModifier::InOut => ir::InputModifier::InOut,
+            _ => continue,
+        };
+
+        if let Some((current_im, current_source)) = current_modifier {
+            if current_im == next_im {
+                // TODO: Warn for duplicate modifier
+            } else {
+                return Err(TyperError::ModifierConflict(
+                    modifier.node,
+                    modifier.location,
+                    current_source,
+                ));
+            }
+        } else {
+            current_modifier = Some((next_im, modifier.node));
+        }
+    }
+    let input_modifier = current_modifier.map(|(im, _)| im);
+    Ok(input_modifier)
+}
+
+/// Ensure input modifiers do not appear as a type modifier
+fn deny_input_modifier(
+    modifiers: &ast::TypeModifierSet,
+    position: TypePosition,
+) -> TyperResult<()> {
+    for modifier in &modifiers.modifiers {
+        if matches!(
+            &modifier.node,
+            ast::TypeModifier::In | ast::TypeModifier::Out | ast::TypeModifier::InOut
+        ) {
+            return Err(TyperError::ModifierNotSupported(
+                modifier.node,
+                modifier.location,
+                position,
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Generate the interpolation modifier from the type modifiers
+pub fn parse_interpolation_modifier(
+    modifiers: &ast::TypeModifierSet,
+) -> TyperResult<Option<(ir::InterpolationModifier, SourceLocation)>> {
+    let mut current_modifier: Option<(ir::InterpolationModifier, Located<ast::TypeModifier>)> =
+        None;
+    for modifier in &modifiers.modifiers {
+        let next_im = match &modifier.node {
+            ast::TypeModifier::NoInterpolation => ir::InterpolationModifier::NoInterpolation,
+            ast::TypeModifier::Linear => ir::InterpolationModifier::Linear,
+            ast::TypeModifier::Centroid => ir::InterpolationModifier::Centroid,
+            ast::TypeModifier::NoPerspective => ir::InterpolationModifier::NoPerspective,
+            ast::TypeModifier::Sample => ir::InterpolationModifier::Sample,
+            ast::TypeModifier::Vertices => ir::InterpolationModifier::Vertices,
+            ast::TypeModifier::Primitives => ir::InterpolationModifier::Primitives,
+            ast::TypeModifier::Indices => ir::InterpolationModifier::Indices,
+            ast::TypeModifier::Payload => ir::InterpolationModifier::Payload,
+            _ => continue,
+        };
+
+        if let Some((current_im, ref current_source)) = current_modifier {
+            if current_im == next_im {
+                // TODO: Warn for duplicate modifier
+            } else {
+                return Err(TyperError::ModifierConflict(
+                    modifier.node,
+                    modifier.location,
+                    current_source.node,
+                ));
+            }
+        } else {
+            current_modifier = Some((next_im, modifier.clone()));
+        }
+    }
+    Ok(current_modifier.map(|(im, m)| (im, m.location)))
+}
+
+/// Ensure interpolation modifiers do not appear as a type modifier
+pub fn deny_interpolation_modifier(
+    modifiers: &ast::TypeModifierSet,
+    position: TypePosition,
+) -> TyperResult<()> {
+    for modifier in &modifiers.modifiers {
+        if matches!(
+            &modifier.node,
+            ast::TypeModifier::NoInterpolation
+                | ast::TypeModifier::Linear
+                | ast::TypeModifier::Centroid
+                | ast::TypeModifier::NoPerspective
+                | ast::TypeModifier::Sample
+        ) {
+            return Err(TyperError::ModifierNotSupported(
+                modifier.node,
+                modifier.location,
+                position,
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Ensure mesh entry point modifiers do not appear as a type modifier
+pub fn deny_mesh_shader_modifiers(
+    modifiers: &ast::TypeModifierSet,
+    position: TypePosition,
+) -> TyperResult<()> {
+    for modifier in &modifiers.modifiers {
+        if matches!(
+            &modifier.node,
+            ast::TypeModifier::Vertices
+                | ast::TypeModifier::Primitives
+                | ast::TypeModifier::Indices
+                | ast::TypeModifier::Payload
+        ) {
+            return Err(TyperError::ModifierNotSupported(
+                modifier.node,
+                modifier.location,
+                position,
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Replace instances of a template type parameter in a type with a concrete type
 pub fn apply_template_type_substitution(
     source_type: ir::TypeId,
@@ -338,6 +659,14 @@ fn evaluate_constant_expression(
 
 /// Process a typedef
 pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) -> TyperResult<()> {
+    // Deny restricted non-keyword names
+    if matches!(
+        td.name.as_str(),
+        "nointerpolation" | "linear" | "centroid" | "noperspective"
+    ) {
+        return Err(TyperError::IllegalTypedefName(td.name.location));
+    }
+
     // Parse the base type
     let base_type = parse_type(&td.source, context)?;
     let base_type_layout = context

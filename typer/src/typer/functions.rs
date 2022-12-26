@@ -2,7 +2,10 @@ use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_statement_list};
-use super::types::{apply_template_type_substitution, parse_type};
+use super::types::{
+    apply_template_type_substitution, parse_input_modifier, parse_interpolation_modifier,
+    parse_type, parse_type_for_usage, TypePosition,
+};
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::Located;
@@ -184,22 +187,70 @@ fn parse_returntype(
     })
 }
 
-fn parse_paramtype(
-    param_type: &ast::ParamType,
-    context: &mut Context,
-) -> TyperResult<ir::ParamType> {
-    let ty = parse_type(&param_type.0, context)?;
+/// Parse a type used for a function parameter
+fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult<ir::ParamType> {
+    let ty = parse_type_for_usage(param_type, TypePosition::Parameter, context)?;
 
     let ty_unmodified = context.module.type_registry.remove_modifier(ty);
     let tyl = context.module.type_registry.get_type_layout(ty_unmodified);
     if tyl.is_void() {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
-            param_type.0.location,
+            param_type.location,
         ));
     }
 
-    Ok(ir::ParamType(ty, param_type.1, param_type.2.clone()))
+    let input_modifier = parse_input_modifier(&param_type.modifiers)?;
+    let interpolation_modifier = parse_interpolation_modifier(&param_type.modifiers)?;
+
+    if let Some((interpolation_modifier, modifier_location)) = interpolation_modifier {
+        // Require in modifier for mesh shader inputs
+        if interpolation_modifier == ir::InterpolationModifier::Payload
+            && input_modifier != Some(ir::InputModifier::In)
+        {
+            return Err(TyperError::InterpolationModifierRequiresInputModifier(
+                interpolation_modifier,
+                modifier_location,
+                ir::InputModifier::In,
+            ));
+        }
+
+        // Require out modifier for mesh shader outputs
+        if matches!(
+            interpolation_modifier,
+            ir::InterpolationModifier::Vertices
+                | ir::InterpolationModifier::Primitives
+                | ir::InterpolationModifier::Indices
+        ) && input_modifier != Some(ir::InputModifier::Out)
+        {
+            return Err(TyperError::InterpolationModifierRequiresInputModifier(
+                interpolation_modifier,
+                modifier_location,
+                ir::InputModifier::Out,
+            ));
+        }
+
+        if interpolation_modifier == ir::InterpolationModifier::Indices
+            && !matches!(
+                tyl,
+                ir::TypeLayout::Vector(ir::ScalarType::UInt, 2)
+                    | ir::TypeLayout::Vector(ir::ScalarType::UInt, 3)
+            )
+        {
+            return Err(TyperError::MeshShaderIndicesRequiresIndexType(
+                param_type.location,
+                ty,
+            ));
+        }
+    }
+
+    // Set default input modifier
+    let input_modifier = input_modifier.unwrap_or(ir::InputModifier::In);
+
+    // Remove interpolation modifier location
+    let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
+
+    Ok(ir::ParamType(ty, input_modifier, interpolation_modifier))
 }
 
 /// Process all function attributes

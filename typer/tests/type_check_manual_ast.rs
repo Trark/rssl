@@ -17,8 +17,7 @@ fn test_ast_pass() {
                 global_type: ast::Type::from_layout(ast::TypeLayout::with_template_types(
                     Located::none("RWBuffer"),
                     &[ast::ExpressionOrType::Type(ast::Type::from("float4"))],
-                ))
-                .into(),
+                )),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myOutBuffer".to_string()),
                     bind: Default::default(),
@@ -30,10 +29,10 @@ fn test_ast_pass() {
                 }],
             }),
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
-                global_type: ast::GlobalType(
-                    ast::Type::from("int").to_const(),
-                    ast::GlobalStorage::Static,
-                ),
+                global_type: ast::Type::from("int").with_modifiers(&[
+                    Located::none(ast::TypeModifier::Static),
+                    Located::none(ast::TypeModifier::Const),
+                ]),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myFour".to_string()),
                     bind: Default::default(),
@@ -49,7 +48,7 @@ fn test_ast_pass() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
-                    param_type: ast::Type::from("uint").into(),
+                    param_type: ast::Type::from("uint"),
                     bind: Default::default(),
                     semantic: None,
                 }],
@@ -62,7 +61,7 @@ fn test_ast_pass() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
-                    param_type: ast::Type::from("float").into(),
+                    param_type: ast::Type::from("float"),
                     bind: Default::default(),
                     semantic: None,
                 }],
@@ -75,18 +74,16 @@ fn test_ast_pass() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![ast::FunctionParam {
                     name: Located::none("x".to_string()),
-                    param_type: ast::ParamType(
-                        ast::Type::from("float"),
-                        ast::InputModifier::Out,
-                        None,
-                    ),
+                    param_type: ast::Type::from("float")
+                        .with_modifiers(&[Located::none(ast::TypeModifier::Out)]),
                     bind: Default::default(),
                     semantic: None,
                 }],
                 body: vec![
                     ast::Statement::Var(ast::VarDef::one(
                         Located::none("local_static".to_string()),
-                        ast::LocalType(ast::Type::from("uint"), ast::LocalStorage::Static),
+                        ast::Type::from("uint")
+                            .with_modifiers(&[Located::none(ast::TypeModifier::Static)]),
                     )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,
@@ -107,11 +104,11 @@ fn test_ast_pass() {
                     ast::Statement::Empty,
                     ast::Statement::Var(ast::VarDef::one(
                         Located::none("a".to_string()),
-                        ast::Type::from("uint").into(),
+                        ast::Type::from("uint"),
                     )),
                     ast::Statement::Var(ast::VarDef::one(
                         Located::none("b".to_string()),
-                        ast::Type::from("uint").into(),
+                        ast::Type::from("uint"),
                     )),
                     ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
                         ast::BinOp::Assignment,
@@ -138,10 +135,10 @@ fn test_ast_pass() {
                     ))),
                     ast::Statement::Var(ast::VarDef::one(
                         Located::none("testOut".to_string()),
-                        ast::Type::from("float").into(),
+                        ast::Type::from("float"),
                     )),
                     ast::Statement::Var(ast::VarDef {
-                        local_type: ast::Type::from_layout(ast::TypeLayout::from("float")).into(),
+                        local_type: ast::Type::from_layout(ast::TypeLayout::from("float")),
                         defs: vec![ast::LocalVariableName {
                             name: Located::none("x".to_string()),
                             bind: ast::VariableBind(Vec::from([Some(Located::none(
@@ -169,10 +166,10 @@ fn test_ast_to_ir() {
     let static_global_test = ast::Module {
         root_definitions: vec![
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
-                global_type: ast::GlobalType(
-                    ast::Type::from("int").to_const(),
-                    ast::GlobalStorage::Static,
-                ),
+                global_type: ast::Type::from("int").with_modifiers(&[
+                    Located::none(ast::TypeModifier::Static),
+                    Located::none(ast::TypeModifier::Const),
+                ]),
                 defs: vec![ast::GlobalVariableName {
                     name: Located::none("g_myFour".to_string()),
                     bind: Default::default(),

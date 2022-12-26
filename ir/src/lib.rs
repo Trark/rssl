@@ -14,10 +14,7 @@ mod ir_structs;
 mod ir_types;
 mod ir_variables;
 
-pub use rssl_ast::{
-    GlobalStorage, InputModifier, InterpolationModifier, Literal, LocalStorage, PackOffset,
-    PackSubOffset, RegisterType, Semantic, TypeModifier,
-};
+pub use rssl_ast::{Literal, PackOffset, PackSubOffset, RegisterType, Semantic};
 
 pub use intrinsics::*;
 pub use ir_expressions::*;
