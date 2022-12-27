@@ -1,6 +1,98 @@
 use rssl_text::tokens::*;
 use rssl_text::*;
 
+pub struct TokenStream<'bytes> {
+    input_bytes: &'bytes [u8],
+    base_location: SourceLocation,
+    current_offset: usize,
+    add_trailing_endline: bool,
+    last_was_endline: bool,
+}
+
+impl<'bytes> TokenStream<'bytes> {
+    /// Create a new token stream
+    pub fn new(input: &'bytes str, base_location: SourceLocation) -> Self {
+        TokenStream {
+            input_bytes: input.as_bytes(),
+            base_location,
+            current_offset: 0,
+            add_trailing_endline: true,
+            last_was_endline: true,
+        }
+    }
+
+    /// Suppress automated insertion of endline at end of file
+    #[cfg(test)]
+    pub fn suppress_trailing_endline(mut self) -> Self {
+        self.add_trailing_endline = false;
+        self
+    }
+
+    /// Check if there are remaining bytes to be consumed
+    pub fn end_of_stream(&self) -> bool {
+        self.current_offset >= self.input_bytes.len()
+            && (self.last_was_endline || !self.add_trailing_endline)
+    }
+
+    /// Read the next token from the stream
+    pub fn next(&mut self) -> Result<PreprocessToken, LexerError> {
+        if self.add_trailing_endline && self.current_offset == self.input_bytes.len() {
+            assert!(!self.last_was_endline);
+            self.last_was_endline = true;
+
+            // Insert a newline at the end of the file if it did not already end with a new empty line
+            // This is what C++ does before token generation normally
+            // This ensures when we return from the included file we are on a fresh line
+            let tok = PreprocessToken::new(
+                Token::Endline,
+                self.base_location,
+                self.current_offset as u32,
+                self.current_offset as u32,
+            );
+
+            return Ok(tok);
+        }
+
+        match token_intermediate(&self.input_bytes[self.current_offset..]) {
+            Ok((remaining, next_token)) => {
+                let next_location = self.input_bytes.len() - remaining.len();
+                debug_assert!(self.current_offset < next_location);
+                self.last_was_endline = next_token == Token::Endline;
+                let tok = PreprocessToken::new(
+                    next_token,
+                    self.base_location,
+                    self.current_offset as u32,
+                    next_location as u32,
+                );
+                self.current_offset = next_location;
+                Ok(tok)
+            }
+            Err(LexErrorContext(_, kind)) => {
+                if kind == LexErrorKind::Eof {
+                    Err(LexerError::new(
+                        LexerErrorReason::UnexpectedEndOfStream,
+                        self.base_location.offset(self.input_bytes.len() as u32),
+                    ))
+                } else {
+                    Err(LexerError::new(
+                        LexerErrorReason::Unknown,
+                        self.base_location.offset(self.current_offset as u32),
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Read as many tokens as possible from the stream
+    pub fn read_to_end(&mut self) -> Result<Vec<PreprocessToken>, LexerError> {
+        let mut tokens = Vec::new();
+        while !self.end_of_stream() {
+            tokens.push(self.next()?);
+        }
+        Ok(tokens)
+    }
+}
+
 /// Provides details on why a lex operation failed
 #[derive(PartialEq, Clone)]
 pub struct LexerError {
@@ -52,15 +144,6 @@ impl std::fmt::Display for LexerErrorReason {
         }
     }
 }
-
-#[derive(PartialEq, Debug, Clone)]
-struct IntermediateLocation(u32);
-
-#[derive(PartialEq, Debug, Clone)]
-struct IntermediateToken(Token, IntermediateLocation);
-
-#[derive(PartialEq, Debug, Clone)]
-struct StreamToken(pub Token, pub StreamLocation);
 
 /// Internal error kind when a lexer fails to lex
 #[derive(PartialEq, Debug, Clone)]
@@ -1123,38 +1206,6 @@ fn token_intermediate(input: &[u8]) -> LexResult<Token> {
     )
 }
 
-/// Parse a single token
-fn token(input: &[u8]) -> LexResult<IntermediateToken> {
-    let (remaining, token) = token_intermediate(input)?;
-    let intermediate_token = IntermediateToken(token, IntermediateLocation(input.len() as u32));
-    Ok((remaining, intermediate_token))
-}
-
-/// Parse all tokens in a stream
-fn token_stream(mut input: &[u8]) -> LexResult<Vec<StreamToken>> {
-    let total_length = input.len() as u32;
-    let mut tokens = Vec::new();
-
-    while !input.is_empty() {
-        match token(input) {
-            Ok((rest, itoken)) => {
-                input = rest;
-                tokens.push(StreamToken(
-                    itoken.0,
-                    StreamLocation(total_length - (itoken.1).0),
-                ))
-            }
-            Err(err) => return Err(err),
-        }
-    }
-    Ok((input, tokens))
-}
-
-/// Run the lexer on input text to turn it into a token stream
-pub fn lex(text: &str, source_offset: SourceLocation) -> Result<Vec<PreprocessToken>, LexerError> {
-    lex_internal(text, source_offset, true)
-}
-
 /// Run the lexer on input text fragment to turn it into a token stream
 #[cfg(test)]
 pub fn lex_fragment(
@@ -1163,87 +1214,9 @@ pub fn lex_fragment(
 ) -> Result<Vec<PreprocessToken>, LexerError> {
     let contents = source_manager.get_contents(file_id);
     let offset = source_manager.get_source_location_from_file_offset(file_id, StreamLocation(0));
-    lex_internal(contents, offset, false)
-}
-
-/// Run the lexer on input text to turn it into a token stream
-fn lex_internal(
-    text: &str,
-    source_offset: SourceLocation,
-    add_file_ending: bool,
-) -> Result<Vec<PreprocessToken>, LexerError> {
-    let code_bytes = text.as_bytes();
-    let total_length = code_bytes.len() as u32;
-    match token_stream(code_bytes) {
-        Ok((rest, mut stream)) => {
-            if rest.is_empty() {
-                if add_file_ending {
-                    // Insert a newline at the end of the file if it did not already end with a new empty line
-                    // This is what C++ does before token generation normally
-                    // This ensures when we return from the included file we are on a fresh line
-                    if let Some(StreamToken(tok, _)) = stream.last() {
-                        if *tok != Token::Endline {
-                            stream.push(StreamToken(Token::Endline, StreamLocation(total_length)));
-                        }
-                    }
-                }
-
-                // Translate from locations in the current local stream into original source locations
-                let mut lex_tokens = Vec::with_capacity(stream.len());
-                for (i, StreamToken(ref token, stream_location)) in stream.iter().enumerate() {
-                    let next_location = match stream.get(i + 1) {
-                        Some(StreamToken(_, next_location)) => *next_location,
-                        None => StreamLocation(code_bytes.len() as u32),
-                    };
-                    lex_tokens.push(PreprocessToken::new(
-                        token.clone(),
-                        source_offset,
-                        stream_location.0,
-                        next_location.0,
-                    ));
-                }
-
-                Ok(lex_tokens)
-            } else {
-                // Find the next point where we can find a valid token
-                let mut after = rest;
-                loop {
-                    if after.is_empty() {
-                        break;
-                    }
-                    after = &after[1..];
-
-                    if let Ok((_, token)) = token(after) {
-                        if let IntermediateToken(Token::Id(_), _) = token {
-                            // If we find an identifier then it would be a substring of another identifier which didn't lex
-                        } else {
-                            break;
-                        }
-                    }
-                }
-
-                let failing_bytes = rest[..rest.len() - after.len()].to_vec();
-                let offset = StreamLocation((code_bytes.len() - rest.len()) as u32);
-                Err(LexerError::new(
-                    LexerErrorReason::FailedToParse(failing_bytes),
-                    source_offset.offset(offset.0),
-                ))
-            }
-        }
-        Err(LexErrorContext(input, kind)) => {
-            if kind == LexErrorKind::Eof {
-                Err(LexerError::new(
-                    LexerErrorReason::UnexpectedEndOfStream,
-                    source_offset.offset(code_bytes.len() as u32),
-                ))
-            } else {
-                Err(LexerError::new(
-                    LexerErrorReason::Unknown,
-                    source_offset.offset((code_bytes.len() - input.len()) as u32),
-                ))
-            }
-        }
-    }
+    TokenStream::new(contents, offset)
+        .suppress_trailing_endline()
+        .read_to_end()
 }
 
 #[test]
@@ -1255,19 +1228,13 @@ fn test_token() {
 
         ($input:expr, $token:expr, $used:expr) => {
             let input_bytes = $input.as_bytes();
-            let result = token(input_bytes);
+            let result = token_intermediate(input_bytes);
             let rest = &input_bytes[$used..];
-            assert_eq!(
-                result,
-                Ok((
-                    rest,
-                    IntermediateToken($token, IntermediateLocation(input_bytes.len() as u32))
-                ))
-            );
+            assert_eq!(result, Ok((rest, $token)));
         };
     }
 
-    assert!(token(&b""[..]).is_err());
+    assert!(token_intermediate(b"").is_err());
     assert_token!(";", Token::Semicolon);
     assert_token!("; ", Token::Semicolon, 1);
     assert_token!("name", Token::Id(Identifier("name".to_string())));
@@ -1559,217 +1526,187 @@ fn test_token() {
 
 #[test]
 fn test_token_stream() {
-    fn token_id(name: &'static str, loc: u32) -> StreamToken {
-        StreamToken(Token::Id(Identifier(name.to_string())), StreamLocation(loc))
+    /// Run the lexer on input text fragment to turn it into a token stream
+    fn token_stream(input: &str) -> Result<Vec<PreprocessToken>, LexerError> {
+        TokenStream::new(input, SourceLocation::first())
+            .suppress_trailing_endline()
+            .read_to_end()
     }
-    fn loc(tok: Token, loc: u32) -> StreamToken {
-        StreamToken(tok, StreamLocation(loc))
+    fn loc(tok: Token, start: u32, end: u32) -> PreprocessToken {
+        PreprocessToken::new(tok, SourceLocation::first(), start, end)
+    }
+    fn token_id(name: &'static str, start: u32) -> PreprocessToken {
+        loc(
+            Token::Id(Identifier(name.to_string())),
+            start,
+            start + name.len() as u32,
+        )
     }
 
-    assert_eq!(token_stream(&b""[..]), Ok((&b""[..], vec![])));
+    assert_eq!(token_stream(""), Ok(Vec::new()));
     assert_eq!(
-        token_stream(&b"// Comment only source!\n"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([loc(Token::Comment, 0), loc(Token::Endline, 23)])
-        ))
+        token_stream("// Comment only source!\n"),
+        Ok(Vec::from([
+            loc(Token::Comment, 0, 23),
+            loc(Token::Endline, 23, 24)
+        ]))
     );
     assert_eq!(
-        token_stream(&b"// Comment only source!\nelse"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::Comment, 0),
-                loc(Token::Endline, 23),
-                loc(Token::Else, 24)
-            ])
-        ))
+        token_stream("// Comment only source!\nelse"),
+        Ok(Vec::from([
+            loc(Token::Comment, 0, 23),
+            loc(Token::Endline, 23, 24),
+            loc(Token::Else, 24, 28)
+        ]))
     );
     assert_eq!(
-        token_stream(&b"// Comment only source!\r\nelse"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::Comment, 0),
-                loc(Token::Endline, 23),
-                loc(Token::Else, 25)
-            ])
-        ))
+        token_stream("// Comment only source!\r\nelse"),
+        Ok(Vec::from([
+            loc(Token::Comment, 0, 23),
+            loc(Token::Endline, 23, 25),
+            loc(Token::Else, 25, 29)
+        ]))
     );
     assert_eq!(
-        token_stream(&b"a\nb"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::Id(Identifier("a".to_string())), 0),
-                loc(Token::Endline, 1),
-                loc(Token::Id(Identifier("b".to_string())), 2),
-            ])
-        ))
+        token_stream("a\nb"),
+        Ok(Vec::from([
+            loc(Token::Id(Identifier("a".to_string())), 0, 1),
+            loc(Token::Endline, 1, 2),
+            loc(Token::Id(Identifier("b".to_string())), 2, 3),
+        ]))
     );
     assert_eq!(
-        token_stream(&b"a\\\nb"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::Id(Identifier("a".to_string())), 0),
-                loc(Token::PhysicalEndline, 1),
-                loc(Token::Id(Identifier("b".to_string())), 3),
-            ])
-        ))
+        token_stream("a\\\nb"),
+        Ok(Vec::from([
+            loc(Token::Id(Identifier("a".to_string())), 0, 1),
+            loc(Token::PhysicalEndline, 1, 3),
+            loc(Token::Id(Identifier("b".to_string())), 3, 4),
+        ]))
     );
     assert_eq!(
-        token_stream(&b"// Comment only source!\\\nelse"[..]),
-        Ok((&b""[..], Vec::from([loc(Token::Comment, 0)])))
+        token_stream("// Comment only source!\\\nelse"),
+        Ok(Vec::from([loc(Token::Comment, 0, 29)]))
     );
     assert_eq!(
-        token_stream(&b"// Comment only source!\\\r\nelse"[..]),
-        Ok((&b""[..], Vec::from([loc(Token::Comment, 0)])))
+        token_stream("// Comment only source!\\\r\nelse"),
+        Ok(Vec::from([loc(Token::Comment, 0, 30)]))
     );
 
     assert_eq!(
-        token_stream(&b" a "[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::Whitespace, 0),
-                token_id("a", 1),
-                loc(Token::Whitespace, 2),
-            ])
-        ))
+        token_stream(" a "),
+        Ok(Vec::from([
+            loc(Token::Whitespace, 0, 1),
+            token_id("a", 1),
+            loc(Token::Whitespace, 2, 3),
+        ]))
     );
 
     assert_eq!(
-        token_stream(&b"void func();"[..]),
-        Ok((
-            &b""[..],
-            vec![
-                token_id("void", 0),
-                loc(Token::Whitespace, 4),
-                token_id("func", 5),
-                loc(Token::LeftParen, 9),
-                loc(Token::RightParen, 10),
-                loc(Token::Semicolon, 11),
-            ]
-        ))
+        token_stream("void func();"),
+        Ok(vec![
+            token_id("void", 0),
+            loc(Token::Whitespace, 4, 5),
+            token_id("func", 5),
+            loc(Token::LeftParen, 9, 10),
+            loc(Token::RightParen, 10, 11),
+            loc(Token::Semicolon, 11, 12),
+        ])
     );
 
     assert_eq!(
-        token_stream(&b"-12 "[..]),
-        Ok((
-            &b""[..],
-            vec![
-                loc(Token::Minus, 0),
-                loc(Token::LiteralInt(12), 1),
-                loc(Token::Whitespace, 3),
-            ]
-        ))
+        token_stream("-12 "),
+        Ok(vec![
+            loc(Token::Minus, 0, 1),
+            loc(Token::LiteralInt(12), 1, 3),
+            loc(Token::Whitespace, 3, 4),
+        ])
     );
     assert_eq!(
-        token_stream(&b"-12l"[..]),
-        Ok((
-            &b""[..],
-            vec![loc(Token::Minus, 0), loc(Token::LiteralLong(12), 1),]
-        ))
+        token_stream("-12l"),
+        Ok(vec![
+            loc(Token::Minus, 0, 1),
+            loc(Token::LiteralLong(12), 1, 4)
+        ])
     );
     assert_eq!(
-        token_stream(&b"-12L"[..]),
-        Ok((
-            &b""[..],
-            vec![loc(Token::Minus, 0), loc(Token::LiteralLong(12), 1),]
-        ))
+        token_stream("-12L"),
+        Ok(vec![
+            loc(Token::Minus, 0, 1),
+            loc(Token::LiteralLong(12), 1, 4)
+        ])
     );
 
     assert_eq!(
-        token_stream(&b"<<"[..]),
-        Ok((
-            &b""[..],
-            vec![
-                loc(Token::LeftAngleBracket(FollowedBy::Token), 0),
-                loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 1),
-            ]
-        ))
+        token_stream("<<"),
+        Ok(vec![
+            loc(Token::LeftAngleBracket(FollowedBy::Token), 0, 1),
+            loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 1, 2),
+        ])
     );
     assert_eq!(
-        token_stream(&b"<"[..]),
-        Ok((
-            &b""[..],
-            vec![loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 0),]
-        ))
+        token_stream("<"),
+        Ok(vec![loc(
+            Token::LeftAngleBracket(FollowedBy::Whitespace),
+            0,
+            1
+        )])
     );
     assert_eq!(
-        token_stream(&b"< "[..]),
-        Ok((
-            &b""[..],
-            vec![
-                loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 0),
-                loc(Token::Whitespace, 1),
-            ]
-        ))
+        token_stream("< "),
+        Ok(vec![
+            loc(Token::LeftAngleBracket(FollowedBy::Whitespace), 0, 1),
+            loc(Token::Whitespace, 1, 2),
+        ])
     );
 
     assert_eq!(
-        token_stream(&b">>"[..]),
-        Ok((
-            &b""[..],
-            vec![
-                loc(Token::RightAngleBracket(FollowedBy::Token), 0),
-                loc(Token::RightAngleBracket(FollowedBy::Whitespace), 1),
-            ]
-        ))
+        token_stream(">>"),
+        Ok(vec![
+            loc(Token::RightAngleBracket(FollowedBy::Token), 0, 1),
+            loc(Token::RightAngleBracket(FollowedBy::Whitespace), 1, 2),
+        ])
     );
     assert_eq!(
-        token_stream(&b">"[..]),
-        Ok((
-            &b""[..],
-            vec![loc(Token::RightAngleBracket(FollowedBy::Whitespace), 0),]
-        ))
+        token_stream(">"),
+        Ok(vec![loc(
+            Token::RightAngleBracket(FollowedBy::Whitespace),
+            0,
+            1
+        )])
     );
     assert_eq!(
-        token_stream(&b"> "[..]),
-        Ok((
-            &b""[..],
-            vec![
-                loc(Token::RightAngleBracket(FollowedBy::Whitespace), 0),
-                loc(Token::Whitespace, 1),
-            ]
-        ))
+        token_stream("> "),
+        Ok(vec![
+            loc(Token::RightAngleBracket(FollowedBy::Whitespace), 0, 1),
+            loc(Token::Whitespace, 1, 2),
+        ])
     );
 
     assert_eq!(
-        token_stream(&b"+++++"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::PlusPlus, 0),
-                loc(Token::PlusPlus, 2),
-                loc(Token::Plus, 4),
-            ])
-        ))
+        token_stream("+++++"),
+        Ok(Vec::from([
+            loc(Token::PlusPlus, 0, 2),
+            loc(Token::PlusPlus, 2, 4),
+            loc(Token::Plus, 4, 5),
+        ]))
     );
 
     assert_eq!(
-        token_stream(&b"-----"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::MinusMinus, 0),
-                loc(Token::MinusMinus, 2),
-                loc(Token::Minus, 4),
-            ])
-        ))
+        token_stream("-----"),
+        Ok(Vec::from([
+            loc(Token::MinusMinus, 0, 2),
+            loc(Token::MinusMinus, 2, 4),
+            loc(Token::Minus, 4, 5),
+        ]))
     );
 
     assert_eq!(
-        token_stream(&b"+++-+"[..]),
-        Ok((
-            &b""[..],
-            Vec::from([
-                loc(Token::PlusPlus, 0),
-                loc(Token::Plus, 2),
-                loc(Token::Minus, 3),
-                loc(Token::Plus, 4),
-            ])
-        ))
+        token_stream("+++-+"),
+        Ok(Vec::from([
+            loc(Token::PlusPlus, 0, 2),
+            loc(Token::Plus, 2, 3),
+            loc(Token::Minus, 3, 4),
+            loc(Token::Plus, 4, 5),
+        ]))
     );
 }

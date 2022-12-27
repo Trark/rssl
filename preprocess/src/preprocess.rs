@@ -1,4 +1,5 @@
-use crate::{lexer::LexerError, unlex};
+use crate::lexer::{LexerError, TokenStream};
+use crate::unlex;
 use rssl_text::tokens::*;
 use rssl_text::*;
 use std::collections::{HashMap, HashSet};
@@ -672,7 +673,7 @@ fn apply_single_macro(
             let new_fragment = source_manager.get_contents(file_id);
 
             // Lex the new combined string file
-            let merged_token = match crate::lexer::lex(new_fragment, source_location) {
+            let merged_token = match TokenStream::new(new_fragment, source_location).read_to_end() {
                 Ok(tokens) => tokens,
                 Err(_) => return Err(PreprocessError::ConcatFailed(source_location)),
             };
@@ -1255,98 +1256,104 @@ fn preprocess_included_file(
     let file_source_location_base =
         file_loader.get_source_location_from_file_offset(input_file.file_id, StreamLocation(0));
 
-    let input_tokens = match crate::lexer::lex(&input_file.contents, file_source_location_base) {
-        Ok(tokens) => tokens,
-        Err(err) => return Err(PreprocessError::LexerError(err)),
-    };
+    let mut token_stream = TokenStream::new(&input_file.contents, file_source_location_base);
 
-    let mut stream = input_tokens.as_slice();
-    loop {
-        // Find the next region to process
-        #[derive(PartialEq)]
-        enum RegionType {
-            None,
-            Normal(usize),
-            Command(usize, usize),
+    let mut active_tokens: Vec<PreprocessToken> = Vec::new();
+
+    fn flush_normal(
+        output_tokens: &mut Vec<PreprocessToken>,
+        input_tokens: &mut Vec<PreprocessToken>,
+        file_loader: &mut FileLoader,
+        macros: &[Macro],
+        condition_chain: &mut ConditionChain,
+    ) -> Result<(), PreprocessError> {
+        if condition_chain.is_active() {
+            let next_tokens =
+                apply_macros(input_tokens, macros, false, file_loader.source_manager)?;
+            output_tokens.extend(next_tokens);
         }
-        let mut region_type = RegionType::None;
-        {
-            let mut pos = 0;
-            let mut at_start_of_line = true;
-            while pos < stream.len() {
-                let next = &stream[pos];
-                if next.0 == Token::Endline {
-                    assert!(
-                        region_type == RegionType::None
-                            || matches!(region_type,  RegionType::Normal(sz) if sz < pos + 1)
-                    );
-                    region_type = RegionType::Normal(pos + 1);
-                    at_start_of_line = true;
-                } else if at_start_of_line {
-                    if next.0 == Token::Hash {
-                        match region_type {
-                            RegionType::None => {
-                                // Get the size of the command from # too endline
-                                // There should always be an endline at the end
-                                let command_size = stream[pos..]
-                                    .iter()
-                                    .position(|t| t.0 == Token::Endline)
-                                    .unwrap();
+        input_tokens.clear();
+        Ok(())
+    }
 
-                                // Start the command range after the #
-                                let start = pos + 1;
+    // Find the next region to process
+    enum CommandParseState {
+        StartOfLine,
+        CommandStart,
+        CommandContents,
+        NormalContents,
+    }
+    let mut command_state = CommandParseState::StartOfLine;
+    while !token_stream.end_of_stream() {
+        // Load the next token
+        let next = match token_stream.next() {
+            Ok(next) => next,
+            Err(err) => return Err(PreprocessError::LexerError(err)),
+        };
 
-                                // Get the end position in the input stream
-                                // This excludes the new line marker
-                                let end = pos + command_size;
-                                assert!(start < end);
-
-                                region_type = RegionType::Command(start, end);
-                                break;
-                            }
-                            RegionType::Normal(_) => {
-                                break;
-                            }
-                            RegionType::Command(_, _) => unreachable!(),
-                        }
-                    } else if !next.0.is_whitespace() {
-                        at_start_of_line = false;
-                    }
-                }
-                pos += 1;
-            }
-        }
-
-        match region_type {
-            RegionType::None => {
-                assert!(stream.is_empty());
-                break;
-            }
-            RegionType::Normal(sz) => {
-                if condition_chain.is_active() {
-                    let next_tokens =
-                        apply_macros(&stream[..sz], macros, false, file_loader.source_manager)?;
-                    buffer.extend(next_tokens);
-                }
-                assert_ne!(sz, 0);
-                stream = &stream[sz..];
-            }
-            RegionType::Command(start, end) => {
+        match (&next.0, &command_state) {
+            (Token::Endline, CommandParseState::CommandContents) => {
                 preprocess_command(
                     buffer,
                     file_loader,
-                    &stream[start..end],
+                    &active_tokens,
                     input_file.file_id,
                     macros,
                     condition_chain,
                 )?;
 
-                assert_ne!(end, 0);
-                assert_eq!(stream[end].0, Token::Endline);
-                stream = &stream[end + 1..];
+                active_tokens.clear();
+                command_state = CommandParseState::StartOfLine;
             }
-        }
+            (Token::Endline, _) => {
+                command_state = CommandParseState::StartOfLine;
+                active_tokens.push(next)
+            }
+            (Token::Hash, CommandParseState::StartOfLine) => {
+                // Remove whitespace in active tokens between start of line and #
+                loop {
+                    match active_tokens.last() {
+                        Some(tok) if tok.0 != Token::Endline && tok.0.is_whitespace() => {
+                            active_tokens.pop();
+                        }
+                        _ => break,
+                    }
+                }
+
+                flush_normal(
+                    buffer,
+                    &mut active_tokens,
+                    file_loader,
+                    macros,
+                    condition_chain,
+                )?;
+
+                command_state = CommandParseState::CommandStart;
+            }
+            (tok, CommandParseState::CommandStart) if !tok.is_whitespace() => {
+                command_state = CommandParseState::CommandContents;
+
+                // Discard the # and any whitespace between the # and command name
+                active_tokens.clear();
+                active_tokens.push(next);
+            }
+            (tok, CommandParseState::StartOfLine) => {
+                if !tok.is_whitespace() {
+                    command_state = CommandParseState::NormalContents;
+                }
+                active_tokens.push(next)
+            }
+            _ => active_tokens.push(next),
+        };
     }
+
+    flush_normal(
+        buffer,
+        &mut active_tokens,
+        file_loader,
+        macros,
+        condition_chain,
+    )?;
 
     Ok(())
 }
