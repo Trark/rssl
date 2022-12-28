@@ -427,7 +427,7 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
             fn expr_statement(input: &[LexToken]) -> ParseResult<StatementKind> {
                 let (input, expression_statement) = parse_expression(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
-                Ok((input, StatementKind::Expression(expression_statement)))
+                Ok((input, StatementKind::Expression(expression_statement.node)))
             }
 
             variable_def(input).select(expr_statement(input))
@@ -485,9 +485,11 @@ fn test_expression_statement() {
     statement.check(
         "func();",
         Statement {
-            kind: StatementKind::Expression(
-                Expression::Call("func".as_bvar(0), Vec::new(), Vec::new()).loc(0),
-            ),
+            kind: StatementKind::Expression(Expression::Call(
+                "func".as_bvar(0),
+                Vec::new(),
+                Vec::new(),
+            )),
             location: SourceLocation::first(),
             attributes: Vec::new(),
         },
@@ -495,9 +497,11 @@ fn test_expression_statement() {
     statement.check(
         " func ( ) ; ",
         Statement {
-            kind: StatementKind::Expression(
-                Expression::Call("func".as_bvar(1), Vec::new(), Vec::new()).loc(1),
-            ),
+            kind: StatementKind::Expression(Expression::Call(
+                "func".as_bvar(1),
+                Vec::new(),
+                Vec::new(),
+            )),
             location: SourceLocation::first().offset(1),
             attributes: Vec::new(),
         },
@@ -587,16 +591,20 @@ fn test_statement_blocks() {
         Statement {
             kind: StatementKind::Block(Vec::from([
                 Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("one".as_bvar(1), Vec::new(), Vec::new()).loc(1),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "one".as_bvar(1),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(1),
                     attributes: Vec::new(),
                 },
                 Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("two".as_bvar(7), Vec::new(), Vec::new()).loc(7),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "two".as_bvar(7),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(7),
                     attributes: Vec::new(),
                 },
@@ -610,16 +618,20 @@ fn test_statement_blocks() {
         Statement {
             kind: StatementKind::Block(Vec::from([
                 Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("one".as_bvar(3), Vec::new(), Vec::new()).loc(3),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "one".as_bvar(3),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(3),
                     attributes: Vec::new(),
                 },
                 Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("two".as_bvar(10), Vec::new(), Vec::new()).loc(10),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "two".as_bvar(10),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(10),
                     attributes: Vec::new(),
                 },
@@ -641,9 +653,11 @@ fn test_if() {
             kind: StatementKind::If(
                 "a".as_var(3),
                 Box::new(Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("func".as_bvar(5), Vec::new(), Vec::new()).loc(5),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "func".as_bvar(5),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(5),
                     attributes: Vec::new(),
                 }),
@@ -658,9 +672,11 @@ fn test_if() {
             kind: StatementKind::If(
                 "a".as_var(4),
                 Box::new(Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("func".as_bvar(7), Vec::new(), Vec::new()).loc(7),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "func".as_bvar(7),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(7),
                     attributes: Vec::new(),
                 }),
@@ -677,16 +693,20 @@ fn test_if() {
                 Box::new(Statement {
                     kind: StatementKind::Block(Vec::from([
                         Statement {
-                            kind: StatementKind::Expression(
-                                Expression::Call("one".as_bvar(10), Vec::new(), Vec::new()).loc(10),
-                            ),
+                            kind: StatementKind::Expression(Expression::Call(
+                                "one".as_bvar(10),
+                                Vec::new(),
+                                Vec::new(),
+                            )),
                             location: SourceLocation::first().offset(10),
                             attributes: Vec::new(),
                         },
                         Statement {
-                            kind: StatementKind::Expression(
-                                Expression::Call("two".as_bvar(18), Vec::new(), Vec::new()).loc(18),
-                            ),
+                            kind: StatementKind::Expression(Expression::Call(
+                                "two".as_bvar(18),
+                                Vec::new(),
+                                Vec::new(),
+                            )),
                             location: SourceLocation::first().offset(18),
                             attributes: Vec::new(),
                         },
@@ -707,16 +727,20 @@ fn test_if() {
             kind: StatementKind::IfElse(
                 "a".as_var(4),
                 Box::new(Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("one".as_bvar(7), Vec::new(), Vec::new()).loc(7),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "one".as_bvar(7),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(7),
                     attributes: Vec::new(),
                 }),
                 Box::new(Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("two".as_bvar(19), Vec::new(), Vec::new()).loc(19),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "two".as_bvar(19),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(19),
                     attributes: Vec::new(),
                 }),
@@ -740,16 +764,20 @@ fn test_while() {
                 Box::new(Statement {
                     kind: StatementKind::Block(Vec::from([
                         Statement {
-                            kind: StatementKind::Expression(
-                                Expression::Call("one".as_bvar(13), Vec::new(), Vec::new()).loc(13),
-                            ),
+                            kind: StatementKind::Expression(Expression::Call(
+                                "one".as_bvar(13),
+                                Vec::new(),
+                                Vec::new(),
+                            )),
                             location: SourceLocation::first().offset(13),
                             attributes: Vec::new(),
                         },
                         Statement {
-                            kind: StatementKind::Expression(
-                                Expression::Call("two".as_bvar(21), Vec::new(), Vec::new()).loc(21),
-                            ),
+                            kind: StatementKind::Expression(Expression::Call(
+                                "two".as_bvar(21),
+                                Vec::new(),
+                                Vec::new(),
+                            )),
                             location: SourceLocation::first().offset(21),
                             attributes: Vec::new(),
                         },
@@ -777,9 +805,11 @@ fn test_for() {
                 "b".as_var(6),
                 "c".as_var(8),
                 Box::new(Statement {
-                    kind: StatementKind::Expression(
-                        Expression::Call("func".as_bvar(10), Vec::new(), Vec::new()).loc(10),
-                    ),
+                    kind: StatementKind::Expression(Expression::Call(
+                        "func".as_bvar(10),
+                        Vec::new(),
+                        Vec::new(),
+                    )),
                     location: SourceLocation::first().offset(10),
                     attributes: Vec::new(),
                 }),
@@ -801,9 +831,11 @@ fn test_for() {
                 Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
                 Box::new(Statement {
                     kind: StatementKind::Block(Vec::from([Statement {
-                        kind: StatementKind::Expression(
-                            Expression::Call("func".as_bvar(27), Vec::new(), Vec::new()).loc(27),
-                        ),
+                        kind: StatementKind::Expression(Expression::Call(
+                            "func".as_bvar(27),
+                            Vec::new(),
+                            Vec::new(),
+                        )),
                         location: SourceLocation::first().offset(27),
                         attributes: Vec::new(),
                     }])),

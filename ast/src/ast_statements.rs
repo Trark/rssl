@@ -15,7 +15,7 @@ pub struct Statement {
 #[derive(PartialEq, Debug, Clone)]
 pub enum StatementKind {
     Empty,
-    Expression(Located<Expression>),
+    Expression(Expression),
     Var(VarDef),
     Block(Vec<Statement>),
     If(Located<Expression>, Box<Statement>),

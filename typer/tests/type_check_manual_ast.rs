@@ -93,7 +93,7 @@ fn test_ast_pass() {
                         ast::Type::from("uint")
                             .with_modifiers(&[Located::none(ast::TypeModifier::Static)]),
                     ))),
-                    as_statement(ast::StatementKind::Expression(Located::none(
+                    as_statement(ast::StatementKind::Expression(
                         ast::Expression::BinaryOperation(
                             ast::BinOp::Assignment,
                             Box::new(make_id("x")),
@@ -101,7 +101,7 @@ fn test_ast_pass() {
                                 ast::Literal::Float(1.5f32),
                             ))),
                         ),
-                    ))),
+                    )),
                 ],
                 attributes: vec![],
             }),
@@ -120,18 +120,18 @@ fn test_ast_pass() {
                         Located::none("b".to_string()),
                         ast::Type::from("uint"),
                     ))),
-                    as_statement(ast::StatementKind::Expression(Located::none(
+                    as_statement(ast::StatementKind::Expression(
                         ast::Expression::BinaryOperation(
                             ast::BinOp::Assignment,
                             Box::new(make_id("a")),
                             Box::new(make_id("b")),
                         ),
-                    ))),
+                    )),
                     as_statement(ast::StatementKind::If(
                         make_id("b"),
                         Box::new(as_statement(ast::StatementKind::Empty)),
                     )),
-                    as_statement(ast::StatementKind::Expression(Located::none(
+                    as_statement(ast::StatementKind::Expression(
                         ast::Expression::BinaryOperation(
                             ast::BinOp::Assignment,
                             Box::new(Located::none(ast::Expression::ArraySubscript(
@@ -144,13 +144,11 @@ fn test_ast_pass() {
                                 4,
                             )))),
                         ),
-                    ))),
-                    as_statement(ast::StatementKind::Expression(Located::none(
-                        ast::Expression::Call(
-                            Box::new(make_id("myFunc")),
-                            vec![],
-                            vec![make_id("b")],
-                        ),
+                    )),
+                    as_statement(ast::StatementKind::Expression(ast::Expression::Call(
+                        Box::new(make_id("myFunc")),
+                        vec![],
+                        vec![make_id("b")],
                     ))),
                     as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("testOut".to_string()),
@@ -166,12 +164,10 @@ fn test_ast_pass() {
                             init: None,
                         }],
                     })),
-                    as_statement(ast::StatementKind::Expression(Located::none(
-                        ast::Expression::Call(
-                            Box::new(make_id("outFunc")),
-                            vec![],
-                            vec![make_id("testOut")],
-                        ),
+                    as_statement(ast::StatementKind::Expression(ast::Expression::Call(
+                        Box::new(make_id("outFunc")),
+                        vec![],
+                        vec![make_id("testOut")],
                     ))),
                 ],
                 attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
@@ -206,13 +202,11 @@ fn test_ast_to_ir() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
                 body: vec![
-                    as_statement(ast::StatementKind::Expression(make_id("g_myFour"))),
-                    as_statement(ast::StatementKind::Expression(Located::none(
-                        ast::Expression::Call(
-                            Box::new(make_id("GroupMemoryBarrierWithGroupSync")),
-                            Vec::new(),
-                            Vec::new(),
-                        ),
+                    as_statement(ast::StatementKind::Expression(make_id("g_myFour").node)),
+                    as_statement(ast::StatementKind::Expression(ast::Expression::Call(
+                        Box::new(make_id("GroupMemoryBarrierWithGroupSync")),
+                        Vec::new(),
+                        Vec::new(),
                     ))),
                 ],
                 attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
