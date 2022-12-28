@@ -40,8 +40,8 @@ pub fn parse_statement_list(
 /// of this execute it on the inner statement as the last operation in parsing a
 /// loop
 fn parse_scopeblock(ast: &ast::Statement, context: &mut Context) -> TyperResult<ir::ScopeBlock> {
-    match *ast {
-        ast::Statement::Block(ref statement_vec) => {
+    match ast.kind {
+        ast::StatementKind::Block(ref statement_vec) => {
             let statements = parse_statement_list(statement_vec, context)?;
             Ok(ir::ScopeBlock(statements, context.pop_scope_with_locals()))
         }
@@ -57,13 +57,13 @@ fn parse_scopeblock(ast: &ast::Statement, context: &mut Context) -> TyperResult<
 
 /// Process a single statement
 fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<Vec<ir::Statement>> {
-    match ast {
-        ast::Statement::Empty => Ok(vec![]),
-        ast::Statement::Expression(ref expr) => {
+    match ast.kind {
+        ast::StatementKind::Empty => Ok(vec![]),
+        ast::StatementKind::Expression(ref expr) => {
             let (expr_ir, _) = parse_expr(expr, context)?;
             Ok(vec![ir::Statement::Expression(expr_ir)])
         }
-        ast::Statement::Var(ref vd) => {
+        ast::StatementKind::Var(ref vd) => {
             let vd_ir = parse_vardef(vd, context)?;
             let vars = vd_ir
                 .into_iter()
@@ -71,7 +71,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 .collect::<Vec<_>>();
             Ok(vars)
         }
-        ast::Statement::Block(ref statement_vec) => {
+        ast::StatementKind::Block(ref statement_vec) => {
             context.push_scope();
             let statements = parse_statement_list(statement_vec, context)?;
             let decls = context.pop_scope_with_locals();
@@ -79,13 +79,13 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 statements, decls,
             ))])
         }
-        ast::Statement::If(ref cond, ref statement) => {
+        ast::StatementKind::If(ref cond, ref statement) => {
             context.push_scope();
             let cond_ir = parse_expr(cond, context)?.0;
             let scope_block = parse_scopeblock(statement, context)?;
             Ok(vec![ir::Statement::If(cond_ir, scope_block)])
         }
-        ast::Statement::IfElse(ref cond, ref true_statement, ref false_statement) => {
+        ast::StatementKind::IfElse(ref cond, ref true_statement, ref false_statement) => {
             context.push_scope();
             let cond_ir = parse_expr(cond, context)?.0;
             let scope_block = parse_scopeblock(true_statement, context)?;
@@ -97,7 +97,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 else_block,
             )])
         }
-        ast::Statement::For(ref init, ref cond, ref iter, ref statement) => {
+        ast::StatementKind::For(ref init, ref cond, ref iter, ref statement) => {
             context.push_scope();
             let init_ir = parse_for_init(init, context)?;
             let cond_ir = parse_expr(cond, context)?.0;
@@ -110,16 +110,16 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 scope_block,
             )])
         }
-        ast::Statement::While(ref cond, ref statement) => {
+        ast::StatementKind::While(ref cond, ref statement) => {
             context.push_scope();
             let cond_ir = parse_expr(cond, context)?.0;
             let scope_block = parse_scopeblock(statement, context)?;
             Ok(vec![ir::Statement::While(cond_ir, scope_block)])
         }
-        ast::Statement::Break => Ok(vec![ir::Statement::Break]),
-        ast::Statement::Continue => Ok(vec![ir::Statement::Continue]),
-        ast::Statement::Discard => Ok(vec![ir::Statement::Discard]),
-        ast::Statement::Return(Some(ref expr)) => {
+        ast::StatementKind::Break => Ok(vec![ir::Statement::Break]),
+        ast::StatementKind::Continue => Ok(vec![ir::Statement::Continue]),
+        ast::StatementKind::Discard => Ok(vec![ir::Statement::Discard]),
+        ast::StatementKind::Return(Some(ref expr)) => {
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             let expected_type = context.get_current_return_type();
             let expected_ety = expected_type.to_rvalue();
@@ -134,7 +134,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 )),
             }
         }
-        ast::Statement::Return(None) => {
+        ast::StatementKind::Return(None) => {
             let expected_type = context.get_current_return_type();
             let expected_type_layout = context.module.type_registry.get_type_layout(expected_type);
             if expected_type_layout.is_void() {
@@ -146,7 +146,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                         .type_registry
                         .register_type(ir::TypeLayout::void()),
                     expected_type,
-                    SourceLocation::UNKNOWN,
+                    ast.location,
                 ))
             }
         }

@@ -333,17 +333,32 @@ fn test_attribute() {
 
 /// Parse a single statement
 fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
-    // Parse and ignore attributes before a statement
-    let input = match parse_multiple(parse_attribute)(input) {
-        Ok((rest, _)) => rest,
-        Err(err) => return Err(err),
+    // Parse attributes before a statement
+    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
+
+    // Locate the statement at the start of the main statement part
+    // This may be empty now but can not be after parse_statement_kind
+    let location_stream = input;
+
+    let (input, kind) = parse_statement_kind(input)?;
+
+    let statement = Statement {
+        kind,
+        location: location_stream[0].1,
+        attributes,
     };
+
+    Ok((input, statement))
+}
+
+/// Parse the main part of a statement
+fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
     if input.is_empty() {
         return ParseErrorReason::end_of_stream();
     }
     let (head, tail) = (input[0].clone(), &input[1..]);
     match head {
-        LexToken(Token::Semicolon, _) => Ok((tail, Statement::Empty)),
+        LexToken(Token::Semicolon, _) => Ok((tail, StatementKind::Empty)),
         LexToken(Token::If, _) => {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
             let (input, cond) = parse_expression(input)?;
@@ -358,11 +373,11 @@ fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
                 LexToken(Token::Else, _) => match parse_statement(tail) {
                     Err(err) => Err(err),
                     Ok((tail, else_part)) => {
-                        let s = Statement::IfElse(cond, inner_statement, Box::new(else_part));
+                        let s = StatementKind::IfElse(cond, inner_statement, Box::new(else_part));
                         Ok((tail, s))
                     }
                 },
-                _ => Ok((input, Statement::If(cond, inner_statement))),
+                _ => Ok((input, StatementKind::If(cond, inner_statement))),
             }
         }
         LexToken(Token::For, _) => {
@@ -374,45 +389,45 @@ fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
             let (input, inc) = parse_expression(input)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
             let (input, inner) = parse_statement(input)?;
-            Ok((input, Statement::For(init, cond, inc, Box::new(inner))))
+            Ok((input, StatementKind::For(init, cond, inc, Box::new(inner))))
         }
         LexToken(Token::While, _) => {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
             let (input, cond) = parse_expression(input)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
             let (input, inner) = parse_statement(input)?;
-            Ok((input, Statement::While(cond, Box::new(inner))))
+            Ok((input, StatementKind::While(cond, Box::new(inner))))
         }
-        LexToken(Token::Break, _) => Ok((tail, Statement::Break)),
-        LexToken(Token::Continue, _) => Ok((tail, Statement::Continue)),
-        LexToken(Token::Discard, _) => Ok((tail, Statement::Discard)),
+        LexToken(Token::Break, _) => Ok((tail, StatementKind::Break)),
+        LexToken(Token::Continue, _) => Ok((tail, StatementKind::Continue)),
+        LexToken(Token::Discard, _) => Ok((tail, StatementKind::Discard)),
         LexToken(Token::Return, _) => match parse_expression(tail) {
             Ok((input, expression_statement)) => {
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
-                Ok((input, Statement::Return(Some(expression_statement))))
+                Ok((input, StatementKind::Return(Some(expression_statement))))
             }
             Err(_) => {
                 let (input, _) = parse_token(Token::Semicolon)(tail)?;
-                Ok((input, Statement::Return(None)))
+                Ok((input, StatementKind::Return(None)))
             }
         },
         LexToken(Token::LeftBrace, _) => {
             let (input, s) = statement_block(input)?;
-            Ok((input, Statement::Block(s)))
+            Ok((input, StatementKind::Block(s)))
         }
         _ => {
             // Try parsing a variable definition
-            fn variable_def(input: &[LexToken]) -> ParseResult<Statement> {
+            fn variable_def(input: &[LexToken]) -> ParseResult<StatementKind> {
                 let (input, var) = parse_vardef(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
-                Ok((input, Statement::Var(var)))
+                Ok((input, StatementKind::Var(var)))
             }
 
             // Try parsing an expression statement
-            fn expr_statement(input: &[LexToken]) -> ParseResult<Statement> {
+            fn expr_statement(input: &[LexToken]) -> ParseResult<StatementKind> {
                 let (input, expression_statement) = parse_expression(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
-                Ok((input, Statement::Expression(expression_statement)))
+                Ok((input, StatementKind::Expression(expression_statement)))
             }
 
             variable_def(input).select(expr_statement(input))
@@ -449,7 +464,14 @@ fn test_empty_statement() {
     use test_support::*;
     let statement = ParserTester::new(parse_statement);
 
-    statement.check(";", Statement::Empty);
+    statement.check(
+        ";",
+        Statement {
+            kind: StatementKind::Empty,
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
 
     // This parser should only parse a single empty statement
     statement.expect_fail(";;", ParseErrorReason::TokensUnconsumed, 1);
@@ -462,11 +484,23 @@ fn test_expression_statement() {
 
     statement.check(
         "func();",
-        Statement::Expression(Expression::Call("func".as_bvar(0), vec![], vec![]).loc(0)),
+        Statement {
+            kind: StatementKind::Expression(
+                Expression::Call("func".as_bvar(0), Vec::new(), Vec::new()).loc(0),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.check(
         " func ( ) ; ",
-        Statement::Expression(Expression::Call("func".as_bvar(1), vec![], vec![]).loc(1)),
+        Statement {
+            kind: StatementKind::Expression(
+                Expression::Call("func".as_bvar(1), Vec::new(), Vec::new()).loc(1),
+            ),
+            location: SourceLocation::first().offset(1),
+            attributes: Vec::new(),
+        },
     );
 }
 
@@ -477,34 +511,42 @@ fn test_local_variables() {
 
     statement.check(
         "uint x = y;",
-        Statement::Var(VarDef::one_with_expr(
-            "x".to_string().loc(5),
-            Type::from("uint".loc(0)),
-            "y".as_var(9),
-        )),
+        Statement {
+            kind: StatementKind::Var(VarDef::one_with_expr(
+                "x".to_string().loc(5),
+                Type::from("uint".loc(0)),
+                "y".as_var(9),
+            )),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.check(
         "float x[3], y[2][4];",
-        Statement::Var(VarDef {
-            local_type: Type::from("float".loc(0)),
-            defs: Vec::from([
-                LocalVariableName {
-                    name: "x".to_string().loc(6),
-                    bind: VariableBind(Vec::from([Some(
-                        Expression::Literal(Literal::UntypedInt(3)).loc(8),
-                    )])),
-                    init: None,
-                },
-                LocalVariableName {
-                    name: "y".to_string().loc(12),
-                    bind: VariableBind(Vec::from([
-                        Some(Expression::Literal(Literal::UntypedInt(2)).loc(14)),
-                        Some(Expression::Literal(Literal::UntypedInt(4)).loc(17)),
-                    ])),
-                    init: None,
-                },
-            ]),
-        }),
+        Statement {
+            kind: StatementKind::Var(VarDef {
+                local_type: Type::from("float".loc(0)),
+                defs: Vec::from([
+                    LocalVariableName {
+                        name: "x".to_string().loc(6),
+                        bind: VariableBind(Vec::from([Some(
+                            Expression::Literal(Literal::UntypedInt(3)).loc(8),
+                        )])),
+                        init: None,
+                    },
+                    LocalVariableName {
+                        name: "y".to_string().loc(12),
+                        bind: VariableBind(Vec::from([
+                            Some(Expression::Literal(Literal::UntypedInt(2)).loc(14)),
+                            Some(Expression::Literal(Literal::UntypedInt(4)).loc(17)),
+                        ])),
+                        init: None,
+                    },
+                ]),
+            }),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.expect_fail(
         "half g = func(4 * sizeof(uint^7));",
@@ -514,17 +556,24 @@ fn test_local_variables() {
 
     statement.check(
         "My::Type x = y;",
-        Statement::Var(VarDef::one_with_expr(
-            "x".to_string().loc(9),
-            Type::from_layout(TypeLayout(
-                ScopedIdentifier {
-                    base: ScopedIdentifierBase::Relative,
-                    identifiers: Vec::from(["My".to_string().loc(0), "Type".to_string().loc(4)]),
-                },
-                Default::default(),
+        Statement {
+            kind: StatementKind::Var(VarDef::one_with_expr(
+                "x".to_string().loc(9),
+                Type::from_layout(TypeLayout(
+                    ScopedIdentifier {
+                        base: ScopedIdentifierBase::Relative,
+                        identifiers: Vec::from([
+                            "My".to_string().loc(0),
+                            "Type".to_string().loc(4),
+                        ]),
+                    },
+                    Default::default(),
+                )),
+                "y".as_var(13),
             )),
-            "y".as_var(13),
-        )),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
 }
 
@@ -535,17 +584,49 @@ fn test_statement_blocks() {
 
     statement.check(
         "{one();two();}",
-        Statement::Block(vec![
-            Statement::Expression(Expression::Call("one".as_bvar(1), vec![], vec![]).loc(1)),
-            Statement::Expression(Expression::Call("two".as_bvar(7), vec![], vec![]).loc(7)),
-        ]),
+        Statement {
+            kind: StatementKind::Block(Vec::from([
+                Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("one".as_bvar(1), Vec::new(), Vec::new()).loc(1),
+                    ),
+                    location: SourceLocation::first().offset(1),
+                    attributes: Vec::new(),
+                },
+                Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("two".as_bvar(7), Vec::new(), Vec::new()).loc(7),
+                    ),
+                    location: SourceLocation::first().offset(7),
+                    attributes: Vec::new(),
+                },
+            ])),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.check(
         " { one(); two(); } ",
-        Statement::Block(vec![
-            Statement::Expression(Expression::Call("one".as_bvar(3), vec![], vec![]).loc(3)),
-            Statement::Expression(Expression::Call("two".as_bvar(10), vec![], vec![]).loc(10)),
-        ]),
+        Statement {
+            kind: StatementKind::Block(Vec::from([
+                Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("one".as_bvar(3), Vec::new(), Vec::new()).loc(3),
+                    ),
+                    location: SourceLocation::first().offset(3),
+                    attributes: Vec::new(),
+                },
+                Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("two".as_bvar(10), Vec::new(), Vec::new()).loc(10),
+                    ),
+                    location: SourceLocation::first().offset(10),
+                    attributes: Vec::new(),
+                },
+            ])),
+            location: SourceLocation::first().offset(1),
+            attributes: Vec::new(),
+        },
     );
 }
 
@@ -556,45 +637,93 @@ fn test_if() {
 
     statement.check(
         "if(a)func();",
-        Statement::If(
-            "a".as_var(3),
-            Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(5), vec![], vec![]).loc(5),
-            )),
-        ),
+        Statement {
+            kind: StatementKind::If(
+                "a".as_var(3),
+                Box::new(Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("func".as_bvar(5), Vec::new(), Vec::new()).loc(5),
+                    ),
+                    location: SourceLocation::first().offset(5),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.check(
         "if (a) func(); ",
-        Statement::If(
-            "a".as_var(4),
-            Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(7), vec![], vec![]).loc(7),
-            )),
-        ),
+        Statement {
+            kind: StatementKind::If(
+                "a".as_var(4),
+                Box::new(Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("func".as_bvar(7), Vec::new(), Vec::new()).loc(7),
+                    ),
+                    location: SourceLocation::first().offset(7),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.check(
         "if (a)\n{\n\tone();\n\ttwo();\n}",
-        Statement::If(
-            "a".as_var(4),
-            Box::new(Statement::Block(vec![
-                Statement::Expression(Expression::Call("one".as_bvar(10), vec![], vec![]).loc(10)),
-                Statement::Expression(Expression::Call("two".as_bvar(18), vec![], vec![]).loc(18)),
-            ])),
-        ),
+        Statement {
+            kind: StatementKind::If(
+                "a".as_var(4),
+                Box::new(Statement {
+                    kind: StatementKind::Block(Vec::from([
+                        Statement {
+                            kind: StatementKind::Expression(
+                                Expression::Call("one".as_bvar(10), Vec::new(), Vec::new()).loc(10),
+                            ),
+                            location: SourceLocation::first().offset(10),
+                            attributes: Vec::new(),
+                        },
+                        Statement {
+                            kind: StatementKind::Expression(
+                                Expression::Call("two".as_bvar(18), Vec::new(), Vec::new()).loc(18),
+                            ),
+                            location: SourceLocation::first().offset(18),
+                            attributes: Vec::new(),
+                        },
+                    ])),
+                    location: SourceLocation::first().offset(7),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
 
     // If-else statement
     statement.check(
         "if (a) one(); else two();",
-        Statement::IfElse(
-            "a".as_var(4),
-            Box::new(Statement::Expression(
-                Expression::Call("one".as_bvar(7), vec![], vec![]).loc(7),
-            )),
-            Box::new(Statement::Expression(
-                Expression::Call("two".as_bvar(19), vec![], vec![]).loc(19),
-            )),
-        ),
+        Statement {
+            kind: StatementKind::IfElse(
+                "a".as_var(4),
+                Box::new(Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("one".as_bvar(7), Vec::new(), Vec::new()).loc(7),
+                    ),
+                    location: SourceLocation::first().offset(7),
+                    attributes: Vec::new(),
+                }),
+                Box::new(Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("two".as_bvar(19), Vec::new(), Vec::new()).loc(19),
+                    ),
+                    location: SourceLocation::first().offset(19),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
 }
 
@@ -605,13 +734,33 @@ fn test_while() {
 
     statement.check(
         "while (a)\n{\n\tone();\n\ttwo();\n}",
-        Statement::While(
-            "a".as_var(7),
-            Box::new(Statement::Block(vec![
-                Statement::Expression(Expression::Call("one".as_bvar(13), vec![], vec![]).loc(13)),
-                Statement::Expression(Expression::Call("two".as_bvar(21), vec![], vec![]).loc(21)),
-            ])),
-        ),
+        Statement {
+            kind: StatementKind::While(
+                "a".as_var(7),
+                Box::new(Statement {
+                    kind: StatementKind::Block(Vec::from([
+                        Statement {
+                            kind: StatementKind::Expression(
+                                Expression::Call("one".as_bvar(13), Vec::new(), Vec::new()).loc(13),
+                            ),
+                            location: SourceLocation::first().offset(13),
+                            attributes: Vec::new(),
+                        },
+                        Statement {
+                            kind: StatementKind::Expression(
+                                Expression::Call("two".as_bvar(21), Vec::new(), Vec::new()).loc(21),
+                            ),
+                            location: SourceLocation::first().offset(21),
+                            attributes: Vec::new(),
+                        },
+                    ])),
+                    location: SourceLocation::first().offset(10),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
 }
 
@@ -622,29 +771,49 @@ fn test_for() {
 
     statement.check(
         "for(a;b;c)func();",
-        Statement::For(
-            InitStatement::Expression("a".as_var(4)),
-            "b".as_var(6),
-            "c".as_var(8),
-            Box::new(Statement::Expression(
-                Expression::Call("func".as_bvar(10), vec![], vec![]).loc(10),
-            )),
-        ),
+        Statement {
+            kind: StatementKind::For(
+                InitStatement::Expression("a".as_var(4)),
+                "b".as_var(6),
+                "c".as_var(8),
+                Box::new(Statement {
+                    kind: StatementKind::Expression(
+                        Expression::Call("func".as_bvar(10), Vec::new(), Vec::new()).loc(10),
+                    ),
+                    location: SourceLocation::first().offset(10),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.check(
         "for (uint i = 0; i; i++) { func(); }",
-        Statement::For(
-            InitStatement::Declaration(VarDef::one_with_expr(
-                "i".to_string().loc(10),
-                Type::from("uint".loc(5)),
-                Expression::Literal(Literal::UntypedInt(0)).loc(14),
-            )),
-            "i".as_var(17),
-            Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
-            Box::new(Statement::Block(vec![Statement::Expression(
-                Expression::Call("func".as_bvar(27), vec![], vec![]).loc(27),
-            )])),
-        ),
+        Statement {
+            kind: StatementKind::For(
+                InitStatement::Declaration(VarDef::one_with_expr(
+                    "i".to_string().loc(10),
+                    Type::from("uint".loc(5)),
+                    Expression::Literal(Literal::UntypedInt(0)).loc(14),
+                )),
+                "i".as_var(17),
+                Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
+                Box::new(Statement {
+                    kind: StatementKind::Block(Vec::from([Statement {
+                        kind: StatementKind::Expression(
+                            Expression::Call("func".as_bvar(27), Vec::new(), Vec::new()).loc(27),
+                        ),
+                        location: SourceLocation::first().offset(27),
+                        attributes: Vec::new(),
+                    }])),
+                    location: SourceLocation::first().offset(25),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
     statement.expect_fail(
         "for(int a = 0|^; a < 10; a++) func(a);",

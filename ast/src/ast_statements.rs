@@ -1,11 +1,19 @@
 use crate::ast_expressions::Expression;
 use crate::ast_types::Type;
 use crate::*;
-use rssl_text::Located;
+use rssl_text::*;
 
-/// An RSSL statement
+/// An RSSL statement with all metadata
 #[derive(PartialEq, Debug, Clone)]
-pub enum Statement {
+pub struct Statement {
+    pub kind: StatementKind,
+    pub location: SourceLocation,
+    pub attributes: Vec<Attribute>,
+}
+
+/// An RSSL statement type
+#[derive(PartialEq, Debug, Clone)]
+pub enum StatementKind {
     Empty,
     Expression(Located<Expression>),
     Var(VarDef),

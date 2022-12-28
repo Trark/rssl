@@ -145,15 +145,27 @@ fn test_function() {
                 bind: Default::default(),
                 semantic: None,
             }],
-            body: vec![Statement::If(
-                Expression::BinaryOperation(
-                    BinOp::LessThan,
-                    "x".as_bvar(49),
-                    Expression::Literal(Literal::UntypedInt(0)).bloc(53),
-                )
-                .loc(49),
-                Box::new(Statement::Block(vec![Statement::Return(None)])),
-            )],
+            body: Vec::from([Statement {
+                kind: StatementKind::If(
+                    Expression::BinaryOperation(
+                        BinOp::LessThan,
+                        "x".as_bvar(49),
+                        Expression::Literal(Literal::UntypedInt(0)).bloc(53),
+                    )
+                    .loc(49),
+                    Box::new(Statement {
+                        kind: StatementKind::Block(Vec::from([Statement {
+                            kind: StatementKind::Return(None),
+                            location: SourceLocation::first().offset(58),
+                            attributes: Vec::new(),
+                        }])),
+                        location: SourceLocation::first().offset(56),
+                        attributes: Vec::new(),
+                    }),
+                ),
+                location: SourceLocation::first().offset(45),
+                attributes: Vec::new(),
+            }]),
             attributes: vec![Attribute {
                 name: "numthreads".to_string().loc(1),
                 arguments: Vec::from([

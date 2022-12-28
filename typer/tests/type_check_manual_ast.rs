@@ -1,12 +1,20 @@
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_text::Located;
+use rssl_text::*;
 use std::collections::HashMap;
 
 fn make_id(name: &str) -> Located<ast::Expression> {
     Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
         name,
     )))
+}
+
+fn as_statement(stmt: ast::StatementKind) -> ast::Statement {
+    ast::Statement {
+        kind: stmt,
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    }
 }
 
 #[test]
@@ -80,17 +88,19 @@ fn test_ast_pass() {
                     semantic: None,
                 }],
                 body: vec![
-                    ast::Statement::Var(ast::VarDef::one(
+                    as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("local_static".to_string()),
                         ast::Type::from("uint")
                             .with_modifiers(&[Located::none(ast::TypeModifier::Static)]),
-                    )),
-                    ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
-                        ast::BinOp::Assignment,
-                        Box::new(make_id("x")),
-                        Box::new(Located::none(ast::Expression::Literal(
-                            ast::Literal::Float(1.5f32),
-                        ))),
+                    ))),
+                    as_statement(ast::StatementKind::Expression(Located::none(
+                        ast::Expression::BinaryOperation(
+                            ast::BinOp::Assignment,
+                            Box::new(make_id("x")),
+                            Box::new(Located::none(ast::Expression::Literal(
+                                ast::Literal::Float(1.5f32),
+                            ))),
+                        ),
                     ))),
                 ],
                 attributes: vec![],
@@ -101,43 +111,52 @@ fn test_ast_pass() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
                 body: vec![
-                    ast::Statement::Empty,
-                    ast::Statement::Var(ast::VarDef::one(
+                    as_statement(ast::StatementKind::Empty),
+                    as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("a".to_string()),
                         ast::Type::from("uint"),
-                    )),
-                    ast::Statement::Var(ast::VarDef::one(
+                    ))),
+                    as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("b".to_string()),
                         ast::Type::from("uint"),
+                    ))),
+                    as_statement(ast::StatementKind::Expression(Located::none(
+                        ast::Expression::BinaryOperation(
+                            ast::BinOp::Assignment,
+                            Box::new(make_id("a")),
+                            Box::new(make_id("b")),
+                        ),
+                    ))),
+                    as_statement(ast::StatementKind::If(
+                        make_id("b"),
+                        Box::new(as_statement(ast::StatementKind::Empty)),
                     )),
-                    ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
-                        ast::BinOp::Assignment,
-                        Box::new(make_id("a")),
-                        Box::new(make_id("b")),
-                    ))),
-                    ast::Statement::If(make_id("b"), Box::new(ast::Statement::Empty)),
-                    ast::Statement::Expression(Located::none(ast::Expression::BinaryOperation(
-                        ast::BinOp::Assignment,
-                        Box::new(Located::none(ast::Expression::ArraySubscript(
-                            Box::new(make_id("g_myOutBuffer")),
+                    as_statement(ast::StatementKind::Expression(Located::none(
+                        ast::Expression::BinaryOperation(
+                            ast::BinOp::Assignment,
+                            Box::new(Located::none(ast::Expression::ArraySubscript(
+                                Box::new(make_id("g_myOutBuffer")),
+                                Box::new(Located::none(ast::Expression::Literal(
+                                    ast::Literal::Int(0),
+                                ))),
+                            ))),
                             Box::new(Located::none(ast::Expression::Literal(ast::Literal::Int(
-                                0,
+                                4,
                             )))),
-                        ))),
-                        Box::new(Located::none(ast::Expression::Literal(ast::Literal::Int(
-                            4,
-                        )))),
+                        ),
                     ))),
-                    ast::Statement::Expression(Located::none(ast::Expression::Call(
-                        Box::new(make_id("myFunc")),
-                        vec![],
-                        vec![make_id("b")],
+                    as_statement(ast::StatementKind::Expression(Located::none(
+                        ast::Expression::Call(
+                            Box::new(make_id("myFunc")),
+                            vec![],
+                            vec![make_id("b")],
+                        ),
                     ))),
-                    ast::Statement::Var(ast::VarDef::one(
+                    as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("testOut".to_string()),
                         ast::Type::from("float"),
-                    )),
-                    ast::Statement::Var(ast::VarDef {
+                    ))),
+                    as_statement(ast::StatementKind::Var(ast::VarDef {
                         local_type: ast::Type::from_layout(ast::TypeLayout::from("float")),
                         defs: vec![ast::LocalVariableName {
                             name: Located::none("x".to_string()),
@@ -146,11 +165,13 @@ fn test_ast_pass() {
                             ))])),
                             init: None,
                         }],
-                    }),
-                    ast::Statement::Expression(Located::none(ast::Expression::Call(
-                        Box::new(make_id("outFunc")),
-                        vec![],
-                        vec![make_id("testOut")],
+                    })),
+                    as_statement(ast::StatementKind::Expression(Located::none(
+                        ast::Expression::Call(
+                            Box::new(make_id("outFunc")),
+                            vec![],
+                            vec![make_id("testOut")],
+                        ),
                     ))),
                 ],
                 attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
@@ -185,11 +206,13 @@ fn test_ast_to_ir() {
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
                 body: vec![
-                    ast::Statement::Expression(make_id("g_myFour")),
-                    ast::Statement::Expression(Located::none(ast::Expression::Call(
-                        Box::new(make_id("GroupMemoryBarrierWithGroupSync")),
-                        Vec::new(),
-                        Vec::new(),
+                    as_statement(ast::StatementKind::Expression(make_id("g_myFour"))),
+                    as_statement(ast::StatementKind::Expression(Located::none(
+                        ast::Expression::Call(
+                            Box::new(make_id("GroupMemoryBarrierWithGroupSync")),
+                            Vec::new(),
+                            Vec::new(),
+                        ),
                     ))),
                 ],
                 attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
