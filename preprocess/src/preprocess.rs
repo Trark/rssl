@@ -1086,47 +1086,7 @@ fn preprocess_command(
 
             let file_name = match command {
                 [PreprocessToken(Token::LiteralString(s), _)] => s.clone(),
-                [PreprocessToken(Token::LeftAngleBracket(_), _), PreprocessToken(Token::RightAngleBracket(_), _)] => {
-                    return Err(PreprocessError::InvalidInclude(command_location))
-                }
-                [PreprocessToken(Token::LeftAngleBracket(_), _), rest @ .., PreprocessToken(Token::RightAngleBracket(_), end_loc)] =>
-                {
-                    let start_loc = rest[0].get_location();
-
-                    // We do not have a token for header <> includes
-                    // Attempt to reconstruct the original string by refetching the source range from the source manager
-
-                    let (start_file, start_offset) = match file_loader
-                        .source_manager
-                        .get_file_offset_from_source_location(start_loc)
-                    {
-                        Some(ok) => ok,
-                        None => return Err(PreprocessError::InvalidInclude(command_location)),
-                    };
-
-                    let (end_file, end_offset) = match file_loader
-                        .source_manager
-                        .get_file_offset_from_source_location(end_loc.get_location())
-                    {
-                        Some(ok) => ok,
-                        None => return Err(PreprocessError::InvalidInclude(command_location)),
-                    };
-
-                    if start_file != end_file || start_offset > end_offset {
-                        return Err(PreprocessError::InvalidInclude(command_location));
-                    }
-
-                    let contents = file_loader.source_manager.get_contents(start_file);
-                    let range_bytes =
-                        &contents.as_bytes()[start_offset.0 as usize..end_offset.0 as usize];
-
-                    let range = match std::str::from_utf8(range_bytes) {
-                        Ok(range) => range,
-                        Err(_) => return Err(PreprocessError::InvalidInclude(command_location)),
-                    };
-
-                    range.to_string()
-                }
+                [PreprocessToken(Token::HeaderName(s), _)] => s.clone(),
                 _ => return Err(PreprocessError::InvalidInclude(command_location)),
             };
 
@@ -1284,9 +1244,10 @@ fn preprocess_included_file(
         NormalContents,
     }
     let mut command_state = CommandParseState::StartOfLine;
+    let mut inside_include = false;
     while !token_stream.end_of_stream() {
         // Load the next token
-        let next = match token_stream.next() {
+        let next = match token_stream.next(inside_include) {
             Ok(next) => next,
             Err(err) => return Err(PreprocessError::LexerError(err)),
         };
@@ -1304,6 +1265,7 @@ fn preprocess_included_file(
 
                 active_tokens.clear();
                 command_state = CommandParseState::StartOfLine;
+                inside_include = false;
             }
             (Token::Endline, _) => {
                 command_state = CommandParseState::StartOfLine;
@@ -1332,6 +1294,13 @@ fn preprocess_included_file(
             }
             (tok, CommandParseState::CommandStart) if !tok.is_whitespace() => {
                 command_state = CommandParseState::CommandContents;
+
+                // Enable special lex mode for #include
+                if let Token::Id(id) = tok {
+                    if id.0 == "include" {
+                        inside_include = true;
+                    }
+                }
 
                 // Discard the # and any whitespace between the # and command name
                 active_tokens.clear();

@@ -121,6 +121,9 @@ pub enum Token {
 
     ReservedWord(String),
 
+    /// Header name in <>
+    HeaderName(String),
+
     /// Line ending
     Endline,
 

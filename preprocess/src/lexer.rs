@@ -35,7 +35,7 @@ impl<'bytes> TokenStream<'bytes> {
     }
 
     /// Read the next token from the stream
-    pub fn next(&mut self) -> Result<PreprocessToken, LexerError> {
+    pub fn next(&mut self, inside_include: bool) -> Result<PreprocessToken, LexerError> {
         if self.add_trailing_endline && self.current_offset == self.input_bytes.len() {
             assert!(!self.last_was_endline);
             self.last_was_endline = true;
@@ -53,7 +53,7 @@ impl<'bytes> TokenStream<'bytes> {
             return Ok(tok);
         }
 
-        match token_intermediate(&self.input_bytes[self.current_offset..]) {
+        match token_intermediate(&self.input_bytes[self.current_offset..], inside_include) {
             Ok((remaining, next_token)) => {
                 let next_location = self.input_bytes.len() - remaining.len();
                 debug_assert!(self.current_offset < next_location);
@@ -87,7 +87,7 @@ impl<'bytes> TokenStream<'bytes> {
     pub fn read_to_end(&mut self) -> Result<Vec<PreprocessToken>, LexerError> {
         let mut tokens = Vec::new();
         while !self.end_of_stream() {
-            tokens.push(self.next()?);
+            tokens.push(self.next(false)?);
         }
         Ok(tokens)
     }
@@ -154,6 +154,9 @@ enum LexErrorKind {
     StringWrapsLine,
     StringWrapsFile,
     StringContainsInvalidCharacters,
+    HeaderNameWrapsLine,
+    HeaderNameWrapsFile,
+    HeaderNameContainsInvalidCharacters,
 }
 
 /// Internal error data when a lexer fails to lex
@@ -470,6 +473,36 @@ fn literal_string(input: &[u8]) -> LexResult<Token> {
                 }
             }
             None => Err(LexErrorContext(input, LexErrorKind::StringWrapsFile)),
+        }
+    } else {
+        wrong_chars(input)
+    }
+}
+
+/// Parse a header name inside <>
+fn header_name(input: &[u8]) -> LexResult<Token> {
+    if let Some((b'<', rest)) = input.split_first() {
+        let end_res = rest.iter().position(|c| *c == b'>');
+        match end_res {
+            Some(pos) => {
+                let (range, remaining) = input.split_at(pos + 2);
+                // TODO: We do not currently support any special characters
+                let range_no_quotes = &range[1..pos + 1];
+                match std::str::from_utf8(range_no_quotes) {
+                    Ok(string_utf8) => {
+                        if string_utf8.contains('\n') {
+                            Err(LexErrorContext(input, LexErrorKind::HeaderNameWrapsLine))
+                        } else {
+                            Ok((remaining, Token::HeaderName(string_utf8.to_string())))
+                        }
+                    }
+                    Err(_) => Err(LexErrorContext(
+                        input,
+                        LexErrorKind::HeaderNameContainsInvalidCharacters,
+                    )),
+                }
+            }
+            None => Err(LexErrorContext(input, LexErrorKind::HeaderNameWrapsFile)),
         }
     } else {
         wrong_chars(input)
@@ -928,7 +961,7 @@ fn test_whitespace() {
 
 /// Peek at what token is coming next unless there is whitespace
 fn lookahead_token(input: &[u8]) -> LexResult<Option<Token>> {
-    match token_intermediate(input) {
+    match token_intermediate(input, false) {
         Ok((_, o)) => Ok((input, Some(o))),
         Err(_) => Ok((input, None)),
     }
@@ -1176,7 +1209,13 @@ fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a single token - without a location
-fn token_intermediate(input: &[u8]) -> LexResult<Token> {
+fn token_intermediate(input: &[u8], inside_include: bool) -> LexResult<Token> {
+    if inside_include {
+        if let Ok(ok) = header_name(input) {
+            return Ok(ok);
+        }
+    }
+
     choose(
         &[
             // Whitespace
@@ -1228,13 +1267,13 @@ fn test_token() {
 
         ($input:expr, $token:expr, $used:expr) => {
             let input_bytes = $input.as_bytes();
-            let result = token_intermediate(input_bytes);
+            let result = token_intermediate(input_bytes, false);
             let rest = &input_bytes[$used..];
             assert_eq!(result, Ok((rest, $token)));
         };
     }
 
-    assert!(token_intermediate(b"").is_err());
+    assert!(token_intermediate(b"", false).is_err());
     assert_token!(";", Token::Semicolon);
     assert_token!("; ", Token::Semicolon, 1);
     assert_token!("name", Token::Id(Identifier("name".to_string())));

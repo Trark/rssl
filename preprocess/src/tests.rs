@@ -379,9 +379,33 @@ fn test_include() {
             SourceLocation::first().offset(15),
         ))
     );
+
     // Comments after includes needs to work
     assert_text!(pf, "#include \"1.csh\" // include \n", "X\n");
     assert_text!(pf, "#include \"1.csh\"\n#include \"2.csh\"", "X\nY\n");
+
+    // Other non-whitespace tokens around the file name are not allowed
+    assert_err!(
+        pf,
+        "#include \"1.csh\" other\n",
+        PreprocessError::InvalidInclude(SourceLocation::first().offset(1),)
+    );
+    assert_err!(
+        pf,
+        "#include \"1.csh\" ++\n",
+        PreprocessError::InvalidInclude(SourceLocation::first().offset(1),)
+    );
+    assert_err!(
+        pf,
+        "#include other \"1.csh\"\n",
+        PreprocessError::InvalidInclude(SourceLocation::first().offset(1),)
+    );
+    assert_err!(
+        pf,
+        "#include ++ \"1.csh\"\n",
+        PreprocessError::InvalidInclude(SourceLocation::first().offset(1),)
+    );
+
     // We don't want to read files that are #if'd out
     assert_text!(
         pf,
