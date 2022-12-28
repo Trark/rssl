@@ -119,18 +119,25 @@ impl LexerError {
 impl std::fmt::Debug for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.reason {
-            LexerErrorReason::Unknown => write!(f, "Unknown"),
+            LexerErrorReason::Unknown => write!(f, "Unknown @ {}", self.location.get_raw()),
             LexerErrorReason::FailedToParse(ref data) => match std::str::from_utf8(data) {
                 Ok(friendly) => {
                     let substr = match friendly.find('\n') {
                         Some(index) => &friendly[..index],
                         None => friendly,
                     };
-                    write!(f, "FailedToParse(\"{}\")", substr)
+                    write!(
+                        f,
+                        "FailedToParse(\"{}\") @ {}",
+                        substr,
+                        self.location.get_raw()
+                    )
                 }
-                Err(_) => write!(f, "FailedToParse({:?})", data),
+                Err(_) => write!(f, "FailedToParse({:?}) @ {}", data, self.location.get_raw()),
             },
-            LexerErrorReason::UnexpectedEndOfStream => write!(f, "UnexpectedEndOfStream"),
+            LexerErrorReason::UnexpectedEndOfStream => {
+                write!(f, "UnexpectedEndOfStream @ {}", self.location.get_raw())
+            }
         }
     }
 }
@@ -151,6 +158,7 @@ enum LexErrorKind {
     UnexpectedBytes,
     OtherTokenBytes,
     Eof,
+    FloatInvalidSuffix,
     StringWrapsLine,
     StringWrapsFile,
     StringContainsInvalidCharacters,
@@ -172,7 +180,7 @@ fn wrong_chars<T>(input: &[u8]) -> LexResult<T> {
 }
 
 /// Make an error for when the characters are encountered which indicate we are another token
-fn invalid_chars<T>(input: &[u8]) -> LexResult<T> {
+fn other_token_chars<T>(input: &[u8]) -> LexResult<T> {
     Err(LexErrorContext(input, LexErrorKind::OtherTokenBytes))
 }
 
@@ -210,8 +218,15 @@ type DynLexFn<'f, T> = &'f dyn Fn(&[u8]) -> LexResult<T>;
 /// Lex a token from a set of lexers
 fn choose<'b, T: std::fmt::Debug>(lex_fns: &[DynLexFn<T>], input: &'b [u8]) -> LexResult<'b, T> {
     for lex_fn in lex_fns {
-        if let Ok(ok) = lex_fn(input) {
-            return Ok(ok);
+        match lex_fn(input) {
+            // Lex function completed successfully
+            Ok(ok) => return Ok(ok),
+            // Lex function returned a failure without accepting the token type
+            Err(LexErrorContext(rest, LexErrorKind::OtherTokenBytes)) => {
+                debug_assert_eq!(input.len(), rest.len())
+            }
+            // Lex function returned a failure while accepting the token type as the only valid option
+            err => return err,
         }
     }
     wrong_chars(input)
@@ -475,7 +490,7 @@ fn literal_string(input: &[u8]) -> LexResult<Token> {
             None => Err(LexErrorContext(input, LexErrorKind::StringWrapsFile)),
         }
     } else {
-        wrong_chars(input)
+        other_token_chars(input)
     }
 }
 
@@ -505,7 +520,7 @@ fn header_name(input: &[u8]) -> LexResult<Token> {
             None => Err(LexErrorContext(input, LexErrorKind::HeaderNameWrapsFile)),
         }
     } else {
-        wrong_chars(input)
+        other_token_chars(input)
     }
 }
 
@@ -684,6 +699,8 @@ fn calculate_float_from_parts(
 
 /// Parse a float literal
 fn literal_float(input: &[u8]) -> LexResult<Token> {
+    let base_input = input;
+
     // First try to parse a fraction
     let (input, fraction) = opt(fractional_constant)(input)?;
 
@@ -702,10 +719,19 @@ fn literal_float(input: &[u8]) -> LexResult<Token> {
     // If we did not have a fractional part then we require the exponent, else it is optional
     // This avoids integers parsing as valid floats
     if !has_fraction && exponent_opt.is_none() {
-        return invalid_chars(b".");
+        return other_token_chars(base_input);
     }
 
+    let pre_suffix_input = input;
     let (input, float_type) = opt(float_type)(input)?;
+
+    // If the suffix has extra unexpected characters then fail
+    if identifier_char(input).is_ok() {
+        return Err(LexErrorContext(
+            pre_suffix_input,
+            LexErrorKind::FloatInvalidSuffix,
+        ));
+    }
 
     let exponent = exponent_opt.unwrap_or(Exponent(0));
     let Fraction(left, right) = fraction;
@@ -739,6 +765,28 @@ fn test_literal_float() {
 
     assert!(p(b"0").is_err());
     assert!(p(b".").is_err());
+
+    // Unknown suffix are lex failures
+    assert_eq!(
+        p(b"0.0p"),
+        Err(LexErrorContext(b"p", LexErrorKind::FloatInvalidSuffix)),
+    );
+    assert_eq!(
+        p(b"0.0abc"),
+        Err(LexErrorContext(b"abc", LexErrorKind::FloatInvalidSuffix)),
+    );
+    assert_eq!(
+        p(b"0.0_"),
+        Err(LexErrorContext(b"_", LexErrorKind::FloatInvalidSuffix)),
+    );
+    assert_eq!(
+        p(b"0.0_p"),
+        Err(LexErrorContext(b"_p", LexErrorKind::FloatInvalidSuffix)),
+    );
+    assert_eq!(
+        p(b"0.0f0"),
+        Err(LexErrorContext(b"f0", LexErrorKind::FloatInvalidSuffix)),
+    );
 }
 
 /// Parse the first character of an identifier
@@ -749,7 +797,7 @@ fn identifier_firstchar(input: &[u8]) -> LexResult<u8> {
         let byte = input[0];
         match byte as char {
             'A'..='Z' | 'a'..='z' | '_' => Ok((&input[1..], byte)),
-            _ => wrong_chars(input),
+            _ => other_token_chars(input),
         }
     }
 }
@@ -863,7 +911,7 @@ fn specific_text<'a>(input: &'a [u8], text: &'static str) -> LexResult<'a, &'a [
         let (k, r) = input.split_at(text_bytes.len());
         Ok((r, k))
     } else {
-        wrong_chars(input)
+        other_token_chars(input)
     }
 }
 
@@ -871,7 +919,7 @@ fn specific_text<'a>(input: &'a [u8], text: &'static str) -> LexResult<'a, &'a [
 fn whitespace_simple(input: &[u8]) -> LexResult<Token> {
     match input {
         [b' ', rest @ ..] | [b'\t', rest @ ..] => Ok((rest, Token::Whitespace)),
-        _ => wrong_chars(input),
+        _ => other_token_chars(input),
     }
 }
 
@@ -884,7 +932,7 @@ fn whitespace_endline(input: &[u8]) -> LexResult<Token> {
         }
         // A normal line ending
         [b'\r', b'\n', rest @ ..] | [b'\n', rest @ ..] => Ok((rest, Token::Endline)),
-        _ => wrong_chars(input),
+        _ => other_token_chars(input),
     }
 }
 
@@ -902,7 +950,7 @@ fn line_comment(input: &[u8]) -> LexResult<Token> {
         }
         Ok((&[], Token::Comment))
     } else {
-        wrong_chars(input)
+        other_token_chars(input)
     }
 }
 
@@ -926,7 +974,7 @@ fn block_comment(input: &[u8]) -> LexResult<Token> {
         end_of_stream()
     } else {
         // Not a block comment
-        wrong_chars(input)
+        other_token_chars(input)
     }
 }
 
@@ -978,7 +1026,7 @@ fn leftanglebracket(input: &[u8]) -> LexResult<Token> {
             };
             Ok((input, token))
         }
-        _ => wrong_chars(input),
+        _ => other_token_chars(input),
     }
 }
 
@@ -997,8 +1045,8 @@ fn test_leftanglebracket() {
         p(b"<<"),
         Ok((&b"<"[..], Token::LeftAngleBracket(FollowedBy::Token)))
     );
-    assert_eq!(p(b""), wrong_chars(b""));
-    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b""), other_token_chars(b""));
+    assert_eq!(p(b" "), other_token_chars(b" "));
 }
 
 /// Parse a > token
@@ -1012,7 +1060,7 @@ fn rightanglebracket(input: &[u8]) -> LexResult<Token> {
             };
             Ok((input, token))
         }
-        _ => wrong_chars(input),
+        _ => other_token_chars(input),
     }
 }
 
@@ -1031,15 +1079,15 @@ fn test_rightanglebracket() {
         p(b">>"),
         Ok((&b">"[..], Token::RightAngleBracket(FollowedBy::Token)))
     );
-    assert_eq!(p(b""), wrong_chars(b""));
-    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b""), other_token_chars(b""));
+    assert_eq!(p(b" "), other_token_chars(b" "));
 }
 
 /// Parse a single character symbol into a token
 fn symbol_single(op_char: u8, op_token: Token) -> impl Fn(&[u8]) -> LexResult<Token> {
     move |input: &[u8]| match input {
         [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
-        _ => wrong_chars(input),
+        _ => other_token_chars(input),
     }
 }
 
@@ -1058,7 +1106,7 @@ fn symbol_op_or_op_equals(
             Ok((&input[2..], op_op_token.clone()))
         }
         [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
-        _ => wrong_chars(input),
+        _ => other_token_chars(input),
     }
 }
 
@@ -1084,8 +1132,8 @@ fn test_symbol_equals() {
     assert_eq!(p(b"= "), Ok((&b" "[..], Token::Equals)));
     assert_eq!(p(b"=="), Ok((&b""[..], Token::EqualsEquals)));
     assert_eq!(p(b"== "), Ok((&b" "[..], Token::EqualsEquals)));
-    assert_eq!(p(b""), wrong_chars(b""));
-    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b""), other_token_chars(b""));
+    assert_eq!(p(b" "), other_token_chars(b" "));
     assert_eq!(p(b"==="), Ok((&b"="[..], Token::EqualsEquals)));
 }
 
@@ -1162,8 +1210,8 @@ fn test_symbol_exclamation() {
     assert_eq!(p(b"! "), Ok((&b" "[..], Token::ExclamationPoint)));
     assert_eq!(p(b"!="), Ok((&b""[..], Token::ExclamationPointEquals)));
     assert_eq!(p(b"!= "), Ok((&b" "[..], Token::ExclamationPointEquals)));
-    assert_eq!(p(b""), wrong_chars(b""));
-    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b""), other_token_chars(b""));
+    assert_eq!(p(b" "), other_token_chars(b" "));
     assert_eq!(p(b"!=="), Ok((&b"="[..], Token::ExclamationPointEquals)));
 }
 
@@ -1177,8 +1225,8 @@ fn test_symbol_ampersand() {
     assert_eq!(p(b"&= "), Ok((&b" "[..], Token::AmpersandEquals)));
     assert_eq!(p(b"&&"), Ok((&b""[..], Token::AmpersandAmpersand)));
     assert_eq!(p(b"&& "), Ok((&b" "[..], Token::AmpersandAmpersand)));
-    assert_eq!(p(b""), wrong_chars(b""));
-    assert_eq!(p(b" "), wrong_chars(b" "));
+    assert_eq!(p(b""), other_token_chars(b""));
+    assert_eq!(p(b" "), other_token_chars(b" "));
 }
 
 /// Parse symbol into a token
@@ -1210,39 +1258,63 @@ fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
 
 /// Parse a single token - without a location
 fn token_intermediate(input: &[u8], inside_include: bool) -> LexResult<Token> {
-    if inside_include {
-        if let Ok(ok) = header_name(input) {
-            return Ok(ok);
+    match input.first() {
+        Some(b'0'..=b'9') => {
+            // Numeric token
+            match literal_float(input) {
+                Ok(ok) => Ok(ok),
+                Err(LexErrorContext(rest, LexErrorKind::OtherTokenBytes)) => {
+                    debug_assert_eq!(input.len(), rest.len());
+                    literal_int(input)
+                }
+                err => err,
+            }
+        }
+        Some(b'A'..=b'Z' | b'a'..=b'z' | b'_') => {
+            // Word token
+            any_word(input)
+        }
+        Some(_) => {
+            // Other token
+            if inside_include {
+                match header_name(input) {
+                    Ok(ok) => return Ok(ok),
+                    Err(LexErrorContext(rest, LexErrorKind::OtherTokenBytes)) => {
+                        debug_assert_eq!(input.len(), rest.len());
+                    }
+                    err => return err,
+                }
+            }
+
+            choose(
+                &[
+                    // Whitespace
+                    &whitespace_simple,
+                    &whitespace_endline,
+                    &line_comment,
+                    &block_comment,
+                    // Literals
+                    &literal_string,
+                    // Scope markers
+                    &symbol_single(b'{', Token::LeftBrace),
+                    &symbol_single(b'}', Token::RightBrace),
+                    &symbol_single(b'(', Token::LeftParen),
+                    &symbol_single(b')', Token::RightParen),
+                    &symbol_single(b'[', Token::LeftSquareBracket),
+                    &symbol_single(b']', Token::RightSquareBracket),
+                    &leftanglebracket,
+                    &rightanglebracket,
+                    // Symbols
+                    &token_no_whitespace_symbols,
+                ],
+                input,
+            )
+        }
+        None => {
+            // No tokens
+            end_of_stream()
         }
     }
-
-    choose(
-        &[
-            // Whitespace
-            &whitespace_simple,
-            &whitespace_endline,
-            &line_comment,
-            &block_comment,
-            // Literals
-            &literal_float,
-            &literal_int,
-            &literal_string,
-            // Scope markers
-            &symbol_single(b'{', Token::LeftBrace),
-            &symbol_single(b'}', Token::RightBrace),
-            &symbol_single(b'(', Token::LeftParen),
-            &symbol_single(b')', Token::RightParen),
-            &symbol_single(b'[', Token::LeftSquareBracket),
-            &symbol_single(b']', Token::RightSquareBracket),
-            &leftanglebracket,
-            &rightanglebracket,
-            // Symbols
-            &token_no_whitespace_symbols,
-            // Identifiers and keywords
-            &any_word,
-        ],
-        input,
-    )
 }
 
 /// Run the lexer on input text fragment to turn it into a token stream
@@ -1273,7 +1345,15 @@ fn test_token() {
         };
     }
 
-    assert!(token_intermediate(b"", false).is_err());
+    macro_rules! assert_token_err {
+        ($input:expr, $err:expr) => {
+            let input_bytes = $input.as_bytes();
+            let result = token_intermediate(input_bytes, false);
+            assert_eq!(result, Err($err));
+        };
+    }
+
+    assert_token_err!("", LexErrorContext(b"", LexErrorKind::Eof));
     assert_token!(";", Token::Semicolon);
     assert_token!("; ", Token::Semicolon, 1);
     assert_token!("name", Token::Id(Identifier("name".to_string())));
@@ -1287,6 +1367,31 @@ fn test_token() {
     assert_token!("2.0 ", Token::LiteralFloat(2.0f32), 3);
     assert_token!("2.0L", Token::LiteralDouble(2.0f64));
     assert_token!("0.5h", Token::LiteralHalf(0.5f32));
+
+    assert_token_err!(
+        "0.0p",
+        LexErrorContext(b"p", LexErrorKind::FloatInvalidSuffix)
+    );
+    assert_token_err!(
+        "0.0abc",
+        LexErrorContext(b"abc", LexErrorKind::FloatInvalidSuffix)
+    );
+    assert_token_err!(
+        "0.0_",
+        LexErrorContext(b"_", LexErrorKind::FloatInvalidSuffix)
+    );
+    assert_token_err!(
+        "0.0_p",
+        LexErrorContext(b"_p", LexErrorKind::FloatInvalidSuffix)
+    );
+    assert_token_err!(
+        "0.0f0",
+        LexErrorContext(b"f0", LexErrorKind::FloatInvalidSuffix)
+    );
+    assert_token_err!(
+        "10e4f32",
+        LexErrorContext(b"f32", LexErrorKind::FloatInvalidSuffix)
+    );
 
     assert_token!("\"\"", Token::LiteralString("".to_string()));
 

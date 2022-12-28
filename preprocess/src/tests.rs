@@ -376,7 +376,7 @@ fn test_include() {
         "#include <1.csh\"\n",
         PreprocessError::LexerError(LexerError::new(
             LexerErrorReason::Unknown,
-            SourceLocation::first().offset(15),
+            SourceLocation::first().offset(9),
         ))
     );
 
