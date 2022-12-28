@@ -440,8 +440,9 @@ impl CompileError for TyperExternalError {
                 &|f| {
                     write!(
                         f,
-                        "function return expected type {:?} but received {:?}",
-                        expected, actual
+                        "function return expected type {} but received {}",
+                        get_type_id_string(*expected, context),
+                        get_type_id_string(*actual, context),
                     )
                 },
                 *loc,
@@ -720,7 +721,7 @@ fn get_object_type_string(object_type: &ir::ObjectType, context: &Context) -> St
     use ir::ObjectType::*;
     match *object_type {
         Buffer(ty) => format!("Buffer<{}>", get_type_id_string(ty, context)),
-        RWBuffer(ty) => format!("RWBuffer<{:?}>", get_type_id_string(ty, context)),
+        RWBuffer(ty) => format!("RWBuffer<{}>", get_type_id_string(ty, context)),
         ByteAddressBuffer => "ByteAddressBuffer".to_string(),
         RWByteAddressBuffer => "RWByteAddressBuffer".to_string(),
         BufferAddress => "BufferAddress".to_string(),
