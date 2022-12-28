@@ -34,11 +34,7 @@ pub enum PreprocessError {
 impl CompileError for PreprocessError {
     fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
         match self {
-            PreprocessError::LexerError(err) => w.write_message(
-                &|f| write!(f, "{}", err.reason),
-                err.location,
-                Severity::Error,
-            ),
+            PreprocessError::LexerError(err) => err.print(w),
             PreprocessError::UnknownCommand(loc) => w.write_message(
                 &|f| write!(f, "unknown preprocessing directive"),
                 *loc,

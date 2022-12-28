@@ -67,18 +67,19 @@ impl<'bytes> TokenStream<'bytes> {
                 self.current_offset = next_location;
                 Ok(tok)
             }
-            Err(LexErrorContext(_, kind)) => {
-                if kind == LexErrorKind::Eof {
-                    Err(LexerError::new(
-                        LexerErrorReason::UnexpectedEndOfStream,
-                        self.base_location.offset(self.input_bytes.len() as u32),
-                    ))
-                } else {
-                    Err(LexerError::new(
-                        LexerErrorReason::Unknown,
-                        self.base_location.offset(self.current_offset as u32),
-                    ))
-                }
+            Err(LexErrorContext(rest, kind)) => {
+                // Remaining should be a subslice of original input
+                debug_assert!(self.input_bytes.as_ptr_range().start <= rest.as_ptr_range().start);
+                debug_assert!(self.input_bytes.as_ptr_range().end == rest.as_ptr_range().end);
+
+                // Failure point should be after the lex start point
+                let error_offset = self.input_bytes.len() - rest.len();
+                debug_assert!(self.current_offset <= error_offset);
+
+                Err(LexerError::new(
+                    kind,
+                    self.base_location.offset(error_offset as u32),
+                ))
             }
         }
     }
@@ -94,19 +95,45 @@ impl<'bytes> TokenStream<'bytes> {
 }
 
 /// Provides details on why a lex operation failed
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct LexerError {
     pub reason: LexerErrorReason,
     pub location: SourceLocation,
 }
 
-/// The basic reason for a lex failure
-#[derive(PartialEq, Clone)]
+/// The reason for a lex failure
+#[derive(PartialEq, Clone, Debug)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub enum LexerErrorReason {
-    Unknown,
-    FailedToParse(Vec<u8>),
-    UnexpectedEndOfStream,
+    /// Generic wrong characters expected for a certain token
+    UnexpectedBytes,
+
+    /// Internal error code for failing to select a token type
+    OtherTokenBytes,
+
+    /// Reached end of the input stream
+    EndOfStream,
+
+    /// The suffix for a floating point token is not a valid suffix
+    FloatInvalidSuffix,
+
+    /// A string literal wraps the end of a line (but does end before end of stream)
+    StringWrapsLine,
+
+    /// A string literal never ends in the stream
+    StringWrapsFile,
+
+    /// A string literal contains invalid characters
+    StringContainsInvalidCharacters,
+
+    /// A header name wraps the end of a line (but does end before end of stream)
+    HeaderNameWrapsLine,
+
+    /// A header name never ends in the stream
+    HeaderNameWrapsFile,
+
+    /// A header name contains invalid characters
+    HeaderNameContainsInvalidCharacters,
 }
 
 impl LexerError {
@@ -116,77 +143,48 @@ impl LexerError {
     }
 }
 
-impl std::fmt::Debug for LexerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.reason {
-            LexerErrorReason::Unknown => write!(f, "Unknown @ {}", self.location.get_raw()),
-            LexerErrorReason::FailedToParse(ref data) => match std::str::from_utf8(data) {
-                Ok(friendly) => {
-                    let substr = match friendly.find('\n') {
-                        Some(index) => &friendly[..index],
-                        None => friendly,
-                    };
-                    write!(
-                        f,
-                        "FailedToParse(\"{}\") @ {}",
-                        substr,
-                        self.location.get_raw()
-                    )
-                }
-                Err(_) => write!(f, "FailedToParse({:?}) @ {}", data, self.location.get_raw()),
-            },
-            LexerErrorReason::UnexpectedEndOfStream => {
-                write!(f, "UnexpectedEndOfStream @ {}", self.location.get_raw())
+impl CompileError for LexerError {
+    fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
+        let text = match &self.reason {
+            LexerErrorReason::UnexpectedBytes => "unexpected characters",
+            LexerErrorReason::OtherTokenBytes => "internal lexer error",
+            LexerErrorReason::EndOfStream => "unexpected end of stream",
+            LexerErrorReason::FloatInvalidSuffix => "unexpected end of stream",
+            LexerErrorReason::StringWrapsLine => "string literal not terminated at end of line",
+            LexerErrorReason::StringWrapsFile => "string literal never terminates",
+            LexerErrorReason::StringContainsInvalidCharacters => {
+                "string literal contains invalid characters"
             }
-        }
+            LexerErrorReason::HeaderNameWrapsLine => "header name not terminated at end of line",
+            LexerErrorReason::HeaderNameWrapsFile => "header name never terminates",
+            LexerErrorReason::HeaderNameContainsInvalidCharacters => {
+                "header name contains invalid characters"
+            }
+        };
+        w.write_message(&|f| write!(f, "{}", text), self.location, Severity::Error)
     }
-}
-
-impl std::fmt::Display for LexerErrorReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            LexerErrorReason::Unknown => write!(f, "unknown lexer error"),
-            LexerErrorReason::FailedToParse(_) => write!(f, "unexpected character"),
-            LexerErrorReason::UnexpectedEndOfStream => write!(f, "unexpected end of stream"),
-        }
-    }
-}
-
-/// Internal error kind when a lexer fails to lex
-#[derive(PartialEq, Debug, Clone)]
-enum LexErrorKind {
-    UnexpectedBytes,
-    OtherTokenBytes,
-    Eof,
-    FloatInvalidSuffix,
-    StringWrapsLine,
-    StringWrapsFile,
-    StringContainsInvalidCharacters,
-    HeaderNameWrapsLine,
-    HeaderNameWrapsFile,
-    HeaderNameContainsInvalidCharacters,
 }
 
 /// Internal error data when a lexer fails to lex
 #[derive(PartialEq, Debug, Clone)]
-struct LexErrorContext<'b>(&'b [u8], LexErrorKind);
+struct LexErrorContext<'b>(&'b [u8], LexerErrorReason);
 
 /// Internal error result type
 type LexResult<'b, O> = Result<(&'b [u8], O), LexErrorContext<'b>>;
 
 /// Make an error for when the wrong characters were encountered to parse a certain token
 fn wrong_chars<T>(input: &[u8]) -> LexResult<T> {
-    Err(LexErrorContext(input, LexErrorKind::UnexpectedBytes))
+    Err(LexErrorContext(input, LexerErrorReason::UnexpectedBytes))
 }
 
 /// Make an error for when the characters are encountered which indicate we are another token
 fn other_token_chars<T>(input: &[u8]) -> LexResult<T> {
-    Err(LexErrorContext(input, LexErrorKind::OtherTokenBytes))
+    Err(LexErrorContext(input, LexerErrorReason::OtherTokenBytes))
 }
 
 /// Make an error when the end of stream was encountered while trying to lex a certain token
 fn end_of_stream<T>() -> LexResult<'static, T> {
-    Err(LexErrorContext(&[], LexErrorKind::Eof))
+    Err(LexErrorContext(&[], LexerErrorReason::EndOfStream))
 }
 
 /// Lex a token or return none
@@ -222,7 +220,7 @@ fn choose<'b, T: std::fmt::Debug>(lex_fns: &[DynLexFn<T>], input: &'b [u8]) -> L
             // Lex function completed successfully
             Ok(ok) => return Ok(ok),
             // Lex function returned a failure without accepting the token type
-            Err(LexErrorContext(rest, LexErrorKind::OtherTokenBytes)) => {
+            Err(LexErrorContext(rest, LexerErrorReason::OtherTokenBytes)) => {
                 debug_assert_eq!(input.len(), rest.len())
             }
             // Lex function returned a failure while accepting the token type as the only valid option
@@ -476,18 +474,18 @@ fn literal_string(input: &[u8]) -> LexResult<Token> {
                 match std::str::from_utf8(range_no_quotes) {
                     Ok(string_utf8) => {
                         if string_utf8.contains('\n') {
-                            Err(LexErrorContext(input, LexErrorKind::StringWrapsLine))
+                            Err(LexErrorContext(input, LexerErrorReason::StringWrapsLine))
                         } else {
                             Ok((remaining, Token::LiteralString(string_utf8.to_string())))
                         }
                     }
                     Err(_) => Err(LexErrorContext(
                         input,
-                        LexErrorKind::StringContainsInvalidCharacters,
+                        LexerErrorReason::StringContainsInvalidCharacters,
                     )),
                 }
             }
-            None => Err(LexErrorContext(input, LexErrorKind::StringWrapsFile)),
+            None => Err(LexErrorContext(input, LexerErrorReason::StringWrapsFile)),
         }
     } else {
         other_token_chars(input)
@@ -506,18 +504,24 @@ fn header_name(input: &[u8]) -> LexResult<Token> {
                 match std::str::from_utf8(range_no_quotes) {
                     Ok(string_utf8) => {
                         if string_utf8.contains('\n') {
-                            Err(LexErrorContext(input, LexErrorKind::HeaderNameWrapsLine))
+                            Err(LexErrorContext(
+                                input,
+                                LexerErrorReason::HeaderNameWrapsLine,
+                            ))
                         } else {
                             Ok((remaining, Token::HeaderName(string_utf8.to_string())))
                         }
                     }
                     Err(_) => Err(LexErrorContext(
                         input,
-                        LexErrorKind::HeaderNameContainsInvalidCharacters,
+                        LexerErrorReason::HeaderNameContainsInvalidCharacters,
                     )),
                 }
             }
-            None => Err(LexErrorContext(input, LexErrorKind::HeaderNameWrapsFile)),
+            None => Err(LexErrorContext(
+                input,
+                LexerErrorReason::HeaderNameWrapsFile,
+            )),
         }
     } else {
         other_token_chars(input)
@@ -537,15 +541,18 @@ fn test_literal_string() {
     );
     assert_eq!(
         p(b"\"a\nb\""),
-        Err(LexErrorContext(b"\"a\nb\"", LexErrorKind::StringWrapsLine))
+        Err(LexErrorContext(
+            b"\"a\nb\"",
+            LexerErrorReason::StringWrapsLine
+        ))
     );
     assert_eq!(
         p(b"\""),
-        Err(LexErrorContext(b"\"", LexErrorKind::StringWrapsFile))
+        Err(LexErrorContext(b"\"", LexerErrorReason::StringWrapsFile))
     );
     assert_eq!(
         p(b"\"\n"),
-        Err(LexErrorContext(b"\"\n", LexErrorKind::StringWrapsFile))
+        Err(LexErrorContext(b"\"\n", LexerErrorReason::StringWrapsFile))
     );
 }
 
@@ -729,7 +736,7 @@ fn literal_float(input: &[u8]) -> LexResult<Token> {
     if identifier_char(input).is_ok() {
         return Err(LexErrorContext(
             pre_suffix_input,
-            LexErrorKind::FloatInvalidSuffix,
+            LexerErrorReason::FloatInvalidSuffix,
         ));
     }
 
@@ -769,23 +776,26 @@ fn test_literal_float() {
     // Unknown suffix are lex failures
     assert_eq!(
         p(b"0.0p"),
-        Err(LexErrorContext(b"p", LexErrorKind::FloatInvalidSuffix)),
+        Err(LexErrorContext(b"p", LexerErrorReason::FloatInvalidSuffix)),
     );
     assert_eq!(
         p(b"0.0abc"),
-        Err(LexErrorContext(b"abc", LexErrorKind::FloatInvalidSuffix)),
+        Err(LexErrorContext(
+            b"abc",
+            LexerErrorReason::FloatInvalidSuffix
+        )),
     );
     assert_eq!(
         p(b"0.0_"),
-        Err(LexErrorContext(b"_", LexErrorKind::FloatInvalidSuffix)),
+        Err(LexErrorContext(b"_", LexerErrorReason::FloatInvalidSuffix)),
     );
     assert_eq!(
         p(b"0.0_p"),
-        Err(LexErrorContext(b"_p", LexErrorKind::FloatInvalidSuffix)),
+        Err(LexErrorContext(b"_p", LexerErrorReason::FloatInvalidSuffix)),
     );
     assert_eq!(
         p(b"0.0f0"),
-        Err(LexErrorContext(b"f0", LexErrorKind::FloatInvalidSuffix)),
+        Err(LexErrorContext(b"f0", LexerErrorReason::FloatInvalidSuffix)),
     );
 }
 
@@ -1263,7 +1273,7 @@ fn token_intermediate(input: &[u8], inside_include: bool) -> LexResult<Token> {
             // Numeric token
             match literal_float(input) {
                 Ok(ok) => Ok(ok),
-                Err(LexErrorContext(rest, LexErrorKind::OtherTokenBytes)) => {
+                Err(LexErrorContext(rest, LexerErrorReason::OtherTokenBytes)) => {
                     debug_assert_eq!(input.len(), rest.len());
                     literal_int(input)
                 }
@@ -1279,7 +1289,7 @@ fn token_intermediate(input: &[u8], inside_include: bool) -> LexResult<Token> {
             if inside_include {
                 match header_name(input) {
                     Ok(ok) => return Ok(ok),
-                    Err(LexErrorContext(rest, LexErrorKind::OtherTokenBytes)) => {
+                    Err(LexErrorContext(rest, LexerErrorReason::OtherTokenBytes)) => {
                         debug_assert_eq!(input.len(), rest.len());
                     }
                     err => return err,
@@ -1353,7 +1363,12 @@ fn test_token() {
         };
     }
 
-    assert_token_err!("", LexErrorContext(b"", LexErrorKind::Eof));
+    assert_token_err!("", LexErrorContext(b"", LexerErrorReason::EndOfStream));
+    assert_token_err!(
+        "£",
+        LexErrorContext("£".as_bytes(), LexerErrorReason::UnexpectedBytes)
+    );
+
     assert_token!(";", Token::Semicolon);
     assert_token!("; ", Token::Semicolon, 1);
     assert_token!("name", Token::Id(Identifier("name".to_string())));
@@ -1370,30 +1385,42 @@ fn test_token() {
 
     assert_token_err!(
         "0.0p",
-        LexErrorContext(b"p", LexErrorKind::FloatInvalidSuffix)
+        LexErrorContext(b"p", LexerErrorReason::FloatInvalidSuffix)
     );
     assert_token_err!(
         "0.0abc",
-        LexErrorContext(b"abc", LexErrorKind::FloatInvalidSuffix)
+        LexErrorContext(b"abc", LexerErrorReason::FloatInvalidSuffix)
     );
     assert_token_err!(
         "0.0_",
-        LexErrorContext(b"_", LexErrorKind::FloatInvalidSuffix)
+        LexErrorContext(b"_", LexerErrorReason::FloatInvalidSuffix)
     );
     assert_token_err!(
         "0.0_p",
-        LexErrorContext(b"_p", LexErrorKind::FloatInvalidSuffix)
+        LexErrorContext(b"_p", LexerErrorReason::FloatInvalidSuffix)
     );
     assert_token_err!(
         "0.0f0",
-        LexErrorContext(b"f0", LexErrorKind::FloatInvalidSuffix)
+        LexErrorContext(b"f0", LexerErrorReason::FloatInvalidSuffix)
     );
     assert_token_err!(
         "10e4f32",
-        LexErrorContext(b"f32", LexErrorKind::FloatInvalidSuffix)
+        LexErrorContext(b"f32", LexerErrorReason::FloatInvalidSuffix)
     );
 
     assert_token!("\"\"", Token::LiteralString("".to_string()));
+    assert_token_err!(
+        "\"\n\"",
+        LexErrorContext(b"\"\n\"", LexerErrorReason::StringWrapsLine)
+    );
+    assert_token_err!(
+        "\"\n",
+        LexErrorContext(b"\"\n", LexerErrorReason::StringWrapsFile)
+    );
+    assert_token_err!(
+        "\"",
+        LexErrorContext(b"\"", LexerErrorReason::StringWrapsFile)
+    );
 
     assert_token!("true", Token::True);
     assert_token!("true ", Token::True, 4);

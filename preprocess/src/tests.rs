@@ -367,7 +367,7 @@ fn test_include() {
         pf,
         "#include \"1.csh>\n",
         PreprocessError::LexerError(LexerError::new(
-            LexerErrorReason::Unknown,
+            LexerErrorReason::StringWrapsFile,
             SourceLocation::first().offset(9),
         ))
     );
@@ -375,7 +375,7 @@ fn test_include() {
         pf,
         "#include <1.csh\"\n",
         PreprocessError::LexerError(LexerError::new(
-            LexerErrorReason::Unknown,
+            LexerErrorReason::HeaderNameWrapsFile,
             SourceLocation::first().offset(9),
         ))
     );
