@@ -1,4 +1,5 @@
 use crate::*;
+use rssl_text::*;
 use std::collections::HashMap;
 
 /// A block of statements with the local definition types and names
@@ -12,9 +13,17 @@ pub struct ScopedDeclarations {
     pub variables: HashMap<VariableId, (String, TypeId)>,
 }
 
+/// A typed RSSL statement with all metadata
+#[derive(PartialEq, Debug, Clone)]
+pub struct Statement {
+    pub kind: StatementKind,
+    pub location: SourceLocation,
+    pub attributes: Vec<StatementAttribute>,
+}
+
 /// A typed RSSL statement
 #[derive(PartialEq, Debug, Clone)]
-pub enum Statement {
+pub enum StatementKind {
     Expression(Expression),
     Var(VarDef),
     Block(ScopeBlock),
@@ -59,4 +68,16 @@ pub enum Initializer {
     Expression(Expression),
     /// Variable is initialized in parts (composite types and arrays)
     Aggregate(Vec<Initializer>),
+}
+
+/// An attribute that is applied to a statement
+#[derive(PartialEq, Debug, Clone)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+pub enum StatementAttribute {
+    Branch,
+    Flatten,
+    Unroll(Option<u64>),
+    Loop,
+    Fastopt,
+    AllowUavCondition,
 }

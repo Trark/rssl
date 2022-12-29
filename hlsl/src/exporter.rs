@@ -693,22 +693,26 @@ fn export_statement(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    for attribute in &statement.attributes {
+        export_statement_attribute(attribute, output, context)?;
+    }
+
     context.new_line(output);
-    match statement {
-        ir::Statement::Expression(expr) => {
+    match &statement.kind {
+        ir::StatementKind::Expression(expr) => {
             export_expression(expr, output, context)?;
             output.push(';');
         }
-        ir::Statement::Var(def) => {
+        ir::StatementKind::Var(def) => {
             export_variable_definition(def, output, context)?;
             output.push(';');
         }
-        ir::Statement::Block(block) => {
+        ir::StatementKind::Block(block) => {
             enter_scope_block(block, context);
             export_scope_block(block, output, context)?;
             context.pop_scope();
         }
-        ir::Statement::If(cond, block) => {
+        ir::StatementKind::If(cond, block) => {
             enter_scope_block(block, context);
             output.push_str("if (");
             export_expression(cond, output, context)?;
@@ -717,7 +721,7 @@ fn export_statement(
             export_scope_block(block, output, context)?;
             context.pop_scope();
         }
-        ir::Statement::IfElse(cond, block_true, block_false) => {
+        ir::StatementKind::IfElse(cond, block_true, block_false) => {
             enter_scope_block(block_true, context);
             output.push_str("if (");
             export_expression(cond, output, context)?;
@@ -733,7 +737,7 @@ fn export_statement(
             export_scope_block(block_false, output, context)?;
             context.pop_scope();
         }
-        ir::Statement::For(init, cond, inc, block) => {
+        ir::StatementKind::For(init, cond, inc, block) => {
             enter_scope_block(block, context);
 
             output.push_str("for (");
@@ -748,7 +752,7 @@ fn export_statement(
             export_scope_block(block, output, context)?;
             context.pop_scope();
         }
-        ir::Statement::While(cond, block) => {
+        ir::StatementKind::While(cond, block) => {
             enter_scope_block(block, context);
 
             output.push_str("while (");
@@ -759,10 +763,10 @@ fn export_statement(
             export_scope_block(block, output, context)?;
             context.pop_scope();
         }
-        ir::Statement::Break => output.push_str("break;"),
-        ir::Statement::Continue => output.push_str("continue;"),
-        ir::Statement::Discard => output.push_str("discard;"),
-        ir::Statement::Return(expr_opt) => {
+        ir::StatementKind::Break => output.push_str("break;"),
+        ir::StatementKind::Continue => output.push_str("continue;"),
+        ir::StatementKind::Discard => output.push_str("discard;"),
+        ir::StatementKind::Return(expr_opt) => {
             output.push_str("return");
             if let Some(expr) = expr_opt {
                 output.push(' ');
@@ -771,6 +775,25 @@ fn export_statement(
             output.push(';');
         }
     }
+    Ok(())
+}
+
+/// Export statement attribute to HLSL
+fn export_statement_attribute(
+    attribute: &ir::StatementAttribute,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    context.new_line(output);
+    match attribute {
+        ir::StatementAttribute::Branch => output.push_str("[branch]"),
+        ir::StatementAttribute::Flatten => output.push_str("[flatten]"),
+        ir::StatementAttribute::Unroll(None) => output.push_str("[unroll]"),
+        ir::StatementAttribute::Unroll(Some(v)) => write!(output, "[unroll({})]", v).unwrap(),
+        ir::StatementAttribute::Loop => output.push_str("[loop]"),
+        ir::StatementAttribute::Fastopt => output.push_str("[fastopt]"),
+        ir::StatementAttribute::AllowUavCondition => output.push_str("[allow_uav_condition]"),
+    };
     Ok(())
 }
 

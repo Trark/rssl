@@ -483,6 +483,44 @@ fn check_statement_if_else_if_else() {
 }
 
 #[test]
+fn check_statement_if_branch() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [branch]
+    if (true)
+    {
+    }
+}",
+        "void f() {
+    [branch]
+    if (true)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_if_flatten() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [flatten]
+    if (true)
+    {
+    }
+}",
+        "void f() {
+    [flatten]
+    if (true)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_for() {
     check_rssl_to_hlsl(
         "void f() {
@@ -518,6 +556,98 @@ fn check_statement_for() {
 }
 
 #[test]
+fn check_statement_for_unroll() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [unroll]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}",
+        "void f() {
+    [unroll]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}
+",
+    );
+
+    check_rssl_to_hlsl(
+        "void f() {
+    [unroll(4)]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}",
+        "void f() {
+    [unroll(4)]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_for_loop() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [loop]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}",
+        "void f() {
+    [loop]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_for_fastopt() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [fastopt]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}",
+        "void f() {
+    [fastopt]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_for_allow_uav_condition() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [allow_uav_condition]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}",
+        "void f() {
+    [allow_uav_condition]
+    for (int x = 0; x < 10; ++x)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_while() {
     check_rssl_to_hlsl(
         "void f() {
@@ -536,6 +666,98 @@ fn check_statement_while() {
         break;
         discard;
         return;
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_while_unroll() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [unroll]
+    while (true)
+    {
+    }
+}",
+        "void f() {
+    [unroll]
+    while (true)
+    {
+    }
+}
+",
+    );
+
+    check_rssl_to_hlsl(
+        "void f() {
+    [unroll(4)]
+    while (true)
+    {
+    }
+}",
+        "void f() {
+    [unroll(4)]
+    while (true)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_while_loop() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [loop]
+    while (true)
+    {
+    }
+}",
+        "void f() {
+    [loop]
+    while (true)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_while_fastopt() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [fastopt]
+    while (true)
+    {
+    }
+}",
+        "void f() {
+    [fastopt]
+    while (true)
+    {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_while_allow_uav_condition() {
+    check_rssl_to_hlsl(
+        "void f() {
+    [allow_uav_condition]
+    while (true)
+    {
+    }
+}",
+        "void f() {
+    [allow_uav_condition]
+    while (true)
+    {
     }
 }
 ",

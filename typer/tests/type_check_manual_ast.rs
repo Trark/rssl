@@ -283,15 +283,25 @@ fn test_ast_to_ir() {
                 Some(ir::FunctionImplementation {
                     params: Vec::new(),
                     scope_block: ir::ScopeBlock(
-                        vec![
-                            ir::Statement::Expression(ir::Expression::Global(ir::GlobalId(0))),
-                            ir::Statement::Expression(ir::Expression::Call(
-                                intrinsic_func_id,
-                                ir::CallType::FreeFunction,
-                                Vec::new(),
-                                Vec::new(),
-                            )),
-                        ],
+                        Vec::from([
+                            ir::Statement {
+                                kind: ir::StatementKind::Expression(ir::Expression::Global(
+                                    ir::GlobalId(0)
+                                )),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            },
+                            ir::Statement {
+                                kind: ir::StatementKind::Expression(ir::Expression::Call(
+                                    intrinsic_func_id,
+                                    ir::CallType::FreeFunction,
+                                    Vec::new(),
+                                    Vec::new(),
+                                )),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            },
+                        ]),
                         ir::ScopedDeclarations {
                             variables: HashMap::new(),
                         },

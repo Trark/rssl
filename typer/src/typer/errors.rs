@@ -103,6 +103,15 @@ pub enum TyperError {
     /// Attribute on a function has an unexpected number of arguments
     FunctionAttributeUnexpectedArgumentCount(String, SourceLocation),
 
+    /// Attribute on a statement has an unknown name
+    StatementAttributeUnknown(String, SourceLocation),
+
+    /// Attribute on a statement has an unexpected number of arguments
+    StatementAttributeUnexpectedArgumentCount(String, SourceLocation),
+
+    /// [unroll] requires the argument be a constexpr integer
+    AttributeUnrollArgumentMustBeIntegerConstant(SourceLocation),
+
     /// String types should not appear in main language
     StringNotSupported(SourceLocation),
 
@@ -591,6 +600,32 @@ impl CompileError for TyperExternalError {
                         f,
                         "unexpected number of arguments to function attribute '{}'",
                         name
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StatementAttributeUnknown(name, loc) => w.write_message(
+                &|f| write!(f, "unknown statement attribute '{}'", name),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StatementAttributeUnexpectedArgumentCount(name, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "unexpected number of arguments to statement attribute '{}'",
+                        name
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::AttributeUnrollArgumentMustBeIntegerConstant(loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "attribute 'unnroll' requires a constant integer argument",
                     )
                 },
                 *loc,

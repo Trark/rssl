@@ -57,17 +57,28 @@ fn parse_scopeblock(ast: &ast::Statement, context: &mut Context) -> TyperResult<
 
 /// Process a single statement
 fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<Vec<ir::Statement>> {
+    // Parse all attributes - ignoring if it makes sense for the statement kind
+    let attributes = parse_statement_attributes(&ast.attributes, context)?;
+
     match ast.kind {
-        ast::StatementKind::Empty => Ok(vec![]),
+        ast::StatementKind::Empty => Ok(Vec::new()),
         ast::StatementKind::Expression(ref expr) => {
             let (expr_ir, _) = parse_expr(expr, context)?;
-            Ok(vec![ir::Statement::Expression(expr_ir)])
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::Expression(expr_ir),
+                location: ast.location,
+                attributes,
+            }]))
         }
         ast::StatementKind::Var(ref vd) => {
             let vd_ir = parse_vardef(vd, context)?;
             let vars = vd_ir
                 .into_iter()
-                .map(ir::Statement::Var)
+                .map(|vd| ir::Statement {
+                    kind: ir::StatementKind::Var(vd),
+                    location: ast.location,
+                    attributes: attributes.clone(),
+                })
                 .collect::<Vec<_>>();
             Ok(vars)
         }
@@ -75,15 +86,21 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
             context.push_scope();
             let statements = parse_statement_list(statement_vec, context)?;
             let decls = context.pop_scope_with_locals();
-            Ok(vec![ir::Statement::Block(ir::ScopeBlock(
-                statements, decls,
-            ))])
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::Block(ir::ScopeBlock(statements, decls)),
+                location: ast.location,
+                attributes,
+            }]))
         }
         ast::StatementKind::If(ref cond, ref statement) => {
             context.push_scope();
             let cond_ir = parse_expr(cond, context)?.0;
             let scope_block = parse_scopeblock(statement, context)?;
-            Ok(vec![ir::Statement::If(cond_ir, scope_block)])
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::If(cond_ir, scope_block),
+                location: ast.location,
+                attributes,
+            }]))
         }
         ast::StatementKind::IfElse(ref cond, ref true_statement, ref false_statement) => {
             context.push_scope();
@@ -91,11 +108,11 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
             let scope_block = parse_scopeblock(true_statement, context)?;
             context.push_scope();
             let else_block = parse_scopeblock(false_statement, context)?;
-            Ok(vec![ir::Statement::IfElse(
-                cond_ir,
-                scope_block,
-                else_block,
-            )])
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::IfElse(cond_ir, scope_block, else_block),
+                location: ast.location,
+                attributes,
+            }]))
         }
         ast::StatementKind::For(ref init, ref cond, ref iter, ref statement) => {
             context.push_scope();
@@ -103,30 +120,49 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
             let cond_ir = parse_expr(cond, context)?.0;
             let iter_ir = parse_expr(iter, context)?.0;
             let scope_block = parse_scopeblock(statement, context)?;
-            Ok(vec![ir::Statement::For(
-                init_ir,
-                cond_ir,
-                iter_ir,
-                scope_block,
-            )])
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::For(init_ir, cond_ir, iter_ir, scope_block),
+                location: ast.location,
+                attributes,
+            }]))
         }
         ast::StatementKind::While(ref cond, ref statement) => {
             context.push_scope();
             let cond_ir = parse_expr(cond, context)?.0;
             let scope_block = parse_scopeblock(statement, context)?;
-            Ok(vec![ir::Statement::While(cond_ir, scope_block)])
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::While(cond_ir, scope_block),
+                location: ast.location,
+                attributes,
+            }]))
         }
-        ast::StatementKind::Break => Ok(vec![ir::Statement::Break]),
-        ast::StatementKind::Continue => Ok(vec![ir::Statement::Continue]),
-        ast::StatementKind::Discard => Ok(vec![ir::Statement::Discard]),
+        ast::StatementKind::Break => Ok(Vec::from([ir::Statement {
+            kind: ir::StatementKind::Break,
+            location: ast.location,
+            attributes,
+        }])),
+        ast::StatementKind::Continue => Ok(Vec::from([ir::Statement {
+            kind: ir::StatementKind::Continue,
+            location: ast.location,
+            attributes,
+        }])),
+        ast::StatementKind::Discard => Ok(Vec::from([ir::Statement {
+            kind: ir::StatementKind::Discard,
+            location: ast.location,
+            attributes,
+        }])),
         ast::StatementKind::Return(Some(ref expr)) => {
             let (expr_ir, expr_ty) = parse_expr(expr, context)?;
             let expected_type = context.get_current_return_type();
             let expected_ety = expected_type.to_rvalue();
             match ImplicitConversion::find(expr_ty, expected_ety, &mut context.module) {
-                Ok(rhs_cast) => Ok(vec![ir::Statement::Return(Some(
-                    rhs_cast.apply(expr_ir, &mut context.module),
-                ))]),
+                Ok(rhs_cast) => Ok(Vec::from([ir::Statement {
+                    kind: ir::StatementKind::Return(Some(
+                        rhs_cast.apply(expr_ir, &mut context.module),
+                    )),
+                    location: ast.location,
+                    attributes,
+                }])),
                 Err(()) => Err(TyperError::WrongTypeInReturnStatement(
                     expr_ty.0,
                     expected_type,
@@ -138,7 +174,11 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
             let expected_type = context.get_current_return_type();
             let expected_type_layout = context.module.type_registry.get_type_layout(expected_type);
             if expected_type_layout.is_void() {
-                Ok(Vec::from([ir::Statement::Return(None)]))
+                Ok(Vec::from([ir::Statement {
+                    kind: ir::StatementKind::Return(None),
+                    location: ast.location,
+                    attributes,
+                }]))
             } else {
                 Err(TyperError::WrongTypeInReturnStatement(
                     context
@@ -149,6 +189,83 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                     ast.location,
                 ))
             }
+        }
+    }
+}
+
+/// Process a set of attributes for a statement
+fn parse_statement_attributes(
+    attributes: &[ast::Attribute],
+    context: &mut Context,
+) -> TyperResult<Vec<ir::StatementAttribute>> {
+    let mut output = Vec::new();
+    for attribute in attributes {
+        output.push(parse_statement_attribute(attribute, context)?);
+    }
+    Ok(output)
+}
+
+/// Process an attribute for a statement
+fn parse_statement_attribute(
+    attribute: &ast::Attribute,
+    context: &mut Context,
+) -> TyperResult<ir::StatementAttribute> {
+    let lower_name = attribute.name.to_lowercase();
+
+    // First map all the attributes with no arguments
+    let trivial_opt = match lower_name.as_str() {
+        "branch" => Some(ir::StatementAttribute::Branch),
+        "flatten" => Some(ir::StatementAttribute::Flatten),
+        "loop" => Some(ir::StatementAttribute::Loop),
+        "fastopt" => Some(ir::StatementAttribute::Fastopt),
+        "allow_uav_condition" => Some(ir::StatementAttribute::AllowUavCondition),
+        _ => None,
+    };
+
+    if let Some(trivial) = trivial_opt {
+        if attribute.arguments.is_empty() {
+            Ok(trivial)
+        } else {
+            Err(TyperError::StatementAttributeUnexpectedArgumentCount(
+                attribute.name.node.clone(),
+                attribute.name.location,
+            ))
+        }
+    } else {
+        match lower_name.as_str() {
+            "unroll" => {
+                if attribute.arguments.is_empty() {
+                    Ok(ir::StatementAttribute::Unroll(None))
+                } else if attribute.arguments.len() == 1 {
+                    let expr = parse_expr(&attribute.arguments[0], context)?.0;
+                    let value = match evaluate_constexpr(&expr, &mut context.module) {
+                        Ok(constant) => constant,
+                        Err(_) => {
+                            return Err(TyperError::AttributeUnrollArgumentMustBeIntegerConstant(
+                                attribute.name.location,
+                            ))
+                        }
+                    };
+                    let value = match value.to_uint64() {
+                        Some(value) => value,
+                        None => {
+                            return Err(TyperError::AttributeUnrollArgumentMustBeIntegerConstant(
+                                attribute.name.location,
+                            ))
+                        }
+                    };
+                    Ok(ir::StatementAttribute::Unroll(Some(value)))
+                } else {
+                    Err(TyperError::StatementAttributeUnexpectedArgumentCount(
+                        attribute.name.node.clone(),
+                        attribute.name.location,
+                    ))
+                }
+            }
+            _ => Err(TyperError::StatementAttributeUnknown(
+                attribute.name.node.clone(),
+                attribute.name.location,
+            )),
         }
     }
 }
