@@ -161,7 +161,7 @@ pub enum Intrinsic {
     QuadReadAcrossDiagonal,
     QuadReadLaneAt,
 
-    // Mesh/Amplification shader intrinsics
+    // Mesh/Task shader intrinsics
     SetMeshOutputCounts,
     DispatchMesh,
 

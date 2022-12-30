@@ -205,6 +205,14 @@ fn check_mesh_shader_basic() {
 }
 
 #[test]
+fn check_task_shader_basic() {
+    check_rssl_to_hlsl(
+        include_str!("task_shader_basic.rssl"),
+        include_str!("task_shader_basic.hlsl"),
+    );
+}
+
+#[test]
 fn check_expressions() {
     check_rssl_to_hlsl(
         "void f() {

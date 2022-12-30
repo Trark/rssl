@@ -1325,7 +1325,7 @@ fn export_intrinsic_function(
     match form {
         Form::Invoke(s) => {
             output.push_str(s);
-            export_template_type_args(tys.as_slice(), output, context)?;
+            // Do not export type arguments - the only templated non-method is not templated in HLSL so is not allowed type argments
             export_invocation_args(exprs, output, context)?;
         }
         Form::AddressMethod(_, s) if context.module.flags.requires_buffer_address => {

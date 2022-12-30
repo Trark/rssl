@@ -89,7 +89,7 @@ pub enum TypeModifier {
     /// Mesh shader indices output
     Indices,
 
-    /// Mesh shader input from amplification shader payload
+    /// Mesh shader input from task shader payload
     Payload,
 }
 
