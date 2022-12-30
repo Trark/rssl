@@ -1016,7 +1016,17 @@ fn export_subexpression(
             output.push('.');
             output.push_str(name)
         }
-        ir::Expression::Call(id, ct, tys, exprs) => {
+        ir::Expression::Call(id, ct, _, exprs) => {
+            let tys = if let Some(template_instantiation_data) = context
+                .module
+                .function_registry
+                .get_template_instantiation_data(*id)
+            {
+                template_instantiation_data.template_args.as_slice()
+            } else {
+                &[]
+            };
+
             if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(*id) {
                 export_intrinsic_function(intrinsic, tys, exprs, prec, output, context)?;
             } else {
@@ -1109,7 +1119,7 @@ fn get_precedence_associativity(prec: u32) -> Associativity {
 fn export_user_call(
     id: ir::FunctionId,
     ct: &ir::CallType,
-    tys: &Vec<Located<ir::TypeOrConstant>>,
+    tys: &[ir::TypeOrConstant],
     exprs: &Vec<ir::Expression>,
     output: &mut String,
     context: &mut ExportContext,
@@ -1129,7 +1139,7 @@ fn export_user_call(
         // sufficient qualification that they do not need the full name
         write!(output, "{}", context.get_function_name(id)?).unwrap();
     }
-    export_template_type_args(tys.as_slice(), output, context)?;
+    export_template_type_args(tys, output, context)?;
     export_invocation_args(arguments, output, context)?;
     Ok(())
 }
@@ -1137,7 +1147,7 @@ fn export_user_call(
 /// Write out an intrinsic function expression
 fn export_intrinsic_function(
     intrinsic: &ir::Intrinsic,
-    tys: &Vec<Located<ir::TypeOrConstant>>,
+    tys: &[ir::TypeOrConstant],
     exprs: &Vec<ir::Expression>,
     prec: u32,
     output: &mut String,
@@ -1335,7 +1345,7 @@ fn export_intrinsic_function(
             );
 
             output.push_str(s);
-            export_template_type_args(tys.as_slice(), output, context)?;
+            export_template_type_args(tys, output, context)?;
             output.push('(');
             if let [addr, offset, rest @ ..] = exprs.as_slice() {
                 export_subexpression(addr, 6, OperatorSide::Left, output, context)?;
@@ -1357,7 +1367,7 @@ fn export_intrinsic_function(
             export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
             output.push('.');
             output.push_str(s);
-            export_template_type_args(tys.as_slice(), output, context)?;
+            export_template_type_args(tys, output, context)?;
             export_invocation_args(&exprs[1..], output, context)?;
         }
     }
@@ -1497,7 +1507,7 @@ fn export_invocation_args(
 
 /// Export template argument list to HLSL
 fn export_template_type_args(
-    template_args: &[Located<ir::TypeOrConstant>],
+    template_args: &[ir::TypeOrConstant],
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
