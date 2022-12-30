@@ -3,8 +3,8 @@ use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_statement_list};
 use super::types::{
-    apply_template_type_substitution, parse_input_modifier, parse_interpolation_modifier,
-    parse_type, parse_type_for_usage, TypePosition,
+    apply_template_type_substitution, is_illegal_variable_name, parse_input_modifier,
+    parse_interpolation_modifier, parse_type, parse_type_for_usage, TypePosition,
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -52,6 +52,11 @@ pub fn parse_function_signature(
     object_type: Option<ir::StructId>,
     context: &mut Context,
 ) -> TyperResult<(ir::FunctionSignature, ScopeIndex)> {
+    // Deny restricted non-keyword names
+    if is_illegal_variable_name(&fd.name) {
+        return Err(TyperError::IllegalFunctionName(fd.name.location));
+    }
+
     // We being the scope now so we can use template arguments inside parameter types
     let scope = context.push_scope();
 

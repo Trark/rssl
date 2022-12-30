@@ -2,9 +2,13 @@ use super::errors::*;
 use super::functions::{parse_function_body, parse_function_signature};
 use super::scopes::*;
 use super::statements::apply_variable_bind;
-use super::types::{parse_interpolation_modifier, parse_type_for_usage, TypePosition};
+use super::types::{
+    is_illegal_type_name, is_illegal_variable_name, parse_interpolation_modifier,
+    parse_type_for_usage, TypePosition,
+};
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_text::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -14,18 +18,7 @@ pub fn parse_rootdefinition_struct(
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
     // Deny restricted non-keyword names
-    if matches!(
-        sd.name.as_str(),
-        "nointerpolation"
-            | "linear"
-            | "centroid"
-            | "noperspective"
-            | "sample"
-            | "vertices"
-            | "primitives"
-            | "indices"
-            | "payload"
-    ) {
+    if is_illegal_type_name(&sd.name) {
         return Err(TyperError::IllegalStructName(sd.name.location));
     }
 
@@ -134,7 +127,12 @@ fn parse_struct_internal(
                 let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
 
                 for def in &ast_member.defs {
-                    let name = def.name.clone();
+                    // Deny restricted non-keyword names
+                    if is_illegal_variable_name(&def.name) {
+                        return Err(TyperError::IllegalVariableName(def.name.get_location()));
+                    }
+
+                    let name = def.name.node.clone();
                     let type_layout =
                         apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
                     let type_id = context.module.type_registry.register_type(type_layout);

@@ -26,7 +26,7 @@ pub struct StructMember {
 /// The name part of a [StructMember] - to support multiple named variables declared on the same line
 #[derive(PartialEq, Debug, Clone)]
 pub struct StructMemberName {
-    pub name: String,
+    pub name: Located<String>,
     pub bind: VariableBind,
     pub semantic: Option<Semantic>,
 }

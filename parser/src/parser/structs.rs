@@ -16,7 +16,7 @@ fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName>
     };
 
     let member_name = StructMemberName {
-        name: name.to_node(),
+        name,
         bind: VariableBind(bind),
         semantic,
     };
@@ -93,7 +93,7 @@ fn test_struct() {
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
                 defs: vec![StructMemberName {
-                    name: "a".to_string(),
+                    name: "a".to_string().loc(23),
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
@@ -110,12 +110,12 @@ fn test_struct() {
                 ty: Type::from("uint".loc(18)),
                 defs: vec![
                     StructMemberName {
-                        name: "a".to_string(),
+                        name: "a".to_string().loc(23),
                         bind: Default::default(),
                         semantic: Default::default(),
                     },
                     StructMemberName {
-                        name: "b".to_string(),
+                        name: "b".to_string().loc(26),
                         bind: Default::default(),
                         semantic: Default::default(),
                     },
@@ -133,14 +133,14 @@ fn test_struct() {
                 ty: Type::from("uint".loc(18)),
                 defs: vec![
                     StructMemberName {
-                        name: "a".to_string(),
+                        name: "a".to_string().loc(23),
                         bind: VariableBind(Vec::from([Some(
                             Expression::Literal(Literal::UntypedInt(2)).loc(25),
                         )])),
                         semantic: Default::default(),
                     },
                     StructMemberName {
-                        name: "b".to_string(),
+                        name: "b".to_string().loc(29),
                         bind: VariableBind(Vec::from([
                             Some(Expression::Literal(Literal::UntypedInt(3)).loc(31)),
                             Some(Expression::Literal(Literal::UntypedInt(4)).loc(34)),
@@ -161,7 +161,7 @@ fn test_struct() {
                 StructEntry::Variable(StructMember {
                     ty: Type::from("uint".loc(18)),
                     defs: vec![StructMemberName {
-                        name: "a".to_string(),
+                        name: "a".to_string().loc(23),
                         bind: Default::default(),
                         semantic: Default::default(),
                     }],
@@ -187,12 +187,12 @@ fn test_struct() {
                 ty: Type::from("T".loc(39)),
                 defs: vec![
                     StructMemberName {
-                        name: "a".to_string(),
+                        name: "a".to_string().loc(41),
                         bind: Default::default(),
                         semantic: Default::default(),
                     },
                     StructMemberName {
-                        name: "b".to_string(),
+                        name: "b".to_string().loc(44),
                         bind: Default::default(),
                         semantic: Default::default(),
                     },
@@ -210,14 +210,14 @@ fn test_struct() {
                 ty: Type::from("uint".loc(18)),
                 defs: vec![
                     StructMemberName {
-                        name: "a".to_string(),
+                        name: "a".to_string().loc(23),
                         bind: VariableBind(Vec::from([Some(
                             Expression::Literal(Literal::UntypedInt(2)).loc(25),
                         )])),
                         semantic: Some(Semantic::User("USER0".to_string())),
                     },
                     StructMemberName {
-                        name: "b".to_string(),
+                        name: "b".to_string().loc(37),
                         bind: VariableBind(Vec::from([
                             Some(Expression::Literal(Literal::UntypedInt(3)).loc(39)),
                             Some(Expression::Literal(Literal::UntypedInt(4)).loc(42)),

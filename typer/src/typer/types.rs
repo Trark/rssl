@@ -645,10 +645,7 @@ fn evaluate_constant_expression(
 /// Process a typedef
 pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) -> TyperResult<()> {
     // Deny restricted non-keyword names
-    if matches!(
-        td.name.as_str(),
-        "nointerpolation" | "linear" | "centroid" | "noperspective"
-    ) {
+    if is_illegal_variable_name(&td.name) {
         return Err(TyperError::IllegalTypedefName(td.name.location));
     }
 
@@ -670,4 +667,28 @@ pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) ->
     // We do not emit any global definitions as typedefs do not declare anything new
 
     Ok(())
+}
+
+/// Check if a name is forbidden for a variable / function / typedef
+pub fn is_illegal_variable_name(name: &Located<String>) -> bool {
+    matches!(
+        name.as_str(),
+        "nointerpolation" | "linear" | "centroid" | "noperspective"
+    )
+}
+
+/// Check if a name is forbidden for a struct / enum / using
+pub fn is_illegal_type_name(name: &Located<String>) -> bool {
+    matches!(
+        name.as_str(),
+        "nointerpolation"
+            | "linear"
+            | "centroid"
+            | "noperspective"
+            | "sample"
+            | "vertices"
+            | "primitives"
+            | "indices"
+            | "payload"
+    )
 }

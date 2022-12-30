@@ -54,7 +54,7 @@ pub struct ConstantVariable {
 /// The name part of a constant buffer variable definition - to support multiple definitions in a single line
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstantVariableName {
-    pub name: String,
+    pub name: Located<String>,
     pub bind: VariableBind,
     pub offset: Option<PackOffset>,
 }

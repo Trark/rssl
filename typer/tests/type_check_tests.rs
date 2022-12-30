@@ -145,6 +145,19 @@ fn check_global_type_modifiers() {
 }
 
 #[test]
+fn check_global_variable_with_contextual_keyword_names() {
+    check_fail("uint nointerpolation;");
+    check_fail("uint linear;");
+    check_fail("uint centroid;");
+    check_fail("uint noperspective;");
+    check_types("uint sample;");
+    check_types("uint vertices;");
+    check_types("uint primitives;");
+    check_types("uint indices;");
+    check_types("uint payload;");
+}
+
+#[test]
 fn check_void() {
     check_fail("void x;");
     check_fail("const void x;");
@@ -411,15 +424,15 @@ fn check_function_param_type_mesh_modifiers() {
 
 #[test]
 fn check_function_with_contextual_keyword_names() {
-    check_types("void nointerpolation() { nointerpolation(); }");
-    check_types("void linear() { linear(); }");
-    check_types("void centroid() { centroid(); }");
-    check_types("void noperspective() { noperspective(); }");
-    check_types("void sample() { sample(); }");
-    check_types("void vertices() { vertices(); }");
-    check_types("void primitives() { primitives(); }");
-    check_types("void indices() { indices(); }");
-    check_types("void payload() { payload(); }");
+    check_fail("void nointerpolation() {}");
+    check_fail("void linear() {}");
+    check_fail("void centroid() {}");
+    check_fail("void noperspective() {}");
+    check_types("void sample() { sample(); (sample)(); }");
+    check_types("void vertices() { vertices(); (vertices)(); }");
+    check_types("void primitives() { primitives(); (primitives)(); }");
+    check_types("void indices() { indices(); (indices)(); }");
+    check_types("void payload() { payload(); (payload)(); }");
 }
 
 #[test]
@@ -668,10 +681,10 @@ fn check_struct_member_type_modifiers() {
 
 #[test]
 fn check_struct_member_with_contextual_keyword_names() {
-    check_types("struct S { uint nointerpolation; }; void f(S s) { s.nointerpolation; }");
-    check_types("struct S { uint linear; }; void f(S s) { s.linear; }");
-    check_types("struct S { uint centroid; }; void f(S s) { s.centroid; }");
-    check_types("struct S { uint noperspective; }; void f(S s) { s.noperspective; }");
+    check_fail("struct S { uint nointerpolation; };");
+    check_fail("struct S { uint linear; };");
+    check_fail("struct S { uint centroid; };");
+    check_fail("struct S { uint noperspective; };");
     check_types("struct S { uint sample; }; void f(S s) { s.sample; }");
     check_types("struct S { uint vertices; }; void f(S s) { s.vertices; }");
     check_types("struct S { uint primitives; }; void f(S s) { s.primitives; }");
@@ -689,6 +702,19 @@ fn check_struct_methods() {
     check_types("struct S { float x; bool f() { if (y) { x = x + 1; return false; } return true; } int y; };");
     check_types("struct S { void f(S s) {} };");
     check_types("struct S { float x; bool f(S s) { if (y || s.y) { x = x + 1; s.x = s.x + 1; return false; } return true; } int y; };");
+}
+
+#[test]
+fn check_struct_method_with_contextual_keyword_names() {
+    check_fail("struct S { void nointerpolation() {} };");
+    check_fail("struct S { void linear() {} };");
+    check_fail("struct S { void centroid() {} };");
+    check_fail("struct S { void noperspective() {} };");
+    check_types("struct S { void sample() {} }; void f(S s) { s.sample(); }");
+    check_types("struct S { void vertices() {} }; void f(S s) { s.vertices(); }");
+    check_types("struct S { void primitives() {} }; void f(S s) { s.primitives(); }");
+    check_types("struct S { void indices() {} }; void f(S s) { s.indices(); }");
+    check_types("struct S { void payload() {} }; void f(S s) { s.payload(); }");
 }
 
 #[test]
@@ -841,6 +867,19 @@ fn check_cbuffer() {
 
     // But they must be in the 'b' group
     check_fail("cbuffer MyConstants : register(t4) { float c1; uint c2; }");
+}
+
+#[test]
+fn check_cbuffer_member_with_contextual_keyword_names() {
+    check_fail("cbuffer MyConstants { uint nointerpolation; };");
+    check_fail("cbuffer MyConstants { uint linear; };");
+    check_fail("cbuffer MyConstants { uint centroid; };");
+    check_fail("cbuffer MyConstants { uint noperspective; };");
+    check_types("cbuffer MyConstants { uint sample; }; void f() { sample; }");
+    check_types("cbuffer MyConstants { uint vertices; }; void f() { vertices; }");
+    check_types("cbuffer MyConstants { uint primitives; }; void f() { primitives; }");
+    check_types("cbuffer MyConstants { uint indices; }; void f() { indices; }");
+    check_types("cbuffer MyConstants { uint payload; }; void f() { payload; }");
 }
 
 #[test]

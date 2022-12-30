@@ -5,7 +5,7 @@ fn parse_constant_variable_name(input: &[LexToken]) -> ParseResult<ConstantVaria
     let (input, name) = parse_variable_name(input)?;
     let (input, bind) = parse_multiple(parse_arraydim)(input)?;
     let v = ConstantVariableName {
-        name: name.to_node(),
+        name,
         bind: VariableBind(bind),
         offset: None,
     };
@@ -31,7 +31,7 @@ fn test_constant_variable() {
     let test_cbuffervar_ast = ConstantVariable {
         ty: Type::from("float4x4".loc(0)),
         defs: Vec::from([ConstantVariableName {
-            name: "wvp".to_string(),
+            name: "wvp".to_string().loc(9),
             bind: Default::default(),
             offset: None,
         }]),
@@ -320,7 +320,7 @@ fn test_constant_buffer() {
             members: Vec::from([ConstantVariable {
                 ty: Type::from("float4x4".loc(18)),
                 defs: Vec::from([ConstantVariableName {
-                    name: "wvp".to_string(),
+                    name: "wvp".to_string().loc(27),
                     bind: Default::default(),
                     offset: None,
                 }]),
@@ -340,7 +340,7 @@ fn test_constant_buffer() {
                 ConstantVariable {
                     ty: Type::from("float4x4".loc(34)),
                     defs: vec![ConstantVariableName {
-                        name: "wvp".to_string(),
+                        name: "wvp".to_string().loc(43),
                         bind: Default::default(),
                         offset: None,
                     }],
@@ -349,19 +349,19 @@ fn test_constant_buffer() {
                     ty: Type::from("float".loc(48)),
                     defs: Vec::from([
                         ConstantVariableName {
-                            name: "x".to_string(),
+                            name: "x".to_string().loc(54),
                             bind: Default::default(),
                             offset: None,
                         },
                         ConstantVariableName {
-                            name: "y".to_string(),
+                            name: "y".to_string().loc(57),
                             bind: VariableBind(Vec::from([Some(
                                 Expression::Literal(Literal::UntypedInt(2)).loc(59),
                             )])),
                             offset: None,
                         },
                         ConstantVariableName {
-                            name: "z".to_string(),
+                            name: "z".to_string().loc(63),
                             bind: VariableBind(Vec::from([
                                 Some(Expression::Literal(Literal::UntypedInt(3)).loc(65)),
                                 Some(Expression::Literal(Literal::UntypedInt(4)).loc(68)),

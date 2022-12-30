@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::errors::*;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_initializer_opt};
-use super::types::{parse_type, parse_type_for_usage, TypePosition};
+use super::types::{is_illegal_variable_name, parse_type, parse_type_for_usage, TypePosition};
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -23,6 +23,13 @@ pub fn parse_rootdefinition_globalvariable(
 
     let mut defs = vec![];
     for global_variable in &gv.defs {
+        // Deny restricted non-keyword names
+        if is_illegal_variable_name(&global_variable.name) {
+            return Err(TyperError::IllegalVariableName(
+                global_variable.name.get_location(),
+            ));
+        }
+
         // Resolve type bind
         let type_layout = apply_variable_bind(
             base_type_layout.clone(),
@@ -173,14 +180,19 @@ pub fn parse_rootdefinition_constantbuffer(
         }
 
         for def in &member.defs {
+            // Deny restricted non-keyword names
+            if is_illegal_variable_name(&def.name) {
+                return Err(TyperError::IllegalVariableName(def.name.get_location()));
+            }
+
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
             let var_type =
                 apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
             let type_id = context.module.type_registry.register_type(var_type);
-            members_map.insert(var_name.clone(), type_id);
+            members_map.insert(var_name.node.clone(), type_id);
             members.push(ir::ConstantVariable {
-                name: var_name,
+                name: var_name.node,
                 type_id,
                 offset: var_offset,
             });

@@ -88,7 +88,7 @@ fn test_struct() {
             StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
                 defs: vec![StructMemberName {
-                    name: "a".to_string(),
+                    name: "a".to_string().loc(23),
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
@@ -96,7 +96,7 @@ fn test_struct() {
             StructEntry::Variable(StructMember {
                 ty: Type::from("float".loc(26)),
                 defs: vec![StructMemberName {
-                    name: "b".to_string(),
+                    name: "b".to_string().loc(32),
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],

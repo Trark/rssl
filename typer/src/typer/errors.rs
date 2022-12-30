@@ -137,8 +137,11 @@ pub enum TyperError {
     /// indices modifier only supports uint2/uint3
     MeshShaderIndicesRequiresIndexType(SourceLocation, ir::TypeId),
 
-    /// Reserved name used for a local variable
-    IllegalLocalVariableName(SourceLocation),
+    /// Reserved name used for a variable
+    IllegalVariableName(SourceLocation),
+
+    /// Reserved name used for a function
+    IllegalFunctionName(SourceLocation),
 
     /// Reserved name used for a struct
     IllegalStructName(SourceLocation),
@@ -707,18 +710,23 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
-            TyperError::IllegalLocalVariableName(loc) => w.write_message(
-                &|f| write!(f, "unexpected identifier for local variable name"),
+            TyperError::IllegalVariableName(loc) => w.write_message(
+                &|f| write!(f, "unexpected identifier for a variable name"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::IllegalFunctionName(loc) => w.write_message(
+                &|f| write!(f, "unexpected identifier for a function name"),
                 *loc,
                 Severity::Error,
             ),
             TyperError::IllegalStructName(loc) => w.write_message(
-                &|f| write!(f, "unexpected identifier for struct name"),
+                &|f| write!(f, "unexpected identifier for a struct name"),
                 *loc,
                 Severity::Error,
             ),
             TyperError::IllegalTypedefName(loc) => w.write_message(
-                &|f| write!(f, "unexpected identifier for typedef"),
+                &|f| write!(f, "unexpected identifier for a typedef"),
                 *loc,
                 Severity::Error,
             ),

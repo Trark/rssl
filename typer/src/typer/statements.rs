@@ -8,7 +8,7 @@ use rssl_ir as ir;
 use rssl_text::*;
 
 use super::expressions::parse_expr;
-use super::types::{parse_type_for_usage, TypePosition};
+use super::types::{is_illegal_variable_name, parse_type_for_usage, TypePosition};
 
 /// Type check a list of ast statements into ir statements
 pub fn parse_statement_list(
@@ -284,11 +284,8 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
     let mut vardefs = vec![];
     for local_variable in &ast.defs {
         // Deny restricted non-keyword names
-        if matches!(
-            local_variable.name.as_str(),
-            "nointerpolation" | "linear" | "centroid" | "noperspective"
-        ) {
-            return Err(TyperError::IllegalLocalVariableName(
+        if is_illegal_variable_name(&local_variable.name) {
+            return Err(TyperError::IllegalVariableName(
                 local_variable.name.get_location(),
             ));
         }
