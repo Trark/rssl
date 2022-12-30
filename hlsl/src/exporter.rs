@@ -1016,7 +1016,7 @@ fn export_subexpression(
             output.push('.');
             output.push_str(name)
         }
-        ir::Expression::Call(id, ct, _, exprs) => {
+        ir::Expression::Call(id, ct, exprs) => {
             let tys = if let Some(template_instantiation_data) = context
                 .module
                 .function_registry
@@ -1060,7 +1060,7 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
         ir::Expression::Cast(_, _) => 3,
         ir::Expression::SizeOf(_) => 3,
         ir::Expression::Member(_, _) => 2,
-        ir::Expression::Call(_, _, _, _) => 2,
+        ir::Expression::Call(_, _, _) => 2,
         ir::Expression::IntrinsicOp(intrinsic, _, _) => {
             use ir::IntrinsicOp::*;
             match &intrinsic {

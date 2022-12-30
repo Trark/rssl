@@ -3,7 +3,6 @@ use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use super::functions::{parse_function_body, ApplyTemplates};
 use super::structs::build_struct_from_template;
-use super::types::apply_template_type_substitution;
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -454,25 +453,6 @@ impl Context {
     /// Find the source ast of a function
     pub fn get_function_ast(&self, id: ir::FunctionId) -> Rc<ast::FunctionDefinition> {
         self.function_data[&id].ast.as_ref().unwrap().clone()
-    }
-
-    /// Find the return type of a function
-    pub fn get_type_of_function_return(
-        &mut self,
-        id: ir::FunctionId,
-        template_args: &[Located<ir::TypeOrConstant>],
-    ) -> TyperResult<ExpressionType> {
-        let signature = self.get_function_signature(id)?;
-        if template_args.is_empty() {
-            Ok(signature.return_type.return_type.to_rvalue())
-        } else {
-            let return_type = apply_template_type_substitution(
-                signature.return_type.return_type,
-                template_args,
-                self,
-            );
-            Ok(return_type.to_rvalue())
-        }
     }
 
     /// Register a local variable

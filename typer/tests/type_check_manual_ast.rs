@@ -296,7 +296,6 @@ fn test_ast_to_ir() {
                                     intrinsic_func_id,
                                     ir::CallType::FreeFunction,
                                     Vec::new(),
-                                    Vec::new(),
                                 )),
                                 location: SourceLocation::UNKNOWN,
                                 attributes: Vec::new(),

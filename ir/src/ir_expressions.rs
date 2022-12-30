@@ -20,12 +20,7 @@ pub enum Expression {
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
-    Call(
-        FunctionId,
-        CallType,
-        Vec<Located<TypeOrConstant>>,
-        Vec<Expression>,
-    ),
+    Call(FunctionId, CallType, Vec<Expression>),
     Constructor(TypeId, Vec<ConstructorSlot>),
     Cast(TypeId, Box<Expression>),
     SizeOf(TypeId),

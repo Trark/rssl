@@ -303,7 +303,7 @@ fn write_function(
         .is_some()
     {
         Ok(TypedExpression::Value(
-            create_intrinsic(id, ir::CallType::FreeFunction, template_args, &param_values),
+            create_intrinsic(id, ir::CallType::FreeFunction, &param_values),
             return_type,
         ))
     } else {
@@ -315,7 +315,7 @@ fn write_function(
         };
         // TODO: Call will not need template args if we can encode it all in id
         Ok(TypedExpression::Value(
-            ir::Expression::Call(id, call_type, template_args.to_vec(), param_values),
+            ir::Expression::Call(id, call_type, param_values),
             return_type,
         ))
     }
@@ -357,12 +357,7 @@ fn write_method(
         .is_some()
     {
         Ok(TypedExpression::Value(
-            create_intrinsic(
-                id,
-                ir::CallType::MethodExternal,
-                template_args,
-                &param_values,
-            ),
+            create_intrinsic(id, ir::CallType::MethodExternal, &param_values),
             return_type,
         ))
     } else {
@@ -374,12 +369,7 @@ fn write_method(
         };
         // TODO: Call will not need template args if we can encode it all in id
         Ok(TypedExpression::Value(
-            ir::Expression::Call(
-                id,
-                ir::CallType::MethodExternal,
-                template_args.to_vec(),
-                param_values,
-            ),
+            ir::Expression::Call(id, ir::CallType::MethodExternal, param_values),
             return_type,
         ))
     }
@@ -389,14 +379,13 @@ fn write_method(
 fn create_intrinsic(
     id: ir::FunctionId,
     call_type: ir::CallType,
-    template_args: &[Located<ir::TypeOrConstant>],
     param_values: &[ir::Expression],
 ) -> ir::Expression {
     let mut exprs = Vec::with_capacity(param_values.len());
     for param_value in param_values {
         exprs.push(param_value.clone());
     }
-    ir::Expression::Call(id, call_type, template_args.to_vec(), exprs)
+    ir::Expression::Call(id, call_type, exprs)
 }
 
 fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TyperResult<TypedExpression> {
@@ -1868,9 +1857,13 @@ fn get_expression_type(
             };
             context.get_type_of_struct_member(id, name)
         }
-        ir::Expression::Call(id, _, ref template_args, _) => {
-            context.get_type_of_function_return(id, template_args)
-        }
+        ir::Expression::Call(id, _, _) => Ok(context
+            .module
+            .function_registry
+            .get_function_signature(id)
+            .return_type
+            .return_type
+            .to_rvalue()),
         ir::Expression::Constructor(ty, _) => Ok(ty.to_rvalue()),
         ir::Expression::Cast(ty, _) => Ok(ty.to_rvalue()),
         ir::Expression::SizeOf(_) => {
