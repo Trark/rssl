@@ -8,6 +8,7 @@ pub struct FunctionRegistry {
     names: Vec<FunctionNameDefinition>,
     implementations: Vec<Option<FunctionImplementation>>,
     intrinsic_data: Vec<Option<Intrinsic>>,
+    template_instantiation_data: Vec<Option<FunctionTemplateInstantiation>>,
 }
 
 /// Function name information
@@ -31,6 +32,16 @@ pub struct FunctionImplementation {
     pub params: Vec<FunctionParam>,
     pub scope_block: ScopeBlock,
     pub attributes: Vec<FunctionAttribute>,
+}
+
+/// Function data specific to template instantiations
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct FunctionTemplateInstantiation {
+    /// A link to the parent function this was derived from
+    pub parent_id: FunctionId,
+
+    /// The template arguments used to create this instantiation
+    pub template_args: Vec<TypeOrConstant>,
 }
 
 /// The type of a function return value
@@ -83,6 +94,7 @@ impl FunctionRegistry {
         // Default the implementation block to the missing state
         self.implementations.push(None);
         self.intrinsic_data.push(None);
+        self.template_instantiation_data.push(None);
 
         id
     }
@@ -99,6 +111,17 @@ impl FunctionRegistry {
         assert_eq!(self.implementations[id.0 as usize], None);
         assert_eq!(self.intrinsic_data[id.0 as usize], None);
         self.intrinsic_data[id.0 as usize] = Some(intrinsic);
+    }
+
+    /// Set the instantiation data for a function template instantiation
+    pub fn set_template_instantiation_data(
+        &mut self,
+        id: FunctionId,
+        instantiation_data: FunctionTemplateInstantiation,
+    ) {
+        assert_eq!(self.implementations[id.0 as usize], None);
+        assert_eq!(self.template_instantiation_data[id.0 as usize], None);
+        self.template_instantiation_data[id.0 as usize] = Some(instantiation_data);
     }
 
     /// Get the total number of registered functions
@@ -134,6 +157,14 @@ impl FunctionRegistry {
     /// Get the implementation from a function id
     pub fn get_intrinsic_data(&self, id: FunctionId) -> &Option<Intrinsic> {
         &self.intrinsic_data[id.0 as usize]
+    }
+
+    /// Get the template instantiation data from a function id
+    pub fn get_template_instantiation_data(
+        &self,
+        id: FunctionId,
+    ) -> &Option<FunctionTemplateInstantiation> {
+        &self.template_instantiation_data[id.0 as usize]
     }
 }
 

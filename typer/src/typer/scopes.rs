@@ -957,6 +957,16 @@ impl Context {
             .function_registry
             .register_function(function_name.clone(), signature);
 
+        self.module
+            .function_registry
+            .set_template_instantiation_data(
+                new_id,
+                ir::FunctionTemplateInstantiation {
+                    parent_id: id,
+                    template_args: template_args_no_loc.clone(),
+                },
+            );
+
         self.function_data.insert(
             new_id,
             FunctionData {
@@ -1015,22 +1025,24 @@ impl Context {
         id: ir::FunctionId,
         template_args: &[Located<ir::TypeOrConstant>],
     ) -> ir::FunctionId {
-        // The signature is obtained by applying the template parameters
-        let signature = self.module.function_registry.get_function_signature(id);
-        let signature = signature.clone().apply_templates(template_args, self);
+        // Remove source locations from template arguments
+        let template_args_no_loc = template_args
+            .iter()
+            .map(|t| t.node.clone())
+            .collect::<Vec<_>>();
 
-        // Attempt to find an existing intrinsic of the same type and signature
-        // TODO: Have a proper reference from parent template to child instances
-        let intrinsic_opt = self.module.function_registry.get_intrinsic_data(id);
+        // Attempt to find an existing intrinsic
+        // We currently search all function ids instead of maintaining a map
         for i in 0..self.module.function_registry.get_function_count() {
             let other_id = ir::FunctionId(i as u32);
-            let other_intrinsic_opt = self.module.function_registry.get_intrinsic_data(other_id);
-            if intrinsic_opt == other_intrinsic_opt {
-                let other_signature = self
-                    .module
-                    .function_registry
-                    .get_function_signature(other_id);
-                if signature == *other_signature {
+            if let Some(instantiation_data) = self
+                .module
+                .function_registry
+                .get_template_instantiation_data(other_id)
+            {
+                if instantiation_data.parent_id == id
+                    && instantiation_data.template_args == template_args_no_loc
+                {
                     return id;
                 }
             }
@@ -1043,7 +1055,9 @@ impl Context {
             .get_function_name_definition(id)
             .clone();
 
-        let intrinsic = intrinsic_opt.clone().unwrap();
+        // The signature is obtained by applying the template parameters
+        let signature = self.module.function_registry.get_function_signature(id);
+        let signature = signature.clone().apply_templates(template_args, self);
 
         // Register the new intrinsic instantiation as a function
         let new_id = self
@@ -1052,9 +1066,26 @@ impl Context {
             .register_function(name, signature);
 
         // Set the intrinsic data on the function to the same as the base function
+        let intrinsic = self
+            .module
+            .function_registry
+            .get_intrinsic_data(id)
+            .clone()
+            .unwrap();
         self.module
             .function_registry
             .set_intrinsic_data(new_id, intrinsic);
+
+        // Set the template instantiation data
+        self.module
+            .function_registry
+            .set_template_instantiation_data(
+                new_id,
+                ir::FunctionTemplateInstantiation {
+                    parent_id: id,
+                    template_args: template_args_no_loc,
+                },
+            );
 
         new_id
     }
