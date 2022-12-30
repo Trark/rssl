@@ -1,5 +1,4 @@
 use super::errors::*;
-use super::functions::{ApplyTemplates, FunctionOverload};
 use super::scopes::*;
 use super::types::{
     apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
@@ -90,50 +89,71 @@ fn parse_identifier(
     })
 }
 
+/// Attempt to match a function against a set of argument and return the casts required to invoke it
+fn find_overload_casts(
+    mut id: ir::FunctionId,
+    template_args: &[Located<ir::TypeOrConstant>],
+    param_types: &[ExpressionType],
+    context: &mut Context,
+) -> Result<(ir::FunctionId, Vec<ImplicitConversion>), ()> {
+    let mut overload_casts = Vec::with_capacity(param_types.len());
+
+    // Resolve template arguments
+    // Require user to specify all arguments
+    let signature = context.module.function_registry.get_function_signature(id);
+    if signature.template_params.0 != 0 {
+        if signature.template_params.0 as usize != template_args.len() {
+            // Wrong number of template arguments provided
+            return Err(());
+        }
+
+        if !template_args.is_empty() {
+            let new_id = if context
+                .module
+                .function_registry
+                .get_intrinsic_data(id)
+                .is_some()
+            {
+                context.build_intrinsic_template(id, template_args)
+            } else {
+                context.build_function_template_signature(id, template_args)
+            };
+
+            id = new_id;
+        }
+    } else if !template_args.is_empty() {
+        // Template args given to non template function
+        return Err(());
+    }
+
+    let signature = context
+        .module
+        .function_registry
+        .get_function_signature(id)
+        .clone();
+    for (required_type, source_type) in signature.param_types.iter().zip(param_types.iter()) {
+        if required_type.2.is_some() {
+            return Err(());
+        };
+        let ety = ExpressionType(required_type.0, required_type.1.into());
+        if let Ok(cast) = ImplicitConversion::find(*source_type, ety, &mut context.module) {
+            overload_casts.push(cast)
+        } else {
+            return Err(());
+        }
+    }
+    Ok((id, overload_casts))
+}
+
+/// Attempt to find the best function from a set of overloads that can satisfy a set of arguments
 fn find_function_type(
     overloads: &Vec<ir::FunctionId>,
     template_args: &[Located<ir::TypeOrConstant>],
     param_types: &[ExpressionType],
     call_location: SourceLocation,
     context: &mut Context,
-) -> TyperResult<(FunctionOverload, Vec<ImplicitConversion>)> {
+) -> TyperResult<(ir::FunctionId, Vec<ImplicitConversion>)> {
     use crate::casting::VectorRank;
-    fn find_overload_casts(
-        mut signature: ir::FunctionSignature,
-        template_args: &[Located<ir::TypeOrConstant>],
-        param_types: &[ExpressionType],
-        context: &mut Context,
-    ) -> Result<(ir::FunctionSignature, Vec<ImplicitConversion>), ()> {
-        let mut overload_casts = Vec::with_capacity(param_types.len());
-
-        // Resolve template arguments
-        // Require user to specify all arguments
-        if signature.template_params.0 != 0 {
-            if signature.template_params.0 as usize != template_args.len() {
-                // Wrong number of template arguments provided
-                return Err(());
-            }
-
-            signature = signature.apply_templates(template_args, context);
-        } else if !template_args.is_empty() {
-            // Template args given to non template function
-            return Err(());
-        }
-
-        for (required_type, source_type) in signature.param_types.iter().zip(param_types.iter()) {
-            if required_type.2.is_some() {
-                return Err(());
-            };
-            let ety = ExpressionType(required_type.0, required_type.1.into());
-            if let Ok(cast) = ImplicitConversion::find(*source_type, ety, &mut context.module) {
-                overload_casts.push(cast)
-            } else {
-                return Err(());
-            }
-        }
-        Ok((signature, overload_casts))
-    }
-
     let mut casts = Vec::with_capacity(overloads.len());
     for overload in overloads {
         let signature = context
@@ -141,11 +161,10 @@ fn find_function_type(
             .function_registry
             .get_function_signature(*overload);
         if param_types.len() == signature.param_types.len() {
-            let signature = signature.clone();
-            if let Ok((signature, param_casts)) =
-                find_overload_casts(signature.clone(), template_args, param_types, context)
+            if let Ok((new_id, param_casts)) =
+                find_overload_casts(*overload, template_args, param_types, context)
             {
-                casts.push((FunctionOverload(*overload, signature), param_casts))
+                casts.push((new_id, param_casts))
             }
         }
     }
@@ -175,7 +194,7 @@ fn find_function_type(
             }
         }
         if winning {
-            winning_numeric_casts.push((candidate.clone(), candidate_casts.clone()));
+            winning_numeric_casts.push((*candidate, candidate_casts.clone()));
         }
     }
 
@@ -218,7 +237,7 @@ fn find_function_type(
         }
 
         if casts.len() > 1 {
-            let ambiguous_overloads = casts.iter().map(|c| c.0 .0).collect::<Vec<_>>();
+            let ambiguous_overloads = casts.iter().map(|c| c.0).collect::<Vec<_>>();
             return Err(TyperError::FunctionArgumentTypeMismatch(
                 ambiguous_overloads,
                 param_types.to_vec(),
@@ -259,17 +278,23 @@ fn write_function(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching function overload
-    let (FunctionOverload(id, ir::FunctionSignature { return_type, .. }), casts) =
-        find_function_type(
-            &unresolved.overloads,
-            template_args,
-            param_types,
-            call_location,
-            context,
-        )?;
+    let (id, casts) = find_function_type(
+        &unresolved.overloads,
+        template_args,
+        param_types,
+        call_location,
+        context,
+    )?;
     // Apply implicit casts
     let param_values = apply_casts(casts, param_values, context);
-    let return_type = return_type.return_type.to_rvalue();
+
+    let return_type = context
+        .module
+        .function_registry
+        .get_function_signature(id)
+        .return_type
+        .return_type
+        .to_rvalue();
 
     if context
         .module
@@ -284,7 +309,7 @@ fn write_function(
     } else {
         let id = if !template_args.is_empty() {
             // Now we have to make the actual instance of that template
-            context.build_function_template(id, template_args)?
+            context.build_function_template_body(id)?
         } else {
             id
         };
@@ -305,20 +330,25 @@ fn write_method(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     // Find the matching method overload
-    let (FunctionOverload(id, ir::FunctionSignature { return_type, .. }), casts) =
-        find_function_type(
-            &unresolved.overloads,
-            template_args,
-            param_types,
-            call_location,
-            context,
-        )?;
+    let (id, casts) = find_function_type(
+        &unresolved.overloads,
+        template_args,
+        param_types,
+        call_location,
+        context,
+    )?;
     // Apply implicit casts
     let mut param_values = apply_casts(casts, param_values, context);
     // Add struct as implied first argument
     param_values.insert(0, unresolved.object_value);
 
-    let return_type = return_type.return_type.to_rvalue();
+    let return_type = context
+        .module
+        .function_registry
+        .get_function_signature(id)
+        .return_type
+        .return_type
+        .to_rvalue();
 
     if context
         .module
@@ -338,7 +368,7 @@ fn write_method(
     } else {
         let id = if !template_args.is_empty() {
             // Now we have to make the actual instance of that template
-            context.build_function_template(id, template_args)?
+            context.build_function_template_body(id)?
         } else {
             id
         };

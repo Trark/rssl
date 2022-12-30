@@ -36,6 +36,7 @@ pub enum StructMemberValue {
 #[derive(Debug, Clone)]
 struct FunctionData {
     scope: ScopeIndex,
+    base_function: ir::FunctionId,
     ast: Option<Rc<ast::FunctionDefinition>>,
     instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::FunctionId>,
 }
@@ -109,7 +110,8 @@ impl Context {
                 .get_intrinsic_data(id)
                 .is_some());
 
-            // Register the functioon into the root scope
+            // Register the function into the root scope
+            // TODO: Don't insert object intrinsics
             context
                 .insert_function_in_scope(context.current_scope as usize, id)
                 .unwrap();
@@ -506,6 +508,7 @@ impl Context {
             id,
             FunctionData {
                 scope,
+                base_function: ir::FunctionId(u32::MAX),
                 ast: Some(Rc::new(ast)),
                 instantiations: HashMap::new(),
             },
@@ -880,19 +883,19 @@ impl Context {
         Ok(())
     }
 
-    /// Construct or build an instantiation of a template function
-    pub fn build_function_template(
+    /// Construct or build the header of a template function
+    pub fn build_function_template_signature(
         &mut self,
         id: ir::FunctionId,
         template_args: &[Located<ir::TypeOrConstant>],
-    ) -> TyperResult<ir::FunctionId> {
+    ) -> ir::FunctionId {
         let data = &self.function_data[&id];
         let template_args_no_loc = template_args
             .iter()
             .map(|t| t.node.clone())
             .collect::<Vec<_>>();
         if let Some(id) = data.instantiations.get(&template_args_no_loc) {
-            return Ok(*id);
+            return *id;
         }
 
         // Setup the scope data based on the template function scope
@@ -954,33 +957,106 @@ impl Context {
             .function_registry
             .register_function(function_name.clone(), signature);
 
-        let signature = self.module.function_registry.get_function_signature(new_id);
-
         self.function_data.insert(
             new_id,
             FunctionData {
                 scope: new_scope_id,
+                base_function: id,
                 ast: None,
                 instantiations: HashMap::new(),
             },
         );
 
-        // Move active scope back to outside the template function definition
-        let caller_scope_position = self.current_scope;
-        self.current_scope = parent_scope_id;
-
-        // Parse the function body and store it in the registry
-        let ast = self.get_function_ast(id);
-        parse_function_body(&ast, new_id, signature.clone(), self)?;
-
-        // Return active scope
-        assert_eq!(self.current_scope, parent_scope_id);
-        self.current_scope = caller_scope_position;
-
         // Save the new function in the instantiations map and return
         let data = self.function_data.get_mut(&id).unwrap();
         data.instantiations.insert(template_args_no_loc, new_id);
+        new_id
+    }
+
+    /// Construct or build an instantiation of a template function
+    pub fn build_function_template_body(
+        &mut self,
+        new_id: ir::FunctionId,
+    ) -> TyperResult<ir::FunctionId> {
+        let template_data = &self.function_data[&new_id];
+        let parent_id = template_data.base_function;
+        assert_ne!(parent_id.0, u32::MAX);
+
+        if self
+            .module
+            .function_registry
+            .get_function_implementation(new_id)
+            .is_none()
+        {
+            let parent_scope_id = self.scopes[template_data.scope].parent_scope;
+            let signature = self.module.function_registry.get_function_signature(new_id);
+
+            // Move active scope back to outside the template function definition
+            let caller_scope_position = self.current_scope;
+            self.current_scope = parent_scope_id;
+
+            // Parse the function body and store it in the registry
+            let ast = self.get_function_ast(parent_id);
+            parse_function_body(&ast, new_id, signature.clone(), self)?;
+
+            // Return active scope
+            assert_eq!(self.current_scope, parent_scope_id);
+            self.current_scope = caller_scope_position;
+        } else {
+            todo!();
+        }
+
         Ok(new_id)
+    }
+
+    /// Construct or build the header of an intrinsic function
+    pub fn build_intrinsic_template(
+        &mut self,
+        id: ir::FunctionId,
+        template_args: &[Located<ir::TypeOrConstant>],
+    ) -> ir::FunctionId {
+        // The signature is obtained by applying the template parameters
+        let signature = self.module.function_registry.get_function_signature(id);
+        let signature = signature.clone().apply_templates(template_args, self);
+
+        // Attempt to find an existing intrinsic of the same type and signature
+        // TODO: Have a proper reference from parent template to child instances
+        let intrinsic_opt = self.module.function_registry.get_intrinsic_data(id);
+        for i in 0..self.module.function_registry.get_function_count() {
+            let other_id = ir::FunctionId(i as u32);
+            let other_intrinsic_opt = self.module.function_registry.get_intrinsic_data(other_id);
+            if intrinsic_opt == other_intrinsic_opt {
+                let other_signature = self
+                    .module
+                    .function_registry
+                    .get_function_signature(other_id);
+                if signature == *other_signature {
+                    return id;
+                }
+            }
+        }
+
+        // The name is the same as the base function
+        let name = self
+            .module
+            .function_registry
+            .get_function_name_definition(id)
+            .clone();
+
+        let intrinsic = intrinsic_opt.clone().unwrap();
+
+        // Register the new intrinsic instantiation as a function
+        let new_id = self
+            .module
+            .function_registry
+            .register_function(name, signature);
+
+        // Set the intrinsic data on the function to the same as the base function
+        self.module
+            .function_registry
+            .set_intrinsic_data(new_id, intrinsic);
+
+        new_id
     }
 }
 

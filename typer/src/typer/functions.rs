@@ -10,9 +10,6 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::Located;
 
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct FunctionOverload(pub ir::FunctionId, pub ir::FunctionSignature);
-
 /// Trait for applying template arguments onto another type
 pub trait ApplyTemplates {
     /// Transforms a signature with template parameters with concrete arguments
