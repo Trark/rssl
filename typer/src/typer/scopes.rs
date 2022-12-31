@@ -36,7 +36,6 @@ pub enum StructMemberValue {
 struct FunctionData {
     scope: ScopeIndex,
     ast: Option<Rc<ast::FunctionDefinition>>,
-    instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::FunctionId>,
 }
 
 #[derive(Debug, Clone)]
@@ -488,7 +487,6 @@ impl Context {
             FunctionData {
                 scope,
                 ast: Some(Rc::new(ast)),
-                instantiations: HashMap::new(),
             },
         );
 
@@ -872,8 +870,14 @@ impl Context {
             .iter()
             .map(|t| t.node.clone())
             .collect::<Vec<_>>();
-        if let Some(id) = data.instantiations.get(&template_args_no_loc) {
-            return *id;
+
+        // Attempt to find an existing function instantiation
+        if let Some(id) = self
+            .module
+            .function_registry
+            .find_instantiation(id, &template_args_no_loc)
+        {
+            return id;
         }
 
         // Setup the scope data based on the template function scope
@@ -941,7 +945,7 @@ impl Context {
                 new_id,
                 ir::FunctionTemplateInstantiation {
                     parent_id: id,
-                    template_args: template_args_no_loc.clone(),
+                    template_args: template_args_no_loc,
                 },
             );
 
@@ -950,13 +954,9 @@ impl Context {
             FunctionData {
                 scope: new_scope_id,
                 ast: None,
-                instantiations: HashMap::new(),
             },
         );
 
-        // Save the new function in the instantiations map and return
-        let data = self.function_data.get_mut(&id).unwrap();
-        data.instantiations.insert(template_args_no_loc, new_id);
         new_id
     }
 
@@ -1015,20 +1015,12 @@ impl Context {
             .collect::<Vec<_>>();
 
         // Attempt to find an existing intrinsic
-        // We currently search all function ids instead of maintaining a map
-        for i in 0..self.module.function_registry.get_function_count() {
-            let other_id = ir::FunctionId(i as u32);
-            if let Some(instantiation_data) = self
-                .module
-                .function_registry
-                .get_template_instantiation_data(other_id)
-            {
-                if instantiation_data.parent_id == id
-                    && instantiation_data.template_args == template_args_no_loc
-                {
-                    return id;
-                }
-            }
+        if let Some(id) = self
+            .module
+            .function_registry
+            .find_instantiation(id, &template_args_no_loc)
+        {
+            return id;
         }
 
         // The name is the same as the base function
