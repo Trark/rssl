@@ -458,6 +458,10 @@ fn export_function_param(
         ir::InputModifier::InOut => output.push_str("inout "),
     }
 
+    if param.param_type.3 {
+        output.push_str("precise ");
+    }
+
     export_interpolation_modifier(&param.param_type.2, output)?;
 
     let mut array_part = String::new();
@@ -806,6 +810,9 @@ fn export_variable_definition(
     match def.storage_class {
         ir::LocalStorage::Local => {}
         ir::LocalStorage::Static => output.push_str("static "),
+    }
+    if def.precise {
+        output.push_str("precise ");
     }
     let mut array_part = String::new();
     export_type_for_def(def.type_id, output, &mut array_part, context)?;
@@ -1538,6 +1545,9 @@ fn export_struct(
 
     for member in &decl.members {
         context.new_line(output);
+        if member.precise {
+            output.push_str("precise ");
+        }
         export_interpolation_modifier(&member.interpolation_modifier, output)?;
         let mut array_part = String::new();
         export_type_for_def(member.type_id, output, &mut array_part, context)?;

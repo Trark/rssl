@@ -130,6 +130,10 @@ fn check_global_type_modifiers() {
     check_fail("out float x;");
     check_fail("inout float x;");
 
+    // precise is not allowed
+    // This is allowed in HLSL but does not do anything
+    check_fail("precise float x;");
+
     // Interpolation modifiers are not allowed
     check_fail("nointerpolation float x;");
     check_fail("linear float x;");
@@ -146,6 +150,7 @@ fn check_global_type_modifiers() {
 
 #[test]
 fn check_global_variable_with_contextual_keyword_names() {
+    check_types("uint precise;");
     check_fail("uint nointerpolation;");
     check_fail("uint linear;");
     check_fail("uint centroid;");
@@ -375,6 +380,10 @@ fn check_function_param_type_modifiers() {
     check_fail("void f(extern float x) {}");
     check_fail("void f(groupshared float x) {}");
 
+    // precise is allowed
+    // This is allowed in HLSL but does not seem to be very good at actually applying precise if not one of the entry point outputs
+    check_types("void f(precise float x) {}");
+
     // parameter output types are allowed
     check_types("void f(in float x) {}");
     check_types("void f(out float x) {}");
@@ -424,6 +433,7 @@ fn check_function_param_type_mesh_modifiers() {
 
 #[test]
 fn check_function_with_contextual_keyword_names() {
+    check_types("void precise() { precise(); (precise)(); }");
     check_fail("void nointerpolation() {}");
     check_fail("void linear() {}");
     check_fail("void centroid() {}");
@@ -468,6 +478,9 @@ fn check_local_variable_type_modifiers() {
     check_fail("void f() { out float x; }");
     check_fail("void f() { inout float x; }");
 
+    // precise is allowed
+    check_types("void f() { precise float x; }");
+
     // Interpolation modifiers are not allowed
     check_fail("void f() { nointerpolation float x; }");
     check_fail("void f() { linear float x; }");
@@ -485,6 +498,7 @@ fn check_local_variable_type_modifiers() {
 #[test]
 fn check_local_variable_with_contextual_keyword_names() {
     // Mirror HLSL's interesting selection of names that work
+    check_types("void f() { uint precise; }");
     check_fail("void f() { uint nointerpolation; }");
     check_fail("void f() { uint linear; }");
     check_fail("void f() { uint centroid; }");
@@ -607,6 +621,7 @@ fn check_structs() {
 #[test]
 fn check_struct_with_contextual_keyword_names() {
     check_types("struct NormalIdentifier {};");
+    check_fail("struct precise {};");
     check_fail("struct nointerpolation {};");
     check_fail("struct linear {};");
     check_fail("struct centroid {};");
@@ -653,6 +668,9 @@ fn check_struct_member_type_modifiers() {
     check_fail("struct S { groupshared float x; };");
     check_types("struct S { static static float x; };");
 
+    // precise is allowed
+    check_types("struct S { precise float x; };");
+
     // Interpolation modifiers are valid on structs
     check_types("struct S { nointerpolation float x; };");
     check_types("struct S { linear float x; };");
@@ -681,6 +699,7 @@ fn check_struct_member_type_modifiers() {
 
 #[test]
 fn check_struct_member_with_contextual_keyword_names() {
+    check_types("struct S { uint precise; }; void f(S s) { s.precise; }");
     check_fail("struct S { uint nointerpolation; };");
     check_fail("struct S { uint linear; };");
     check_fail("struct S { uint centroid; };");
@@ -706,6 +725,7 @@ fn check_struct_methods() {
 
 #[test]
 fn check_struct_method_with_contextual_keyword_names() {
+    check_types("struct S { void precise() {} };");
     check_fail("struct S { void nointerpolation() {} };");
     check_fail("struct S { void linear() {} };");
     check_fail("struct S { void centroid() {} };");
@@ -813,6 +833,10 @@ fn check_typedef_type_modifiers() {
     check_fail("typedef extern uint X;");
     check_fail("typedef groupshared uint X;");
 
+    // precise is not allowed on typedef
+    // This is allowed in HLSL but does not do anything
+    check_fail("typedef precise float X;");
+
     // Interpolation modifiers are not allowed
     check_fail("typedef nointerpolation uint X;");
     check_fail("typedef linear uint X;");
@@ -834,12 +858,12 @@ fn check_typedef_type_modifiers() {
 
 #[test]
 fn check_typedef_with_contextual_keyword_names() {
+    // HLSL permits some of these but then they are mostly unusable
+    check_types("typedef uint precise;");
     check_fail("typedef uint nointerpolation;");
     check_fail("typedef uint linear;");
     check_fail("typedef uint centroid;");
     check_fail("typedef uint noperspective;");
-
-    // HLSL permits these but then they are mostly unusable
     check_types("typedef uint sample;");
     check_types("typedef uint vertices;");
     check_types("typedef uint primitives;");
@@ -871,6 +895,7 @@ fn check_cbuffer() {
 
 #[test]
 fn check_cbuffer_member_with_contextual_keyword_names() {
+    check_types("cbuffer MyConstants { uint precise; }; void f() { precise; }");
     check_fail("cbuffer MyConstants { uint nointerpolation; };");
     check_fail("cbuffer MyConstants { uint linear; };");
     check_fail("cbuffer MyConstants { uint centroid; };");

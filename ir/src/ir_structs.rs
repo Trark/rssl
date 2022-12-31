@@ -38,6 +38,9 @@ pub struct StructMember {
 
     /// Optional interpolation modifier for when the struct is used in an entry point
     pub interpolation_modifier: Option<InterpolationModifier>,
+
+    /// If the struct member is considered precise
+    pub precise: bool,
 }
 
 /// A declaration for a struct template which is still in AST form

@@ -49,6 +49,9 @@ pub struct VarDef {
     /// Storage class for the local variable
     pub storage_class: LocalStorage,
 
+    /// If the variable is considered precise
+    pub precise: bool,
+
     /// Initializer for the local variable
     pub init: Option<Initializer>,
 }

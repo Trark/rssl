@@ -3,7 +3,7 @@ use super::functions::{parse_function_body, parse_function_signature};
 use super::scopes::*;
 use super::statements::apply_variable_bind;
 use super::types::{
-    is_illegal_type_name, is_illegal_variable_name, parse_interpolation_modifier,
+    is_illegal_type_name, is_illegal_variable_name, parse_interpolation_modifier, parse_precise,
     parse_type_for_usage, TypePosition,
 };
 use rssl_ast as ast;
@@ -126,6 +126,9 @@ fn parse_struct_internal(
                     parse_interpolation_modifier(&ast_member.ty.modifiers)?;
                 let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
 
+                // Calculate if we are precise
+                let precise_result = parse_precise(&ast_member.ty.modifiers)?;
+
                 for def in &ast_member.defs {
                     // Deny restricted non-keyword names
                     if is_illegal_variable_name(&def.name) {
@@ -142,6 +145,7 @@ fn parse_struct_internal(
                         type_id,
                         semantic: def.semantic.clone(),
                         interpolation_modifier,
+                        precise: precise_result.is_some(),
                     });
                 }
             }

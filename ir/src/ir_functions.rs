@@ -66,6 +66,7 @@ pub struct ParamType(
     pub TypeId,
     pub InputModifier,
     pub Option<InterpolationModifier>,
+    pub bool,
 );
 
 /// An attribute that is applied to a function
@@ -170,15 +171,16 @@ impl FunctionRegistry {
 
 impl From<TypeId> for ParamType {
     fn from(id: TypeId) -> ParamType {
-        ParamType(id, InputModifier::default(), None)
+        ParamType(id, InputModifier::default(), None, false)
     }
 }
 
 impl std::fmt::Debug for ParamType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let precise_str = if self.3 { " precise" } else { "" };
         match &self.2 {
-            None => write!(f, "{:?} {:?}", self.1, self.0),
-            Some(m) => write!(f, "{:?} {:?} {:?}", self.1, m, self.0),
+            None => write!(f, "{:?}{} {:?}", self.1, precise_str, self.0),
+            Some(m) => write!(f, "{:?}{} {:?} {:?}", self.1, precise_str, m, self.0),
         }
     }
 }

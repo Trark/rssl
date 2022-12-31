@@ -4,7 +4,7 @@ use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_statement_list};
 use super::types::{
     apply_template_type_substitution, is_illegal_variable_name, parse_input_modifier,
-    parse_interpolation_modifier, parse_type, parse_type_for_usage, TypePosition,
+    parse_interpolation_modifier, parse_precise, parse_type, parse_type_for_usage, TypePosition,
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -246,13 +246,21 @@ fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult
         }
     }
 
+    // Calculate if we are precise
+    let precise_result = parse_precise(&param_type.modifiers)?;
+
     // Set default input modifier
     let input_modifier = input_modifier.unwrap_or(ir::InputModifier::In);
 
     // Remove interpolation modifier location
     let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
 
-    Ok(ir::ParamType(ty, input_modifier, interpolation_modifier))
+    Ok(ir::ParamType(
+        ty,
+        input_modifier,
+        interpolation_modifier,
+        precise_result.is_some(),
+    ))
 }
 
 /// Process all function attributes

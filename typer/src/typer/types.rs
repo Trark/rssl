@@ -67,6 +67,16 @@ pub fn parse_type_for_usage(
         deny_mesh_shader_modifiers(&ty.modifiers, position)?;
     }
 
+    // Allow precise in only some declaration positions
+    // Purposefully deny global variables and typedefs - which compiles without warning in HLSL but does not function
+    // Purposefully deny uses like casts - which may warn in HLSL but does not do anything
+    if !matches!(
+        position,
+        TypePosition::Local | TypePosition::Parameter | TypePosition::StructMember
+    ) {
+        deny_precise(&ty.modifiers, position)?;
+    }
+
     let (ir_ty, base_modifier) = context.module.type_registry.extract_modifier(parsed_id);
     let modifier = base_modifier.combine(direct_modifier);
     let ty = context
@@ -588,6 +598,34 @@ pub fn deny_mesh_shader_modifiers(
     Ok(())
 }
 
+/// Calculate if a definition is precise from the type modifiers
+pub fn parse_precise(modifiers: &ast::TypeModifierSet) -> TyperResult<Option<SourceLocation>> {
+    let mut first_modifier: Option<Located<ast::TypeModifier>> = None;
+    for modifier in &modifiers.modifiers {
+        if let ast::TypeModifier::Precise = modifier.node {
+            // TODO: Warn for duplicate modifier
+            if first_modifier.is_none() {
+                first_modifier = Some(modifier.clone());
+            }
+        }
+    }
+    Ok(first_modifier.map(|m| m.location))
+}
+
+/// Ensure precise does not appear as a type modifier
+pub fn deny_precise(modifiers: &ast::TypeModifierSet, position: TypePosition) -> TyperResult<()> {
+    for modifier in &modifiers.modifiers {
+        if matches!(&modifier.node, ast::TypeModifier::Precise) {
+            return Err(TyperError::ModifierNotSupported(
+                modifier.node,
+                modifier.location,
+                position,
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Replace instances of a template type parameter in a type with a concrete type
 pub fn apply_template_type_substitution(
     source_type: ir::TypeId,
@@ -681,7 +719,8 @@ pub fn is_illegal_variable_name(name: &Located<String>) -> bool {
 pub fn is_illegal_type_name(name: &Located<String>) -> bool {
     matches!(
         name.as_str(),
-        "nointerpolation"
+        "precise"
+            | "nointerpolation"
             | "linear"
             | "centroid"
             | "noperspective"

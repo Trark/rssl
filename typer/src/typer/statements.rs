@@ -8,7 +8,7 @@ use rssl_ir as ir;
 use rssl_text::*;
 
 use super::expressions::parse_expr;
-use super::types::{is_illegal_variable_name, parse_type_for_usage, TypePosition};
+use super::types::{is_illegal_variable_name, parse_precise, parse_type_for_usage, TypePosition};
 
 /// Type check a list of ast statements into ir statements
 pub fn parse_statement_list(
@@ -272,7 +272,7 @@ fn parse_statement_attribute(
 
 /// Process a variable definition
 fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir::VarDef>> {
-    let (base_id, storage_class) = parse_localtype(&ast.local_type, context)?;
+    let (base_id, storage_class, precise) = parse_localtype(&ast.local_type, context)?;
 
     let base_type_layout = context
         .module
@@ -317,6 +317,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             id: var_id,
             type_id,
             storage_class,
+            precise,
             init: var_init,
         });
     }
@@ -328,7 +329,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
 fn parse_localtype(
     local_type: &ast::Type,
     context: &mut Context,
-) -> TyperResult<(ir::TypeId, ir::LocalStorage)> {
+) -> TyperResult<(ir::TypeId, ir::LocalStorage, bool)> {
     let ty = parse_type_for_usage(local_type, TypePosition::Local, context)?;
 
     // Calculate the local storage type
@@ -362,6 +363,9 @@ fn parse_localtype(
         .map(|(ls, _)| ls)
         .unwrap_or(ir::LocalStorage::Local);
 
+    // Calculate if we are precise
+    let precise_result = parse_precise(&local_type.modifiers)?;
+
     let ty_unmodified = context.module.type_registry.remove_modifier(ty);
     let ty_layout_unmodified = context.module.type_registry.get_type_layout(ty_unmodified);
     if ty_layout_unmodified.is_void() {
@@ -371,7 +375,7 @@ fn parse_localtype(
         ));
     }
 
-    Ok((ty, local_storage))
+    Ok((ty, local_storage, precise_result.is_some()))
 }
 
 /// Apply part of type applied to variable name onto the type itself

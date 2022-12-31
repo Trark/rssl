@@ -127,7 +127,7 @@ fn check_functions() {
     check_rssl_to_hlsl("void f() {}", "void f() {}\n");
     check_rssl_to_hlsl("void f(int x) {}", "void f(int x) {}\n");
     check_rssl_to_hlsl(
-        "float f(int x, float y) { return x + y; }",
+        "float f(int x, float y) { return (float)x + y; }",
         "float f(int x, float y) {
     return (float)x + y;
 }
@@ -193,6 +193,32 @@ fn check_function_param_interp_modifiers() {
     check_rssl_to_hlsl(
         "void VSMAIN(out sample float4 x : TEXCOORD) {}",
         "void VSMAIN(out sample float4 x : TEXCOORD) {}\n",
+    );
+}
+
+#[test]
+fn check_function_param_system_semantics() {
+    check_rssl_to_hlsl(
+        "void VSMAIN(out float4 pos : SV_Position) {}",
+        "void VSMAIN(out float4 pos : SV_Position) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out precise float4 pos : SV_Position) {}",
+        "void VSMAIN(out precise float4 pos : SV_Position) {}\n",
+    );
+}
+
+#[test]
+fn check_local_variable_modifiers() {
+    check_rssl_to_hlsl(
+        "void f() { float x; const float y; precise float z; }",
+        "void f() {
+    float x;
+    const float y;
+    precise float z;
+}
+",
     );
 }
 
@@ -838,6 +864,25 @@ fn check_struct_member_interp_modifiers() {
     nointerpolation float m4[3][4] : USER4;
     noperspective float m5;
     sample float m6;
+};
+",
+    );
+}
+
+#[test]
+fn check_struct_member_precise() {
+    check_rssl_to_hlsl(
+        "struct S
+{
+    precise float x;
+    precise float2 y, z;
+};
+",
+        "struct S
+{
+    precise float x;
+    precise float2 y;
+    precise float2 z;
 };
 ",
     );

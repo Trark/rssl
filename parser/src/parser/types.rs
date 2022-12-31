@@ -77,6 +77,7 @@ fn parse_type_modifiers_before<'t>(
             [LexToken(Token::Id(id), loc), rest @ ..] => {
                 // Handle non-keyword modifiers
                 let modifier = match id.0.as_str() {
+                    "precise" => TypeModifier::Precise,
                     "nointerpolation" => TypeModifier::NoInterpolation,
                     "linear" => TypeModifier::Linear,
                     "centroid" => TypeModifier::Centroid,

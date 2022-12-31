@@ -65,6 +65,9 @@ pub enum TypeModifier {
     /// Global variable: Shared between every lane in the work group
     GroupShared,
 
+    /// Global or local variable: Computations leading to this value must be precise/invariant
+    Precise,
+
     /// nointerpolation interpolation modifier
     NoInterpolation,
 
@@ -299,6 +302,7 @@ impl std::fmt::Debug for TypeModifier {
             TypeModifier::Extern => write!(f, "extern"),
             TypeModifier::Static => write!(f, "static"),
             TypeModifier::GroupShared => write!(f, "groupshared"),
+            TypeModifier::Precise => write!(f, "precise"),
             TypeModifier::NoInterpolation => write!(f, "nointerpolation"),
             TypeModifier::Linear => write!(f, "linear"),
             TypeModifier::Centroid => write!(f, "centroid"),

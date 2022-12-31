@@ -300,6 +300,7 @@ pub fn add_intrinsics(module: &mut Module) {
                         .register_type(remap_inner(param_type_def.0.clone())),
                     param_type_def.1,
                     None,
+                    false,
                 ));
             }
 
@@ -540,6 +541,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
                     .register_type(remap_inner(param_type_def.0.clone())),
                 param_type_def.1,
                 None,
+                false,
             ));
         }
 
