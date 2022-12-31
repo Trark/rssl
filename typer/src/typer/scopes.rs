@@ -35,7 +35,6 @@ pub enum StructMemberValue {
 #[derive(Debug, Clone)]
 struct FunctionData {
     scope: ScopeIndex,
-    base_function: ir::FunctionId,
     ast: Option<Rc<ast::FunctionDefinition>>,
     instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::FunctionId>,
 }
@@ -488,7 +487,6 @@ impl Context {
             id,
             FunctionData {
                 scope,
-                base_function: ir::FunctionId(u32::MAX),
                 ast: Some(Rc::new(ast)),
                 instantiations: HashMap::new(),
             },
@@ -951,7 +949,6 @@ impl Context {
             new_id,
             FunctionData {
                 scope: new_scope_id,
-                base_function: id,
                 ast: None,
                 instantiations: HashMap::new(),
             },
@@ -969,8 +966,6 @@ impl Context {
         new_id: ir::FunctionId,
     ) -> TyperResult<ir::FunctionId> {
         let template_data = &self.function_data[&new_id];
-        let parent_id = template_data.base_function;
-        assert_ne!(parent_id.0, u32::MAX);
 
         if self
             .module
@@ -978,6 +973,14 @@ impl Context {
             .get_function_implementation(new_id)
             .is_none()
         {
+            let parent_id = self
+                .module
+                .function_registry
+                .get_template_instantiation_data(new_id)
+                .as_ref()
+                .unwrap()
+                .parent_id;
+
             let parent_scope_id = self.scopes[template_data.scope].parent_scope;
             let signature = self.module.function_registry.get_function_signature(new_id);
 
