@@ -9,7 +9,6 @@ use rssl_ir as ir;
 use rssl_text::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 /// Stores all ids for types and variables by a module
 #[derive(Debug, Clone)]
@@ -35,7 +34,6 @@ pub enum StructMemberValue {
 #[derive(Debug, Clone)]
 struct FunctionData {
     scope: ScopeIndex,
-    ast: Option<Rc<ast::FunctionDefinition>>,
 }
 
 #[derive(Debug, Clone)]
@@ -447,11 +445,6 @@ impl Context {
         Ok(self.module.function_registry.get_function_signature(id))
     }
 
-    /// Find the source ast of a function
-    pub fn get_function_ast(&self, id: ir::FunctionId) -> Rc<ast::FunctionDefinition> {
-        self.function_data[&id].ast.as_ref().unwrap().clone()
-    }
-
     /// Register a local variable
     pub fn insert_variable(
         &mut self,
@@ -474,20 +467,21 @@ impl Context {
         // Find the fully qualified name based on the current scope
         let full_name = self.get_qualified_name(&name);
 
+        let is_template = signature.template_params.0 != 0;
+
         // Register the function with the module
         let id = self
             .module
             .function_registry
             .register_function(ir::FunctionNameDefinition { name, full_name }, signature);
 
+        // Save the ast if we will need it for building template functions later
+        if is_template {
+            self.module.function_registry.set_template_source(id, ast);
+        }
+
         // Set function data used by scope management
-        self.function_data.insert(
-            id,
-            FunctionData {
-                scope,
-                ast: Some(Rc::new(ast)),
-            },
-        );
+        self.function_data.insert(id, FunctionData { scope });
 
         Ok(id)
     }
@@ -952,7 +946,6 @@ impl Context {
             new_id,
             FunctionData {
                 scope: new_scope_id,
-                ast: None,
             },
         );
 
@@ -988,7 +981,12 @@ impl Context {
             self.current_scope = parent_scope_id;
 
             // Parse the function body and store it in the registry
-            let ast = self.get_function_ast(parent_id);
+            let ast = self
+                .module
+                .function_registry
+                .get_template_source(parent_id)
+                .clone()
+                .unwrap();
             parse_function_body(&ast, new_id, signature.clone(), self)?;
 
             // Return active scope

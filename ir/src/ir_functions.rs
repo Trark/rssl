@@ -1,5 +1,6 @@
 use crate::*;
 use rssl_text::{Located, SourceLocation};
+use std::rc::Rc;
 
 /// Container of all registered functions
 #[derive(PartialEq, Clone, Default, Debug)]
@@ -8,6 +9,7 @@ pub struct FunctionRegistry {
     names: Vec<FunctionNameDefinition>,
     implementations: Vec<Option<FunctionImplementation>>,
     intrinsic_data: Vec<Option<Intrinsic>>,
+    template_source: Vec<Option<Rc<rssl_ast::FunctionDefinition>>>,
     template_instantiation_data: Vec<Option<FunctionTemplateInstantiation>>,
 }
 
@@ -102,6 +104,7 @@ impl FunctionRegistry {
         // Default the implementation block to the missing state
         self.implementations.push(None);
         self.intrinsic_data.push(None);
+        self.template_source.push(None);
         self.template_instantiation_data.push(None);
 
         id
@@ -122,12 +125,23 @@ impl FunctionRegistry {
     }
 
     /// Set the instantiation data for a function template instantiation
+    pub fn set_template_source(
+        &mut self,
+        id: FunctionId,
+        template_source: rssl_ast::FunctionDefinition,
+    ) {
+        assert_eq!(self.template_instantiation_data[id.0 as usize], None);
+        assert_eq!(self.template_source[id.0 as usize], None);
+        self.template_source[id.0 as usize] = Some(Rc::new(template_source));
+    }
+
+    /// Set the instantiation data for a function template instantiation
     pub fn set_template_instantiation_data(
         &mut self,
         id: FunctionId,
         instantiation_data: FunctionTemplateInstantiation,
     ) {
-        assert_eq!(self.implementations[id.0 as usize], None);
+        assert_eq!(self.template_source[id.0 as usize], None);
         assert_eq!(self.template_instantiation_data[id.0 as usize], None);
         self.template_instantiation_data[id.0 as usize] = Some(instantiation_data);
     }
@@ -165,6 +179,11 @@ impl FunctionRegistry {
     /// Get the implementation from a function id
     pub fn get_intrinsic_data(&self, id: FunctionId) -> &Option<Intrinsic> {
         &self.intrinsic_data[id.0 as usize]
+    }
+
+    /// Get the source ast from a function id
+    pub fn get_template_source(&self, id: FunctionId) -> &Option<Rc<rssl_ast::FunctionDefinition>> {
+        &self.template_source[id.0 as usize]
     }
 
     /// Get the template instantiation data from a function id
