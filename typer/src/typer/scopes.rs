@@ -108,7 +108,6 @@ impl Context {
                 .is_some());
 
             // Register the function into the root scope
-            // TODO: Don't insert object intrinsics
             context
                 .insert_function_in_scope(context.current_scope as usize, id)
                 .unwrap();
