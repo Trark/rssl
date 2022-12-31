@@ -448,9 +448,12 @@ fn export_function_param(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    match param.param_type.1 {
+    match param.param_type.input_modifier {
         // payload modified parameters require an explicit in instead of an implicit in
-        ir::InputModifier::In if param.param_type.2 == Some(ir::InterpolationModifier::Payload) => {
+        ir::InputModifier::In
+            if param.param_type.interpolation_modifier
+                == Some(ir::InterpolationModifier::Payload) =>
+        {
             output.push_str("in ")
         }
         ir::InputModifier::In => {}
@@ -458,14 +461,14 @@ fn export_function_param(
         ir::InputModifier::InOut => output.push_str("inout "),
     }
 
-    if param.param_type.3 {
+    if param.param_type.precise {
         output.push_str("precise ");
     }
 
-    export_interpolation_modifier(&param.param_type.2, output)?;
+    export_interpolation_modifier(&param.param_type.interpolation_modifier, output)?;
 
     let mut array_part = String::new();
-    export_type_for_def(param.param_type.0, output, &mut array_part, context)?;
+    export_type_for_def(param.param_type.type_id, output, &mut array_part, context)?;
 
     output.push(' ');
 

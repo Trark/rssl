@@ -27,7 +27,8 @@ impl ApplyTemplates for ir::FunctionSignature {
         context: &mut Context,
     ) -> Self {
         for param_type in &mut self.param_types {
-            param_type.0 = apply_template_type_substitution(param_type.0, template_args, context);
+            param_type.type_id =
+                apply_template_type_substitution(param_type.type_id, template_args, context);
         }
 
         self.return_type.return_type =
@@ -83,13 +84,13 @@ pub fn parse_function_signature(
             let type_layout = context
                 .module
                 .type_registry
-                .get_type_layout(var_type.0)
+                .get_type_layout(var_type.type_id)
                 .clone();
 
             // If the parameter has type information bound to the name then apply it to the type now
             let type_layout = apply_variable_bind(type_layout, &param.bind, &None, context)?;
 
-            var_type.0 = context.module.type_registry.register_type(type_layout);
+            var_type.type_id = context.module.type_registry.register_type(type_layout);
 
             vec.push(var_type);
         }
@@ -120,7 +121,7 @@ pub fn parse_function_body(
     let func_params = {
         let mut vec = Vec::new();
         for (var_type, ast_param) in signature.param_types.into_iter().zip(&fd.params) {
-            let var_id = context.insert_variable(ast_param.name.clone(), var_type.0)?;
+            let var_id = context.insert_variable(ast_param.name.clone(), var_type.type_id)?;
             vec.push(ir::FunctionParam {
                 id: var_id,
                 param_type: var_type,
@@ -270,12 +271,12 @@ fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult
     // Remove interpolation modifier location
     let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
 
-    Ok(ir::ParamType(
-        ty,
+    Ok(ir::ParamType {
+        type_id: ty,
         input_modifier,
         interpolation_modifier,
-        precise_result.is_some(),
-    ))
+        precise: precise_result.is_some(),
+    })
 }
 
 /// Process all function attributes

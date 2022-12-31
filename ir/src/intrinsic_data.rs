@@ -294,14 +294,14 @@ pub fn add_intrinsics(module: &mut Module) {
             // Fetch and remap the param types
             let mut param_types = Vec::with_capacity(def.param_types.len());
             for param_type_def in def.param_types {
-                param_types.push(ParamType(
-                    module
+                param_types.push(ParamType {
+                    type_id: module
                         .type_registry
                         .register_type(remap_inner(param_type_def.0.clone())),
-                    param_type_def.1,
-                    None,
-                    false,
-                ));
+                    input_modifier: param_type_def.1,
+                    interpolation_modifier: None,
+                    precise: false,
+                });
             }
 
             // Register the return type
@@ -535,14 +535,14 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         // Fetch and remap the param types
         let mut param_types = Vec::with_capacity(def.param_types.len());
         for param_type_def in def.param_types {
-            param_types.push(ParamType(
-                module
+            param_types.push(ParamType {
+                type_id: module
                     .type_registry
                     .register_type(remap_inner(param_type_def.0.clone())),
-                param_type_def.1,
-                None,
-                false,
-            ));
+                input_modifier: param_type_def.1,
+                interpolation_modifier: None,
+                precise: false,
+            });
         }
 
         // Register the return type
@@ -579,7 +579,7 @@ fn get_template_param_count(
 ) -> TemplateParamCount {
     let mut count = get_max_template_arg(module, return_type);
     for param_type in param_types {
-        count = std::cmp::max(count, get_max_template_arg(module, param_type.0))
+        count = std::cmp::max(count, get_max_template_arg(module, param_type.type_id))
     }
     TemplateParamCount(count)
 }

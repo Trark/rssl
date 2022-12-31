@@ -132,10 +132,10 @@ fn find_overload_casts(
         .get_function_signature(id)
         .clone();
     for (required_type, source_type) in signature.param_types.iter().zip(param_types.iter()) {
-        if required_type.2.is_some() {
+        if required_type.interpolation_modifier.is_some() {
             return Err(());
         };
-        let ety = ExpressionType(required_type.0, required_type.1.into());
+        let ety = ExpressionType(required_type.type_id, required_type.input_modifier.into());
         if let Ok(cast) = ImplicitConversion::find(*source_type, ety, &mut context.module) {
             overload_casts.push(cast)
         } else {

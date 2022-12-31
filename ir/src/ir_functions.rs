@@ -62,12 +62,19 @@ pub struct FunctionParam {
 
 /// The type of any parameter declaration
 #[derive(PartialEq, Eq, Clone)]
-pub struct ParamType(
-    pub TypeId,
-    pub InputModifier,
-    pub Option<InterpolationModifier>,
-    pub bool,
-);
+pub struct ParamType {
+    /// Type of the member
+    pub type_id: TypeId,
+
+    /// Input modifier for the parameter
+    pub input_modifier: InputModifier,
+
+    /// Optional interpolation modifier for when the parameter is on the entry point
+    pub interpolation_modifier: Option<InterpolationModifier>,
+
+    /// If the parameter is considered precise
+    pub precise: bool,
+}
 
 /// An attribute that is applied to a function
 #[derive(PartialEq, Debug, Clone)]
@@ -170,17 +177,30 @@ impl FunctionRegistry {
 }
 
 impl From<TypeId> for ParamType {
-    fn from(id: TypeId) -> ParamType {
-        ParamType(id, InputModifier::default(), None, false)
+    fn from(type_id: TypeId) -> ParamType {
+        ParamType {
+            type_id,
+            input_modifier: InputModifier::default(),
+            interpolation_modifier: None,
+            precise: false,
+        }
     }
 }
 
 impl std::fmt::Debug for ParamType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let precise_str = if self.3 { " precise" } else { "" };
-        match &self.2 {
-            None => write!(f, "{:?}{} {:?}", self.1, precise_str, self.0),
-            Some(m) => write!(f, "{:?}{} {:?} {:?}", self.1, precise_str, m, self.0),
+        let precise_str = if self.precise { " precise" } else { "" };
+        match &self.interpolation_modifier {
+            None => write!(
+                f,
+                "{:?}{} {:?}",
+                self.input_modifier, precise_str, self.type_id
+            ),
+            Some(m) => write!(
+                f,
+                "{:?}{} {:?} {:?}",
+                self.input_modifier, precise_str, m, self.type_id
+            ),
         }
     }
 }

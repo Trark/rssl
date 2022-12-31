@@ -791,15 +791,11 @@ fn get_object_type_string(object_type: &ir::ObjectType, context: &Context) -> St
 
 /// Get a string name from a param type for error display
 fn get_param_type_string(param: &ir::ParamType, context: &Context) -> String {
-    match &param.2 {
-        None => format!("{:?} {}", param.1, get_type_id_string(param.0, context)),
-        Some(m) => format!(
-            "{:?} {:?} {}",
-            param.1,
-            m,
-            get_type_id_string(param.0, context)
-        ),
-    }
+    format!(
+        "{:?} {}",
+        param.input_modifier,
+        get_type_id_string(param.type_id, context)
+    )
 }
 
 /// Get a string name from a struct name for error display
