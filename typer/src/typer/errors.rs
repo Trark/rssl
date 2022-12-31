@@ -651,6 +651,7 @@ impl CompileError for TyperExternalError {
                             TypePosition::Parameter => "on a function parameter",
                             TypePosition::StructMember => "on a field",
                             TypePosition::Global => "on a global variable",
+                            TypePosition::ConstantBufferMember => "on a cbuffer member",
                         }
                     )
                 },

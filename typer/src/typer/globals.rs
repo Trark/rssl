@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::errors::*;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_initializer_opt};
-use super::types::{is_illegal_variable_name, parse_type, parse_type_for_usage, TypePosition};
+use super::types::{is_illegal_variable_name, parse_type_for_usage, TypePosition};
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -160,7 +160,8 @@ pub fn parse_rootdefinition_constantbuffer(
     let mut members = vec![];
     let mut members_map = HashMap::new();
     for member in &cb.members {
-        let base_type = parse_type(&member.ty, context)?;
+        let base_type =
+            parse_type_for_usage(&member.ty, TypePosition::ConstantBufferMember, context)?;
         let base_type_layout = context
             .module
             .type_registry

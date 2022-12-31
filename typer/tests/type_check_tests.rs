@@ -894,6 +894,67 @@ fn check_cbuffer() {
 }
 
 #[test]
+fn check_cbuffer_member_type_modifiers() {
+    // trivial cases
+    check_types("cbuffer S { uint x; }");
+    check_types("cbuffer S { float x; uint y; }");
+
+    // const is allowed
+    check_types("cbuffer S { const float x; }");
+
+    // volatile is not allowed
+    check_fail("cbuffer S { volatile float x; }");
+
+    // volatile can sneak in indirectly
+    check_types("typedef const float X; cbuffer S { X x; }");
+    check_types("typedef volatile float X; cbuffer S { X x; }");
+    check_types("typedef const volatile float X; cbuffer S { X x; }");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("cbuffer S { row_major float4x4 x; }");
+    check_types("cbuffer S { column_major float4x4 x; }");
+    check_fail("cbuffer S { row_major float4 x; }");
+    check_fail("cbuffer S { column_major float4 x; }");
+    check_fail("cbuffer S { row_major column_major float4x4 x; }");
+
+    // unorm/snorm are allowed
+    check_types("cbuffer S { unorm float x; }");
+    check_types("cbuffer S { snorm float x; }");
+    check_fail("cbuffer S { unorm snorm float4 x; }");
+    check_fail("cbuffer S { unorm uint x; }");
+    check_fail("cbuffer S { snorm uint x; }");
+
+    // storage types are not allowed
+    // HLSL does not error for these but they are meaningless
+    check_fail("cbuffer S { static float x; }");
+    check_fail("cbuffer S { extern float x; }");
+    check_fail("cbuffer S { groupshared float x; }");
+
+    // precise is allowed
+    // This is very pointless as nothing in shader generates a value for a constant buffer member
+    // But as it is pointless we do not have to do anything with it
+    check_types("cbuffer S { precise float x; }");
+
+    // Interpolation modifiers are not allowed
+    check_fail("cbuffer S { nointerpolation float x; }");
+    check_fail("cbuffer S { linear float x; }");
+    check_fail("cbuffer S { centroid float x; }");
+    check_fail("cbuffer S { noperspective float x; }");
+    check_fail("cbuffer S { sample float x; }");
+
+    // Mesh shader output modifiers are not allowed
+    check_fail("cbuffer S { vertices float x; }");
+    check_fail("cbuffer S { primitives float x; }");
+    check_fail("cbuffer S { indices float x; }");
+    check_fail("cbuffer S { payload float x; }");
+
+    // parameter output types are not allowed
+    check_fail("cbuffer S { in float x; }");
+    check_fail("cbuffer S { out float x; }");
+    check_fail("cbuffer S { inout float x; }");
+}
+
+#[test]
 fn check_cbuffer_member_with_contextual_keyword_names() {
     check_types("cbuffer MyConstants { uint precise; }; void f() { precise; }");
     check_fail("cbuffer MyConstants { uint nointerpolation; };");

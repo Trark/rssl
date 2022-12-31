@@ -22,6 +22,9 @@ pub enum TypePosition {
 
     /// Type is for a global definition
     Global,
+
+    /// Type is for a member of a constant buffer
+    ConstantBufferMember,
 }
 
 /// Attempt to get an ir type from an ast type
@@ -72,7 +75,10 @@ pub fn parse_type_for_usage(
     // Purposefully deny uses like casts - which may warn in HLSL but does not do anything
     if !matches!(
         position,
-        TypePosition::Local | TypePosition::Parameter | TypePosition::StructMember
+        TypePosition::Local
+            | TypePosition::Parameter
+            | TypePosition::StructMember
+            | TypePosition::ConstantBufferMember
     ) {
         deny_precise(&ty.modifiers, position)?;
     }
@@ -351,7 +357,12 @@ fn parse_type_modifier(
                 full_modifier.is_const = true;
             }
             ast::TypeModifier::Volatile => {
-                if matches!(position, TypePosition::Global | TypePosition::StructMember) {
+                if matches!(
+                    position,
+                    TypePosition::Global
+                        | TypePosition::StructMember
+                        | TypePosition::ConstantBufferMember
+                ) {
                     return Err(TyperError::ModifierNotSupported(
                         modifier.node,
                         modifier.location,
