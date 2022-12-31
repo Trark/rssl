@@ -578,6 +578,16 @@ fn check_function_templates() {
     // Invoke the template function with explicit template arguments
     check_types("template<typename T> T f(T v) { return v; } void main() { f<float>(0.0); }");
 
+    // Invoke it twice with different arguments
+    check_types(
+        "template<typename T> T f(T v) { return v; } void main() { f<float>(0.0); f<uint>(0); }",
+    );
+
+    // Invoke it twice with the same arguments
+    check_types(
+        "template<typename T> T f(T v) { return v; } void main() { f<float>(0.0); f<float>(0.0); }",
+    );
+
     // We currently do not support inferring the template arguments
     check_fail("template<typename T> T f(T v) { return v; } void main() { f(0.0); }");
 

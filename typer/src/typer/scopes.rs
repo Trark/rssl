@@ -995,8 +995,6 @@ impl Context {
             // Return active scope
             assert_eq!(self.current_scope, parent_scope_id);
             self.current_scope = caller_scope_position;
-        } else {
-            todo!();
         }
 
         Ok(new_id)
