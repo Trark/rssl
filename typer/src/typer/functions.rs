@@ -4,7 +4,7 @@ use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_statement_list};
 use super::types::{
     apply_template_type_substitution, is_illegal_variable_name, parse_input_modifier,
-    parse_interpolation_modifier, parse_precise, parse_type, parse_type_for_usage, TypePosition,
+    parse_interpolation_modifier, parse_precise, parse_type_for_usage, TypePosition,
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -181,7 +181,22 @@ fn parse_returntype(
     return_type: &ast::FunctionReturn,
     context: &mut Context,
 ) -> TyperResult<ir::FunctionReturn> {
-    let ty = parse_type(&return_type.return_type, context)?;
+    let ty = parse_type_for_usage(&return_type.return_type, TypePosition::Return, context)?;
+
+    // Deny storage class modifiers except static
+    // These apply to function not the return type - and static is the only option so there is nothing to set in the result
+    for modifier in &return_type.return_type.modifiers.modifiers {
+        match &modifier.node {
+            ast::TypeModifier::Extern | ast::TypeModifier::GroupShared => {
+                return Err(TyperError::ModifierNotSupported(
+                    modifier.node,
+                    modifier.location,
+                    TypePosition::Local,
+                ))
+            }
+            _ => continue,
+        }
+    }
 
     Ok(ir::FunctionReturn {
         return_type: ty,

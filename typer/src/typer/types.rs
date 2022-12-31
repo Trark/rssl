@@ -17,6 +17,9 @@ pub enum TypePosition {
     /// Type is for a function parameter
     Parameter,
 
+    /// Type is for a function return
+    Return,
+
     /// Type is for a member of a struct
     StructMember,
 
@@ -47,7 +50,10 @@ pub fn parse_type_for_usage(
     // This does not check the storage class is valid for the types where any are valid
     if !matches!(
         position,
-        TypePosition::Local | TypePosition::Global | TypePosition::StructMember
+        TypePosition::Local
+            | TypePosition::Global
+            | TypePosition::StructMember
+            | TypePosition::Return
     ) {
         deny_storage_class(&ty.modifiers, position)?;
     }
@@ -77,6 +83,7 @@ pub fn parse_type_for_usage(
         position,
         TypePosition::Local
             | TypePosition::Parameter
+            | TypePosition::Return
             | TypePosition::StructMember
             | TypePosition::ConstantBufferMember
     ) {
@@ -359,8 +366,9 @@ fn parse_type_modifier(
             ast::TypeModifier::Volatile => {
                 if matches!(
                     position,
-                    TypePosition::Global
+                    TypePosition::Return
                         | TypePosition::StructMember
+                        | TypePosition::Global
                         | TypePosition::ConstantBufferMember
                 ) {
                     return Err(TyperError::ModifierNotSupported(

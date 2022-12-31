@@ -432,6 +432,65 @@ fn check_function_param_type_mesh_modifiers() {
 }
 
 #[test]
+fn check_function_return_type_modifiers() {
+    // trivial cases
+    check_types("float f() { return 0; }");
+
+    // const is allowed
+    check_types("const float f() { return 0; }");
+    check_types("float const f() { return 0; }");
+
+    // volatile is not allowed
+    check_fail("volatile float f() { return 0; }");
+
+    // volatile can sneak in indirectly
+    check_types("typedef const float X; X f() { return 0; }");
+    check_types("typedef volatile float X; X f() { return 0; }");
+    check_types("typedef const volatile float X; X f() { return 0; }");
+
+    // Matrix orderings are allowed (on matrix types)
+    check_types("row_major float4x4 f() { return (float4x4)0; }");
+    check_types("column_major float4x4 f() { return (float4x4)0; }");
+    check_fail("row_major column_major float4x4 f() { return (float4x4)0; }");
+    check_fail("row_major float f() { return (float4x4)0; }");
+    check_fail("column_major float f() { return (float4x4)0; }");
+
+    // unorm/snorm are allowed
+    check_types("unorm float f() { return 0; }");
+    check_types("snorm float f() { return 0; }");
+    check_fail("unorm snorm float f() { return 0; }");
+    check_fail("unorm uint f() { return 0; }");
+    check_fail("snorm uint f() { return 0; }");
+
+    // only static storage type is allowed - this binds to the function not the return
+    check_types("static float f() { return 0; }");
+    check_fail("extern float f() { return 0; }");
+    check_fail("groupshared float f() { return 0; }");
+
+    // precise is allowed
+    // This is allowed in HLSL but does not seem to be very good at actually applying precise if not one of the entry point outputs
+    check_types("precise float f() { return 0; }");
+
+    // parameter output types are not allowed
+    check_fail("in float f() { return 0; }");
+    check_fail("out float f() { return 0; }");
+    check_fail("inout float f() { return 0; }");
+
+    // Interpolation modifiers are not allowed
+    check_fail("nointerpolation float f() { return 0; }");
+    check_fail("linear float f() { return 0; }");
+    check_fail("centroid float f() { return 0; }");
+    check_fail("noperspective float f() { return 0; }");
+    check_fail("sample float f() { return 0; }");
+
+    // Mesh shader output modifiers are not allowed
+    check_fail("vertices float f() { return 0; }");
+    check_fail("primitives float f() { return 0; }");
+    check_fail("indices float f() { return 0; }");
+    check_fail("payload float f() { return 0; }");
+}
+
+#[test]
 fn check_function_with_contextual_keyword_names() {
     check_types("void precise() { precise(); (precise)(); }");
     check_fail("void nointerpolation() {}");

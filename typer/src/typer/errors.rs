@@ -649,6 +649,7 @@ impl CompileError for TyperExternalError {
                             TypePosition::Free => "in this position",
                             TypePosition::Local => "on a local variable",
                             TypePosition::Parameter => "on a function parameter",
+                            TypePosition::Return => "on a function return",
                             TypePosition::StructMember => "on a field",
                             TypePosition::Global => "on a global variable",
                             TypePosition::ConstantBufferMember => "on a cbuffer member",
