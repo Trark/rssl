@@ -870,6 +870,40 @@ fn check_struct_member_interp_modifiers() {
 }
 
 #[test]
+fn check_struct_member_const() {
+    // const is not valid on a struct member so it can't end up in the final output
+    check_rssl_to_hlsl(
+        "typedef const float X; struct S
+{
+    X x;
+};
+",
+        "struct S
+{
+    float x;
+};
+",
+    );
+}
+
+#[test]
+fn check_struct_member_volatile() {
+    // volatile is not valid on a struct member so it can't end up in the final output
+    check_rssl_to_hlsl(
+        "typedef volatile float X; struct S
+{
+    X x;
+};
+",
+        "struct S
+{
+    float x;
+};
+",
+    );
+}
+
+#[test]
 fn check_struct_member_precise() {
     check_rssl_to_hlsl(
         "struct S

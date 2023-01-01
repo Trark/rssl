@@ -264,9 +264,11 @@ fn export_global_variable(
         export_vk_binding_annotation(&decl.api_slot, output)?;
     }
 
-    let mut suppress_const = false;
+    // const is implicit on extern variables so there is no need to write it out
+    // volatile is not valid on globals so happens to get suppressed at the same time
+    let mut suppress_const_volatile = false;
     match decl.storage_class {
-        ir::GlobalStorage::Extern => suppress_const = true,
+        ir::GlobalStorage::Extern => suppress_const_volatile = true,
         ir::GlobalStorage::Static => output.push_str("static "),
         ir::GlobalStorage::GroupShared => output.push_str("groupshared "),
     }
@@ -274,7 +276,7 @@ fn export_global_variable(
     let mut array_part = String::new();
     export_type_impl(
         decl.type_id,
-        suppress_const,
+        suppress_const_volatile,
         output,
         &mut array_part,
         context,
@@ -553,7 +555,7 @@ fn export_type_for_def(
 /// Export ir type to HLSL
 fn export_type_impl(
     ty: ir::TypeId,
-    suppress_const: bool,
+    suppress_const_volatile: bool,
     output: &mut String,
     output_array: &mut String,
     context: &mut ExportContext,
@@ -634,8 +636,9 @@ fn export_type_impl(
             write!(output_array, "[{}]", len).unwrap();
         }
         ir::TypeLayer::Modifier(mut modifier, ty) => {
-            if suppress_const {
+            if suppress_const_volatile {
                 modifier.is_const = false;
+                modifier.volatile = false;
             }
             write!(output, "{:?}", modifier).unwrap();
             export_type_impl(ty, false, output, output_array, context)?;
@@ -1553,7 +1556,7 @@ fn export_struct(
         }
         export_interpolation_modifier(&member.interpolation_modifier, output)?;
         let mut array_part = String::new();
-        export_type_for_def(member.type_id, output, &mut array_part, context)?;
+        export_type_impl(member.type_id, true, output, &mut array_part, context)?;
         output.push(' ');
         output.push_str(&member.name);
         output.push_str(&array_part);
