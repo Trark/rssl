@@ -1,6 +1,7 @@
 use rssl_ast as ast;
 use rssl_ir as ir;
 
+mod enums;
 mod errors;
 mod expressions;
 mod functions;
@@ -48,7 +49,10 @@ fn parse_rootdefinition(
             let def = structs::parse_rootdefinition_struct(sd, context)?;
             Ok(Vec::from([def]))
         }
-        ast::RootDefinition::Enum(_) => todo!(),
+        ast::RootDefinition::Enum(ref ed) => {
+            let def = enums::parse_rootdefinition_enum(ed, context)?;
+            Ok(Vec::from([def]))
+        }
         ast::RootDefinition::Typedef(ref td) => {
             types::parse_rootdefinition_typedef(td, context)?;
             Ok(Vec::new())

@@ -14,6 +14,8 @@ pub enum Expression {
     Global(GlobalId),
     /// Reference to a variable in a constant buffer global
     ConstantVariable(ConstantBufferId, String),
+    /// Reference to an enum value
+    EnumValue(EnumValueId),
     TernaryConditional(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Chain of expressions
     Sequence(Vec<Expression>),

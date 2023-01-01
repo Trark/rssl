@@ -35,6 +35,7 @@ pub enum TypeLayer {
     Matrix(ScalarType, u32, u32),
     Struct(StructId),
     StructTemplate(StructTemplateId),
+    Enum(EnumId),
     Object(ObjectType),
     Array(TypeId, u64),
     TemplateParam(TemplateTypeId),
@@ -50,6 +51,7 @@ pub enum TypeLayout {
     Matrix(ScalarType, u32, u32),
     Struct(StructId),
     StructTemplate(StructTemplateId),
+    Enum(EnumId),
     Object(ObjectType),
     Array(Box<TypeLayout>, u64),
     TemplateParam(TemplateTypeId),
@@ -66,6 +68,7 @@ impl TypeRegistry {
             TypeLayout::Matrix(st, x, y) => TypeLayer::Matrix(st, x, y),
             TypeLayout::Struct(id) => TypeLayer::Struct(id),
             TypeLayout::StructTemplate(id) => TypeLayer::StructTemplate(id),
+            TypeLayout::Enum(id) => TypeLayer::Enum(id),
             // TODO: Deal with recursive types in object type args
             TypeLayout::Object(ot) => TypeLayer::Object(ot),
             TypeLayout::Array(inner, len) => {
@@ -97,6 +100,7 @@ impl TypeRegistry {
             TypeLayer::Matrix(st, x, y) => TypeLayout::Matrix(*st, *x, *y),
             TypeLayer::Struct(id) => TypeLayout::Struct(*id),
             TypeLayer::StructTemplate(id) => TypeLayout::StructTemplate(*id),
+            TypeLayer::Enum(id) => TypeLayout::Enum(*id),
             // TODO: Deal with recursive types in object type args
             TypeLayer::Object(ot) => TypeLayout::Object(*ot),
             TypeLayer::Array(inner, len) => {
@@ -245,6 +249,10 @@ pub struct StructId(pub u32);
 /// Id to a user defined struct template
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct StructTemplateId(pub u32);
+
+/// Id to a user defined enum
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct EnumId(pub u32);
 
 /// Id to a template type argument
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -922,6 +930,7 @@ impl std::fmt::Debug for TypeLayer {
             TypeLayer::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
             TypeLayer::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
             TypeLayer::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
+            TypeLayer::Enum(ref id) => write!(f, "enum<{}>", id.0),
             TypeLayer::Object(ref ot) => write!(f, "{:?}", ot),
             TypeLayer::Array(ref ty, ref len) => write!(f, "type<{:?}>[{}]", ty, len),
             TypeLayer::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
@@ -939,6 +948,7 @@ impl std::fmt::Debug for TypeLayout {
             TypeLayout::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
             TypeLayout::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
             TypeLayout::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
+            TypeLayout::Enum(ref id) => write!(f, "enum<{}>", id.0),
             TypeLayout::Object(ref ot) => write!(f, "{:?}", ot),
             TypeLayout::Array(ref ty, ref len) => write!(f, "{:?}[{}]", ty, len),
             TypeLayout::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),

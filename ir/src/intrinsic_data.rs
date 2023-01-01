@@ -595,6 +595,7 @@ fn get_max_template_arg(module: &Module, id: TypeId) -> u32 {
         | TypeLayer::Matrix(_, _, _)
         | TypeLayer::Struct(_)
         | TypeLayer::StructTemplate(_)
+        | TypeLayer::Enum(_)
         | TypeLayer::Object(_) => {}
         TypeLayer::Array(inner, _) | TypeLayer::Modifier(_, inner) => {
             count = std::cmp::max(count, get_max_template_arg(module, inner))

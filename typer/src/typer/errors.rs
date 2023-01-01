@@ -12,7 +12,7 @@ pub type TyperResult<T> = Result<T, TyperError>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
-    StructAlreadyDefined(Located<String>, ir::TypeId),
+    TypeAlreadyDefined(Located<String>, ir::TypeId),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
 
@@ -193,7 +193,7 @@ impl CompileError for TyperExternalError {
                 name.location,
                 Severity::Error,
             ),
-            TyperError::StructAlreadyDefined(name, previous_type) => {
+            TyperError::TypeAlreadyDefined(name, previous_type) => {
                 w.write_message(
                     &|f| write!(f, "redefinition of '{}'", name.node),
                     name.location,

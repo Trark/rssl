@@ -54,6 +54,7 @@ fn analyse_bindings(
     match decl {
         ir::RootDefinition::Struct(_)
         | ir::RootDefinition::StructTemplate(_)
+        | ir::RootDefinition::Enum(_)
         | ir::RootDefinition::Function(_) => {}
         ir::RootDefinition::ConstantBuffer(id) => {
             let cb = &context.module.cbuffer_registry[id.0 as usize];
@@ -227,6 +228,9 @@ fn export_root_definition(
         }
         ir::RootDefinition::StructTemplate(_) => {
             todo!("RootDefinition::StructTemplate")
+        }
+        ir::RootDefinition::Enum(_) => {
+            todo!("RootDefinition::Enum")
         }
         ir::RootDefinition::ConstantBuffer(id) => {
             let cb = &module.cbuffer_registry[id.0 as usize];
@@ -961,6 +965,7 @@ fn export_subexpression(
         ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
         ir::Expression::ConstantVariable(_, name) => output.push_str(name),
+        ir::Expression::EnumValue(_) => todo!("Expression::EnumValue"),
         ir::Expression::TernaryConditional(expr_cond, expr_true, expr_false) => {
             export_subexpression(expr_cond, prec, OperatorSide::Left, output, context)?;
             output.push_str(" ? ");
@@ -1062,7 +1067,8 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
         ir::Expression::Literal(_)
         | ir::Expression::Variable(_)
         | ir::Expression::MemberVariable(_)
-        | ir::Expression::Global(_) => 0,
+        | ir::Expression::Global(_)
+        | ir::Expression::EnumValue(_) => 0,
 
         ir::Expression::ConstantVariable(_, _) => 1,
         ir::Expression::TernaryConditional(_, _, _) => 16,

@@ -869,6 +869,68 @@ fn check_struct_templates() {
 }
 
 #[test]
+fn check_enums() {
+    // Check basic usage of empty enums
+    check_types("enum S {}; S value;");
+    check_fail("enum S {}; S value = 0;");
+    check_types("enum S {}; void main() { S value; }");
+    check_fail("enum S {}; void main() { S value = 0; }");
+    check_types("enum S1 {}; enum S2 {}; S1 g1; S2 g2;");
+
+    // Check we can declare enum values
+    check_types("enum S { A };");
+    check_types("enum S { A, B, };");
+    check_types("enum S { A = 2, B, C = 1 };");
+
+    // Check we can not declare the same value name multiple times
+    check_fail("enum S { A, A };");
+
+    // Check the enum value expression can be evaluated to a constant
+    check_types("static const uint c_value = 1; enum S { A = c_value };");
+    check_fail("static uint c_value = 1; enum S { A = c_value };");
+
+    // Check we can use the enum values unscoped
+    check_types("enum S { A = 1 }; void f() { S s = A; }");
+
+    // Check we can use the enum values scoped
+    check_types("enum S { A = 1 }; void f() { S s = S::A; }");
+}
+
+#[test]
+fn check_enum_name_conflicts() {
+    // Two enums can not have the same name
+    check_fail("enum S {}; enum S {};");
+
+    // Declaring an enum with the same name as a variable is allowed
+    check_types("enum S {}; int S;");
+    check_types("int S; enum S {};");
+
+    // Declaring an enum with the same name as a struct is not allowed
+    check_fail("enum S {}; struct S {};");
+    check_fail("struct S {}; enum S {};");
+
+    // Declaring an enum with the same name as a typedef is not allowed
+    check_fail("typedef float S; enum S {};");
+    check_fail("enum S {}; typedef float S;");
+
+    // Check an enum value can not have the same name as a struct
+    check_fail("struct A {}; enum S { A };");
+
+    // Check an enum value can not have the same name as an enum
+    check_fail("enum A {}; enum S { A };");
+
+    // Check an enum value can not have the same name as its own enum
+    check_fail("enum S { S };");
+
+    // Check an enum value can not have the same name as a typedef
+    // HLSL allows this but we do not
+    check_fail("typedef float A; enum S { A };");
+
+    // Check that a global can have the same name as an enum - and we can even use the name in a value expression
+    check_types("static const uint S = 1; enum S { A = S };");
+}
+
+#[test]
 fn check_typedef() {
     check_types("typedef uint u32;");
     check_types("typedef uint u32; u32 x = 1;");

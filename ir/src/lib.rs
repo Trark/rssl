@@ -5,6 +5,7 @@
 
 pub(crate) mod intrinsic_data;
 mod intrinsics;
+mod ir_enums;
 mod ir_expressions;
 mod ir_functions;
 mod ir_globals;
@@ -17,6 +18,7 @@ mod ir_variables;
 pub use rssl_ast::{Literal, PackOffset, PackSubOffset, RegisterType, Semantic};
 
 pub use intrinsics::*;
+pub use ir_enums::*;
 pub use ir_expressions::*;
 pub use ir_functions::*;
 pub use ir_globals::*;

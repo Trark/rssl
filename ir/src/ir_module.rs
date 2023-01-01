@@ -14,6 +14,9 @@ pub struct Module {
     /// Container of all struct template types
     pub struct_template_registry: Vec<StructTemplateDefinition>,
 
+    /// Container for all registered enums in the module
+    pub enum_registry: EnumRegistry,
+
     /// Container of all registered functions in the module
     pub function_registry: FunctionRegistry,
 
@@ -49,6 +52,7 @@ pub struct ModuleFlags {
 pub enum RootDefinition {
     Struct(StructId),
     StructTemplate(StructTemplateId),
+    Enum(EnumId),
     ConstantBuffer(ConstantBufferId),
     GlobalVariable(GlobalId),
     Function(FunctionId),
@@ -155,6 +159,7 @@ impl Module {
             match decl {
                 RootDefinition::Struct(_)
                 | RootDefinition::StructTemplate(_)
+                | RootDefinition::Enum(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &module.cbuffer_registry[id.0 as usize];
@@ -199,6 +204,7 @@ impl Module {
             match decl {
                 RootDefinition::Struct(_)
                 | RootDefinition::StructTemplate(_)
+                | RootDefinition::Enum(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];
@@ -267,6 +273,7 @@ impl Module {
             match decl {
                 RootDefinition::Struct(_)
                 | RootDefinition::StructTemplate(_)
+                | RootDefinition::Enum(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];

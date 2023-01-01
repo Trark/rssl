@@ -64,8 +64,10 @@ struct ScopeData {
     types: HashMap<String, ir::TypeId>,
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
-    template_args: HashMap<String, ir::TemplateTypeId>,
+    enum_values: HashMap<String, ir::EnumValueId>,
+    template_args: HashMap<String, (ir::TemplateTypeId, ir::TypeId)>,
     namespaces: HashMap<String, ScopeIndex>,
+    enum_scopes: HashMap<String, ScopeIndex>,
 
     owning_struct: Option<ir::StructId>,
     function_return_type: Option<ir::TypeId>,
@@ -84,8 +86,10 @@ impl Context {
                 types: HashMap::new(),
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
+                enum_values: HashMap::new(),
                 template_args: HashMap::new(),
                 namespaces: HashMap::new(),
+                enum_scopes: HashMap::new(),
                 owning_struct: None,
                 function_return_type: None,
             }]),
@@ -129,8 +133,10 @@ impl Context {
             types: HashMap::new(),
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
+            enum_values: HashMap::new(),
             template_args: HashMap::new(),
             namespaces: HashMap::new(),
+            enum_scopes: HashMap::new(),
             owning_struct: None,
             function_return_type: None,
         });
@@ -231,38 +237,8 @@ impl Context {
                 let scope = &self.scopes[scope_index];
 
                 // Try to find a matching variable in the searched scope
-                if let Some(ve) = self.find_variable_in_scope(scope, leaf_name, scopes_up) {
+                if let Some(ve) = self.find_identifier_in_scope(scope, leaf_name, scopes_up) {
                     return Ok(ve);
-                }
-
-                // If the scope is for a struct then struct members are possible identifiers
-                if let Some(id) = scope.owning_struct {
-                    match self.get_struct_member_expression(id, leaf_name) {
-                        Ok(StructMemberValue::Variable(ty)) => {
-                            return Ok(VariableExpression::Member(leaf_name.to_string(), ty));
-                        }
-                        Ok(StructMemberValue::Method(overloads)) => {
-                            // Resolve as a function as the method type / value are implicit
-                            return Ok(VariableExpression::Method(UnresolvedFunction {
-                                overloads,
-                            }));
-                        }
-                        Err(_) => {}
-                    }
-                }
-
-                // Try to find a type name in the searched scope
-                if let Some(ty) = scope.types.get(&leaf_name.node) {
-                    return Ok(VariableExpression::Type(*ty));
-                }
-
-                // Try to find a template type name in the searched scope
-                if let Some(id) = scope.template_args.get(&leaf_name.node) {
-                    let ty_id = self
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayout::TemplateParam(*id));
-                    return Ok(VariableExpression::Type(ty_id));
                 }
             }
             scope_index = self.scopes[scope_index].parent_scope;
@@ -346,8 +322,10 @@ impl Context {
     fn walk_into_scopes(&self, start: ScopeIndex, names: &[Located<String>]) -> Option<ScopeIndex> {
         let mut current = start;
         for scope in names {
-            // Currently only support namespaces - not struct name scopes
+            // Currently only support namespaces and enums - not struct name scopes
             if let Some(index) = self.scopes[current].namespaces.get(&scope.node) {
+                current = *index;
+            } else if let Some(index) = self.scopes[current].enum_scopes.get(&scope.node) {
                 current = *index;
             } else {
                 return None;
@@ -515,10 +493,11 @@ impl Context {
         let scope = &self.scopes[self.current_scope];
         let data = self.module.global_registry.last().unwrap();
 
-        match self.find_variable_in_scope(scope, &data.name, 0) {
+        match self.find_identifier_in_scope(scope, &data.name, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::Constant(_, _, ref ty)) => {
+            | Some(VariableExpression::Constant(_, _, ref ty))
+            | Some(VariableExpression::EnumValue(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
                     ty.to_error_type(),
@@ -637,6 +616,106 @@ impl Context {
         Ok(id)
     }
 
+    /// Register a new enum type
+    pub fn register_enum(&mut self, name: Located<String>) -> Result<ir::EnumId, ir::TypeId> {
+        let full_name = self.get_qualified_name(&name);
+
+        let id = self
+            .module
+            .enum_registry
+            .register_enum(ir::EnumDefinition { name, full_name });
+
+        let type_id = self
+            .module
+            .type_registry
+            .register_type(ir::TypeLayout::Enum(id));
+
+        self.module.enum_registry.set_enum_type_id(id, type_id);
+
+        // Get name for insertion into current scope
+        let name = self
+            .module
+            .enum_registry
+            .get_enum_definition(id)
+            .name
+            .to_string();
+
+        // Start the scope for the enum
+        let parent_scope = self.current_scope;
+        let new_scope = self.push_scope_with_name(&name);
+
+        // Record the enum scope index in the parent scope
+        self.scopes[parent_scope]
+            .enum_scopes
+            .insert(name.clone(), new_scope);
+
+        // Record the type in the parent scope
+        match self.scopes[parent_scope].types.entry(name) {
+            Entry::Vacant(v) => {
+                v.insert(type_id);
+            }
+            Entry::Occupied(o) => {
+                return Err(*o.get());
+            }
+        }
+
+        Ok(id)
+    }
+
+    /// Register a new enum value
+    pub fn register_enum_value(
+        &mut self,
+        enum_id: ir::EnumId,
+        name: Located<String>,
+        value: ir::Constant,
+    ) -> TyperResult<()> {
+        let id = self
+            .module
+            .enum_registry
+            .register_enum_value(enum_id, name.clone(), value);
+
+        let parent_scope = self.scopes[self.current_scope].parent_scope;
+
+        // Check for existing symbols
+        // The current scope (enum scope) will have a subset of the parent scope (containing namespace)
+        // So we only need to check the parent
+        match self.find_identifier_in_scope(&self.scopes[parent_scope], &name, 0) {
+            Some(VariableExpression::Local(_, ref ty))
+            | Some(VariableExpression::Global(_, ref ty))
+            | Some(VariableExpression::Constant(_, _, ref ty))
+            | Some(VariableExpression::EnumValue(_, ref ty))
+            | Some(VariableExpression::Type(ref ty)) => {
+                return Err(TyperError::ValueAlreadyDefined(
+                    name.clone(),
+                    ty.to_error_type(),
+                    ErrorType::Unknown,
+                ));
+            }
+            _ => {}
+        };
+
+        // Insert the value into the enum scope
+        match self.scopes[self.current_scope]
+            .enum_values
+            .entry(name.node.clone())
+        {
+            Entry::Occupied(_) => unreachable!("enum value inserted multiple times"),
+            Entry::Vacant(vacant) => {
+                vacant.insert(id);
+            }
+        }
+
+        // Insert the value into the parent scope
+        match self.scopes[parent_scope].enum_values.entry(name.node) {
+            Entry::Occupied(_) => unreachable!("enum value inserted multiple times"),
+            Entry::Vacant(vacant) => {
+                vacant.insert(id);
+            }
+        }
+
+        Ok(())
+    }
+
     /// Build fully qualified name
     fn get_qualified_name(&self, name: &str) -> ir::ScopedName {
         let mut full_name = Vec::from([name.to_string()]);
@@ -697,7 +776,7 @@ impl Context {
                 v.insert(ty);
                 Ok(())
             }
-            Entry::Occupied(o) => Err(TyperError::StructAlreadyDefined(name, *o.get())),
+            Entry::Occupied(o) => Err(TyperError::TypeAlreadyDefined(name, *o.get())),
         }
     }
 
@@ -713,10 +792,16 @@ impl Context {
         {
             Entry::Vacant(id_v) => {
                 let id = ir::TemplateTypeId(current_arg_count as u32);
-                id_v.insert(id);
+                let ty_id = self
+                    .module
+                    .type_registry
+                    .register_type(ir::TypeLayout::TemplateParam(id));
+                id_v.insert((id, ty_id));
                 Ok(id)
             }
-            Entry::Occupied(id_o) => Err(TyperError::TemplateTypeAlreadyDefined(name, *id_o.get())),
+            Entry::Occupied(id_o) => {
+                Err(TyperError::TemplateTypeAlreadyDefined(name, id_o.get().0))
+            }
         }
     }
 
@@ -759,7 +844,7 @@ impl Context {
         None
     }
 
-    fn find_variable_in_scope(
+    fn find_identifier_in_scope(
         &self,
         scope: &ScopeData,
         name: &str,
@@ -792,6 +877,35 @@ impl Context {
             return Some(VariableExpression::Global(*id, type_id));
         }
 
+        if let Some(enum_value_id) = scope.enum_values.get(name) {
+            let def = self.module.enum_registry.get_enum_value(*enum_value_id);
+            return Some(VariableExpression::EnumValue(*enum_value_id, def.type_id));
+        }
+
+        // If the scope is for a struct then struct members are possible identifiers
+        if let Some(id) = scope.owning_struct {
+            match self.get_struct_member_expression(id, name) {
+                Ok(StructMemberValue::Variable(ty)) => {
+                    return Some(VariableExpression::Member(name.to_string(), ty));
+                }
+                Ok(StructMemberValue::Method(overloads)) => {
+                    // Resolve as a function as the method type / value are implicit
+                    return Some(VariableExpression::Method(UnresolvedFunction { overloads }));
+                }
+                Err(_) => {}
+            }
+        }
+
+        // Try to find a type name in the searched scope
+        if let Some(ty) = scope.types.get(name) {
+            return Some(VariableExpression::Type(*ty));
+        }
+
+        // Try to find a template type name in the searched scope
+        if let Some((_, ty_id)) = scope.template_args.get(name) {
+            return Some(VariableExpression::Type(*ty_id));
+        }
+
         None
     }
 
@@ -807,10 +921,11 @@ impl Context {
         let signature = &self.module.function_registry.get_function_signature(id);
 
         // Error if a variable of the same name already exists
-        match self.find_variable_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
+        match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::Constant(_, _, ref ty)) => {
+            | Some(VariableExpression::Constant(_, _, ref ty))
+            | Some(VariableExpression::EnumValue(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     name_data.name.clone(),
                     ty.to_error_type(),
@@ -889,7 +1004,7 @@ impl Context {
 
         // Insert template parameter names as the provided types
         // The new scopes template_args is empty as they are real types now
-        for (template_param_name, template_param_id) in
+        for (template_param_name, (template_param_id, _)) in
             self.scopes[old_scope_id].template_args.clone()
         {
             match &template_args[template_param_id.0 as usize].node {

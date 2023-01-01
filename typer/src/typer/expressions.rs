@@ -15,6 +15,7 @@ pub enum VariableExpression {
     Member(String, ir::TypeId),
     Global(ir::GlobalId, ir::TypeId),
     Constant(ir::ConstantBufferId, String, ir::TypeId),
+    EnumValue(ir::EnumValueId, ir::TypeId),
     Function(UnresolvedFunction),
     Method(UnresolvedFunction),
     Type(ir::TypeId),
@@ -80,6 +81,9 @@ fn parse_identifier(
         }
         VariableExpression::Constant(id, name, ty) => {
             TypedExpression::Value(ir::Expression::ConstantVariable(id, name), ty.to_lvalue())
+        }
+        VariableExpression::EnumValue(id, ty) => {
+            TypedExpression::Value(ir::Expression::EnumValue(id), ty.to_rvalue())
         }
         VariableExpression::Function(func) => TypedExpression::Function(func),
         VariableExpression::Method(func) => TypedExpression::MethodInternal(func),
@@ -1746,6 +1750,12 @@ fn get_expression_type(
         }
         ir::Expression::Global(id) => context.get_type_of_global(id),
         ir::Expression::ConstantVariable(id, ref name) => context.get_type_of_constant(id, name),
+        ir::Expression::EnumValue(id) => Ok(context
+            .module
+            .enum_registry
+            .get_enum_value(id)
+            .type_id
+            .to_rvalue()),
         ir::Expression::TernaryConditional(_, ref expr_left, ref expr_right) => {
             // Ensure the layouts of each side are the same
             // Value types + modifiers can be different

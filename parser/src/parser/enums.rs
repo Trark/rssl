@@ -10,10 +10,7 @@ fn parse_enum_value(input: &[LexToken]) -> ParseResult<EnumValue> {
         }
         Err(_) => (input, None),
     };
-    let sd = EnumValue {
-        name: name.to_node(),
-        value,
-    };
+    let sd = EnumValue { name, value };
     Ok((input, sd))
 }
 
@@ -57,15 +54,15 @@ fn test_enum_definition() {
             name: "TestEnum".to_string().loc(5),
             values: vec![
                 EnumValue {
-                    name: "X".to_string(),
+                    name: "X".to_string().loc(16),
                     value: None,
                 },
                 EnumValue {
-                    name: "Y".to_string(),
+                    name: "Y".to_string().loc(19),
                     value: None,
                 },
                 EnumValue {
-                    name: "Z".to_string(),
+                    name: "Z".to_string().loc(22),
                     value: None,
                 },
             ],
@@ -78,15 +75,15 @@ fn test_enum_definition() {
             name: "TestEnum".to_string().loc(5),
             values: vec![
                 EnumValue {
-                    name: "X".to_string(),
+                    name: "X".to_string().loc(16),
                     value: None,
                 },
                 EnumValue {
-                    name: "Y".to_string(),
+                    name: "Y".to_string().loc(19),
                     value: None,
                 },
                 EnumValue {
-                    name: "Z".to_string(),
+                    name: "Z".to_string().loc(22),
                     value: None,
                 },
             ],
@@ -99,15 +96,15 @@ fn test_enum_definition() {
             name: "TestEnum".to_string().loc(5),
             values: vec![
                 EnumValue {
-                    name: "X".to_string(),
+                    name: "X".to_string().loc(16),
                     value: Some(Expression::Literal(Literal::UntypedInt(0)).loc(20)),
                 },
                 EnumValue {
-                    name: "Y".to_string(),
+                    name: "Y".to_string().loc(23),
                     value: None,
                 },
                 EnumValue {
-                    name: "Z".to_string(),
+                    name: "Z".to_string().loc(26),
                     value: Some(Expression::Literal(Literal::UntypedInt(3)).loc(30)),
                 },
             ],

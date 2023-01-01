@@ -27,7 +27,7 @@ pub fn parse_rootdefinition_struct(
         let name = &sd.name;
         let id = match context.register_struct_template(name.clone(), sd.clone()) {
             Ok(id) => id,
-            Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
+            Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
         };
 
         Ok(ir::RootDefinition::StructTemplate(id))
@@ -57,7 +57,7 @@ fn parse_struct_internal(
     let name = &sd.name;
     let id = match context.begin_struct(name.clone(), template_args.is_empty()) {
         Ok(id) => id,
-        Err(id) => return Err(TyperError::StructAlreadyDefined(name.clone(), id)),
+        Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
     };
 
     context.push_scope_with_name(name);

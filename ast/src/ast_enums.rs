@@ -11,6 +11,6 @@ pub struct EnumDefinition {
 /// A definition for a value inside an enum
 #[derive(PartialEq, Debug, Clone)]
 pub struct EnumValue {
-    pub name: String,
+    pub name: Located<String>,
     pub value: Option<Located<Expression>>,
 }
