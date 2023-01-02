@@ -105,6 +105,12 @@ impl Module {
         &self.struct_template_registry[id.0 as usize].name.node
     }
 
+    /// Get the name from an enum id
+    #[inline]
+    pub fn get_enum_name(&self, id: EnumId) -> &str {
+        &self.enum_registry.get_enum_definition(id).name.node
+    }
+
     /// Get the name from a function id
     pub fn get_function_name(&self, id: FunctionId) -> &str {
         self.function_registry.get_function_name(id)

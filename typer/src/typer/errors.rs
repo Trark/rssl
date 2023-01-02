@@ -750,6 +750,7 @@ fn get_type_id_string(id: ir::TypeId, context: &Context) -> String {
 fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
     match *tyl {
         ir::TypeLayout::Struct(sid) => get_struct_name(sid, context),
+        ir::TypeLayout::Enum(id) => get_enum_name(id, context),
         ir::TypeLayout::Object(ref ot) => get_object_type_string(ot, context),
         ir::TypeLayout::Array(ref ty, ref len) => {
             format!("{}[{}]", get_type_string(ty, context), len)
@@ -798,7 +799,12 @@ fn get_param_type_string(param: &ir::ParamType, context: &Context) -> String {
     )
 }
 
-/// Get a string name from a struct name for error display
+/// Get a string name from a struct id for error display
 fn get_struct_name(id: ir::StructId, context: &Context) -> String {
     context.module.get_struct_name(id).to_string()
+}
+
+/// Get a string name from an enum id for error display
+fn get_enum_name(id: ir::EnumId, context: &Context) -> String {
+    context.module.get_enum_name(id).to_string()
 }
