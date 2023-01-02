@@ -377,19 +377,53 @@ pub enum ObjectType {
 }
 
 /// A constant value
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Constant {
     /// Boolean value
     Bool(bool),
 
     /// Int literal before it receives a proper int type
-    UntypedInt(u64),
+    UntypedInt(i128),
 
     /// 32-bit signed integer
     Int(i32),
 
     /// 32-bit unsigned integer
     UInt(u32),
+
+    /// 64-bit unsigned integer
+    Long(u64),
+
+    /// 16-bit floating point value
+    Half(f32),
+
+    /// 32-bit floating point value
+    Float(f32),
+
+    /// 64-bit floating point value
+    Double(f64),
+
+    /// A string value
+    String(String),
+}
+
+/// A constant value with unique equality
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub enum RestrictedConstant {
+    /// Boolean value
+    Bool(bool),
+
+    /// Int literal before it receives a proper int type
+    UntypedInt(i128),
+
+    /// 32-bit signed integer
+    Int(i32),
+
+    /// 32-bit unsigned integer
+    UInt(u32),
+
+    /// 64-bit unsigned integer
+    Long(u64),
 }
 
 /// Either a type or a constant
@@ -399,7 +433,7 @@ pub enum TypeOrConstant {
     Type(TypeId),
 
     /// Value is a constant
-    Constant(Constant),
+    Constant(RestrictedConstant),
 }
 
 impl TypeId {
@@ -904,7 +938,7 @@ impl Constant {
     pub fn to_uint64(&self) -> Option<u64> {
         match self {
             Constant::Bool(v) => Some(u64::from(*v)),
-            Constant::UntypedInt(v) => Some(*v),
+            Constant::UntypedInt(v) if *v <= u64::MAX as i128 => Some(*v as u64),
             Constant::Int(v) if *v >= 0 => Some(*v as u64),
             Constant::UInt(v) => Some(*v as u64),
             _ => None,
@@ -912,8 +946,26 @@ impl Constant {
     }
 }
 
+impl RestrictedConstant {
+    /// Convert to an unrestricted constant
+    pub fn unrestrict(self) -> Constant {
+        match self {
+            RestrictedConstant::Bool(v) => Constant::Bool(v),
+            RestrictedConstant::UntypedInt(v) => Constant::UntypedInt(v),
+            RestrictedConstant::Int(v) => Constant::Int(v),
+            RestrictedConstant::UInt(v) => Constant::UInt(v),
+            RestrictedConstant::Long(v) => Constant::Long(v),
+        }
+    }
+
+    /// Cast a constant to a u64 value
+    pub fn to_uint64(&self) -> Option<u64> {
+        self.clone().unrestrict().to_uint64()
+    }
+}
+
 impl TypeOrConstant {
-    pub fn as_constant(&self) -> Option<&Constant> {
+    pub fn as_constant(&self) -> Option<&RestrictedConstant> {
         match self {
             TypeOrConstant::Type(_) => None,
             TypeOrConstant::Constant(val) => Some(val),

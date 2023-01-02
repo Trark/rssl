@@ -2,6 +2,7 @@ use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::apply_variable_bind;
+use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
@@ -189,11 +190,13 @@ pub fn parse_data_layout(
                             _ => return None,
                         };
 
-                        let dim_x =
-                            match template_args[1].as_constant().map(ir::Constant::to_uint64) {
-                                Some(Some(v)) if (1..=4).contains(&v) => v,
-                                _ => return None,
-                            };
+                        let dim_x = match template_args[1]
+                            .as_constant()
+                            .map(ir::RestrictedConstant::to_uint64)
+                        {
+                            Some(Some(v)) if (1..=4).contains(&v) => v,
+                            _ => return None,
+                        };
 
                         Some(ir::TypeLayout::Vector(s, dim_x as u32))
                     } else {
@@ -213,17 +216,21 @@ pub fn parse_data_layout(
                             _ => return None,
                         };
 
-                        let dim_x =
-                            match template_args[1].as_constant().map(ir::Constant::to_uint64) {
-                                Some(Some(v)) if (1..=4).contains(&v) => v,
-                                _ => return None,
-                            };
+                        let dim_x = match template_args[1]
+                            .as_constant()
+                            .map(ir::RestrictedConstant::to_uint64)
+                        {
+                            Some(Some(v)) if (1..=4).contains(&v) => v,
+                            _ => return None,
+                        };
 
-                        let dim_y =
-                            match template_args[2].as_constant().map(ir::Constant::to_uint64) {
-                                Some(Some(v)) if (1..=4).contains(&v) => v,
-                                _ => return None,
-                            };
+                        let dim_y = match template_args[2]
+                            .as_constant()
+                            .map(ir::RestrictedConstant::to_uint64)
+                        {
+                            Some(Some(v)) if (1..=4).contains(&v) => v,
+                            _ => return None,
+                        };
 
                         Some(ir::TypeLayout::Matrix(s, dim_x as u32, dim_y as u32))
                     } else {
@@ -674,29 +681,25 @@ pub fn apply_template_type_substitution(
 fn parse_and_evaluate_constant_expression(
     expr: &Located<ast::Expression>,
     context: &mut Context,
-) -> TyperResult<ir::Constant> {
+) -> TyperResult<ir::RestrictedConstant> {
     let ir_expr = parse_expr(expr, context)?;
-    evaluate_constant_expression(&ir_expr.0, expr.location, context)
-}
 
-/// Attempt to evaluate an expression as a constant expression
-fn evaluate_constant_expression(
-    expr: &ir::Expression,
-    source_location: SourceLocation,
-    _: &mut Context,
-) -> TyperResult<ir::Constant> {
-    let c = match *expr {
-        ir::Expression::Literal(ir::Literal::Bool(v)) => ir::Constant::Bool(v),
-        ir::Expression::Literal(ir::Literal::UntypedInt(v)) => ir::Constant::UntypedInt(v),
-        ir::Expression::Literal(ir::Literal::Int(v)) => ir::Constant::Int(v as i32),
-        ir::Expression::Literal(ir::Literal::UInt(v)) => ir::Constant::UInt(v as u32),
-        _ => {
-            return Err(TyperError::ExpressionIsNotConstantExpression(
-                source_location,
-            ))
-        }
+    let constant = match evaluate_constexpr(&ir_expr.0, &mut context.module) {
+        Ok(constant) => constant,
+        Err(()) => return Err(TyperError::ExpressionIsNotConstantExpression(expr.location)),
     };
-    Ok(c)
+
+    let restricted = match constant {
+        ir::Constant::Bool(v) => ir::RestrictedConstant::Bool(v),
+        ir::Constant::UntypedInt(v) => ir::RestrictedConstant::UntypedInt(v),
+        ir::Constant::Int(v) => ir::RestrictedConstant::Int(v),
+        ir::Constant::UInt(v) => ir::RestrictedConstant::UInt(v),
+        ir::Constant::Long(v) => ir::RestrictedConstant::Long(v),
+        // If the constant type can not be used for a template argument then claim it is not a constant expression
+        _ => return Err(TyperError::ExpressionIsNotConstantExpression(expr.location)),
+    };
+
+    Ok(restricted)
 }
 
 /// Process a typedef

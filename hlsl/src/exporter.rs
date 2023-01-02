@@ -679,24 +679,25 @@ fn export_type_or_constant(
 }
 
 /// Export ir literal to HLSL
-fn export_literal(literal: &ir::Literal, output: &mut String) -> Result<(), ExportError> {
+fn export_literal(literal: &ir::Constant, output: &mut String) -> Result<(), ExportError> {
     match literal {
-        ir::Literal::Bool(true) => output.push_str("true"),
-        ir::Literal::Bool(false) => output.push_str("false"),
+        ir::Constant::Bool(true) => output.push_str("true"),
+        ir::Constant::Bool(false) => output.push_str("false"),
+        ir::Constant::UntypedInt(v) => write!(output, "{}", v).unwrap(),
         // There is no signed integer suffix - but the way we generate code should avoid overload issues with unsigned integers
-        ir::Literal::UntypedInt(v) | ir::Literal::Int(v) => write!(output, "{}", v).unwrap(),
-        ir::Literal::UInt(v) => write!(output, "{}u", v).unwrap(),
-        ir::Literal::Long(v) => write!(output, "{}l", v).unwrap(),
-        ir::Literal::Half(v) => write!(output, "{}h", v).unwrap(),
-        ir::Literal::Float(v) if *v == (*v as i64 as f32) => {
+        ir::Constant::Int(v) => write!(output, "{}", v).unwrap(),
+        ir::Constant::UInt(v) => write!(output, "{}u", v).unwrap(),
+        ir::Constant::Long(v) => write!(output, "{}l", v).unwrap(),
+        ir::Constant::Half(v) => write!(output, "{}h", v).unwrap(),
+        ir::Constant::Float(v) if *v == (*v as i64 as f32) => {
             write!(output, "{}.0", *v as i64).unwrap()
         }
-        ir::Literal::Float(v) if *v > i64::MAX as f32 || *v < i64::MIN as f32 => {
+        ir::Constant::Float(v) if *v > i64::MAX as f32 || *v < i64::MIN as f32 => {
             write!(output, "{}.0", v).unwrap()
         }
-        ir::Literal::Float(v) => write!(output, "{}", v).unwrap(),
-        ir::Literal::Double(v) => write!(output, "{}L", v).unwrap(),
-        ir::Literal::String(_) => panic!("literal string not expected in output"),
+        ir::Constant::Float(v) => write!(output, "{}", v).unwrap(),
+        ir::Constant::Double(v) => write!(output, "{}L", v).unwrap(),
+        ir::Constant::String(_) => panic!("literal string not expected in output"),
     }
     Ok(())
 }

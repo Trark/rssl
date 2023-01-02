@@ -393,75 +393,26 @@ fn create_intrinsic(
 }
 
 fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TyperResult<TypedExpression> {
-    Ok(match ast {
-        ast::Literal::Bool(b) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::Bool(*b)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::bool())
-                .to_rvalue(),
-        ),
-        ast::Literal::UntypedInt(i) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::UntypedInt(*i)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt))
-                .to_rvalue(),
-        ),
-        ast::Literal::Int(i) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::Int(*i)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::int())
-                .to_rvalue(),
-        ),
-        ast::Literal::UInt(i) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::UInt(*i)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::uint())
-                .to_rvalue(),
-        ),
-        ast::Literal::Long(i) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::Long(*i)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt))
-                .to_rvalue(),
-        ),
-        ast::Literal::Half(f) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::Half(*f)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::float())
-                .to_rvalue(),
-        ),
-        ast::Literal::Float(f) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::Float(*f)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::float())
-                .to_rvalue(),
-        ),
-        ast::Literal::Double(f) => TypedExpression::Value(
-            ir::Expression::Literal(ir::Literal::Double(*f)),
-            context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayout::double())
-                .to_rvalue(),
-        ),
+    let constant = match ast {
+        ast::Literal::Bool(b) => ir::Constant::Bool(*b),
+        ast::Literal::UntypedInt(i) => ir::Constant::UntypedInt(*i as i128),
+        ast::Literal::Int(i) => ir::Constant::Int(*i as i32),
+        ast::Literal::UInt(i) => ir::Constant::UInt(*i as u32),
+        ast::Literal::Long(i) => ir::Constant::Long(*i),
+        ast::Literal::Half(f) => ir::Constant::Half(*f),
+        ast::Literal::Float(f) => ir::Constant::Float(*f),
+        ast::Literal::Double(f) => ir::Constant::Double(*f),
         ast::Literal::String(_) => {
             return Err(TyperError::StringNotSupported(SourceLocation::UNKNOWN))
         }
-    })
+    };
+
+    let ty = get_constant_type(&constant, context);
+
+    Ok(TypedExpression::Value(
+        ir::Expression::Literal(constant),
+        ty,
+    ))
 }
 
 fn parse_expr_unaryop(
@@ -1720,18 +1671,18 @@ pub fn parse_expr(
     Ok((expr_ir, expr_ety))
 }
 
-/// Find the type of a literal
-fn get_literal_type(literal: &ir::Literal, context: &mut Context) -> ExpressionType {
+/// Find the type of a constant
+fn get_constant_type(literal: &ir::Constant, context: &mut Context) -> ExpressionType {
     let tyl = match *literal {
-        ir::Literal::Bool(_) => ir::TypeLayout::bool(),
-        ir::Literal::UntypedInt(_) => ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt),
-        ir::Literal::Int(_) => ir::TypeLayout::int(),
-        ir::Literal::UInt(_) => ir::TypeLayout::uint(),
-        ir::Literal::Long(_) => unimplemented!(),
-        ir::Literal::Half(_) => ir::TypeLayout::from_scalar(ir::ScalarType::Half),
-        ir::Literal::Float(_) => ir::TypeLayout::float(),
-        ir::Literal::Double(_) => ir::TypeLayout::double(),
-        ir::Literal::String(_) => panic!("strings not supported"),
+        ir::Constant::Bool(_) => ir::TypeLayout::bool(),
+        ir::Constant::UntypedInt(_) => ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt),
+        ir::Constant::Int(_) => ir::TypeLayout::int(),
+        ir::Constant::UInt(_) => ir::TypeLayout::uint(),
+        ir::Constant::Long(_) => unimplemented!(),
+        ir::Constant::Half(_) => ir::TypeLayout::from_scalar(ir::ScalarType::Half),
+        ir::Constant::Float(_) => ir::TypeLayout::float(),
+        ir::Constant::Double(_) => ir::TypeLayout::double(),
+        ir::Constant::String(_) => panic!("strings not supported"),
     };
     context.module.type_registry.register_type(tyl).to_rvalue()
 }
@@ -1742,7 +1693,7 @@ fn get_expression_type(
     context: &mut Context,
 ) -> TyperResult<ExpressionType> {
     match *expression {
-        ir::Expression::Literal(ref lit) => Ok(get_literal_type(lit, context)),
+        ir::Expression::Literal(ref lit) => Ok(get_constant_type(lit, context)),
         ir::Expression::Variable(var_ref) => context.get_type_of_variable(var_ref),
         ir::Expression::MemberVariable(ref name) => {
             let struct_id = context.get_current_owning_struct();

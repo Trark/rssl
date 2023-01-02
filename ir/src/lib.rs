@@ -15,7 +15,7 @@ mod ir_structs;
 mod ir_types;
 mod ir_variables;
 
-pub use rssl_ast::{Literal, PackOffset, PackSubOffset, RegisterType, Semantic};
+pub use rssl_ast::{PackOffset, PackSubOffset, RegisterType, Semantic};
 
 pub use intrinsics::*;
 pub use ir_enums::*;

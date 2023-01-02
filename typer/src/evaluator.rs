@@ -1,4 +1,3 @@
-use rssl_ast as ast;
 use rssl_ir as ir;
 
 /// Evaluate a subset of possible constant expressions
@@ -7,10 +6,7 @@ pub fn evaluate_constexpr(
     module: &mut ir::Module,
 ) -> Result<ir::Constant, ()> {
     Ok(match *expr {
-        ir::Expression::Literal(ast::Literal::Bool(v)) => ir::Constant::Bool(v),
-        ir::Expression::Literal(ast::Literal::UntypedInt(i)) => ir::Constant::UntypedInt(i),
-        ir::Expression::Literal(ast::Literal::Int(i)) => ir::Constant::Int(i as i32),
-        ir::Expression::Literal(ast::Literal::UInt(i)) => ir::Constant::UInt(i as u32),
+        ir::Expression::Literal(ref v) => v.clone(),
         ir::Expression::IntrinsicOp(ref op, _, ref args) => {
             let mut arg_values = Vec::with_capacity(args.len());
             for arg in args {
@@ -112,12 +108,14 @@ pub fn evaluate_constexpr(
                     ir::Constant::UntypedInt(v) => ir::Constant::Int(v as i32),
                     ir::Constant::Int(v) => ir::Constant::Int(v),
                     ir::Constant::UInt(v) => ir::Constant::Int(v as i32),
+                    _ => return Err(()),
                 },
                 ir::TypeLayer::Scalar(ir::ScalarType::UInt) => match inner_value {
                     ir::Constant::Bool(v) => ir::Constant::UInt(u32::from(v)),
                     ir::Constant::UntypedInt(v) => ir::Constant::UInt(v as u32),
                     ir::Constant::Int(v) => ir::Constant::UInt(v as u32),
                     ir::Constant::UInt(v) => ir::Constant::UInt(v),
+                    _ => return Err(()),
                 },
                 _ => return Err(()),
             }

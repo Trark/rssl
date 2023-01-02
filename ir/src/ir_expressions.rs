@@ -4,7 +4,7 @@ use rssl_text::Located;
 /// A typed RSSL expression
 #[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
-    Literal(Literal),
+    Literal(Constant),
     /// Reference to a variable in a local scope
     Variable(VariableRef),
     /// Reference to a variable in the struct that owns this expression

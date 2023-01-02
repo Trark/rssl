@@ -419,24 +419,26 @@ impl ImplicitConversion {
 
         // If the type was an untyped literal int then instead convert the literal type
         // This simplifies the expressions we generate so we don't have to clean it up later
-        if let Expression::Literal(Literal::UntypedInt(v)) = expr {
+        if let Expression::Literal(Constant::UntypedInt(v)) = expr {
             let target_type_unmodified = module.type_registry.remove_modifier(target_type.0);
             match module.type_registry.get_type_layer(target_type_unmodified) {
                 TypeLayer::Scalar(ScalarType::Bool) => {
-                    return Expression::Literal(Literal::Bool(v != 0))
+                    return Expression::Literal(Constant::Bool(v != 0))
                 }
                 TypeLayer::Scalar(ScalarType::UInt) => {
-                    return Expression::Literal(Literal::UInt(v))
+                    return Expression::Literal(Constant::UInt(v as u32))
                 }
-                TypeLayer::Scalar(ScalarType::Int) => return Expression::Literal(Literal::Int(v)),
+                TypeLayer::Scalar(ScalarType::Int) => {
+                    return Expression::Literal(Constant::Int(v as i32))
+                }
                 TypeLayer::Scalar(ScalarType::Half) => {
-                    return Expression::Literal(Literal::Half(v as f32))
+                    return Expression::Literal(Constant::Half(v as f32))
                 }
                 TypeLayer::Scalar(ScalarType::Float) => {
-                    return Expression::Literal(Literal::Float(v as f32))
+                    return Expression::Literal(Constant::Float(v as f32))
                 }
                 TypeLayer::Scalar(ScalarType::Double) => {
-                    return Expression::Literal(Literal::Double(v as f64))
+                    return Expression::Literal(Constant::Double(v as f64))
                 }
                 _ => {}
             }
