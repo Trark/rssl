@@ -901,6 +901,8 @@ fn check_enum_value_init_references() {
     // Check we can initialize a value with another value
     check_types("enum S { A, B = A };");
     check_types("enum S { A, B = S::A };");
+    check_types("enum S { A, B = ::S::A };");
+    check_types("enum S { A, B = ::A };");
 
     // We can not use enum values declared later
     check_fail("enum S { A = B, B };");
@@ -909,6 +911,8 @@ fn check_enum_value_init_references() {
     // A and B don't have proper types here so don't need to cast to int
     check_types("enum S { A = 2u, B = 3, C = A | B };");
     check_types("enum S { A = 2u, B = 3, C = S::A | S::B };");
+    check_types("enum S { A = 2u, B = 3, C = ::S::A | ::S::B };");
+    check_types("enum S { A = 2u, B = 3, C = ::A | ::B };");
 
     // Other enums can be initialized from previous enums
     check_types("enum S1 { A }; enum S2 { Z = A };");
@@ -917,6 +921,8 @@ fn check_enum_value_init_references() {
     // Test the case where the int cast is explicit
     check_types("enum S1 { A, B }; enum S2 { Z = (int)A | (int)B };");
     check_types("enum S1 { A, B }; enum S2 { Z = (int)S1::A | (int)S1::B };");
+    check_types("enum S1 { A, B }; enum S2 { Z = (int)::S1::A | (int)::S1::B };");
+    check_types("enum S1 { A, B }; enum S2 { Z = (int)::A | (int)::B };");
 }
 
 #[test]

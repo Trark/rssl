@@ -667,13 +667,30 @@ impl Context {
 
     /// Finish registering an enum type
     pub fn end_enum(&mut self) {
-        // Promote untyped enum values to typed
+        let enum_scope = &mut self.scopes[self.current_scope];
+        let parent_scope = enum_scope.parent_scope;
+
+        let mut enum_values = std::mem::take(&mut enum_scope.untyped_enum_values);
+
+        // Remove untyped enum values from the parent scope
+        assert_eq!(
+            self.scopes[parent_scope].untyped_enum_values.len(),
+            enum_values.len()
+        );
+        self.scopes[parent_scope].untyped_enum_values.clear();
+
+        // Insert them again as typed values
+        for (enum_name, enum_value_id) in &enum_values {
+            let res = self.scopes[parent_scope]
+                .enum_values
+                .insert(enum_name.clone(), *enum_value_id);
+            assert!(res.is_none());
+        }
+
+        // Promote untyped enum values to typed in enum scope
         let enum_scope = &mut self.scopes[self.current_scope];
         assert!(enum_scope.enum_values.is_empty());
-        std::mem::swap(
-            &mut enum_scope.untyped_enum_values,
-            &mut enum_scope.enum_values,
-        );
+        std::mem::swap(&mut enum_scope.enum_values, &mut enum_values);
 
         self.pop_scope();
     }
@@ -729,23 +746,16 @@ impl Context {
         };
 
         // Insert the value into the enum scope
-        match self.scopes[self.current_scope]
+        let res = self.scopes[self.current_scope]
             .untyped_enum_values
-            .entry(name.node.clone())
-        {
-            Entry::Occupied(_) => unreachable!("enum value inserted multiple times"),
-            Entry::Vacant(vacant) => {
-                vacant.insert(id);
-            }
-        }
+            .insert(name.node.clone(), id);
+        assert!(res.is_none(), "enum value inserted multiple times");
 
         // Insert the value into the parent scope
-        match self.scopes[parent_scope].enum_values.entry(name.node) {
-            Entry::Occupied(_) => unreachable!("enum value inserted multiple times"),
-            Entry::Vacant(vacant) => {
-                vacant.insert(id);
-            }
-        }
+        let res = self.scopes[parent_scope]
+            .untyped_enum_values
+            .insert(name.node, id);
+        assert!(res.is_none(), "enum value inserted multiple times");
 
         Ok(())
     }

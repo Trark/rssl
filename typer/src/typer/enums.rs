@@ -29,11 +29,11 @@ pub fn parse_rootdefinition_enum(
         } else {
             match last_value {
                 None => (
-                    ir::Constant::UntypedInt(0),
+                    ir::Constant::Int(0),
                     context
                         .module
                         .type_registry
-                        .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt)),
+                        .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
                 ),
                 Some(last_value) => {
                     let next_value = match last_value.0 {
