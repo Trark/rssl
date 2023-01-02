@@ -36,14 +36,17 @@ pub struct EnumValue {
     /// Id of the enum the value is for
     pub enum_id: EnumId,
 
-    /// Id of the base type  for the num the value is for
+    /// Id of the base type for the enum the value is for
     pub type_id: TypeId,
 
     /// Name of the value
     pub name: Located<String>,
 
-    /// Value of the value
+    /// Underlying value of the enum value
     pub value: Constant,
+
+    /// Id for the type of the constant
+    pub underlying_type_id: TypeId,
 }
 
 impl EnumRegistry {
@@ -70,6 +73,7 @@ impl EnumRegistry {
         enum_id: EnumId,
         name: Located<String>,
         value: Constant,
+        underlying_type_id: TypeId,
     ) -> EnumValueId {
         let type_id = self.get_type_id(enum_id);
 
@@ -79,6 +83,7 @@ impl EnumRegistry {
             type_id,
             name,
             value,
+            underlying_type_id,
         });
 
         id

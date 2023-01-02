@@ -405,6 +405,9 @@ pub enum Constant {
 
     /// A string value
     String(String),
+
+    /// Enum value - with underlying constant value
+    Enum(EnumId, Box<Constant>),
 }
 
 /// A constant value with unique equality
@@ -424,6 +427,9 @@ pub enum RestrictedConstant {
 
     /// 64-bit unsigned integer
     Long(u64),
+
+    /// Enum value - with underlying constant value
+    Enum(EnumId, Box<RestrictedConstant>),
 }
 
 /// Either a type or a constant
@@ -955,6 +961,7 @@ impl RestrictedConstant {
             RestrictedConstant::Int(v) => Constant::Int(v),
             RestrictedConstant::UInt(v) => Constant::UInt(v),
             RestrictedConstant::Long(v) => Constant::Long(v),
+            RestrictedConstant::Enum(ty, v) => Constant::Enum(ty, Box::new(v.unrestrict())),
         }
     }
 

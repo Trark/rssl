@@ -65,6 +65,7 @@ struct ScopeData {
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
     enum_values: HashMap<String, ir::EnumValueId>,
+    untyped_enum_values: HashMap<String, ir::EnumValueId>,
     template_args: HashMap<String, (ir::TemplateTypeId, ir::TypeId)>,
     namespaces: HashMap<String, ScopeIndex>,
     enum_scopes: HashMap<String, ScopeIndex>,
@@ -87,6 +88,7 @@ impl Context {
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
                 enum_values: HashMap::new(),
+                untyped_enum_values: HashMap::new(),
                 template_args: HashMap::new(),
                 namespaces: HashMap::new(),
                 enum_scopes: HashMap::new(),
@@ -134,6 +136,7 @@ impl Context {
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
             enum_values: HashMap::new(),
+            untyped_enum_values: HashMap::new(),
             template_args: HashMap::new(),
             namespaces: HashMap::new(),
             enum_scopes: HashMap::new(),
@@ -496,7 +499,7 @@ impl Context {
         match self.find_identifier_in_scope(scope, &data.name, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::Constant(_, _, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
             | Some(VariableExpression::EnumValue(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
@@ -617,7 +620,7 @@ impl Context {
     }
 
     /// Register a new enum type
-    pub fn register_enum(&mut self, name: Located<String>) -> Result<ir::EnumId, ir::TypeId> {
+    pub fn begin_enum(&mut self, name: Located<String>) -> Result<ir::EnumId, ir::TypeId> {
         let full_name = self.get_qualified_name(&name);
 
         let id = self
@@ -662,27 +665,55 @@ impl Context {
         Ok(id)
     }
 
+    /// Finish registering an enum type
+    pub fn end_enum(&mut self) {
+        // Promote untyped enum values to typed
+        let enum_scope = &mut self.scopes[self.current_scope];
+        assert!(enum_scope.enum_values.is_empty());
+        std::mem::swap(
+            &mut enum_scope.untyped_enum_values,
+            &mut enum_scope.enum_values,
+        );
+
+        self.pop_scope();
+    }
+
     /// Register a new enum value
     pub fn register_enum_value(
         &mut self,
         enum_id: ir::EnumId,
         name: Located<String>,
         value: ir::Constant,
+        value_ty: ir::TypeId,
     ) -> TyperResult<()> {
-        let id = self
-            .module
-            .enum_registry
-            .register_enum_value(enum_id, name.clone(), value);
+        let id =
+            self.module
+                .enum_registry
+                .register_enum_value(enum_id, name.clone(), value, value_ty);
 
         let parent_scope = self.scopes[self.current_scope].parent_scope;
 
         // Check for existing symbols
-        // The current scope (enum scope) will have a subset of the parent scope (containing namespace)
-        // So we only need to check the parent
+        // Enum scope only cares about the values we are declaring in the current enum
+        match self.find_identifier_in_scope(&self.scopes[self.current_scope], &name, 0) {
+            Some(VariableExpression::EnumValueUntyped(_, ref ty)) => {
+                return Err(TyperError::ValueAlreadyDefined(
+                    name.clone(),
+                    ty.to_error_type(),
+                    ErrorType::Unknown,
+                ));
+            }
+            Some(VariableExpression::EnumValue(_, _)) => {
+                panic!("Non-untyped enum value ended up in partial enum definition")
+            }
+            _ => {}
+        };
+
+        // The parent scope will have the majority of potential conflicts
         match self.find_identifier_in_scope(&self.scopes[parent_scope], &name, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::Constant(_, _, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
             | Some(VariableExpression::EnumValue(_, ref ty))
             | Some(VariableExpression::Type(ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
@@ -691,12 +722,15 @@ impl Context {
                     ErrorType::Unknown,
                 ));
             }
+            Some(VariableExpression::EnumValueUntyped(_, _)) => {
+                panic!("Non-untyped enum value ended up in parent scope")
+            }
             _ => {}
         };
 
         // Insert the value into the enum scope
         match self.scopes[self.current_scope]
-            .enum_values
+            .untyped_enum_values
             .entry(name.node.clone())
         {
             Entry::Occupied(_) => unreachable!("enum value inserted multiple times"),
@@ -867,7 +901,11 @@ impl Context {
         for id in scope.cbuffer_ids.values() {
             for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
                 if member_name == name {
-                    return Some(VariableExpression::Constant(*id, name.to_string(), *ty));
+                    return Some(VariableExpression::ConstantBufferMember(
+                        *id,
+                        name.to_string(),
+                        *ty,
+                    ));
                 }
             }
         }
@@ -875,6 +913,14 @@ impl Context {
         if let Some(id) = scope.global_ids.get(name) {
             let type_id = self.module.global_registry[id.0 as usize].type_id;
             return Some(VariableExpression::Global(*id, type_id));
+        }
+
+        if let Some(enum_value_id) = scope.untyped_enum_values.get(name) {
+            let def = self.module.enum_registry.get_enum_value(*enum_value_id);
+            return Some(VariableExpression::EnumValueUntyped(
+                def.value.clone(),
+                def.underlying_type_id,
+            ));
         }
 
         if let Some(enum_value_id) = scope.enum_values.get(name) {
@@ -924,7 +970,7 @@ impl Context {
         match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::Constant(_, _, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
             | Some(VariableExpression::EnumValue(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     name_data.name.clone(),

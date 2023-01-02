@@ -14,7 +14,8 @@ pub enum VariableExpression {
     Local(ir::VariableRef, ir::TypeId),
     Member(String, ir::TypeId),
     Global(ir::GlobalId, ir::TypeId),
-    Constant(ir::ConstantBufferId, String, ir::TypeId),
+    ConstantBufferMember(ir::ConstantBufferId, String, ir::TypeId),
+    EnumValueUntyped(ir::Constant, ir::TypeId),
     EnumValue(ir::EnumValueId, ir::TypeId),
     Function(UnresolvedFunction),
     Method(UnresolvedFunction),
@@ -79,8 +80,11 @@ fn parse_identifier(
         VariableExpression::Global(id, ty) => {
             TypedExpression::Value(ir::Expression::Global(id), ty.to_lvalue())
         }
-        VariableExpression::Constant(id, name, ty) => {
+        VariableExpression::ConstantBufferMember(id, name, ty) => {
             TypedExpression::Value(ir::Expression::ConstantVariable(id, name), ty.to_lvalue())
+        }
+        VariableExpression::EnumValueUntyped(c, ty) => {
+            TypedExpression::Value(ir::Expression::Literal(c), ty.to_rvalue())
         }
         VariableExpression::EnumValue(id, ty) => {
             TypedExpression::Value(ir::Expression::EnumValue(id), ty.to_rvalue())
@@ -1683,6 +1687,7 @@ fn get_constant_type(literal: &ir::Constant, context: &mut Context) -> Expressio
         ir::Constant::Float(_) => ir::TypeLayout::float(),
         ir::Constant::Double(_) => ir::TypeLayout::double(),
         ir::Constant::String(_) => panic!("strings not supported"),
+        ir::Constant::Enum(_, _) => panic!("enum not expected"),
     };
     context.module.type_registry.register_type(tyl).to_rvalue()
 }

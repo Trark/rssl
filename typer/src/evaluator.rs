@@ -88,6 +88,33 @@ pub fn evaluate_constexpr(
                     }
                     _ => return Err(()),
                 },
+                ir::IntrinsicOp::BitwiseAnd => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Int(lhs & rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::UInt(lhs & rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::BitwiseOr => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Int(lhs | rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::UInt(lhs | rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::BitwiseXor => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Int(lhs ^ rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::UInt(lhs ^ rhs)
+                    }
+                    _ => return Err(()),
+                },
                 _ => return Err(()),
             }
         }
@@ -98,25 +125,43 @@ pub fn evaluate_constexpr(
                 return Err(());
             }
         }
+        ir::Expression::EnumValue(id) => {
+            let value = module.enum_registry.get_enum_value(id);
+            ir::Constant::Enum(value.enum_id, Box::new(value.value.clone()))
+        }
         ir::Expression::Cast(target, ref inner) => {
             let unmodified = module.type_registry.remove_modifier(target);
             let tyl = module.type_registry.get_type_layer(unmodified);
             let inner_value = evaluate_constexpr(inner, module)?;
             match tyl {
-                ir::TypeLayer::Scalar(ir::ScalarType::Int) => match inner_value {
-                    ir::Constant::Bool(v) => ir::Constant::Int(i32::from(v)),
-                    ir::Constant::UntypedInt(v) => ir::Constant::Int(v as i32),
-                    ir::Constant::Int(v) => ir::Constant::Int(v),
-                    ir::Constant::UInt(v) => ir::Constant::Int(v as i32),
-                    _ => return Err(()),
-                },
-                ir::TypeLayer::Scalar(ir::ScalarType::UInt) => match inner_value {
-                    ir::Constant::Bool(v) => ir::Constant::UInt(u32::from(v)),
-                    ir::Constant::UntypedInt(v) => ir::Constant::UInt(v as u32),
-                    ir::Constant::Int(v) => ir::Constant::UInt(v as u32),
-                    ir::Constant::UInt(v) => ir::Constant::UInt(v),
-                    _ => return Err(()),
-                },
+                ir::TypeLayer::Scalar(ir::ScalarType::Int) => {
+                    let inner_value = match inner_value {
+                        ir::Constant::Enum(_, inner) => *inner,
+                        other => other,
+                    };
+                    match inner_value {
+                        ir::Constant::Bool(v) => ir::Constant::Int(i32::from(v)),
+                        ir::Constant::UntypedInt(v) => ir::Constant::Int(v as i32),
+                        ir::Constant::Int(v) => ir::Constant::Int(v),
+                        ir::Constant::UInt(v) => ir::Constant::Int(v as i32),
+                        ir::Constant::Enum(_, _) => unreachable!(),
+                        _ => return Err(()),
+                    }
+                }
+                ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
+                    let inner_value = match inner_value {
+                        ir::Constant::Enum(_, inner) => *inner,
+                        other => other,
+                    };
+                    match inner_value {
+                        ir::Constant::Bool(v) => ir::Constant::UInt(u32::from(v)),
+                        ir::Constant::UntypedInt(v) => ir::Constant::UInt(v as u32),
+                        ir::Constant::Int(v) => ir::Constant::UInt(v as u32),
+                        ir::Constant::UInt(v) => ir::Constant::UInt(v),
+                        ir::Constant::Enum(_, _) => unreachable!(),
+                        _ => return Err(()),
+                    }
+                }
                 _ => return Err(()),
             }
         }

@@ -698,6 +698,7 @@ fn export_literal(literal: &ir::Constant, output: &mut String) -> Result<(), Exp
         ir::Constant::Float(v) => write!(output, "{}", v).unwrap(),
         ir::Constant::Double(v) => write!(output, "{}L", v).unwrap(),
         ir::Constant::String(_) => panic!("literal string not expected in output"),
+        ir::Constant::Enum(_, _) => panic!("literal enum not expected in output"),
     }
     Ok(())
 }
