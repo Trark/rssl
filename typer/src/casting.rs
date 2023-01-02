@@ -229,53 +229,66 @@ impl ImplicitConversion {
         let source_l = module.type_registry.get_type_layout(source_id);
         let dest_l = module.type_registry.get_type_layout(dest_id);
 
-        let dimension_cast = match (&source_l, &dest_l, dest.1 == Lvalue) {
-            (ty1, ty2, _) if ty1 == ty2 => None,
-            // Scalar to scalar
-            (TypeLayout::Scalar(_), TypeLayout::Scalar(_), false) => None,
-            // Scalar to vector1 of same type (works for lvalues)
-            (TypeLayout::Scalar(s1), TypeLayout::Vector(s2, x2), _) if s1 == s2 && *x2 == 1 => {
-                Some(DimensionCast(
-                    NumericDimension::Scalar,
-                    NumericDimension::Vector(1),
-                ))
+        let dimension_cast = match &dest_l {
+            // Same type requires no dimension cast
+            ty2 if &source_l == ty2 => None,
+            // Destination is scalar
+            TypeLayout::Scalar(s2) => {
+                match (&source_l, dest.1 == Lvalue) {
+                    // Scalar to scalar
+                    (TypeLayout::Scalar(_), false) => None,
+                    // vector1 to scalar of same type (works for lvalues)
+                    (TypeLayout::Vector(s1, x1), _) if s1 == s2 && *x1 == 1 => Some(DimensionCast(
+                        NumericDimension::Vector(1),
+                        NumericDimension::Scalar,
+                    )),
+                    // Vector first element to scalar
+                    (TypeLayout::Vector(_, x1), false) => Some(DimensionCast(
+                        NumericDimension::Vector(*x1),
+                        NumericDimension::Scalar,
+                    )),
+                    _ => return Err(()),
+                }
             }
-            // vector1 to scalar of same type (works for lvalues)
-            (TypeLayout::Vector(s1, x1), TypeLayout::Scalar(s2), _) if s1 == s2 && *x1 == 1 => {
-                Some(DimensionCast(
-                    NumericDimension::Vector(1),
-                    NumericDimension::Scalar,
-                ))
+            // Destination is vector
+            TypeLayout::Vector(s2, x2) => {
+                match (&source_l, dest.1 == Lvalue) {
+                    // Scalar to vector1 of same type (works for lvalues)
+                    (TypeLayout::Scalar(s1), _) if s1 == s2 && *x2 == 1 => Some(DimensionCast(
+                        NumericDimension::Scalar,
+                        NumericDimension::Vector(1),
+                    )),
+                    // Scalar to vector (mirror)
+                    (TypeLayout::Scalar(_), false) => Some(DimensionCast(
+                        NumericDimension::Scalar,
+                        NumericDimension::Vector(*x2),
+                    )),
+                    // Single vector to vector (mirror)
+                    (TypeLayout::Vector(_, 1), false) => Some(DimensionCast(
+                        NumericDimension::Vector(1),
+                        NumericDimension::Vector(*x2),
+                    )),
+                    // Vector same dimension
+                    (TypeLayout::Vector(_, x1), false) if x1 == x2 => None,
+                    // Vector cull additional elements
+                    (TypeLayout::Vector(_, x1), false) if x2 < x1 => Some(DimensionCast(
+                        NumericDimension::Vector(*x1),
+                        NumericDimension::Vector(*x2),
+                    )),
+                    // Vector <-> Matrix casts not implemented
+                    _ => return Err(()),
+                }
             }
-            // Scalar to vector (mirror)
-            (TypeLayout::Scalar(_), TypeLayout::Vector(_, x2), false) => Some(DimensionCast(
-                NumericDimension::Scalar,
-                NumericDimension::Vector(*x2),
-            )),
-            // Single vector to vector (mirror)
-            (TypeLayout::Vector(_, 1), TypeLayout::Vector(_, x2), false) => Some(DimensionCast(
-                NumericDimension::Vector(1),
-                NumericDimension::Vector(*x2),
-            )),
-            // Vector first element to scalar
-            (TypeLayout::Vector(_, x1), TypeLayout::Scalar(_), false) => Some(DimensionCast(
-                NumericDimension::Vector(*x1),
-                NumericDimension::Scalar,
-            )),
-            // Vector same dimension
-            (TypeLayout::Vector(_, x1), TypeLayout::Vector(_, x2), false) if x1 == x2 => None,
-            // Vector cull additional elements
-            (TypeLayout::Vector(_, x1), TypeLayout::Vector(_, x2), false) if x2 < x1 => Some(
-                DimensionCast(NumericDimension::Vector(*x1), NumericDimension::Vector(*x2)),
-            ),
-            // Matrix same dimension
-            (TypeLayout::Matrix(_, x1, y1), TypeLayout::Matrix(_, x2, y2), false)
-                if x1 == x2 && y1 == y2 =>
-            {
-                None
+            // Destination is matrix
+            TypeLayout::Matrix(_, x2, y2) => {
+                match (&source_l, dest.1 == Lvalue) {
+                    // Matrix same dimension
+                    (TypeLayout::Matrix(_, x1, y1), false) if x1 == x2 && y1 == y2 => None,
+                    // Vector <-> Matrix casts not implemented
+                    _ => return Err(()),
+                }
             }
-            // Vector <-> Matrix casts not implemented
-            // Struct casts only supported for same type structs
+            // Non-numeric casts only supported for same type source / destination
             _ => return Err(()),
         };
 
