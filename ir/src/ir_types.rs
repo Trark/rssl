@@ -512,6 +512,41 @@ impl TypeLayer {
             None => None,
         }
     }
+
+    /// Returns `true` if the layer is a modifier layer
+    pub fn is_modifier(&self) -> bool {
+        matches!(self, TypeLayer::Modifier(_, _))
+    }
+
+    /// Get the scalar type from a numeric type
+    pub fn to_scalar(&self) -> Option<ScalarType> {
+        assert!(!self.is_modifier());
+        match *self {
+            TypeLayer::Scalar(scalar)
+            | TypeLayer::Vector(scalar, _)
+            | TypeLayer::Matrix(scalar, _, _) => Some(scalar),
+            _ => None,
+        }
+    }
+
+    /// Get the size of the first dimension for a vector or matrix
+    pub fn to_x(&self) -> Option<u32> {
+        assert!(!self.is_modifier());
+        match *self {
+            TypeLayer::Vector(_, ref x) => Some(*x),
+            TypeLayer::Matrix(_, ref x, _) => Some(*x),
+            _ => None,
+        }
+    }
+
+    /// Get the size of the second dimension for a matrix
+    pub fn to_y(&self) -> Option<u32> {
+        assert!(!self.is_modifier());
+        match *self {
+            TypeLayer::Matrix(_, _, ref y) => Some(*y),
+            _ => None,
+        }
+    }
 }
 
 impl TypeLayout {

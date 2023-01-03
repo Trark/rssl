@@ -785,7 +785,7 @@ fn parse_expr_binop(
             if *op == ast::BinOp::LeftShift || *op == ast::BinOp::RightShift {
                 fn is_integer(ety: ExpressionType, context: &Context) -> bool {
                     let base_id = context.module.type_registry.remove_modifier(ety.0);
-                    let tyl = context.module.type_registry.get_type_layout(base_id);
+                    let tyl = context.module.type_registry.get_type_layer(base_id);
                     let sty = match tyl.to_scalar() {
                         Some(sty) => sty,
                         None => return false,
@@ -820,8 +820,8 @@ fn parse_expr_binop(
         | ast::BinOp::BooleanOr => {
             let left_base = context.module.type_registry.remove_modifier(lhs_type.0);
             let right_base = context.module.type_registry.remove_modifier(rhs_type.0);
-            let lhs_tyl = context.module.type_registry.get_type_layout(left_base);
-            let rhs_tyl = context.module.type_registry.get_type_layout(right_base);
+            let lhs_tyl = context.module.type_registry.get_type_layer(left_base);
+            let rhs_tyl = context.module.type_registry.get_type_layer(right_base);
             let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
                 ir::ScalarType::Bool
             } else {
