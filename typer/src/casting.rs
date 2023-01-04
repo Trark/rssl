@@ -232,23 +232,23 @@ impl ImplicitConversion {
         let (source_id, mods) = module.type_registry.extract_modifier(source_type);
         let (dest_id, modd) = module.type_registry.extract_modifier(dest_type);
 
-        let source_l = module.type_registry.get_type_layout(source_id);
-        let dest_l = module.type_registry.get_type_layout(dest_id);
+        let source_l = module.type_registry.get_type_layer(source_id);
+        let dest_l = module.type_registry.get_type_layer(dest_id);
 
         let dimension_cast = match &dest_l {
             // Same type requires no dimension cast
             ty2 if &source_l == ty2 => None,
             // Destination is scalar
-            TypeLayout::Scalar(_) => {
+            TypeLayer::Scalar(_) => {
                 match (&source_l, dest.1 == Lvalue) {
                     // Scalar to scalar
-                    (TypeLayout::Scalar(_), false) => None,
+                    (TypeLayer::Scalar(_), false) => None,
                     // vector1 to scalar of same type (works for lvalues)
-                    (TypeLayout::Vector(s1, x1), _) if **s1 == *dest_l && *x1 == 1 => Some(
+                    (TypeLayer::Vector(s1, x1), _) if *s1 == dest_id && *x1 == 1 => Some(
                         DimensionCast(NumericDimension::Vector(1), NumericDimension::Scalar),
                     ),
                     // Vector first element to scalar
-                    (TypeLayout::Vector(_, x1), false) => Some(DimensionCast(
+                    (TypeLayer::Vector(_, x1), false) => Some(DimensionCast(
                         NumericDimension::Vector(*x1),
                         NumericDimension::Scalar,
                     )),
@@ -256,26 +256,26 @@ impl ImplicitConversion {
                 }
             }
             // Destination is vector
-            TypeLayout::Vector(s2, x2) => {
+            TypeLayer::Vector(s2, x2) => {
                 match (&source_l, dest.1 == Lvalue) {
                     // Scalar to vector1 of same type (works for lvalues)
-                    (TypeLayout::Scalar(_), _) if *source_l == **s2 && *x2 == 1 => Some(
+                    (TypeLayer::Scalar(_), _) if source_id == *s2 && *x2 == 1 => Some(
                         DimensionCast(NumericDimension::Scalar, NumericDimension::Vector(1)),
                     ),
                     // Scalar to vector (mirror)
-                    (TypeLayout::Scalar(_), false) => Some(DimensionCast(
+                    (TypeLayer::Scalar(_), false) => Some(DimensionCast(
                         NumericDimension::Scalar,
                         NumericDimension::Vector(*x2),
                     )),
                     // Single vector to vector (mirror)
-                    (TypeLayout::Vector(_, 1), false) => Some(DimensionCast(
+                    (TypeLayer::Vector(_, 1), false) => Some(DimensionCast(
                         NumericDimension::Vector(1),
                         NumericDimension::Vector(*x2),
                     )),
                     // Vector same dimension
-                    (TypeLayout::Vector(_, x1), false) if x1 == x2 => None,
+                    (TypeLayer::Vector(_, x1), false) if x1 == x2 => None,
                     // Vector cull additional elements
-                    (TypeLayout::Vector(_, x1), false) if x2 < x1 => Some(DimensionCast(
+                    (TypeLayer::Vector(_, x1), false) if x2 < x1 => Some(DimensionCast(
                         NumericDimension::Vector(*x1),
                         NumericDimension::Vector(*x2),
                     )),
@@ -284,10 +284,10 @@ impl ImplicitConversion {
                 }
             }
             // Destination is matrix
-            TypeLayout::Matrix(_, x2, y2) => {
+            TypeLayer::Matrix(_, x2, y2) => {
                 match (&source_l, dest.1 == Lvalue) {
                     // Matrix same dimension
-                    (TypeLayout::Matrix(_, x1, y1), false) if x1 == x2 && y1 == y2 => None,
+                    (TypeLayer::Matrix(_, x1, y1), false) if x1 == x2 && y1 == y2 => None,
                     // Vector <-> Matrix casts not implemented
                     _ => return Err(()),
                 }
@@ -468,20 +468,36 @@ impl ImplicitConversion {
 #[test]
 fn test_implicitconversion() {
     let mut module = Module::create();
-    let bool_ty = module.type_registry.register_type(TypeLayout::bool());
-    let int_ty = module.type_registry.register_type(TypeLayout::int());
-    let int1_ty = module.type_registry.register_type(TypeLayout::intn(1));
-    let uint_ty = module.type_registry.register_type(TypeLayout::uint());
-    let uint1_ty = module.type_registry.register_type(TypeLayout::uintn(1));
-    let uint4_ty = module.type_registry.register_type(TypeLayout::uintn(4));
-    let float_ty = module.type_registry.register_type(TypeLayout::float());
-    let float4_ty = module.type_registry.register_type(TypeLayout::floatn(4));
+    let bool_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Scalar(ScalarType::Bool));
+    let int_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Scalar(ScalarType::Int));
+    let int1_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Vector(int_ty, 1));
+    let uint_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Scalar(ScalarType::UInt));
+    let uint1_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Vector(uint_ty, 1));
+    let uint4_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Vector(uint_ty, 4));
+    let float_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Scalar(ScalarType::Float));
+    let float4_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Vector(float_ty, 4));
     let sampler_state_ty = module
         .type_registry
-        .register_type(TypeLayout::Object(ObjectType::SamplerState));
+        .register_type_layer(TypeLayer::Object(ObjectType::SamplerState));
     let buffer_f4_ty = module
         .type_registry
-        .register_type(TypeLayout::from_object(ObjectType::Buffer(float4_ty)));
+        .register_type_layer(TypeLayer::Object(ObjectType::Buffer(float4_ty)));
 
     let basic_types = &[bool_ty, int_ty, uint_ty, float_ty, float4_ty];
 
@@ -607,9 +623,15 @@ fn test_implicitconversion() {
 #[test]
 fn test_get_rank() {
     let mut module = Module::create();
-    let uint_ty = module.type_registry.register_type(TypeLayout::uint());
-    let uint1_ty = module.type_registry.register_type(TypeLayout::uintn(1));
-    let uint4_ty = module.type_registry.register_type(TypeLayout::uintn(4));
+    let uint_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Scalar(ScalarType::UInt));
+    let uint1_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Vector(uint_ty, 1));
+    let uint4_ty = module
+        .type_registry
+        .register_type_layer(TypeLayer::Vector(uint_ty, 4));
 
     assert_eq!(
         ImplicitConversion::find(uint_ty.to_rvalue(), uint1_ty.to_rvalue(), &mut module)
@@ -642,10 +664,8 @@ fn test_const() {
     let mut module = Module::create();
     let int_ty = module
         .type_registry
-        .register_type(TypeLayout::from_scalar(Int));
-    let const_int_ty = module
-        .type_registry
-        .register_type(TypeLayout::from_scalar(Int).combine_modifier(TypeModifier::const_only()));
+        .register_type_layer(TypeLayer::Scalar(ScalarType::Int));
+    let const_int_ty = module.type_registry.make_const(int_ty);
 
     // Non-const to const rvalue
     assert_eq!(
