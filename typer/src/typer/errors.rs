@@ -259,7 +259,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "type '{}' does not contain member '{}'",
-                        get_type_id_string(*ty, context),
+                        get_type_string(*ty, context),
                         name
                     )
                 },
@@ -272,7 +272,7 @@ impl CompileError for TyperExternalError {
                         f,
                         "invalid swizzle '{}' on type '{}'",
                         swizzle,
-                        get_type_id_string(*ty, context)
+                        get_type_string(*ty, context)
                     )
                 },
                 *loc,
@@ -283,9 +283,9 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "accessing member of type '{}' ('{}') on type '{}'",
-                        get_type_id_string(*found_tyl, context),
+                        get_type_string(*found_tyl, context),
                         path,
-                        get_type_id_string(*sampled_ty, context),
+                        get_type_string(*sampled_ty, context),
                     )
                 },
                 path.get_location(),
@@ -297,7 +297,7 @@ impl CompileError for TyperExternalError {
                         f,
                         "identifier '{}' is not a member of type '{}'",
                         path,
-                        get_type_id_string(*ty, context)
+                        get_type_string(*ty, context)
                     )
                 },
                 path.get_location(),
@@ -339,9 +339,9 @@ impl CompileError for TyperExternalError {
                         }
                         if let Some((last_arg, not_last)) = types.split_last() {
                             for arg in not_last {
-                                write!(f, "{}, ", get_type_id_string(arg.0, context))?;
+                                write!(f, "{}, ", get_type_string(arg.0, context))?;
                             }
-                            write!(f, "{}", get_type_id_string(last_arg.0, context))?;
+                            write!(f, "{}", get_type_string(last_arg.0, context))?;
                         }
                         write!(f, ")")
                     },
@@ -364,7 +364,7 @@ impl CompileError for TyperExternalError {
                                 } else {
                                     " not viable"
                                 },
-                                get_type_id_string(signature.return_type.return_type, context),
+                                get_type_string(signature.return_type.return_type, context),
                                 func_name
                             )?;
                             if let Some((last_param, not_last)) = signature.param_types.split_last()
@@ -420,8 +420,8 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "variable of type '{}' was initialised with an expression of type '{}'",
-                        get_type_id_string(*expected, context),
-                        get_type_id_string(*actual, context),
+                        get_type_string(*expected, context),
+                        get_type_string(*actual, context),
                     )
                 },
                 *loc,
@@ -432,7 +432,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "aggregate initializer does not match the members of type '{}'",
-                        get_type_id_string(*ty, context)
+                        get_type_string(*ty, context)
                     )
                 },
                 *loc,
@@ -453,8 +453,8 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "function return expected type {} but received {}",
-                        get_type_id_string(*expected, context),
-                        get_type_id_string(*actual, context),
+                        get_type_string(*expected, context),
+                        get_type_string(*actual, context),
                     )
                 },
                 *loc,
@@ -520,7 +520,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "invalid use of swizzle operation on type '{}'",
-                        get_type_id_string(*ty, context)
+                        get_type_string(*ty, context)
                     )
                 },
                 *loc,
@@ -531,7 +531,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "non-aggregate type '{}' can not contain member '{}'",
-                        get_type_id_string(*ty, context),
+                        get_type_string(*ty, context),
                         name
                     )
                 },
@@ -543,7 +543,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "non-indexable type '{}' can not be indexed",
-                        get_type_id_string(*ty, context),
+                        get_type_string(*ty, context),
                     )
                 },
                 *loc,
@@ -564,7 +564,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "Variable declared with incomplete type '{}'",
-                        get_type_id_string(*ty, context)
+                        get_type_string(*ty, context)
                     )
                 },
                 *loc,
@@ -586,7 +586,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "register() is not allowed on '{}'",
-                        get_type_id_string(*ty, context)
+                        get_type_string(*ty, context)
                     )
                 },
                 *loc,
@@ -676,7 +676,7 @@ impl CompileError for TyperExternalError {
                         f,
                         "{:?} may not be used with type '{}'",
                         modifier,
-                        get_type_id_string(*type_id, context),
+                        get_type_string(*type_id, context),
                     )
                 },
                 *loc,
@@ -688,7 +688,7 @@ impl CompileError for TyperExternalError {
                         f,
                         "{:?} may not be used with type '{}'",
                         modifier,
-                        get_type_id_string(*type_id, context),
+                        get_type_string(*type_id, context),
                     )
                 },
                 *loc,
@@ -706,7 +706,7 @@ impl CompileError for TyperExternalError {
                         f,
                         "'{:?}' modifier does not support type '{}'",
                         ir::InterpolationModifier::Indices,
-                        get_type_id_string(*type_id, context)
+                        get_type_string(*type_id, context)
                     )
                 },
                 *loc,
@@ -742,20 +742,26 @@ fn get_function_location(id: ir::FunctionId, context: &Context) -> SourceLocatio
 }
 
 /// Get a string name from a type id for error display
-fn get_type_id_string(id: ir::TypeId, context: &Context) -> String {
-    get_type_string(context.module.type_registry.get_type_layout(id), context)
+fn get_type_string(id: ir::TypeId, context: &Context) -> String {
+    get_type_layer_string(context.module.type_registry.get_type_layer(id), context)
 }
 
 /// Get a string name from a type for error display
-fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
-    match *tyl {
-        ir::TypeLayout::Struct(sid) => get_struct_name(sid, context),
-        ir::TypeLayout::Enum(id) => get_enum_name(id, context),
-        ir::TypeLayout::Object(ref ot) => get_object_type_string(ot, context),
-        ir::TypeLayout::Array(ref ty, ref len) => {
+fn get_type_layer_string(tyl: ir::TypeLayer, context: &Context) -> String {
+    match tyl {
+        ir::TypeLayer::Void => "void".to_string(),
+        ir::TypeLayer::Scalar(st) => format!("{:?}", st),
+        ir::TypeLayer::Vector(ty, x) => format!("{}{}", get_type_string(ty, context), x),
+        ir::TypeLayer::Matrix(ty, x, y) => {
+            format!("{}{}x{}", get_type_string(ty, context), x, y)
+        }
+        ir::TypeLayer::Struct(sid) => get_struct_name(sid, context),
+        ir::TypeLayer::Enum(id) => get_enum_name(id, context),
+        ir::TypeLayer::Object(ot) => get_object_type_string(ot, context),
+        ir::TypeLayer::Array(ty, len) => {
             format!("{}[{}]", get_type_string(ty, context), len)
         }
-        ir::TypeLayout::Modifier(modifier, ref ty) => {
+        ir::TypeLayer::Modifier(modifier, ty) => {
             format!("{:?}{}", modifier, get_type_string(ty, context))
         }
         _ => format!("{:?}", tyl),
@@ -763,28 +769,28 @@ fn get_type_string(tyl: &ir::TypeLayout, context: &Context) -> String {
 }
 
 /// Get a string name from an intrinsic object type for error display
-fn get_object_type_string(object_type: &ir::ObjectType, context: &Context) -> String {
+fn get_object_type_string(object_type: ir::ObjectType, context: &Context) -> String {
     use ir::ObjectType::*;
-    match *object_type {
-        Buffer(ty) => format!("Buffer<{}>", get_type_id_string(ty, context)),
-        RWBuffer(ty) => format!("RWBuffer<{}>", get_type_id_string(ty, context)),
+    match object_type {
+        Buffer(ty) => format!("Buffer<{}>", get_type_string(ty, context)),
+        RWBuffer(ty) => format!("RWBuffer<{}>", get_type_string(ty, context)),
         ByteAddressBuffer => "ByteAddressBuffer".to_string(),
         RWByteAddressBuffer => "RWByteAddressBuffer".to_string(),
         BufferAddress => "BufferAddress".to_string(),
         RWBufferAddress => "RWBufferAddress".to_string(),
         StructuredBuffer(ty) => {
-            format!("StructuredBuffer<{}>", get_type_id_string(ty, context))
+            format!("StructuredBuffer<{}>", get_type_string(ty, context))
         }
         RWStructuredBuffer(ty) => {
-            format!("RWStructuredBuffer<{}>", get_type_id_string(ty, context))
+            format!("RWStructuredBuffer<{}>", get_type_string(ty, context))
         }
-        Texture2D(ty) => format!("Texture2D<{}>", get_type_id_string(ty, context)),
-        Texture2DMips(ty) => format!("Texture2D<{}>::Mips", get_type_id_string(ty, context)),
+        Texture2D(ty) => format!("Texture2D<{}>", get_type_string(ty, context)),
+        Texture2DMips(ty) => format!("Texture2D<{}>::Mips", get_type_string(ty, context)),
         Texture2DMipsSlice(ty) => {
-            format!("Texture2D<{}>::MipsSlice", get_type_id_string(ty, context))
+            format!("Texture2D<{}>::MipsSlice", get_type_string(ty, context))
         }
-        RWTexture2D(ty) => format!("RWTexture2D<{}>", get_type_id_string(ty, context)),
-        ConstantBuffer(ty) => format!("ConstantBuffer<{}>", get_type_id_string(ty, context)),
+        RWTexture2D(ty) => format!("RWTexture2D<{}>", get_type_string(ty, context)),
+        ConstantBuffer(ty) => format!("ConstantBuffer<{}>", get_type_string(ty, context)),
         SamplerState => "SamplerState".to_string(),
         SamplerComparisonState => "SamplerComparisonState".to_string(),
     }
@@ -795,7 +801,7 @@ fn get_param_type_string(param: &ir::ParamType, context: &Context) -> String {
     format!(
         "{:?} {}",
         param.input_modifier,
-        get_type_id_string(param.type_id, context)
+        get_type_string(param.type_id, context)
     )
 }
 
