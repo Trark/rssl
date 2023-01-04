@@ -118,8 +118,7 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
                 return Ok(id);
             }
 
-            if let Some(ty) = parse_data_layout(name, &ir_args, context) {
-                let id = context.module.type_registry.register_type(ty);
+            if let Some(id) = parse_data_layout(name, &ir_args, context) {
                 return Ok(id);
             }
 
@@ -159,22 +158,31 @@ pub fn parse_expression_or_type(
     }
 }
 
-// Parse numeric type as part of a string
-fn parse_numeric_str(typename: &str) -> Option<ir::TypeLayout> {
-    let layer = ir::TypeLayer::from_numeric_str(typename)?;
-    let layout = ir::TypeLayout::from_numeric_layer(layer)?;
-    Some(layout)
-}
-
 /// Parse a type layout for a basic data type
 pub fn parse_data_layout(
     name: &ast::ScopedIdentifier,
     template_args: &[ir::TypeOrConstant],
     context: &mut Context,
-) -> Option<ir::TypeLayout> {
+) -> Option<ir::TypeId> {
     if let Some(name) = name.try_trivial() {
         if template_args.is_empty() {
-            parse_numeric_str(name.as_str())
+            let numeric = ir::NumericType::from_str(name)?;
+            let scalar = context
+                .module
+                .type_registry
+                .register_type_layer(ir::TypeLayer::Scalar(numeric.scalar));
+            let id = match numeric.dimension {
+                ir::NumericDimension::Scalar => scalar,
+                ir::NumericDimension::Vector(x) => context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Vector(scalar, x)),
+                ir::NumericDimension::Matrix(x, y) => context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Matrix(scalar, x, y)),
+            };
+            Some(id)
         } else {
             match name.node.as_str() {
                 "vector" => {
@@ -185,10 +193,10 @@ pub fn parse_data_layout(
                         };
 
                         // Type modifiers not supported inside arguments
-                        let s = match context.module.type_registry.get_type_layer(type_id) {
-                            ir::TypeLayer::Scalar(s) => s,
+                        match context.module.type_registry.get_type_layer(type_id) {
+                            ir::TypeLayer::Scalar(_) => {}
                             _ => return None,
-                        };
+                        }
 
                         let dim_x = match template_args[1]
                             .as_constant()
@@ -198,7 +206,10 @@ pub fn parse_data_layout(
                             _ => return None,
                         };
 
-                        Some(ir::TypeLayout::Vector(s, dim_x as u32))
+                        let tyl = ir::TypeLayer::Vector(type_id, dim_x as u32);
+                        let id = context.module.type_registry.register_type_layer(tyl);
+
+                        Some(id)
                     } else {
                         None
                     }
@@ -211,10 +222,10 @@ pub fn parse_data_layout(
                         };
 
                         // Type modifiers not supported inside arguments
-                        let s = match context.module.type_registry.get_type_layer(type_id) {
-                            ir::TypeLayer::Scalar(s) => s,
+                        match context.module.type_registry.get_type_layer(type_id) {
+                            ir::TypeLayer::Scalar(_) => {}
                             _ => return None,
-                        };
+                        }
 
                         let dim_x = match template_args[1]
                             .as_constant()
@@ -232,7 +243,10 @@ pub fn parse_data_layout(
                             _ => return None,
                         };
 
-                        Some(ir::TypeLayout::Matrix(s, dim_x as u32, dim_y as u32))
+                        let tyl = ir::TypeLayer::Matrix(type_id, dim_x as u32, dim_y as u32);
+                        let id = context.module.type_registry.register_type_layer(tyl);
+
+                        Some(id)
                     } else {
                         None
                     }
@@ -280,10 +294,14 @@ fn parse_object_type(
                 _ => None,
             }
         } else if default_float4 {
+            let f = context
+                .module
+                .type_registry
+                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::Float));
             let f4 = context
                 .module
                 .type_registry
-                .register_type_layer(ir::TypeLayer::Vector(ir::ScalarType::Float, 4));
+                .register_type_layer(ir::TypeLayer::Vector(f, 4));
             Some(f4)
         } else {
             None
@@ -429,10 +447,8 @@ fn parse_type_modifier(
                     ));
                 }
                 if !matches!(
-                    tyl,
-                    ir::TypeLayer::Scalar(ir::ScalarType::Float)
-                        | ir::TypeLayer::Vector(ir::ScalarType::Float, ..)
-                        | ir::TypeLayer::Matrix(ir::ScalarType::Float, ..)
+                    context.module.type_registry.extract_scalar(applied_type),
+                    Some(ir::ScalarType::Float)
                 ) {
                     return Err(TyperError::ModifierRequiresFloatType(
                         modifier.node,
@@ -451,10 +467,8 @@ fn parse_type_modifier(
                     ));
                 }
                 if !matches!(
-                    tyl,
-                    ir::TypeLayer::Scalar(ir::ScalarType::Float)
-                        | ir::TypeLayer::Vector(ir::ScalarType::Float, ..)
-                        | ir::TypeLayer::Matrix(ir::ScalarType::Float, ..)
+                    context.module.type_registry.extract_scalar(applied_type),
+                    Some(ir::ScalarType::Float)
                 ) {
                     return Err(TyperError::ModifierRequiresFloatType(
                         modifier.node,

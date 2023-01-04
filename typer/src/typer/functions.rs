@@ -249,11 +249,11 @@ fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult
         }
 
         if interpolation_modifier == ir::InterpolationModifier::Indices
-            && !matches!(
+            && !(matches!(
                 tyl,
-                ir::TypeLayout::Vector(ir::ScalarType::UInt, 2)
-                    | ir::TypeLayout::Vector(ir::ScalarType::UInt, 3)
-            )
+                ir::TypeLayout::Vector(_, 2) | ir::TypeLayout::Vector(_, 3)
+            ) && context.module.type_registry.extract_scalar(ty_unmodified)
+                == Some(ir::ScalarType::UInt))
         {
             return Err(TyperError::MeshShaderIndicesRequiresIndexType(
                 param_type.location,

@@ -182,12 +182,18 @@ impl NumericCast {
     }
 
     fn get_target_type(&self, module: &mut Module, dim: NumericDimension) -> ExpressionType {
-        let tyl = match dim {
-            NumericDimension::Scalar => TypeLayer::Scalar(self.1),
-            NumericDimension::Vector(x) => TypeLayer::Vector(self.1, x),
-            NumericDimension::Matrix(x, y) => TypeLayer::Matrix(self.1, x, y),
+        let scalar_id = module
+            .type_registry
+            .register_type_layer(TypeLayer::Scalar(self.1));
+        let id = match dim {
+            NumericDimension::Scalar => scalar_id,
+            NumericDimension::Vector(x) => module
+                .type_registry
+                .register_type_layer(TypeLayer::Vector(scalar_id, x)),
+            NumericDimension::Matrix(x, y) => module
+                .type_registry
+                .register_type_layer(TypeLayer::Matrix(scalar_id, x, y)),
         };
-        let id = module.type_registry.register_type_layer(tyl);
         id.to_rvalue()
     }
 }
@@ -233,15 +239,14 @@ impl ImplicitConversion {
             // Same type requires no dimension cast
             ty2 if &source_l == ty2 => None,
             // Destination is scalar
-            TypeLayout::Scalar(s2) => {
+            TypeLayout::Scalar(_) => {
                 match (&source_l, dest.1 == Lvalue) {
                     // Scalar to scalar
                     (TypeLayout::Scalar(_), false) => None,
                     // vector1 to scalar of same type (works for lvalues)
-                    (TypeLayout::Vector(s1, x1), _) if s1 == s2 && *x1 == 1 => Some(DimensionCast(
-                        NumericDimension::Vector(1),
-                        NumericDimension::Scalar,
-                    )),
+                    (TypeLayout::Vector(s1, x1), _) if **s1 == *dest_l && *x1 == 1 => Some(
+                        DimensionCast(NumericDimension::Vector(1), NumericDimension::Scalar),
+                    ),
                     // Vector first element to scalar
                     (TypeLayout::Vector(_, x1), false) => Some(DimensionCast(
                         NumericDimension::Vector(*x1),
@@ -254,10 +259,9 @@ impl ImplicitConversion {
             TypeLayout::Vector(s2, x2) => {
                 match (&source_l, dest.1 == Lvalue) {
                     // Scalar to vector1 of same type (works for lvalues)
-                    (TypeLayout::Scalar(s1), _) if s1 == s2 && *x2 == 1 => Some(DimensionCast(
-                        NumericDimension::Scalar,
-                        NumericDimension::Vector(1),
-                    )),
+                    (TypeLayout::Scalar(_), _) if *source_l == **s2 && *x2 == 1 => Some(
+                        DimensionCast(NumericDimension::Scalar, NumericDimension::Vector(1)),
+                    ),
                     // Scalar to vector (mirror)
                     (TypeLayout::Scalar(_), false) => Some(DimensionCast(
                         NumericDimension::Scalar,
@@ -295,17 +299,13 @@ impl ImplicitConversion {
         let numeric_cast = if source_l == dest_l {
             None
         } else {
-            let source_scalar = match *source_l {
-                TypeLayout::Scalar(s) => s,
-                TypeLayout::Vector(s, _) => s,
-                TypeLayout::Matrix(s, _, _) => s,
-                _ => return Err(()),
+            let source_scalar = match module.type_registry.extract_scalar(source_id) {
+                Some(s) => s,
+                None => return Err(()),
             };
-            let dest_scalar = match *dest_l {
-                TypeLayout::Scalar(s) => s,
-                TypeLayout::Vector(s, _) => s,
-                TypeLayout::Matrix(s, _, _) => s,
-                _ => return Err(()),
+            let dest_scalar = match module.type_registry.extract_scalar(dest_id) {
+                Some(s) => s,
+                None => return Err(()),
             };
             if source_scalar == dest_scalar {
                 None
@@ -398,18 +398,21 @@ impl ImplicitConversion {
                 Some(dim) => {
                     let ExpressionType(ty_modified, vt) = ty;
                     let (ty, m) = module.type_registry.extract_modifier(ty_modified);
-                    let scalar = match module.type_registry.get_type_layer(ty) {
-                        TypeLayer::Scalar(scalar) => scalar,
-                        TypeLayer::Vector(scalar, _) => scalar,
-                        TypeLayer::Matrix(scalar, _, _) => scalar,
+                    let scalar_id = match module.type_registry.get_type_layer(ty) {
+                        TypeLayer::Scalar(_) => ty,
+                        TypeLayer::Vector(inner, _) => inner,
+                        TypeLayer::Matrix(inner, _, _) => inner,
                         _ => panic!("dimension cast on non numeric type"),
                     };
-                    let tyl_dim = match dim {
-                        NumericDimension::Scalar => TypeLayer::Scalar(scalar),
-                        NumericDimension::Vector(x) => TypeLayer::Vector(scalar, x),
-                        NumericDimension::Matrix(x, y) => TypeLayer::Matrix(scalar, x, y),
+                    let id = match dim {
+                        NumericDimension::Scalar => scalar_id,
+                        NumericDimension::Vector(x) => module
+                            .type_registry
+                            .register_type_layer(TypeLayer::Vector(scalar_id, x)),
+                        NumericDimension::Matrix(x, y) => module
+                            .type_registry
+                            .register_type_layer(TypeLayer::Matrix(scalar_id, x, y)),
                     };
-                    let id = module.type_registry.register_type_layer(tyl_dim);
                     let id = module.type_registry.combine_modifier(id, m);
                     ExpressionType(id, vt)
                 }

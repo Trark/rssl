@@ -184,7 +184,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                     context
                         .module
                         .type_registry
-                        .register_type(ir::TypeLayout::void()),
+                        .register_type_layer(ir::TypeLayer::Void),
                     expected_type,
                     ast.location,
                 ))
@@ -505,11 +505,7 @@ fn parse_initializer(
                         ));
                     }
 
-                    let ty = context
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayout::from_scalar(*scalar));
-                    let ety = ty.to_rvalue();
+                    let ety = scalar.to_rvalue();
                     let elements = build_elements(&ety, exprs, variable_location, context)?;
 
                     ir::Initializer::Aggregate(elements)

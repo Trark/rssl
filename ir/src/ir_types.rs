@@ -31,8 +31,8 @@ pub struct TypeRegistry {
 pub enum TypeLayer {
     Void,
     Scalar(ScalarType),
-    Vector(ScalarType, u32),
-    Matrix(ScalarType, u32, u32),
+    Vector(TypeId, u32),
+    Matrix(TypeId, u32, u32),
     Struct(StructId),
     StructTemplate(StructTemplateId),
     Enum(EnumId),
@@ -47,8 +47,8 @@ pub enum TypeLayer {
 pub enum TypeLayout {
     Void,
     Scalar(ScalarType),
-    Vector(ScalarType, u32),
-    Matrix(ScalarType, u32, u32),
+    Vector(Box<TypeLayout>, u32),
+    Matrix(Box<TypeLayout>, u32, u32),
     Struct(StructId),
     StructTemplate(StructTemplateId),
     Enum(EnumId),
@@ -64,20 +64,18 @@ impl TypeRegistry {
         let layer = match type_layout {
             TypeLayout::Void => TypeLayer::Void,
             TypeLayout::Scalar(st) => TypeLayer::Scalar(st),
-            TypeLayout::Vector(st, x) => TypeLayer::Vector(st, x),
-            TypeLayout::Matrix(st, x, y) => TypeLayer::Matrix(st, x, y),
+            TypeLayout::Vector(inner, x) => TypeLayer::Vector(self.register_type(*inner), x),
+            TypeLayout::Matrix(inner, x, y) => TypeLayer::Matrix(self.register_type(*inner), x, y),
             TypeLayout::Struct(id) => TypeLayer::Struct(id),
             TypeLayout::StructTemplate(id) => TypeLayer::StructTemplate(id),
             TypeLayout::Enum(id) => TypeLayer::Enum(id),
             // TODO: Deal with recursive types in object type args
             TypeLayout::Object(ot) => TypeLayer::Object(ot),
-            TypeLayout::Array(inner, len) => {
-                TypeLayer::Array(self.register_type((*inner).clone()), len)
-            }
+            TypeLayout::Array(inner, len) => TypeLayer::Array(self.register_type(*inner), len),
             TypeLayout::TemplateParam(id) => TypeLayer::TemplateParam(id),
             TypeLayout::Modifier(modifier, inner) => {
                 assert!(!matches!(*inner, TypeLayout::Modifier(_, _)));
-                TypeLayer::Modifier(modifier, self.register_type((*inner).clone()))
+                TypeLayer::Modifier(modifier, self.register_type(*inner))
             }
         };
 
@@ -96,8 +94,20 @@ impl TypeRegistry {
         let full_layout = match &layer {
             TypeLayer::Void => TypeLayout::Void,
             TypeLayer::Scalar(st) => TypeLayout::Scalar(*st),
-            TypeLayer::Vector(st, x) => TypeLayout::Vector(*st, *x),
-            TypeLayer::Matrix(st, x, y) => TypeLayout::Matrix(*st, *x, *y),
+            TypeLayer::Vector(inner, x) => {
+                let inner_layout = self.get_type_layout(*inner).clone();
+                if !matches!(inner_layout, TypeLayout::Scalar(_)) {
+                    panic!("{:?} inside vector", inner_layout);
+                }
+                TypeLayout::Vector(Box::new(inner_layout), *x)
+            }
+            TypeLayer::Matrix(inner, x, y) => {
+                let inner_layout = self.get_type_layout(*inner).clone();
+                if !matches!(inner_layout, TypeLayout::Scalar(_)) {
+                    panic!("{:?} inside matrix", inner_layout);
+                }
+                TypeLayout::Matrix(Box::new(inner_layout), *x, *y)
+            }
             TypeLayer::Struct(id) => TypeLayout::Struct(*id),
             TypeLayer::StructTemplate(id) => TypeLayout::StructTemplate(*id),
             TypeLayer::Enum(id) => TypeLayout::Enum(*id),
@@ -177,6 +187,19 @@ impl TypeRegistry {
         } else {
             modifier.is_const = true;
             self.register_type_layer(TypeLayer::Modifier(modifier, base))
+        }
+    }
+
+    /// Get the scalar type from a numeric type
+    pub fn extract_scalar(&self, id: TypeId) -> Option<ScalarType> {
+        match self.layers[id.0 as usize] {
+            TypeLayer::Scalar(scalar) => Some(scalar),
+            TypeLayer::Vector(inner, _) => self.extract_scalar(inner),
+            TypeLayer::Matrix(inner, _, _) => self.extract_scalar(inner),
+            TypeLayer::Modifier(_, _) => {
+                panic!("extract_scalar expects unmodified type")
+            }
+            _ => None,
         }
     }
 }
@@ -462,30 +485,9 @@ impl TypeId {
 }
 
 impl TypeLayer {
-    /// Parse numeric type from a string
-    pub const fn from_numeric_str(typename: &str) -> Option<TypeLayer> {
-        match NumericType::from_str(typename) {
-            Some(NumericType { scalar, dimension }) => {
-                Some(Self::from_numeric_dimensions(scalar, dimension))
-            }
-            None => None,
-        }
-    }
-
     /// Returns `true` if the layer is a modifier layer
     pub fn is_modifier(&self) -> bool {
         matches!(self, TypeLayer::Modifier(_, _))
-    }
-
-    /// Get the scalar type from a numeric type
-    pub fn to_scalar(&self) -> Option<ScalarType> {
-        assert!(!self.is_modifier());
-        match *self {
-            TypeLayer::Scalar(scalar)
-            | TypeLayer::Vector(scalar, _)
-            | TypeLayer::Matrix(scalar, _, _) => Some(scalar),
-            _ => None,
-        }
     }
 
     /// Get the size of the first dimension for a vector or matrix
@@ -507,35 +509,28 @@ impl TypeLayer {
         }
     }
 
-    /// Construct a type layout from a scalar type part and the dimension part
-    pub const fn from_numeric_dimensions(scalar: ScalarType, dim: NumericDimension) -> Self {
-        match dim {
-            NumericDimension::Scalar => TypeLayer::Scalar(scalar),
-            NumericDimension::Vector(x) => TypeLayer::Vector(scalar, x),
-            NumericDimension::Matrix(x, y) => TypeLayer::Matrix(scalar, x, y),
+    /// Get the total number of scalar elements in the type - or 1 for non-numeric types
+    pub fn get_num_elements(&self) -> u32 {
+        match (self.to_x(), self.to_y()) {
+            (Some(x1), Some(x2)) => x1 * x2,
+            (Some(x1), None) => x1,
+            (None, Some(x2)) => x2,
+            (None, None) => 1,
         }
     }
 }
 
 impl TypeLayout {
-    pub const fn void() -> Self {
-        TypeLayout::Void
-    }
-
     pub const fn from_scalar(scalar: ScalarType) -> Self {
         TypeLayout::Scalar(scalar)
     }
 
-    pub const fn from_vector(scalar: ScalarType, x: u32) -> Self {
-        TypeLayout::Vector(scalar, x)
+    pub fn from_vector(scalar: ScalarType, x: u32) -> Self {
+        TypeLayout::Vector(Box::new(TypeLayout::Scalar(scalar)), x)
     }
 
-    pub const fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> Self {
-        TypeLayout::Matrix(scalar, x, y)
-    }
-
-    pub const fn from_struct(id: StructId) -> Self {
-        TypeLayout::Struct(id)
+    pub fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> Self {
+        TypeLayout::Matrix(Box::new(TypeLayout::Scalar(scalar)), x, y)
     }
 
     pub const fn from_object(ty: ObjectType) -> Self {
@@ -546,7 +541,7 @@ impl TypeLayout {
         Self::from_scalar(ScalarType::Bool)
     }
 
-    pub const fn booln(dim: u32) -> Self {
+    pub fn booln(dim: u32) -> Self {
         Self::from_vector(ScalarType::Bool, dim)
     }
 
@@ -554,7 +549,7 @@ impl TypeLayout {
         Self::from_scalar(ScalarType::UInt)
     }
 
-    pub const fn uintn(dim: u32) -> Self {
+    pub fn uintn(dim: u32) -> Self {
         Self::from_vector(ScalarType::UInt, dim)
     }
 
@@ -562,7 +557,7 @@ impl TypeLayout {
         Self::from_scalar(ScalarType::Int)
     }
 
-    pub const fn intn(dim: u32) -> Self {
+    pub fn intn(dim: u32) -> Self {
         Self::from_vector(ScalarType::Int, dim)
     }
 
@@ -570,7 +565,7 @@ impl TypeLayout {
         Self::from_scalar(ScalarType::Float)
     }
 
-    pub const fn floatn(dim: u32) -> Self {
+    pub fn floatn(dim: u32) -> Self {
         Self::from_vector(ScalarType::Float, dim)
     }
 
@@ -578,41 +573,16 @@ impl TypeLayout {
         Self::from_scalar(ScalarType::Double)
     }
 
-    pub const fn doublen(dim: u32) -> Self {
-        Self::from_vector(ScalarType::Double, dim)
-    }
-
-    pub const fn long() -> Self {
-        Self::from_scalar(ScalarType::Int)
-    }
-
-    pub const fn float4x4() -> Self {
-        Self::from_matrix(ScalarType::Float, 4, 4)
-    }
-
     pub fn to_scalar(&self) -> Option<ScalarType> {
         assert!(!self.has_modifiers());
         match *self {
-            TypeLayout::Scalar(scalar)
-            | TypeLayout::Vector(scalar, _)
-            | TypeLayout::Matrix(scalar, _, _) => Some(scalar),
-            _ => None,
-        }
-    }
-
-    pub fn to_x(&self) -> Option<u32> {
-        assert!(!self.has_modifiers());
-        match *self {
-            TypeLayout::Vector(_, ref x) => Some(*x),
-            TypeLayout::Matrix(_, ref x, _) => Some(*x),
-            _ => None,
-        }
-    }
-
-    pub fn to_y(&self) -> Option<u32> {
-        assert!(!self.has_modifiers());
-        match *self {
-            TypeLayout::Matrix(_, _, ref y) => Some(*y),
+            TypeLayout::Scalar(scalar) => Some(scalar),
+            TypeLayout::Vector(ref scalar, _) | TypeLayout::Matrix(ref scalar, _, _) => {
+                match **scalar {
+                    TypeLayout::Scalar(scalar) => Some(scalar),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -671,36 +641,27 @@ impl TypeLayout {
         }
     }
 
-    /// Get the total number of scalar elements in the type - or 1 for non-numeric types
-    pub fn get_num_elements(&self) -> u32 {
-        assert!(!self.has_modifiers());
-        match (self.to_x(), self.to_y()) {
-            (Some(x1), Some(x2)) => x1 * x2,
-            (Some(x1), None) => x1,
-            (None, Some(x2)) => x2,
-            (None, None) => 1,
-        }
-    }
-
     /// Construct a type layout from a scalar type part and the dimension part
-    pub const fn from_numeric_dimensions(scalar: ScalarType, dim: NumericDimension) -> Self {
+    pub fn from_numeric_dimensions(scalar: ScalarType, dim: NumericDimension) -> Self {
+        let scalar = TypeLayout::Scalar(scalar);
         match dim {
-            NumericDimension::Scalar => TypeLayout::Scalar(scalar),
-            NumericDimension::Vector(x) => TypeLayout::Vector(scalar, x),
-            NumericDimension::Matrix(x, y) => TypeLayout::Matrix(scalar, x, y),
+            NumericDimension::Scalar => scalar,
+            NumericDimension::Vector(x) => TypeLayout::Vector(Box::new(scalar), x),
+            NumericDimension::Matrix(x, y) => TypeLayout::Matrix(Box::new(scalar), x, y),
         }
     }
 
     /// Construct a type layout from a scalar type part and the two optional dimension sizes
-    pub const fn from_numeric_parts(
+    pub fn from_numeric_parts(
         scalar: ScalarType,
         x_opt: Option<u32>,
         y_opt: Option<u32>,
     ) -> TypeLayout {
+        let scalar = TypeLayout::Scalar(scalar);
         match (x_opt, y_opt) {
-            (Some(x), Some(y)) => TypeLayout::Matrix(scalar, x, y),
-            (Some(x), None) => TypeLayout::Vector(scalar, x),
-            (None, None) => TypeLayout::Scalar(scalar),
+            (Some(x), Some(y)) => TypeLayout::Matrix(Box::new(scalar), x, y),
+            (Some(x), None) => TypeLayout::Vector(Box::new(scalar), x),
+            (None, None) => scalar,
             _ => panic!("invalid numeric type"),
         }
     }
@@ -708,10 +669,11 @@ impl TypeLayout {
     /// Replaces the scalar type inside a numeric type with the given scalar type
     pub fn transform_scalar(self, to_scalar: ScalarType) -> TypeLayout {
         let (tyl, ty_mod) = self.extract_modifier();
+        let to_scalar = TypeLayout::Scalar(to_scalar);
         let tyl = match tyl {
-            TypeLayout::Scalar(_) => TypeLayout::Scalar(to_scalar),
-            TypeLayout::Vector(_, x) => TypeLayout::Vector(to_scalar, x),
-            TypeLayout::Matrix(_, x, y) => TypeLayout::Matrix(to_scalar, x, y),
+            TypeLayout::Scalar(_) => to_scalar,
+            TypeLayout::Vector(_, x) => TypeLayout::Vector(Box::new(to_scalar), x),
+            TypeLayout::Matrix(_, x, y) => TypeLayout::Matrix(Box::new(to_scalar), x, y),
             _ => panic!("non-numeric type in TypeLayout::transform_scalar"),
         };
         tyl.combine_modifier(ty_mod)
@@ -729,21 +691,6 @@ impl TypeLayout {
         } else {
             *self == TypeLayout::Void
         }
-    }
-
-    /// Returns `true` if the type has a const modifier
-    pub fn is_const(&self) -> bool {
-        if let TypeLayout::Modifier(modifier, _) = self {
-            modifier.is_const
-        } else {
-            false
-        }
-    }
-
-    /// Returns `true` if the type is an array
-    pub fn is_array(&self) -> bool {
-        assert!(!self.has_modifiers());
-        matches!(self, &TypeLayout::Array(_, _))
     }
 
     /// Returns `true` if the type is an object
@@ -789,50 +736,6 @@ impl TypeLayout {
             self
         } else {
             TypeLayout::Modifier(modifier, Box::new(self))
-        }
-    }
-
-    /// Add the const modifier
-    pub fn make_const(mut self) -> Self {
-        if let TypeLayout::Modifier(modifier, _) = &mut self {
-            modifier.is_const = true;
-            self
-        } else {
-            TypeLayout::Modifier(TypeModifier::const_only(), Box::new(self))
-        }
-    }
-
-    /// Remove the const modifier
-    pub fn remove_const(self) -> Self {
-        if let TypeLayout::Modifier(mut modifier, inner) = self {
-            modifier.is_const = false;
-            if modifier == TypeModifier::default() {
-                *inner
-            } else {
-                TypeLayout::Modifier(modifier, inner)
-            }
-        } else {
-            self
-        }
-    }
-
-    /// Turn a [TypeLayer] for a numeric type into a [TypeLayout]
-    pub const fn from_numeric_layer(layer: TypeLayer) -> Option<Self> {
-        match layer {
-            TypeLayer::Scalar(s) => Some(TypeLayout::Scalar(s)),
-            TypeLayer::Vector(s, x) => Some(TypeLayout::Vector(s, x)),
-            TypeLayer::Matrix(s, x, y) => Some(TypeLayout::Matrix(s, x, y)),
-            _ => None,
-        }
-    }
-
-    /// Turn a [TypeLayer] for a numeric type into a [TypeLayout]
-    pub const fn from_numeric_layer_or_fail(layer: TypeLayer) -> Self {
-        match layer {
-            TypeLayer::Scalar(s) => TypeLayout::Scalar(s),
-            TypeLayer::Vector(s, x) => TypeLayout::Vector(s, x),
-            TypeLayer::Matrix(s, x, y) => TypeLayout::Matrix(s, x, y),
-            _ => panic!(),
         }
     }
 }
@@ -1066,8 +969,8 @@ impl std::fmt::Debug for TypeLayer {
         match *self {
             TypeLayer::Void => write!(f, "void"),
             TypeLayer::Scalar(ref st) => write!(f, "{:?}", st),
-            TypeLayer::Vector(ref st, ref x) => write!(f, "{:?}{}", st, x),
-            TypeLayer::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
+            TypeLayer::Vector(ref st, ref x) => write!(f, "vector<{:?}, {}>", st, x),
+            TypeLayer::Matrix(ref st, ref x, ref y) => write!(f, "matrix<{:?}, {}, {}>", st, x, y),
             TypeLayer::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
             TypeLayer::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
             TypeLayer::Enum(ref id) => write!(f, "enum<{}>", id.0),

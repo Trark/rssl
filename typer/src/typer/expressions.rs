@@ -451,28 +451,12 @@ fn parse_expr_unaryop(
                         base_location,
                     ));
                 }
-                match context.module.type_registry.get_type_layer(tyl) {
-                    ir::TypeLayer::Scalar(ir::ScalarType::Bool) => {
-                        Err(TyperError::UnaryOperationWrongTypes(
-                            op.clone(),
-                            ErrorType::Unknown,
-                            base_location,
-                        ))
-                    }
-                    ir::TypeLayer::Vector(ir::ScalarType::Bool, _) => {
-                        Err(TyperError::UnaryOperationWrongTypes(
-                            op.clone(),
-                            ErrorType::Unknown,
-                            base_location,
-                        ))
-                    }
-                    ir::TypeLayer::Matrix(ir::ScalarType::Bool, _, _) => {
-                        Err(TyperError::UnaryOperationWrongTypes(
-                            op.clone(),
-                            ErrorType::Unknown,
-                            base_location,
-                        ))
-                    }
+                match context.module.type_registry.extract_scalar(tyl) {
+                    Some(ir::ScalarType::Bool) => Err(TyperError::UnaryOperationWrongTypes(
+                        op.clone(),
+                        ErrorType::Unknown,
+                        base_location,
+                    )),
                     _ => Ok(()),
                 }
             }
@@ -505,22 +489,30 @@ fn parse_expr_unaryop(
                 ast::UnaryOp::Minus => (ir::IntrinsicOp::Minus, expr_ir, expr_ty.0.to_rvalue()),
                 ast::UnaryOp::LogicalNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    let tyl = match context.module.type_registry.get_type_layer(input_ty_id) {
-                        ir::TypeLayer::Scalar(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
-                        ir::TypeLayer::Vector(_, x) => {
-                            ir::TypeLayer::Vector(ir::ScalarType::Bool, x)
-                        }
-                        ir::TypeLayer::Matrix(_, x, y) => {
-                            ir::TypeLayer::Matrix(ir::ScalarType::Bool, x, y)
-                        }
-                        _ => {
-                            return Err(TyperError::UnaryOperationWrongTypes(
-                                op.clone(),
-                                ErrorType::Unknown,
-                                base_location,
-                            ))
-                        }
-                    };
+                    let tyl =
+                        match context.module.type_registry.get_type_layer(input_ty_id) {
+                            ir::TypeLayer::Scalar(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
+                            ir::TypeLayer::Vector(_, x) => ir::TypeLayer::Vector(
+                                context.module.type_registry.register_type_layer(
+                                    ir::TypeLayer::Scalar(ir::ScalarType::Bool),
+                                ),
+                                x,
+                            ),
+                            ir::TypeLayer::Matrix(_, x, y) => ir::TypeLayer::Matrix(
+                                context.module.type_registry.register_type_layer(
+                                    ir::TypeLayer::Scalar(ir::ScalarType::Bool),
+                                ),
+                                x,
+                                y,
+                            ),
+                            _ => {
+                                return Err(TyperError::UnaryOperationWrongTypes(
+                                    op.clone(),
+                                    ErrorType::Unknown,
+                                    base_location,
+                                ))
+                            }
+                        };
                     let ty = context.module.type_registry.register_type_layer(tyl);
                     let ety = ty.to_rvalue();
                     (ir::IntrinsicOp::LogicalNot, expr_ir, ety)
@@ -683,26 +675,34 @@ fn resolve_arithmetic_types(
         let right_base_id = context.module.type_registry.remove_modifier(right.0);
         let left_base_tyl = context.module.type_registry.get_type_layer(left_base_id);
         let right_base_tyl = context.module.type_registry.get_type_layer(right_base_id);
+        let ls = match context.module.type_registry.extract_scalar(left_base_id) {
+            Some(s) => s,
+            None => return Err(()),
+        };
+        let rs = match context.module.type_registry.extract_scalar(right_base_id) {
+            Some(s) => s,
+            None => return Err(()),
+        };
         let (ltl, rtl) = match (left_base_tyl, right_base_tyl) {
-            (ir::TypeLayer::Scalar(ls), ir::TypeLayer::Scalar(rs)) => {
+            (ir::TypeLayer::Scalar(_), ir::TypeLayer::Scalar(_)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_scalar(common_scalar);
                 let common_right = common_left.clone();
                 (common_left, common_right)
             }
-            (ir::TypeLayer::Scalar(ls), ir::TypeLayer::Vector(rs, x2)) => {
+            (ir::TypeLayer::Scalar(_), ir::TypeLayer::Vector(_, x2)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_scalar(common_scalar);
                 let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
                 (common_left, common_right)
             }
-            (ir::TypeLayer::Vector(ls, x1), ir::TypeLayer::Scalar(rs)) => {
+            (ir::TypeLayer::Vector(_, x1), ir::TypeLayer::Scalar(_)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
                 let common_right = ir::TypeLayout::from_scalar(common_scalar);
                 (common_left, common_right)
             }
-            (ir::TypeLayer::Vector(ls, x1), ir::TypeLayer::Vector(rs, x2))
+            (ir::TypeLayer::Vector(_, x1), ir::TypeLayer::Vector(_, x2))
                 if x1 == x2 || x1 == 1 || x2 == 1 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
@@ -710,7 +710,7 @@ fn resolve_arithmetic_types(
                 let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
                 (common_left, common_right)
             }
-            (ir::TypeLayer::Matrix(ls, x1, y1), ir::TypeLayer::Matrix(rs, x2, y2))
+            (ir::TypeLayer::Matrix(_, x1, y1), ir::TypeLayer::Matrix(_, x2, y2))
                 if x1 == x2 && y1 == y2 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
@@ -785,9 +785,8 @@ fn parse_expr_binop(
             if *op == ast::BinOp::LeftShift || *op == ast::BinOp::RightShift {
                 fn is_integer(ety: ExpressionType, context: &Context) -> bool {
                     let base_id = context.module.type_registry.remove_modifier(ety.0);
-                    let tyl = context.module.type_registry.get_type_layer(base_id);
-                    let sty = match tyl.to_scalar() {
-                        Some(sty) => sty,
+                    let sty = match context.module.type_registry.extract_scalar(base_id) {
+                        Some(s) => s,
                         None => return false,
                     };
                     sty == ir::ScalarType::Int
@@ -825,12 +824,14 @@ fn parse_expr_binop(
             let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
                 ir::ScalarType::Bool
             } else {
-                let lhs_scalar = lhs_tyl
-                    .to_scalar()
-                    .ok_or(TyperError::BinaryOperationNonNumericType(base_location))?;
-                let rhs_scalar = rhs_tyl
-                    .to_scalar()
-                    .ok_or(TyperError::BinaryOperationNonNumericType(base_location))?;
+                let lhs_scalar = match context.module.type_registry.extract_scalar(left_base) {
+                    Some(s) => s,
+                    None => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
+                };
+                let rhs_scalar = match context.module.type_registry.extract_scalar(right_base) {
+                    Some(s) => s,
+                    None => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
+                };
                 match (lhs_scalar, rhs_scalar) {
                     (ir::ScalarType::Int, ir::ScalarType::Int) => ir::ScalarType::Int,
                     (ir::ScalarType::Int, ir::ScalarType::UInt) => ir::ScalarType::UInt,
@@ -1271,7 +1272,7 @@ fn parse_expr_unchecked(
                         Err(err) => Err(err),
                     }
                 }
-                ir::TypeLayer::Scalar(scalar) => {
+                ir::TypeLayer::Scalar(_) => {
                     let member = match member.try_trivial() {
                         Some(member) => member,
                         None => {
@@ -1296,12 +1297,17 @@ fn parse_expr_unchecked(
                         });
                     }
                     let vt = get_swizzle_vt(&swizzle_slots, vt);
-                    let tyl = if swizzle_slots.len() == 1 {
-                        ir::TypeLayout::Scalar(scalar)
+                    let ty_unmod = if swizzle_slots.len() == 1 {
+                        composite_ty_nomod
                     } else {
-                        ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
+                        context
+                            .module
+                            .type_registry
+                            .register_type_layer(ir::TypeLayer::Vector(
+                                composite_ty_nomod,
+                                swizzle_slots.len() as u32,
+                            ))
                     };
-                    let ty_unmod = context.module.type_registry.register_type(tyl);
                     let ty = context
                         .module
                         .type_registry
@@ -1343,12 +1349,17 @@ fn parse_expr_unchecked(
                     // that then get downcasted
                     // But it's hard to tell as scalars + single element vectors
                     // have the same overload precedence
-                    let tyl = if swizzle_slots.len() == 1 {
-                        ir::TypeLayout::Scalar(scalar)
+                    let ty_unmod = if swizzle_slots.len() == 1 {
+                        scalar
                     } else {
-                        ir::TypeLayout::Vector(scalar, swizzle_slots.len() as u32)
+                        context
+                            .module
+                            .type_registry
+                            .register_type_layer(ir::TypeLayer::Vector(
+                                scalar,
+                                swizzle_slots.len() as u32,
+                            ))
                     };
-                    let ty_unmod = context.module.type_registry.register_type(tyl);
                     let ty = context
                         .module
                         .type_registry
@@ -1565,13 +1576,11 @@ fn parse_expr_constructor(
         .map(|e| e.location)
         .unwrap_or(SourceLocation::UNKNOWN);
     let ty_nomod = context.module.type_registry.remove_modifier(ty);
-    let tyl = context.module.type_registry.get_type_layout(ty_nomod);
+    let tyl = context.module.type_registry.get_type_layer(ty_nomod);
     let expected_num_elements = tyl.get_num_elements();
-    let target_scalar = match *tyl {
-        ir::TypeLayout::Scalar(st)
-        | ir::TypeLayout::Vector(st, _)
-        | ir::TypeLayout::Matrix(st, _, _) => st,
-        _ => return Err(TyperError::ConstructorWrongArgumentCount(error_location)),
+    let target_scalar = match context.module.type_registry.extract_scalar(ty_nomod) {
+        Some(st) => st,
+        None => return Err(TyperError::ConstructorWrongArgumentCount(error_location)),
     };
     let mut slots: Vec<ir::ConstructorSlot> = vec![];
     let mut total_arity = 0;
@@ -1582,17 +1591,25 @@ fn parse_expr_constructor(
             _ => return Err(TyperError::FunctionNotCalled(param.get_location())),
         };
         let expr_ty_nomod = context.module.type_registry.remove_modifier(ety.0);
-        let expr_tyl = context.module.type_registry.get_type_layout(expr_ty_nomod);
+        let expr_tyl = context.module.type_registry.get_type_layer(expr_ty_nomod);
         let arity = expr_tyl.get_num_elements();
         total_arity += arity;
-        let s = target_scalar;
-        let target_tyl = match *expr_tyl {
-            ir::TypeLayout::Scalar(_) => ir::TypeLayout::Scalar(s),
-            ir::TypeLayout::Vector(_, x) => ir::TypeLayout::Vector(s, x),
-            ir::TypeLayout::Matrix(_, x, y) => ir::TypeLayout::Matrix(s, x, y),
+        let target_scalar_ty = context
+            .module
+            .type_registry
+            .register_type_layer(ir::TypeLayer::Scalar(target_scalar));
+        let target_ty = match expr_tyl {
+            ir::TypeLayer::Scalar(_) => target_scalar_ty,
+            ir::TypeLayer::Vector(_, x) => context
+                .module
+                .type_registry
+                .register_type_layer(ir::TypeLayer::Vector(target_scalar_ty, x)),
+            ir::TypeLayer::Matrix(_, x, y) => context
+                .module
+                .type_registry
+                .register_type_layer(ir::TypeLayer::Matrix(target_scalar_ty, x, y)),
             _ => return Err(TyperError::WrongTypeInConstructor(param.get_location())),
         };
-        let target_ty = context.module.type_registry.register_type(target_tyl);
         let target_type = target_ty.to_rvalue();
         let cast = match ImplicitConversion::find(ety, target_type, &mut context.module) {
             Ok(cast) => cast,
@@ -1620,14 +1637,16 @@ fn parse_expr_internal(
     match texp {
         #[cfg(debug_assertions)]
         TypedExpression::Value(ref expr, ref ty_expected) => {
-            let ty_res = get_expression_type(expr, context);
-            let ty = ty_res.expect("type unknown");
+            let ty_query_res = get_expression_type(expr, context);
+            let ty_query = ty_query_res.expect("type unknown");
             assert!(
-                ty == *ty_expected,
-                "{:?} == {:?}: {:?}",
-                ty,
-                *ty_expected,
-                expr
+                ty_query == *ty_expected,
+                "[{:?}, {:?}] != [{:?}, {:?}]: {:?}",
+                context.module.type_registry.get_type_layout(ty_query.0),
+                ty_query.1,
+                context.module.type_registry.get_type_layout(ty_expected.0),
+                ty_expected.1,
+                expr,
             );
         }
         _ => {}
@@ -1735,14 +1754,33 @@ fn get_expression_type(
         ir::Expression::Swizzle(ref vec, ref swizzle) => {
             let ExpressionType(vec_ty, vec_vt) = get_expression_type(vec, context)?;
             let (vec_ty_nomod, vec_mod) = context.module.type_registry.extract_modifier(vec_ty);
-            let vec_tyl_nomod = context.module.type_registry.get_type_layout(vec_ty_nomod);
+            let vec_tyl_nomod = context.module.type_registry.get_type_layer(vec_ty_nomod);
             let vt = get_swizzle_vt(swizzle, vec_vt);
-            let tyl = match *vec_tyl_nomod {
-                ir::TypeLayout::Scalar(scalar) | ir::TypeLayout::Vector(scalar, _) => {
+            let ty = match vec_tyl_nomod {
+                ir::TypeLayer::Scalar(_) => {
                     if swizzle.len() == 1 {
-                        ir::TypeLayout::Scalar(scalar)
+                        vec_ty_nomod
                     } else {
-                        ir::TypeLayout::Vector(scalar, swizzle.len() as u32)
+                        context
+                            .module
+                            .type_registry
+                            .register_type_layer(ir::TypeLayer::Vector(
+                                vec_ty_nomod,
+                                swizzle.len() as u32,
+                            ))
+                    }
+                }
+                ir::TypeLayer::Vector(scalar, _) => {
+                    if swizzle.len() == 1 {
+                        scalar
+                    } else {
+                        context
+                            .module
+                            .type_registry
+                            .register_type_layer(ir::TypeLayer::Vector(
+                                scalar,
+                                swizzle.len() as u32,
+                            ))
                     }
                 }
                 _ => {
@@ -1752,7 +1790,6 @@ fn get_expression_type(
                     ))
                 }
             };
-            let ty = context.module.type_registry.register_type(tyl);
             let ty = context.module.type_registry.combine_modifier(ty, vec_mod);
             Ok(ExpressionType(ty, vt))
         }
@@ -1763,10 +1800,7 @@ fn get_expression_type(
             let array_tyl_nomod = context.module.type_registry.get_type_layer(array_ty_nomod);
             let ty = match array_tyl_nomod {
                 ir::TypeLayer::Array(element, _) => element,
-                ir::TypeLayer::Vector(st, _) => {
-                    let tyl = ir::TypeLayer::Scalar(st);
-                    context.module.type_registry.register_type_layer(tyl)
-                }
+                ir::TypeLayer::Vector(st, _) => st,
                 ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty))

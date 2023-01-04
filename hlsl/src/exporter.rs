@@ -568,9 +568,17 @@ fn export_type_impl(
     match tyl {
         ir::TypeLayer::Void => write!(output, "void").unwrap(),
         ir::TypeLayer::Scalar(st) => write!(output, "{}", export_scalar_type(st)?).unwrap(),
-        ir::TypeLayer::Vector(st, x) => write!(output, "{}{}", export_scalar_type(st)?, x).unwrap(),
+        ir::TypeLayer::Vector(st, x) => {
+            // Allowed types in a vector should construct valid vector type names
+            // This will break down for vector of enums
+            export_type_impl(st, false, output, output_array, context)?;
+            write!(output, "{}", x).unwrap()
+        }
         ir::TypeLayer::Matrix(st, x, y) => {
-            write!(output, "{}{}x{}", export_scalar_type(st)?, x, y).unwrap()
+            // Allowed types in a matrix should construct valid matrix type names
+            // This will break down for vector of enums
+            export_type_impl(st, false, output, output_array, context)?;
+            write!(output, "{}x{}", x, y).unwrap()
         }
         ir::TypeLayer::Struct(id) => {
             write!(output, "{}", context.get_struct_name_full(id)?).unwrap()
