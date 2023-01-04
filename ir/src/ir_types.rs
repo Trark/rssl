@@ -242,6 +242,13 @@ pub enum NumericDimension {
     Matrix(u32, u32),
 }
 
+/// Representation for a built in scalar, vector or matrix data type
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub struct NumericType {
+    pub scalar: ScalarType,
+    pub dimension: NumericDimension,
+}
+
 /// Id to a user defined struct
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct StructId(pub u32);
@@ -457,57 +464,9 @@ impl TypeId {
 impl TypeLayer {
     /// Parse numeric type from a string
     pub const fn from_numeric_str(typename: &str) -> Option<TypeLayer> {
-        const fn digit(input: &[u8]) -> Option<(&[u8], u32)> {
-            match input {
-                [b'1', rest @ ..] => Some((rest, 1)),
-                [b'2', rest @ ..] => Some((rest, 2)),
-                [b'3', rest @ ..] => Some((rest, 3)),
-                [b'4', rest @ ..] => Some((rest, 4)),
-                _ => None,
-            }
-        }
-
-        const fn parse_str(input: &[u8]) -> Option<(&[u8], TypeLayer)> {
-            let (rest, ty) = match ScalarType::parse_str(input) {
-                Some(ok) => ok,
-                None => return None,
-            };
-            if rest.is_empty() {
-                return Some((&[], TypeLayer::Scalar(ty)));
-            }
-
-            let (rest, x) = match digit(rest) {
-                Some(ok) => ok,
-                None => return None,
-            };
-            if rest.is_empty() {
-                return Some((&[], TypeLayer::Vector(ty, x)));
-            }
-
-            let rest = match rest {
-                [b'x', rest @ ..] => rest,
-                _ => return None,
-            };
-
-            let (rest, y) = match digit(rest) {
-                Some(ok) => ok,
-                None => return None,
-            };
-            if rest.is_empty() {
-                return Some((&[], TypeLayer::Matrix(ty, x, y)));
-            }
-
-            None
-        }
-
-        let type_name_bytes = typename.as_bytes();
-
-        match parse_str(type_name_bytes) {
-            Some((rest, ty)) => {
-                if !rest.is_empty() {
-                    panic!("from_numeric_str expects to finish the string`");
-                }
-                Some(ty)
+        match NumericType::from_str(typename) {
+            Some(NumericType { scalar, dimension }) => {
+                Some(Self::from_numeric_dimensions(scalar, dimension))
             }
             None => None,
         }
@@ -545,6 +504,15 @@ impl TypeLayer {
         match *self {
             TypeLayer::Matrix(_, _, ref y) => Some(*y),
             _ => None,
+        }
+    }
+
+    /// Construct a type layout from a scalar type part and the dimension part
+    pub const fn from_numeric_dimensions(scalar: ScalarType, dim: NumericDimension) -> Self {
+        match dim {
+            NumericDimension::Scalar => TypeLayer::Scalar(scalar),
+            NumericDimension::Vector(x) => TypeLayer::Vector(scalar, x),
+            NumericDimension::Matrix(x, y) => TypeLayer::Matrix(scalar, x, y),
         }
     }
 }
@@ -885,6 +853,84 @@ impl ScalarType {
     }
 }
 
+impl NumericType {
+    /// Parse numeric type from a string
+    pub const fn from_str(typename: &str) -> Option<NumericType> {
+        const fn digit(input: &[u8]) -> Option<(&[u8], u32)> {
+            match input {
+                [b'1', rest @ ..] => Some((rest, 1)),
+                [b'2', rest @ ..] => Some((rest, 2)),
+                [b'3', rest @ ..] => Some((rest, 3)),
+                [b'4', rest @ ..] => Some((rest, 4)),
+                _ => None,
+            }
+        }
+
+        const fn parse_str(input: &[u8]) -> Option<(&[u8], NumericType)> {
+            let (rest, ty) = match ScalarType::parse_str(input) {
+                Some(ok) => ok,
+                None => return None,
+            };
+            if rest.is_empty() {
+                return Some((
+                    &[],
+                    NumericType {
+                        scalar: ty,
+                        dimension: NumericDimension::Scalar,
+                    },
+                ));
+            }
+
+            let (rest, x) = match digit(rest) {
+                Some(ok) => ok,
+                None => return None,
+            };
+            if rest.is_empty() {
+                return Some((
+                    &[],
+                    NumericType {
+                        scalar: ty,
+                        dimension: NumericDimension::Vector(x),
+                    },
+                ));
+            }
+
+            let rest = match rest {
+                [b'x', rest @ ..] => rest,
+                _ => return None,
+            };
+
+            let (rest, y) = match digit(rest) {
+                Some(ok) => ok,
+                None => return None,
+            };
+            if rest.is_empty() {
+                return Some((
+                    &[],
+                    NumericType {
+                        scalar: ty,
+                        dimension: NumericDimension::Matrix(x, y),
+                    },
+                ));
+            }
+
+            None
+        }
+
+        let type_name_bytes = typename.as_bytes();
+
+        match parse_str(type_name_bytes) {
+            Some((rest, ty)) => {
+                if !rest.is_empty() {
+                    panic!("NumericType::from_str expects to finish the string`");
+                }
+                Some(ty)
+            }
+            None => None,
+        }
+    }
+}
+
 impl TypeModifier {
     /// Create the default type modifier
     pub const fn new() -> TypeModifier {
@@ -1151,19 +1197,28 @@ impl std::fmt::Debug for ObjectType {
 #[test]
 fn test_parse_numeric_str() {
     assert_eq!(
-        TypeLayer::from_numeric_str("float"),
-        Some(TypeLayer::Scalar(ScalarType::Float))
+        NumericType::from_str("float"),
+        Some(NumericType {
+            scalar: ScalarType::Float,
+            dimension: NumericDimension::Scalar
+        })
     );
     assert_eq!(
-        TypeLayer::from_numeric_str("uint3"),
-        Some(TypeLayer::Vector(ScalarType::UInt, 3))
+        NumericType::from_str("uint3"),
+        Some(NumericType {
+            scalar: ScalarType::UInt,
+            dimension: NumericDimension::Vector(3)
+        })
     );
     assert_eq!(
-        TypeLayer::from_numeric_str("bool2x3"),
-        Some(TypeLayer::Matrix(ScalarType::Bool, 2, 3))
+        NumericType::from_str("bool2x3"),
+        Some(NumericType {
+            scalar: ScalarType::Bool,
+            dimension: NumericDimension::Matrix(2, 3)
+        })
     );
 
-    assert_eq!(TypeLayer::from_numeric_str(""), None);
-    assert_eq!(TypeLayer::from_numeric_str("float5"), None);
-    assert_eq!(TypeLayer::from_numeric_str("float2x"), None);
+    assert_eq!(NumericType::from_str(""), None);
+    assert_eq!(NumericType::from_str("float5"), None);
+    assert_eq!(NumericType::from_str("float2x"), None);
 }

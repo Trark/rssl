@@ -4,97 +4,91 @@ use rssl_text::Located;
 struct IntrinsicDefinition {
     function_name: &'static str,
     intrinsic: Intrinsic,
-    return_type: TypeLayout,
+    return_type: TypeDef,
     param_types: &'static [ParamDef],
-    multi_types: &'static [TypeLayout],
+    multi_types: &'static [TypeDef],
 }
 
-struct ParamDef(pub TypeLayout, pub InputModifier);
+struct ParamDef(pub TypeDef, pub InputModifier);
 
-const fn type_from_str(name: &str) -> TypeLayout {
-    let layer = match TypeLayer::from_numeric_str(name) {
-        Some(layer) => layer,
+enum TypeDef {
+    Void,
+    Numeric(NumericType),
+    Object(ObjectType),
+    FunctionTemplateArgument,
+    ObjectTemplateArgument,
+    MultiArgument,
+}
+
+const fn numeric_from_str(name: &str) -> TypeDef {
+    let ty = match NumericType::from_str(name) {
+        Some(ty) => ty,
         None => panic!(),
     };
 
-    TypeLayout::from_numeric_layer_or_fail(layer)
+    TypeDef::Numeric(ty)
 }
 
 macro_rules! return_type {
     (T) => {
-        TypeLayout::TemplateParam(TemplateTypeId(0))
+        TypeDef::FunctionTemplateArgument
     };
 
     (D) => {
-        TypeLayout::TemplateParam(TemplateTypeId(u32::MAX))
+        TypeDef::ObjectTemplateArgument
     };
 
     (M) => {
-        TypeLayout::TemplateParam(TemplateTypeId(u32::MAX - 1))
+        TypeDef::MultiArgument
     };
 
     (void) => {
-        TypeLayout::Void
+        TypeDef::Void
     };
 
     ($ty:ident) => {
-        type_from_str(stringify!($ty))
+        numeric_from_str(stringify!($ty))
     };
 }
 
 macro_rules! param_type {
     (T) => {
-        ParamDef(
-            TypeLayout::TemplateParam(TemplateTypeId(0)),
-            InputModifier::In,
-        )
+        ParamDef(TypeDef::FunctionTemplateArgument, InputModifier::In)
     };
 
     (D) => {
-        ParamDef(
-            TypeLayout::TemplateParam(TemplateTypeId(u32::MAX)),
-            InputModifier::In,
-        )
+        ParamDef(TypeDef::ObjectTemplateArgument, InputModifier::In)
     };
 
     (M) => {
-        ParamDef(
-            TypeLayout::TemplateParam(TemplateTypeId(u32::MAX - 1)),
-            InputModifier::In,
-        )
+        ParamDef(TypeDef::MultiArgument, InputModifier::In)
     };
 
     (out M) => {
-        ParamDef(
-            TypeLayout::TemplateParam(TemplateTypeId(u32::MAX - 1)),
-            InputModifier::Out,
-        )
+        ParamDef(TypeDef::MultiArgument, InputModifier::Out)
     };
 
     (SamplerState) => {
-        ParamDef(
-            TypeLayout::Object(ObjectType::SamplerState),
-            InputModifier::In,
-        )
+        ParamDef(TypeDef::Object(ObjectType::SamplerState), InputModifier::In)
     };
 
     (SamplerComparisonState) => {
         ParamDef(
-            TypeLayout::Object(ObjectType::SamplerComparisonState),
+            TypeDef::Object(ObjectType::SamplerComparisonState),
             InputModifier::In,
         )
     };
 
     ($ty:ident) => {
-        ParamDef(type_from_str(stringify!($ty)), InputModifier::In)
+        ParamDef(numeric_from_str(stringify!($ty)), InputModifier::In)
     };
 
     (out $ty:ident) => {
-        ParamDef(type_from_str(stringify!($ty)), InputModifier::Out)
+        ParamDef(numeric_from_str(stringify!($ty)), InputModifier::Out)
     };
 
     (inout $ty:ident) => {
-        ParamDef(type_from_str(stringify!($ty)), InputModifier::InOut)
+        ParamDef(numeric_from_str(stringify!($ty)), InputModifier::InOut)
     };
 
     ($ty:expr) => {
@@ -109,7 +103,7 @@ macro_rules! f {
             intrinsic: Intrinsic::$intrinsic,
             return_type: return_type!($return_type),
             param_types: &[$(param_type!($($param_type)+)),*],
-            multi_types: &[$($(type_from_str(stringify!($($multi_types)+))),*)?],
+            multi_types: &[$($(numeric_from_str(stringify!($($multi_types)+))),*)?],
         }
     };
 }
@@ -276,28 +270,25 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 pub fn add_intrinsics(module: &mut Module) {
     for def in INTRINSICS {
         let multi_types = if def.multi_types.is_empty() {
-            &[TypeLayout::Void]
+            &[TypeDef::Void]
         } else {
             def.multi_types
         };
         for multi_type in multi_types {
-            // Replace the multi types
-            let remap_inner = |ty| {
-                if let TypeLayout::TemplateParam(v) = ty {
-                    if v.0 == u32::MAX - 1 {
-                        return multi_type.clone();
-                    }
-                };
-                ty
+            let multi_type_id = if def.multi_types.is_empty() {
+                None
+            } else {
+                Some(get_type_id(multi_type, module, None, None))
             };
+
+            // Replace the multi types
+            let mut remap_inner = |ty| get_type_id(ty, module, None, multi_type_id);
 
             // Fetch and remap the param types
             let mut param_types = Vec::with_capacity(def.param_types.len());
             for param_type_def in def.param_types {
                 param_types.push(ParamType {
-                    type_id: module
-                        .type_registry
-                        .register_type(remap_inner(param_type_def.0.clone())),
+                    type_id: remap_inner(&param_type_def.0),
                     input_modifier: param_type_def.1,
                     interpolation_modifier: None,
                     precise: false,
@@ -306,9 +297,7 @@ pub fn add_intrinsics(module: &mut Module) {
 
             // Register the return type
             let return_type = FunctionReturn {
-                return_type: module
-                    .type_registry
-                    .register_type(remap_inner(def.return_type.clone())),
+                return_type: remap_inner(&def.return_type),
                 semantic: None,
             };
 
@@ -512,9 +501,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         | ObjectType::Texture2D(ty)
         | ObjectType::RWTexture2D(ty)
         | ObjectType::StructuredBuffer(ty)
-        | ObjectType::RWStructuredBuffer(ty) => {
-            Some(module.type_registry.get_type_layout(ty).clone())
-        }
+        | ObjectType::RWStructuredBuffer(ty) => Some(ty),
         _ => None,
     };
 
@@ -523,22 +510,13 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         assert!(def.multi_types.is_empty());
 
         // Replace the object template type with the type arg
-        let remap_inner = |ty| {
-            if let TypeLayout::TemplateParam(v) = ty {
-                if v.0 == u32::MAX {
-                    return inner_type.clone().unwrap();
-                }
-            };
-            ty
-        };
+        let mut remap_inner = |ty| get_type_id(ty, module, inner_type, None);
 
         // Fetch and remap the param types
         let mut param_types = Vec::with_capacity(def.param_types.len());
         for param_type_def in def.param_types {
             param_types.push(ParamType {
-                type_id: module
-                    .type_registry
-                    .register_type(remap_inner(param_type_def.0.clone())),
+                type_id: remap_inner(&param_type_def.0),
                 input_modifier: param_type_def.1,
                 interpolation_modifier: None,
                 precise: false,
@@ -547,9 +525,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
 
         // Register the return type
         let return_type = FunctionReturn {
-            return_type: module
-                .type_registry
-                .register_type(remap_inner(def.return_type.clone())),
+            return_type: remap_inner(&def.return_type),
             semantic: None,
         };
 
@@ -569,6 +545,34 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
     }
 
     methods
+}
+
+/// Get the type id from a type definition
+fn get_type_id(
+    ty: &TypeDef,
+    module: &mut Module,
+    object_template_type: Option<TypeId>,
+    multi_type: Option<TypeId>,
+) -> TypeId {
+    match *ty {
+        TypeDef::Void => module.type_registry.register_type_layer(TypeLayer::Void),
+        TypeDef::Numeric(ref num) => {
+            module
+                .type_registry
+                .register_type_layer(TypeLayer::from_numeric_dimensions(
+                    num.scalar,
+                    num.dimension,
+                ))
+        }
+        TypeDef::Object(ref obj) => module
+            .type_registry
+            .register_type_layer(TypeLayer::Object(*obj)),
+        TypeDef::FunctionTemplateArgument => module
+            .type_registry
+            .register_type_layer(TypeLayer::TemplateParam(TemplateTypeId(0))),
+        TypeDef::ObjectTemplateArgument => object_template_type.unwrap(),
+        TypeDef::MultiArgument => multi_type.unwrap(),
+    }
 }
 
 /// Get the maximum template argument count within the function
