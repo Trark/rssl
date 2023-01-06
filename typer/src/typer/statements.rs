@@ -274,12 +274,6 @@ fn parse_statement_attribute(
 fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir::VarDef>> {
     let (base_id, storage_class, precise) = parse_localtype(&ast.local_type, context)?;
 
-    let base_type_layout = context
-        .module
-        .type_registry
-        .get_type_layout(base_id)
-        .clone();
-
     // Build multiple output VarDefs for each variable inside the source VarDef
     let mut vardefs = vec![];
     for local_variable in &ast.defs {
@@ -290,16 +284,9 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             ));
         }
 
-        // Build type from ast type + bind
-        let type_layout = apply_variable_bind(
-            base_type_layout.clone(),
-            &local_variable.bind,
-            &local_variable.init,
-            context,
-        )?;
-
-        // Register the type
-        let type_id = context.module.type_registry.register_type(type_layout);
+        // Apply variable bound type modifications
+        let type_id =
+            apply_variable_bind(base_id, &local_variable.bind, &local_variable.init, context)?;
 
         // Parse the initializer
         let var_init = parse_initializer_opt(
@@ -380,14 +367,12 @@ fn parse_localtype(
 
 /// Apply part of type applied to variable name onto the type itself
 pub fn apply_variable_bind(
-    mut ty: ir::TypeLayout,
+    mut ty: ir::TypeId,
     bind: &ast::VariableBind,
     init: &Option<ast::Initializer>,
     context: &mut Context,
-) -> TyperResult<ir::TypeLayout> {
+) -> TyperResult<ir::TypeId> {
     for dim in &bind.0 {
-        let (layout, modifiers) = ty.extract_modifier();
-
         let constant_dim = match *dim {
             Some(ref dim_expr) => {
                 let expr_ir = parse_expr(dim_expr, context)?.0;
@@ -426,7 +411,10 @@ pub fn apply_variable_bind(
             },
         };
 
-        ty = ir::TypeLayout::Array(Box::new(layout), constant_dim).combine_modifier(modifiers);
+        ty = context
+            .module
+            .type_registry
+            .register_type_layer(ir::TypeLayer::Array(ty, constant_dim));
     }
 
     Ok(ty)

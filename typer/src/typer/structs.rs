@@ -86,11 +86,6 @@ fn parse_struct_internal(
             ast::StructEntry::Variable(ast_member) => {
                 let base_type =
                     parse_type_for_usage(&ast_member.ty, TypePosition::StructMember, context)?;
-                let base_type_layout = context
-                    .module
-                    .type_registry
-                    .get_type_layout(base_type)
-                    .clone();
 
                 // Forbid storage classes except static
                 // We do not handle static in any special way either currently
@@ -136,9 +131,7 @@ fn parse_struct_internal(
                     }
 
                     let name = def.name.node.clone();
-                    let type_layout =
-                        apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
-                    let type_id = context.module.type_registry.register_type(type_layout);
+                    let type_id = apply_variable_bind(base_type, &def.bind, &None, context)?;
                     member_map.insert(name.clone(), type_id);
                     members.push(ir::StructMember {
                         name,

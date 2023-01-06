@@ -15,12 +15,6 @@ pub fn parse_rootdefinition_globalvariable(
 ) -> TyperResult<Vec<ir::RootDefinition>> {
     let (base_id, storage_class) = parse_globaltype(&gv.global_type, context)?;
 
-    let base_type_layout = context
-        .module
-        .type_registry
-        .get_type_layout(base_id)
-        .clone();
-
     let mut defs = vec![];
     for global_variable in &gv.defs {
         // Deny restricted non-keyword names
@@ -31,15 +25,12 @@ pub fn parse_rootdefinition_globalvariable(
         }
 
         // Resolve type bind
-        let type_layout = apply_variable_bind(
-            base_type_layout.clone(),
+        let type_id = apply_variable_bind(
+            base_id,
             &global_variable.bind,
             &global_variable.init,
             context,
         )?;
-
-        // Register the type
-        let type_id = context.module.type_registry.register_type(type_layout);
 
         // Parse the initializer
         let var_init = parse_initializer_opt(
@@ -167,11 +158,6 @@ pub fn parse_rootdefinition_constantbuffer(
     for member in &cb.members {
         let base_type =
             parse_type_for_usage(&member.ty, TypePosition::ConstantBufferMember, context)?;
-        let base_type_layout = context
-            .module
-            .type_registry
-            .get_type_layout(base_type)
-            .clone();
 
         let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
         let base_type_layout_unmodified = context
@@ -193,9 +179,7 @@ pub fn parse_rootdefinition_constantbuffer(
 
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
-            let var_type =
-                apply_variable_bind(base_type_layout.clone(), &def.bind, &None, context)?;
-            let type_id = context.module.type_registry.register_type(var_type);
+            let type_id = apply_variable_bind(base_type, &def.bind, &None, context)?;
             members_map.insert(var_name.node.clone(), type_id);
             members.push(ir::ConstantVariable {
                 name: var_name.node,

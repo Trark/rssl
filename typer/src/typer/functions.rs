@@ -81,16 +81,8 @@ pub fn parse_function_signature(
         for param in &fd.params {
             let mut var_type = parse_paramtype(&param.param_type, context)?;
 
-            let type_layout = context
-                .module
-                .type_registry
-                .get_type_layout(var_type.type_id)
-                .clone();
-
             // If the parameter has type information bound to the name then apply it to the type now
-            let type_layout = apply_variable_bind(type_layout, &param.bind, &None, context)?;
-
-            var_type.type_id = context.module.type_registry.register_type(type_layout);
+            var_type.type_id = apply_variable_bind(var_type.type_id, &param.bind, &None, context)?;
 
             vec.push(var_type);
         }
