@@ -961,12 +961,14 @@ fn parse_expr_ternary(
     ));
     let (lhs_ty_base, lhs_mod) = context.module.type_registry.extract_modifier(lhs_ty);
     let (rhs_ty_base, _) = context.module.type_registry.extract_modifier(rhs_ty);
-    let lhs_tyl = context.module.type_registry.get_type_layout(lhs_ty_base);
-    let rhs_tyl = context.module.type_registry.get_type_layout(rhs_ty_base);
+    let lhs_tyl = context.module.type_registry.get_type_layer(lhs_ty_base);
+    let rhs_tyl = context.module.type_registry.get_type_layer(rhs_ty_base);
+    let lhs_scalar = context.module.type_registry.extract_scalar(lhs_ty_base);
+    let rhs_scalar = context.module.type_registry.extract_scalar(rhs_ty_base);
 
     // Attempt to find best scalar match between match arms
     // This will return None for non-numeric types
-    let st = match (lhs_tyl.to_scalar(), rhs_tyl.to_scalar()) {
+    let st = match (lhs_scalar, rhs_scalar) {
         (Some(left_scalar), Some(right_scalar)) => Some(most_sig_scalar(left_scalar, right_scalar)),
         _ => None,
     };
@@ -974,17 +976,29 @@ fn parse_expr_ternary(
     // Attempt to find best vector match
     // This will return None for non-numeric types
     // This may return None for some combinations of numeric layouts
-    let nd = ir::TypeLayout::most_significant_dimension(lhs_tyl, rhs_tyl);
+    let nd = ir::TypeLayer::most_significant_dimension(lhs_tyl, rhs_tyl);
 
     // Transform the types
     let (lhs_target_tyl, rhs_target_tyl) = match (st, nd) {
         (Some(st), Some(nd)) => {
-            let tyl = ir::TypeLayout::from_numeric_dimensions(st, nd);
-            (tyl.clone(), tyl)
+            let id = context
+                .module
+                .type_registry
+                .register_numeric_type(ir::NumericType {
+                    scalar: st,
+                    dimension: nd,
+                });
+            (id, id)
         }
         (Some(st), None) => {
-            let left = lhs_tyl.clone().transform_scalar(st);
-            let right = rhs_tyl.clone().transform_scalar(st);
+            let left = context
+                .module
+                .type_registry
+                .transform_scalar(lhs_ty_base, st);
+            let right = context
+                .module
+                .type_registry
+                .transform_scalar(rhs_ty_base, st);
             (left, right)
         }
         (None, Some(_)) => {
@@ -992,10 +1006,10 @@ fn parse_expr_ternary(
                 "internal error: most_sig_scalar failed where most_significant_dimension succeeded"
             )
         }
-        (None, None) => (lhs_tyl.clone(), rhs_tyl.clone()),
+        (None, None) => (lhs_ty_base, rhs_ty_base),
     };
 
-    let comb_tyl = if lhs_target_tyl == rhs_target_tyl {
+    let comb_unmodified_ty_id = if lhs_target_tyl == rhs_target_tyl {
         lhs_target_tyl
     } else {
         return wrong_types_err;
@@ -1010,7 +1024,6 @@ fn parse_expr_ternary(
         snorm: false,
     };
 
-    let comb_unmodified_ty_id = context.module.type_registry.register_type(comb_tyl);
     let comb_ty_id = context
         .module
         .type_registry

@@ -132,6 +132,20 @@ impl TypeRegistry {
         id
     }
 
+    /// Get or create the type id from a numeric type
+    pub fn register_numeric_type(&mut self, numeric: NumericType) -> TypeId {
+        let scalar_id = self.register_type_layer(TypeLayer::Scalar(numeric.scalar));
+        match numeric.dimension {
+            NumericDimension::Scalar => scalar_id,
+            NumericDimension::Vector(x) => {
+                self.register_type_layer(TypeLayer::Vector(scalar_id, x))
+            }
+            NumericDimension::Matrix(x, y) => {
+                self.register_type_layer(TypeLayer::Matrix(scalar_id, x, y))
+            }
+        }
+    }
+
     /// Get the type layout for a type id
     pub fn get_type_layout(&self, id: TypeId) -> &TypeLayout {
         &self.layouts[id.0 as usize]
@@ -202,6 +216,21 @@ impl TypeRegistry {
             }
             _ => None,
         }
+    }
+
+    /// Replaces the scalar type inside a numeric type with the given scalar type
+    pub fn transform_scalar(&mut self, id: TypeId, to_scalar: ScalarType) -> TypeId {
+        let (base_id, modifer) = self.extract_modifier(id);
+        let scalar_id = self.register_type_layer(TypeLayer::Scalar(to_scalar));
+        let new_id = match self.get_type_layer(base_id) {
+            TypeLayer::Scalar(_) => scalar_id,
+            TypeLayer::Vector(_, x) => self.register_type_layer(TypeLayer::Vector(scalar_id, x)),
+            TypeLayer::Matrix(_, x, y) => {
+                self.register_type_layer(TypeLayer::Matrix(scalar_id, x, y))
+            }
+            _ => panic!("non-numeric type in TypeLayout::transform_scalar"),
+        };
+        self.combine_modifier(new_id, modifer)
     }
 }
 
@@ -517,6 +546,33 @@ impl TypeLayer {
             (Some(x1), None) => x1,
             (None, Some(x2)) => x2,
             (None, None) => 1,
+        }
+    }
+
+    /// Attempt to get the most significant dimension of two data types
+    pub fn most_significant_dimension(lhs: Self, rhs: Self) -> Option<NumericDimension> {
+        assert!(!lhs.is_modifier());
+        assert!(!rhs.is_modifier());
+        use std::cmp::max;
+        use std::cmp::min;
+        use TypeLayer::*;
+        match (lhs, rhs) {
+            (Scalar(_), Scalar(_)) => Some(NumericDimension::Scalar),
+            (Scalar(_), Vector(_, ref x)) => Some(NumericDimension::Vector(*x)),
+            (Vector(_, ref x), Scalar(_)) => Some(NumericDimension::Vector(*x)),
+            (Vector(_, ref x1), Vector(_, ref x2)) if *x1 == 1 || *x2 == 1 => {
+                Some(NumericDimension::Vector(max(*x1, *x2)))
+            }
+            (Vector(_, ref x1), Vector(_, ref x2)) => {
+                let x = min(*x1, *x2);
+                Some(NumericDimension::Vector(x))
+            }
+            (Matrix(_, ref x1, ref y1), Matrix(_, ref x2, ref y2)) => {
+                let x = min(*x1, *x2);
+                let y = min(*y1, *y2);
+                Some(NumericDimension::Matrix(x, y))
+            }
+            _ => None,
         }
     }
 }

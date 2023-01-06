@@ -167,21 +167,7 @@ pub fn parse_data_layout(
     if let Some(name) = name.try_trivial() {
         if template_args.is_empty() {
             let numeric = ir::NumericType::from_str(name)?;
-            let scalar = context
-                .module
-                .type_registry
-                .register_type_layer(ir::TypeLayer::Scalar(numeric.scalar));
-            let id = match numeric.dimension {
-                ir::NumericDimension::Scalar => scalar,
-                ir::NumericDimension::Vector(x) => context
-                    .module
-                    .type_registry
-                    .register_type_layer(ir::TypeLayer::Vector(scalar, x)),
-                ir::NumericDimension::Matrix(x, y) => context
-                    .module
-                    .type_registry
-                    .register_type_layer(ir::TypeLayer::Matrix(scalar, x, y)),
-            };
+            let id = context.module.type_registry.register_numeric_type(numeric);
             Some(id)
         } else {
             match name.node.as_str() {

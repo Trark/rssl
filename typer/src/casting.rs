@@ -182,18 +182,10 @@ impl NumericCast {
     }
 
     fn get_target_type(&self, module: &mut Module, dim: NumericDimension) -> ExpressionType {
-        let scalar_id = module
-            .type_registry
-            .register_type_layer(TypeLayer::Scalar(self.1));
-        let id = match dim {
-            NumericDimension::Scalar => scalar_id,
-            NumericDimension::Vector(x) => module
-                .type_registry
-                .register_type_layer(TypeLayer::Vector(scalar_id, x)),
-            NumericDimension::Matrix(x, y) => module
-                .type_registry
-                .register_type_layer(TypeLayer::Matrix(scalar_id, x, y)),
-        };
+        let id = module.type_registry.register_numeric_type(NumericType {
+            scalar: self.1,
+            dimension: dim,
+        });
         id.to_rvalue()
     }
 }

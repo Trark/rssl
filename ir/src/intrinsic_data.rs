@@ -556,20 +556,7 @@ fn get_type_id(
 ) -> TypeId {
     match *ty {
         TypeDef::Void => module.type_registry.register_type_layer(TypeLayer::Void),
-        TypeDef::Numeric(ref num) => {
-            let scalar = module
-                .type_registry
-                .register_type_layer(TypeLayer::Scalar(num.scalar));
-            match num.dimension {
-                NumericDimension::Scalar => scalar,
-                NumericDimension::Vector(x) => module
-                    .type_registry
-                    .register_type_layer(TypeLayer::Vector(scalar, x)),
-                NumericDimension::Matrix(x, y) => module
-                    .type_registry
-                    .register_type_layer(TypeLayer::Matrix(scalar, x, y)),
-            }
-        }
+        TypeDef::Numeric(ref num) => module.type_registry.register_numeric_type(*num),
         TypeDef::Object(ref obj) => module
             .type_registry
             .register_type_layer(TypeLayer::Object(*obj)),
