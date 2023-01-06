@@ -520,6 +520,12 @@ impl TypeLayer {
         matches!(self, TypeLayer::Modifier(_, _))
     }
 
+    /// Returns `true` if the type is an object
+    pub fn is_object(&self) -> bool {
+        assert!(!self.is_modifier());
+        matches!(self, &TypeLayer::Object(_))
+    }
+
     /// Get the size of the first dimension for a vector or matrix
     pub fn to_x(&self) -> Option<u32> {
         assert!(!self.is_modifier());
@@ -578,11 +584,6 @@ impl TypeLayer {
 }
 
 impl TypeLayout {
-    /// Returns `true` if the type has modifiers
-    pub fn has_modifiers(&self) -> bool {
-        matches!(self, TypeLayout::Modifier(_, _))
-    }
-
     /// Returns `true` if the type is the void type
     pub fn is_void(&self) -> bool {
         if let TypeLayout::Modifier(_, inner) = self {
@@ -590,12 +591,6 @@ impl TypeLayout {
         } else {
             *self == TypeLayout::Void
         }
-    }
-
-    /// Returns `true` if the type is an object
-    pub fn is_object(&self) -> bool {
-        assert!(!self.has_modifiers());
-        matches!(self, &TypeLayout::Object(_))
     }
 
     /// Returns `true` if the type is a buffer address
@@ -611,19 +606,6 @@ impl TypeLayout {
             &TypeLayout::Object(ObjectType::BufferAddress)
                 | &TypeLayout::Object(ObjectType::RWBufferAddress)
         )
-    }
-
-    /// Split the modifier out of the type
-    pub fn extract_modifier(self) -> (Self, TypeModifier) {
-        match self {
-            TypeLayout::Modifier(modifier, tyl) => (*tyl, modifier),
-            ty => (ty, TypeModifier::default()),
-        }
-    }
-
-    /// Remove the modifier from the type
-    pub fn remove_modifier(self) -> Self {
-        self.extract_modifier().0
     }
 }
 

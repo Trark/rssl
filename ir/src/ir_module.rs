@@ -231,8 +231,9 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     if decl.lang_slot.is_none() {
                         // Find the slot type that we are adding
-                        let tyl = module.type_registry.get_type_layout(decl.type_id);
-                        if tyl.clone().remove_modifier().is_object() {
+                        let unmodified_id = module.type_registry.remove_modifier(decl.type_id);
+                        let tyl = module.type_registry.get_type_layer(unmodified_id);
+                        if tyl.is_object() {
                             let mut slot = *next_value;
                             while used_values.contains(&slot) {
                                 slot += 1;
