@@ -280,15 +280,19 @@ impl IntrinsicOp {
                 assert_eq!(param_types.len(), 1);
                 param_types[0].0.to_rvalue()
             }
-
             Add | Subtract | Multiply | Divide | Modulus | LeftShift | RightShift | BitwiseAnd
-            | BitwiseOr | BitwiseXor | BooleanAnd | BooleanOr => {
+            | BitwiseOr | BitwiseXor => {
                 assert_eq!(param_types.len(), 2);
                 let lhs = module.type_registry.get_type_layout(param_types[0].0);
                 let rhs = module.type_registry.get_type_layout(param_types[1].0);
                 let tyl = TypeLayout::most_significant_data_type(lhs, rhs);
                 let ty = module.type_registry.register_type(tyl);
                 ty.to_rvalue()
+            }
+            BooleanAnd | BooleanOr => {
+                assert_eq!(param_types.len(), 2);
+                assert_eq!(param_types[0].0, param_types[1].0);
+                param_types[0].0.to_rvalue()
             }
             LessThan | LessEqual | GreaterThan | GreaterEqual | Equality | Inequality => {
                 assert_eq!(param_types.len(), 2);

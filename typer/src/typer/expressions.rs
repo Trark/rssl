@@ -822,6 +822,17 @@ fn parse_expr_binop(
             let lhs_tyl = context.module.type_registry.get_type_layer(left_base);
             let rhs_tyl = context.module.type_registry.get_type_layer(right_base);
             let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
+                let lhs_is_vector = matches!(
+                    lhs_tyl,
+                    ir::TypeLayer::Vector(..) | ir::TypeLayer::Matrix(..),
+                );
+                let rhs_is_vector = matches!(
+                    rhs_tyl,
+                    ir::TypeLayer::Vector(..) | ir::TypeLayer::Matrix(..),
+                );
+                if lhs_is_vector || rhs_is_vector {
+                    return Err(TyperError::ShortCircuitingVector(base_location));
+                }
                 ir::ScalarType::Bool
             } else {
                 let lhs_scalar = match context.module.type_registry.extract_scalar(left_base) {

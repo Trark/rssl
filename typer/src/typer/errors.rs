@@ -148,6 +148,9 @@ pub enum TyperError {
 
     /// Reserved name used for a typedef
     IllegalTypedefName(SourceLocation),
+
+    /// A short circuiting operator received a non-scalar expression
+    ShortCircuitingVector(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -729,6 +732,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::IllegalTypedefName(loc) => w.write_message(
                 &|f| write!(f, "unexpected identifier for a typedef"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::ShortCircuitingVector(loc) => w.write_message(
+                &|f| write!(f, "operands for short circuiting operators must be scalar"),
                 *loc,
                 Severity::Error,
             ),
