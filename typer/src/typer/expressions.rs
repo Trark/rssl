@@ -1703,9 +1703,9 @@ fn parse_expr_internal(
             assert!(
                 ty_query == *ty_expected,
                 "[{:?}, {:?}] != [{:?}, {:?}]: {:?}",
-                context.module.type_registry.get_type_layout(ty_query.0),
+                context.module.type_registry.get_type_layer(ty_query.0),
                 ty_query.1,
-                context.module.type_registry.get_type_layout(ty_expected.0),
+                context.module.type_registry.get_type_layer(ty_expected.0),
                 ty_expected.1,
                 expr,
             );

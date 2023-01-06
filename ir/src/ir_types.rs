@@ -12,9 +12,6 @@ pub struct ObjectId(pub u32);
 /// Container of all registered types
 #[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub struct TypeRegistry {
-    /// Full type tree information for each type id
-    layouts: Vec<TypeLayout>,
-
     /// Direct type information for each type id
     layers: Vec<TypeLayer>,
 
@@ -42,46 +39,7 @@ pub enum TypeLayer {
     Modifier(TypeModifier, TypeId),
 }
 
-/// A type description
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub enum TypeLayout {
-    Void,
-    Scalar(ScalarType),
-    Vector(Box<TypeLayout>, u32),
-    Matrix(Box<TypeLayout>, u32, u32),
-    Struct(StructId),
-    StructTemplate(StructTemplateId),
-    Enum(EnumId),
-    Object(ObjectType),
-    Array(Box<TypeLayout>, u64),
-    TemplateParam(TemplateTypeId),
-    Modifier(TypeModifier, Box<TypeLayout>),
-}
-
 impl TypeRegistry {
-    /// Get or create the type id from a type layout
-    pub fn register_type(&mut self, type_layout: TypeLayout) -> TypeId {
-        let layer = match type_layout {
-            TypeLayout::Void => TypeLayer::Void,
-            TypeLayout::Scalar(st) => TypeLayer::Scalar(st),
-            TypeLayout::Vector(inner, x) => TypeLayer::Vector(self.register_type(*inner), x),
-            TypeLayout::Matrix(inner, x, y) => TypeLayer::Matrix(self.register_type(*inner), x, y),
-            TypeLayout::Struct(id) => TypeLayer::Struct(id),
-            TypeLayout::StructTemplate(id) => TypeLayer::StructTemplate(id),
-            TypeLayout::Enum(id) => TypeLayer::Enum(id),
-            // TODO: Deal with recursive types in object type args
-            TypeLayout::Object(ot) => TypeLayer::Object(ot),
-            TypeLayout::Array(inner, len) => TypeLayer::Array(self.register_type(*inner), len),
-            TypeLayout::TemplateParam(id) => TypeLayer::TemplateParam(id),
-            TypeLayout::Modifier(modifier, inner) => {
-                assert!(!matches!(*inner, TypeLayout::Modifier(_, _)));
-                TypeLayer::Modifier(modifier, self.register_type(*inner))
-            }
-        };
-
-        self.register_type_layer(layer)
-    }
-
     /// Get or create the type id from a type layer
     pub fn register_type_layer(&mut self, layer: TypeLayer) -> TypeId {
         // Search for an existing registration of the type
@@ -91,43 +49,26 @@ impl TypeRegistry {
             }
         }
 
-        let full_layout = match &layer {
-            TypeLayer::Void => TypeLayout::Void,
-            TypeLayer::Scalar(st) => TypeLayout::Scalar(*st),
-            TypeLayer::Vector(inner, x) => {
-                let inner_layout = self.get_type_layout(*inner).clone();
-                if !matches!(inner_layout, TypeLayout::Scalar(_)) {
-                    panic!("{:?} inside vector", inner_layout);
+        match layer {
+            TypeLayer::Vector(inner, _) => {
+                if !matches!(self.get_type_layer(inner), TypeLayer::Scalar(_)) {
+                    panic!("{:?} inside vector", self.get_type_layer(inner));
                 }
-                TypeLayout::Vector(Box::new(inner_layout), *x)
             }
-            TypeLayer::Matrix(inner, x, y) => {
-                let inner_layout = self.get_type_layout(*inner).clone();
-                if !matches!(inner_layout, TypeLayout::Scalar(_)) {
-                    panic!("{:?} inside matrix", inner_layout);
+            TypeLayer::Matrix(inner, _, _) => {
+                if !matches!(self.get_type_layer(inner), TypeLayer::Scalar(_)) {
+                    panic!("{:?} inside matrix", self.get_type_layer(inner));
                 }
-                TypeLayout::Matrix(Box::new(inner_layout), *x, *y)
             }
-            TypeLayer::Struct(id) => TypeLayout::Struct(*id),
-            TypeLayer::StructTemplate(id) => TypeLayout::StructTemplate(*id),
-            TypeLayer::Enum(id) => TypeLayout::Enum(*id),
-            // TODO: Deal with recursive types in object type args
-            TypeLayer::Object(ot) => TypeLayout::Object(*ot),
-            TypeLayer::Array(inner, len) => {
-                TypeLayout::Array(Box::new(self.get_type_layout(*inner).clone()), *len)
-            }
-            TypeLayer::TemplateParam(id) => TypeLayout::TemplateParam(*id),
             TypeLayer::Modifier(modifier, inner) => {
-                let layout = self.get_type_layout(*inner).clone();
-                assert!(!matches!(layout, TypeLayout::Modifier(_, _)));
-                assert!(*modifier != TypeModifier::default());
-                TypeLayout::Modifier(*modifier, Box::new(layout))
+                assert!(!self.get_type_layer(inner).is_modifier());
+                assert!(modifier != TypeModifier::default());
             }
-        };
+            _ => {}
+        }
 
         // Make a new entry
-        let id = TypeId(self.layouts.len() as u32);
-        self.layouts.push(full_layout);
+        let id = TypeId(self.layers.len() as u32);
         self.layers.push(layer);
         id
     }
@@ -144,11 +85,6 @@ impl TypeRegistry {
                 self.register_type_layer(TypeLayer::Matrix(scalar_id, x, y))
             }
         }
-    }
-
-    /// Get the type layout for a type id
-    pub fn get_type_layout(&self, id: TypeId) -> &TypeLayout {
-        &self.layouts[id.0 as usize]
     }
 
     /// Get the top type layer for a type id
@@ -228,7 +164,7 @@ impl TypeRegistry {
             TypeLayer::Matrix(_, x, y) => {
                 self.register_type_layer(TypeLayer::Matrix(scalar_id, x, y))
             }
-            _ => panic!("non-numeric type in TypeLayout::transform_scalar"),
+            _ => panic!("non-numeric type in transform_scalar"),
         };
         self.combine_modifier(new_id, modifer)
     }
@@ -863,24 +799,6 @@ impl std::fmt::Debug for TypeLayer {
             TypeLayer::Array(ref ty, ref len) => write!(f, "type<{:?}>[{}]", ty, len),
             TypeLayer::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
             TypeLayer::Modifier(ref modifier, ref ty) => write!(f, "{:?}type<{:?}>", modifier, ty),
-        }
-    }
-}
-
-impl std::fmt::Debug for TypeLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            TypeLayout::Void => write!(f, "void"),
-            TypeLayout::Scalar(ref st) => write!(f, "{:?}", st),
-            TypeLayout::Vector(ref st, ref x) => write!(f, "{:?}{}", st, x),
-            TypeLayout::Matrix(ref st, ref x, ref y) => write!(f, "{:?}{}x{}", st, x, y),
-            TypeLayout::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
-            TypeLayout::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
-            TypeLayout::Enum(ref id) => write!(f, "enum<{}>", id.0),
-            TypeLayout::Object(ref ot) => write!(f, "{:?}", ot),
-            TypeLayout::Array(ref ty, ref len) => write!(f, "{:?}[{}]", ty, len),
-            TypeLayout::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
-            TypeLayout::Modifier(ref modifier, ref ty) => write!(f, "{:?}{:?}", modifier, ty),
         }
     }
 }
