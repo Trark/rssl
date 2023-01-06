@@ -131,9 +131,7 @@ fn parse_globaltype(
         .map(|(gs, _)| gs)
         .unwrap_or(ir::GlobalStorage::Extern);
 
-    let ty_unmodified = context.module.type_registry.remove_modifier(ty);
-    let tyl = context.module.type_registry.get_type_layout(ty_unmodified);
-    if tyl.is_void() {
+    if context.module.type_registry.is_void(ty) {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             global_type.location,
@@ -159,12 +157,7 @@ pub fn parse_rootdefinition_constantbuffer(
         let base_type =
             parse_type_for_usage(&member.ty, TypePosition::ConstantBufferMember, context)?;
 
-        let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
-        let base_type_layout_unmodified = context
-            .module
-            .type_registry
-            .get_type_layout(base_type_unmodified);
-        if base_type_layout_unmodified.is_void() {
+        if context.module.type_registry.is_void(base_type) {
             return Err(TyperError::VariableHasIncompleteType(
                 base_type,
                 member.ty.location,

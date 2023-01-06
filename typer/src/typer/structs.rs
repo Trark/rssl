@@ -105,12 +105,7 @@ fn parse_struct_internal(
                     }
                 }
 
-                let base_type_unmodified = context.module.type_registry.remove_modifier(base_type);
-                let base_type_layout_unmodified = context
-                    .module
-                    .type_registry
-                    .get_type_layout(base_type_unmodified);
-                if base_type_layout_unmodified.is_void() {
+                if context.module.type_registry.is_void(base_type) {
                     return Err(TyperError::VariableHasIncompleteType(
                         base_type,
                         ast_member.ty.location,

@@ -172,8 +172,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
         }
         ast::StatementKind::Return(None) => {
             let expected_type = context.get_current_return_type();
-            let expected_type_layout = context.module.type_registry.get_type_layout(expected_type);
-            if expected_type_layout.is_void() {
+            if context.module.type_registry.is_void(expected_type) {
                 Ok(Vec::from([ir::Statement {
                     kind: ir::StatementKind::Return(None),
                     location: ast.location,
@@ -353,9 +352,7 @@ fn parse_localtype(
     // Calculate if we are precise
     let precise_result = parse_precise(&local_type.modifiers)?;
 
-    let ty_unmodified = context.module.type_registry.remove_modifier(ty);
-    let ty_layout_unmodified = context.module.type_registry.get_type_layout(ty_unmodified);
-    if ty_layout_unmodified.is_void() {
+    if context.module.type_registry.is_void(ty) {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             local_type.location,

@@ -232,6 +232,13 @@ impl TypeRegistry {
         };
         self.combine_modifier(new_id, modifer)
     }
+
+    /// Returns `true` if the type is the void type
+    pub fn is_void(&self, id: TypeId) -> bool {
+        let unmodified_id = self.remove_modifier(id);
+        let tyl = self.get_type_layer(unmodified_id);
+        tyl == TypeLayer::Void
+    }
 }
 
 impl Module {
@@ -584,15 +591,6 @@ impl TypeLayer {
 }
 
 impl TypeLayout {
-    /// Returns `true` if the type is the void type
-    pub fn is_void(&self) -> bool {
-        if let TypeLayout::Modifier(_, inner) = self {
-            **inner == TypeLayout::Void
-        } else {
-            *self == TypeLayout::Void
-        }
-    }
-
     /// Returns `true` if the type is a buffer address
     pub fn is_buffer_address(&self) -> bool {
         let ty = if let TypeLayout::Modifier(_, inner) = self {
