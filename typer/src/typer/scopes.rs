@@ -282,8 +282,14 @@ impl Context {
                     let ast = &struct_template_def.ast.clone();
 
                     if let Some(id) = struct_template_data.instantiations.get(template_args) {
-                        let layout = ir::TypeLayout::Struct(*id).combine_modifier(modifier);
-                        let id = self.module.type_registry.register_type(layout);
+                        let unmodified_id = self
+                            .module
+                            .type_registry
+                            .register_type_layer(ir::TypeLayer::Struct(*id));
+                        let id = self
+                            .module
+                            .type_registry
+                            .combine_modifier(unmodified_id, modifier);
                         Ok(id)
                     } else {
                         // Return to scope of the struct definition to build the template
@@ -303,8 +309,14 @@ impl Context {
                             .instantiations
                             .insert(template_args.to_vec(), sid);
 
-                        let layout = ir::TypeLayout::Struct(sid).combine_modifier(modifier);
-                        let id = self.module.type_registry.register_type(layout);
+                        let unmodified_id = self
+                            .module
+                            .type_registry
+                            .register_type_layer(ir::TypeLayer::Struct(sid));
+                        let id = self
+                            .module
+                            .type_registry
+                            .combine_modifier(unmodified_id, modifier);
                         Ok(id)
                     }
                 }
@@ -534,7 +546,7 @@ impl Context {
         let type_id = self
             .module
             .type_registry
-            .register_type(ir::TypeLayout::Struct(id));
+            .register_type_layer(ir::TypeLayer::Struct(id));
         let data = StructData {
             members: HashMap::new(),
             methods: HashMap::new(),
@@ -590,7 +602,7 @@ impl Context {
         let type_id = self
             .module
             .type_registry
-            .register_type(ir::TypeLayout::StructTemplate(id));
+            .register_type_layer(ir::TypeLayer::StructTemplate(id));
         let data = StructTemplateData {
             scope: self.current_scope,
             instantiations: HashMap::new(),
@@ -631,7 +643,7 @@ impl Context {
         let type_id = self
             .module
             .type_registry
-            .register_type(ir::TypeLayout::Enum(id));
+            .register_type_layer(ir::TypeLayer::Enum(id));
 
         self.module.enum_registry.set_enum_type_id(id, type_id);
 
@@ -839,7 +851,7 @@ impl Context {
                 let ty_id = self
                     .module
                     .type_registry
-                    .register_type(ir::TypeLayout::TemplateParam(id));
+                    .register_type_layer(ir::TypeLayer::TemplateParam(id));
                 id_v.insert((id, ty_id));
                 Ok(id)
             }

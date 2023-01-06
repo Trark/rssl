@@ -259,15 +259,20 @@ impl IntrinsicOp {
             LogicalNot => {
                 assert_eq!(param_types.len(), 1);
                 let type_id = module.type_registry.remove_modifier(param_types[0].0);
-                match module.type_registry.get_type_layout(type_id) {
-                    TypeLayout::Scalar(_) => module
+                match module.type_registry.get_type_layer(type_id) {
+                    TypeLayer::Scalar(_) => module
                         .type_registry
-                        .register_type(TypeLayout::bool())
+                        .register_type_layer(TypeLayer::Scalar(ScalarType::Bool))
                         .to_rvalue(),
-                    TypeLayout::Vector(_, x) => module
-                        .type_registry
-                        .register_type(TypeLayout::booln(*x))
-                        .to_rvalue(),
+                    TypeLayer::Vector(_, x) => {
+                        let bool_ty = module
+                            .type_registry
+                            .register_type_layer(TypeLayer::Scalar(ScalarType::Bool));
+                        module
+                            .type_registry
+                            .register_type_layer(TypeLayer::Vector(bool_ty, x))
+                            .to_rvalue()
+                    }
                     _ => panic!("invalid logical not intrinsic"),
                 }
             }

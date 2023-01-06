@@ -76,39 +76,34 @@ fn analyse_bindings(
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &context.module.global_registry[id.0 as usize];
-            let type_layout = context
-                .module
-                .type_registry
-                .get_type_layout(decl.type_id)
-                .clone();
-            let descriptor_type = match type_layout.remove_modifier() {
-                ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(_)) => {
+            let unmodified_id = context.module.type_registry.remove_modifier(decl.type_id);
+            let type_layer = context.module.type_registry.get_type_layer(unmodified_id);
+            let descriptor_type = match type_layer {
+                ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(_)) => {
                     DescriptorType::ConstantBuffer
                 }
-                ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer) => {
+                ir::TypeLayer::Object(ir::ObjectType::ByteAddressBuffer) => {
                     DescriptorType::ByteBuffer
                 }
-                ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer) => {
+                ir::TypeLayer::Object(ir::ObjectType::RWByteAddressBuffer) => {
                     DescriptorType::RwByteBuffer
                 }
-                ir::TypeLayout::Object(ir::ObjectType::BufferAddress) => {
+                ir::TypeLayer::Object(ir::ObjectType::BufferAddress) => {
                     DescriptorType::BufferAddress
                 }
-                ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress) => {
+                ir::TypeLayer::Object(ir::ObjectType::RWBufferAddress) => {
                     DescriptorType::RwBufferAddress
                 }
-                ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_)) => {
+                ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(_)) => {
                     DescriptorType::StructuredBuffer
                 }
-                ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
+                ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
                     DescriptorType::RwStructuredBuffer
                 }
-                ir::TypeLayout::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
-                ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_)) => {
-                    DescriptorType::RwTexelBuffer
-                }
-                ir::TypeLayout::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
-                ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
+                ir::TypeLayer::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
+                ir::TypeLayer::Object(ir::ObjectType::RWBuffer(_)) => DescriptorType::RwTexelBuffer,
+                ir::TypeLayer::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
+                ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(_)) => {
                     DescriptorType::RwTexture2d
                 }
                 _ => DescriptorType::PushConstants,

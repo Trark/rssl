@@ -68,7 +68,12 @@ pub fn parse_rootdefinition_globalvariable(
         let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
         gv_ir.lang_slot = match &global_variable.slot {
             Some(slot) => {
-                if let ir::TypeLayout::Object(ot) = base_type_layout.clone().remove_modifier() {
+                let unmodified_base_id = context.module.type_registry.remove_modifier(base_id);
+                let unmodified_base_tyl = context
+                    .module
+                    .type_registry
+                    .get_type_layer(unmodified_base_id);
+                if let ir::TypeLayer::Object(ot) = unmodified_base_tyl {
                     let expected_slot_type = ot.get_register_type();
                     if slot.slot_type != expected_slot_type {
                         return Err(TyperError::InvalidRegisterType(

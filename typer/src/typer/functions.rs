@@ -210,8 +210,8 @@ fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult
     let ty = parse_type_for_usage(param_type, TypePosition::Parameter, context)?;
 
     let ty_unmodified = context.module.type_registry.remove_modifier(ty);
-    let tyl = context.module.type_registry.get_type_layout(ty_unmodified);
-    if tyl.is_void() {
+    let tyl = context.module.type_registry.get_type_layer(ty_unmodified);
+    if tyl == ir::TypeLayer::Void {
         return Err(TyperError::VariableHasIncompleteType(
             ty,
             param_type.location,
@@ -251,7 +251,7 @@ fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult
         if interpolation_modifier == ir::InterpolationModifier::Indices
             && !(matches!(
                 tyl,
-                ir::TypeLayout::Vector(_, 2) | ir::TypeLayout::Vector(_, 3)
+                ir::TypeLayer::Vector(_, 2) | ir::TypeLayer::Vector(_, 3)
             ) && context.module.type_registry.extract_scalar(ty_unmodified)
                 == Some(ir::ScalarType::UInt))
         {

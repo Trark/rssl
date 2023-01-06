@@ -120,6 +120,7 @@ impl TypeRegistry {
             TypeLayer::Modifier(modifier, inner) => {
                 let layout = self.get_type_layout(*inner).clone();
                 assert!(!matches!(layout, TypeLayout::Modifier(_, _)));
+                assert!(*modifier != TypeModifier::default());
                 TypeLayout::Modifier(*modifier, Box::new(layout))
             }
         };
@@ -531,46 +532,6 @@ impl TypeLayout {
 
     pub fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> Self {
         TypeLayout::Matrix(Box::new(TypeLayout::Scalar(scalar)), x, y)
-    }
-
-    pub const fn from_object(ty: ObjectType) -> Self {
-        TypeLayout::Object(ty)
-    }
-
-    pub const fn bool() -> Self {
-        Self::from_scalar(ScalarType::Bool)
-    }
-
-    pub fn booln(dim: u32) -> Self {
-        Self::from_vector(ScalarType::Bool, dim)
-    }
-
-    pub const fn uint() -> Self {
-        Self::from_scalar(ScalarType::UInt)
-    }
-
-    pub fn uintn(dim: u32) -> Self {
-        Self::from_vector(ScalarType::UInt, dim)
-    }
-
-    pub const fn int() -> Self {
-        Self::from_scalar(ScalarType::Int)
-    }
-
-    pub fn intn(dim: u32) -> Self {
-        Self::from_vector(ScalarType::Int, dim)
-    }
-
-    pub const fn float() -> Self {
-        Self::from_scalar(ScalarType::Float)
-    }
-
-    pub fn floatn(dim: u32) -> Self {
-        Self::from_vector(ScalarType::Float, dim)
-    }
-
-    pub const fn double() -> Self {
-        Self::from_scalar(ScalarType::Double)
     }
 
     pub fn to_scalar(&self) -> Option<ScalarType> {

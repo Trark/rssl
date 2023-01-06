@@ -113,8 +113,8 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
 
             // Special case all the built in types
 
-            if let Some(ty) = parse_voidtype(name, &ir_args) {
-                let id = context.module.type_registry.register_type(ty);
+            if let Some(tyl) = parse_voidtype(name, &ir_args) {
+                let id = context.module.type_registry.register_type_layer(tyl);
                 return Ok(id);
             }
 
@@ -122,8 +122,8 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
                 return Ok(id);
             }
 
-            if let Some(object_type) = parse_object_type(name, &ir_args, context) {
-                let id = context.module.type_registry.register_type(object_type);
+            if let Some(tyl) = parse_object_type(name, &ir_args, context) {
+                let id = context.module.type_registry.register_type_layer(tyl);
                 return Ok(id);
             }
 
@@ -263,10 +263,10 @@ pub fn parse_data_layout(
 fn parse_voidtype(
     name: &ast::ScopedIdentifier,
     template_args: &[ir::TypeOrConstant],
-) -> Option<ir::TypeLayout> {
+) -> Option<ir::TypeLayer> {
     if let Some(name) = name.try_trivial() {
         if name.node == "void" && template_args.is_empty() {
-            Some(ir::TypeLayout::Void)
+            Some(ir::TypeLayer::Void)
         } else {
             None
         }
@@ -280,7 +280,7 @@ fn parse_object_type(
     name: &ast::ScopedIdentifier,
     template_args: &[ir::TypeOrConstant],
     context: &mut Context,
-) -> Option<ir::TypeLayout> {
+) -> Option<ir::TypeLayer> {
     fn get_data_type(
         args: &[ir::TypeOrConstant],
         default_float4: bool,
@@ -332,41 +332,41 @@ fn parse_object_type(
     }
 
     match name.identifiers[0].node.as_str() {
-        "Buffer" => Some(ir::TypeLayout::Object(ir::ObjectType::Buffer(
+        "Buffer" => Some(ir::TypeLayer::Object(ir::ObjectType::Buffer(
             get_data_type(template_args, true, context)?,
         ))),
-        "RWBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWBuffer(
+        "RWBuffer" => Some(ir::TypeLayer::Object(ir::ObjectType::RWBuffer(
             get_data_type(template_args, false, context)?,
         ))),
         "ByteAddressBuffer" if template_args.is_empty() => {
-            Some(ir::TypeLayout::Object(ir::ObjectType::ByteAddressBuffer))
+            Some(ir::TypeLayer::Object(ir::ObjectType::ByteAddressBuffer))
         }
         "RWByteAddressBuffer" if template_args.is_empty() => {
-            Some(ir::TypeLayout::Object(ir::ObjectType::RWByteAddressBuffer))
+            Some(ir::TypeLayer::Object(ir::ObjectType::RWByteAddressBuffer))
         }
         "BufferAddress" if template_args.is_empty() => {
-            Some(ir::TypeLayout::Object(ir::ObjectType::BufferAddress))
+            Some(ir::TypeLayer::Object(ir::ObjectType::BufferAddress))
         }
         "RWBufferAddress" if template_args.is_empty() => {
-            Some(ir::TypeLayout::Object(ir::ObjectType::RWBufferAddress))
+            Some(ir::TypeLayer::Object(ir::ObjectType::RWBufferAddress))
         }
-        "Texture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::Texture2D(
+        "Texture2D" => Some(ir::TypeLayer::Object(ir::ObjectType::Texture2D(
             get_data_type(template_args, true, context)?,
         ))),
-        "RWTexture2D" => Some(ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(
+        "RWTexture2D" => Some(ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(
             get_data_type(template_args, false, context)?,
         ))),
-        "ConstantBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::ConstantBuffer(
+        "ConstantBuffer" => Some(ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(
             get_structured_type(template_args, context)?,
         ))),
-        "StructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(
+        "StructuredBuffer" => Some(ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(
             get_structured_type(template_args, context)?,
         ))),
-        "RWStructuredBuffer" => Some(ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(
+        "RWStructuredBuffer" => Some(ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(
             get_structured_type(template_args, context)?,
         ))),
-        "SamplerState" => Some(ir::TypeLayout::Object(ir::ObjectType::SamplerState)),
-        "SamplerComparisonState" => Some(ir::TypeLayout::Object(
+        "SamplerState" => Some(ir::TypeLayer::Object(ir::ObjectType::SamplerState)),
+        "SamplerComparisonState" => Some(ir::TypeLayer::Object(
             ir::ObjectType::SamplerComparisonState,
         )),
         _ => None,
@@ -675,8 +675,10 @@ pub fn apply_template_type_substitution(
     match context.module.type_registry.get_type_layer(source_type) {
         ir::TypeLayer::Modifier(modifier, tyl) => {
             let inner_ty = apply_template_type_substitution(tyl, remap, context);
-            let layer = ir::TypeLayer::Modifier(modifier, inner_ty);
-            context.module.type_registry.register_type_layer(layer)
+            context
+                .module
+                .type_registry
+                .combine_modifier(inner_ty, modifier)
         }
         ir::TypeLayer::TemplateParam(ref p) => match &remap[p.0 as usize].node {
             ir::TypeOrConstant::Type(ty) => *ty,

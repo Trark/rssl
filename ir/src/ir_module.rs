@@ -351,16 +351,14 @@ impl Module {
                                 set: lang_slot.set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
-                                    let tyl = module.type_registry.get_type_layout(decl.type_id);
-                                    Some(
-                                        if let TypeLayout::Object(ot) =
-                                            &tyl.clone().remove_modifier()
-                                        {
-                                            ot.get_register_type()
-                                        } else {
-                                            panic!("Non-object type has a global resource binding");
-                                        },
-                                    )
+                                    let unmodified_id =
+                                        module.type_registry.remove_modifier(decl.type_id);
+                                    let tyl = module.type_registry.get_type_layer(unmodified_id);
+                                    Some(if let TypeLayer::Object(ot) = tyl {
+                                        ot.get_register_type()
+                                    } else {
+                                        panic!("Non-object type has a global resource binding");
+                                    })
                                 } else {
                                     None
                                 },

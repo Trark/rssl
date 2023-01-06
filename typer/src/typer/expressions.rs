@@ -1026,7 +1026,7 @@ fn parse_expr_ternary(
     let bool_ty = context
         .module
         .type_registry
-        .register_type(ir::TypeLayout::bool());
+        .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::Bool));
 
     // Cast the condition
     let cond_cast =
@@ -1083,18 +1083,19 @@ fn parse_expr_unchecked(
                 _ => return Err(TyperError::ArrayIndexingNonArrayType(array.location)),
             };
             let ty_nomod = context.module.type_registry.remove_modifier(array_ty.0);
-            let tyl_nomod = context.module.type_registry.get_type_layout(ty_nomod);
+            let tyl_nomod = context.module.type_registry.get_type_layer(ty_nomod);
+            let uint_ty = context
+                .module
+                .type_registry
+                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::UInt));
             let node = match tyl_nomod {
-                ir::TypeLayout::Array(_, _)
-                | ir::TypeLayout::Vector(_, _)
-                | ir::TypeLayout::Object(ir::ObjectType::Buffer(_))
-                | ir::TypeLayout::Object(ir::ObjectType::RWBuffer(_))
-                | ir::TypeLayout::Object(ir::ObjectType::StructuredBuffer(_))
-                | ir::TypeLayout::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
-                    let index_type = context
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayout::uint());
+                ir::TypeLayer::Array(_, _)
+                | ir::TypeLayer::Vector(_, _)
+                | ir::TypeLayer::Object(ir::ObjectType::Buffer(_))
+                | ir::TypeLayer::Object(ir::ObjectType::RWBuffer(_))
+                | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(_))
+                | ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
+                    let index_type = uint_ty;
                     let index = index_type.to_rvalue();
                     let cast_to_int_result =
                         ImplicitConversion::find(subscript_ty, index, &mut context.module);
@@ -1111,13 +1112,13 @@ fn parse_expr_unchecked(
                     let sub_node = ir::Expression::ArraySubscript(array, sub);
                     Ok(sub_node)
                 }
-                ir::TypeLayout::Object(
+                ir::TypeLayer::Object(
                     ir::ObjectType::Texture2D(_) | ir::ObjectType::Texture2DMipsSlice(_),
                 ) => {
                     let index_type = context
                         .module
                         .type_registry
-                        .register_type(ir::TypeLayout::uintn(2));
+                        .register_type_layer(ir::TypeLayer::Vector(uint_ty, 2));
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
@@ -1133,11 +1134,8 @@ fn parse_expr_unchecked(
                     let sub_node = ir::Expression::ArraySubscript(array, sub);
                     Ok(sub_node)
                 }
-                ir::TypeLayout::Object(ir::ObjectType::Texture2DMips(_)) => {
-                    let index_type = context
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayout::uint());
+                ir::TypeLayer::Object(ir::ObjectType::Texture2DMips(_)) => {
+                    let index_type = uint_ty;
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
@@ -1153,11 +1151,11 @@ fn parse_expr_unchecked(
                     let sub_node = ir::Expression::ArraySubscript(array, sub);
                     Ok(sub_node)
                 }
-                ir::TypeLayout::Object(ir::ObjectType::RWTexture2D(_)) => {
+                ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(_)) => {
                     let index_type = context
                         .module
                         .type_registry
-                        .register_type(ir::TypeLayout::uintn(2));
+                        .register_type_layer(ir::TypeLayer::Vector(uint_ty, 2));
                     let index = index_type.to_rvalue();
                     let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
                     let subscript_final = match cast {
@@ -1466,7 +1464,7 @@ fn parse_expr_unchecked(
             let uint_ty = context
                 .module
                 .type_registry
-                .register_type(ir::TypeLayout::uint());
+                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::UInt));
             Ok(TypedExpression::Value(
                 ir::Expression::SizeOf(ir_type),
                 uint_ty.to_rvalue(),
@@ -1697,18 +1695,22 @@ pub fn parse_expr(
 /// Find the type of a constant
 fn get_constant_type(literal: &ir::Constant, context: &mut Context) -> ExpressionType {
     let tyl = match *literal {
-        ir::Constant::Bool(_) => ir::TypeLayout::bool(),
-        ir::Constant::UntypedInt(_) => ir::TypeLayout::from_scalar(ir::ScalarType::UntypedInt),
-        ir::Constant::Int(_) => ir::TypeLayout::int(),
-        ir::Constant::UInt(_) => ir::TypeLayout::uint(),
+        ir::Constant::Bool(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
+        ir::Constant::UntypedInt(_) => ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt),
+        ir::Constant::Int(_) => ir::TypeLayer::Scalar(ir::ScalarType::Int),
+        ir::Constant::UInt(_) => ir::TypeLayer::Scalar(ir::ScalarType::UInt),
         ir::Constant::Long(_) => unimplemented!(),
-        ir::Constant::Half(_) => ir::TypeLayout::from_scalar(ir::ScalarType::Half),
-        ir::Constant::Float(_) => ir::TypeLayout::float(),
-        ir::Constant::Double(_) => ir::TypeLayout::double(),
+        ir::Constant::Half(_) => ir::TypeLayer::Scalar(ir::ScalarType::Half),
+        ir::Constant::Float(_) => ir::TypeLayer::Scalar(ir::ScalarType::Float),
+        ir::Constant::Double(_) => ir::TypeLayer::Scalar(ir::ScalarType::Double),
         ir::Constant::String(_) => panic!("strings not supported"),
         ir::Constant::Enum(_, _) => panic!("enum not expected"),
     };
-    context.module.type_registry.register_type(tyl).to_rvalue()
+    context
+        .module
+        .type_registry
+        .register_type_layer(tyl)
+        .to_rvalue()
 }
 
 /// Find the type of an expression
@@ -1870,7 +1872,7 @@ fn get_expression_type(
             let uint_ty = context
                 .module
                 .type_registry
-                .register_type(ir::TypeLayout::uint());
+                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::UInt));
             Ok(uint_ty.to_rvalue())
         }
         ir::Expression::IntrinsicOp(ref intrinsic, ref template_args, ref args) => {
