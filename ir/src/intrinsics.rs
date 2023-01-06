@@ -283,10 +283,7 @@ impl IntrinsicOp {
             Add | Subtract | Multiply | Divide | Modulus | LeftShift | RightShift | BitwiseAnd
             | BitwiseOr | BitwiseXor => {
                 assert_eq!(param_types.len(), 2);
-                let lhs = module.type_registry.get_type_layout(param_types[0].0);
-                let rhs = module.type_registry.get_type_layout(param_types[1].0);
-                let tyl = TypeLayout::most_significant_data_type(lhs, rhs);
-                let ty = module.type_registry.register_type(tyl);
+                let ty = most_significant_data_type(param_types[0].0, param_types[1].0, module);
                 ty.to_rvalue()
             }
             BooleanAnd | BooleanOr => {
@@ -296,11 +293,8 @@ impl IntrinsicOp {
             }
             LessThan | LessEqual | GreaterThan | GreaterEqual | Equality | Inequality => {
                 assert_eq!(param_types.len(), 2);
-                let lhs = module.type_registry.get_type_layout(param_types[0].0);
-                let rhs = module.type_registry.get_type_layout(param_types[1].0);
-                let tyl = TypeLayout::most_significant_data_type(lhs, rhs)
-                    .transform_scalar(ScalarType::Bool);
-                let ty = module.type_registry.register_type(tyl);
+                let ty = most_significant_data_type(param_types[0].0, param_types[1].0, module);
+                let ty = module.type_registry.transform_scalar(ty, ScalarType::Bool);
                 ty.to_rvalue()
             }
             Assignment | SumAssignment | DifferenceAssignment | ProductAssignment
@@ -312,4 +306,30 @@ impl IntrinsicOp {
             }
         }
     }
+}
+
+/// Get the most significant type from two data types
+fn most_significant_data_type(left: TypeId, right: TypeId, module: &mut Module) -> TypeId {
+    let (left_base, left_mod) = module.type_registry.extract_modifier(left);
+    let right_base = module.type_registry.remove_modifier(right);
+
+    let left_tyl = module.type_registry.get_type_layer(left_base);
+    let right_tyl = module.type_registry.get_type_layer(right_base);
+
+    // Get the more important input type, that serves as the base to
+    // calculate the output type from
+    let dimension = match TypeLayer::most_significant_dimension(left_tyl, right_tyl) {
+        Some(nd) => nd,
+        None => panic!("non-arithmetic numeric type in binary operation"),
+    };
+
+    let scalar = module.type_registry.extract_scalar(left_base).unwrap();
+    assert_eq!(
+        scalar,
+        module.type_registry.extract_scalar(right_base).unwrap()
+    );
+
+    let numeric = NumericType { scalar, dimension };
+    let base_id = module.type_registry.register_numeric_type(numeric);
+    module.type_registry.combine_modifier(base_id, left_mod)
 }

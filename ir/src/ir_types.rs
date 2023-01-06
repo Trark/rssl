@@ -578,114 +578,6 @@ impl TypeLayer {
 }
 
 impl TypeLayout {
-    pub const fn from_scalar(scalar: ScalarType) -> Self {
-        TypeLayout::Scalar(scalar)
-    }
-
-    pub fn from_vector(scalar: ScalarType, x: u32) -> Self {
-        TypeLayout::Vector(Box::new(TypeLayout::Scalar(scalar)), x)
-    }
-
-    pub fn from_matrix(scalar: ScalarType, x: u32, y: u32) -> Self {
-        TypeLayout::Matrix(Box::new(TypeLayout::Scalar(scalar)), x, y)
-    }
-
-    pub fn to_scalar(&self) -> Option<ScalarType> {
-        assert!(!self.has_modifiers());
-        match *self {
-            TypeLayout::Scalar(scalar) => Some(scalar),
-            TypeLayout::Vector(ref scalar, _) | TypeLayout::Matrix(ref scalar, _, _) => {
-                match **scalar {
-                    TypeLayout::Scalar(scalar) => Some(scalar),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
-
-    /// Get the most significant type from two data types
-    pub fn most_significant_data_type(left: &Self, right: &Self) -> Self {
-        let (left_ty, left_mod) = left.clone().extract_modifier();
-        let (right_ty, _) = right.clone().extract_modifier();
-
-        // Get the more important input type, that serves as the base to
-        // calculate the output type from
-        let nd = match Self::most_significant_dimension(&left_ty, &right_ty) {
-            Some(nd) => nd,
-            None => panic!("non-arithmetic numeric type in binary operation"),
-        };
-
-        let st = left_ty.to_scalar().unwrap();
-        assert_eq!(st, right.to_scalar().unwrap());
-        Self::from_numeric_dimensions(st, nd).combine_modifier(left_mod)
-    }
-
-    /// Attempt to get the most significant dimension of two data types
-    pub fn most_significant_dimension(lhs: &Self, rhs: &Self) -> Option<NumericDimension> {
-        assert!(!lhs.has_modifiers());
-        assert!(!rhs.has_modifiers());
-        use std::cmp::max;
-        use std::cmp::min;
-        use TypeLayout::*;
-        match (lhs, rhs) {
-            (&Scalar(_), &Scalar(_)) => Some(NumericDimension::Scalar),
-            (&Scalar(_), &Vector(_, ref x)) => Some(NumericDimension::Vector(*x)),
-            (&Vector(_, ref x), &Scalar(_)) => Some(NumericDimension::Vector(*x)),
-            (&Vector(_, ref x1), &Vector(_, ref x2)) if *x1 == 1 || *x2 == 1 => {
-                Some(NumericDimension::Vector(max(*x1, *x2)))
-            }
-            (&Vector(_, ref x1), &Vector(_, ref x2)) => {
-                let x = min(*x1, *x2);
-                Some(NumericDimension::Vector(x))
-            }
-            (&Matrix(_, ref x1, ref y1), &Matrix(_, ref x2, ref y2)) => {
-                let x = min(*x1, *x2);
-                let y = min(*y1, *y2);
-                Some(NumericDimension::Matrix(x, y))
-            }
-            _ => None,
-        }
-    }
-
-    /// Construct a type layout from a scalar type part and the dimension part
-    pub fn from_numeric_dimensions(scalar: ScalarType, dim: NumericDimension) -> Self {
-        let scalar = TypeLayout::Scalar(scalar);
-        match dim {
-            NumericDimension::Scalar => scalar,
-            NumericDimension::Vector(x) => TypeLayout::Vector(Box::new(scalar), x),
-            NumericDimension::Matrix(x, y) => TypeLayout::Matrix(Box::new(scalar), x, y),
-        }
-    }
-
-    /// Construct a type layout from a scalar type part and the two optional dimension sizes
-    pub fn from_numeric_parts(
-        scalar: ScalarType,
-        x_opt: Option<u32>,
-        y_opt: Option<u32>,
-    ) -> TypeLayout {
-        let scalar = TypeLayout::Scalar(scalar);
-        match (x_opt, y_opt) {
-            (Some(x), Some(y)) => TypeLayout::Matrix(Box::new(scalar), x, y),
-            (Some(x), None) => TypeLayout::Vector(Box::new(scalar), x),
-            (None, None) => scalar,
-            _ => panic!("invalid numeric type"),
-        }
-    }
-
-    /// Replaces the scalar type inside a numeric type with the given scalar type
-    pub fn transform_scalar(self, to_scalar: ScalarType) -> TypeLayout {
-        let (tyl, ty_mod) = self.extract_modifier();
-        let to_scalar = TypeLayout::Scalar(to_scalar);
-        let tyl = match tyl {
-            TypeLayout::Scalar(_) => to_scalar,
-            TypeLayout::Vector(_, x) => TypeLayout::Vector(Box::new(to_scalar), x),
-            TypeLayout::Matrix(_, x, y) => TypeLayout::Matrix(Box::new(to_scalar), x, y),
-            _ => panic!("non-numeric type in TypeLayout::transform_scalar"),
-        };
-        tyl.combine_modifier(ty_mod)
-    }
-
     /// Returns `true` if the type has modifiers
     pub fn has_modifiers(&self) -> bool {
         matches!(self, TypeLayout::Modifier(_, _))
@@ -732,18 +624,6 @@ impl TypeLayout {
     /// Remove the modifier from the type
     pub fn remove_modifier(self) -> Self {
         self.extract_modifier().0
-    }
-
-    /// Recombine the modifier back onto the type
-    ///
-    /// This expects there to not already be a modifier
-    pub fn combine_modifier(self, modifier: TypeModifier) -> Self {
-        assert!(!self.has_modifiers());
-        if modifier == TypeModifier::default() {
-            self
-        } else {
-            TypeLayout::Modifier(modifier, Box::new(self))
-        }
     }
 }
 
