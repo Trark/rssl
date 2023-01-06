@@ -313,8 +313,9 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     assert_eq!(decl.api_slot, None);
                     if let Some(lang_slot) = decl.lang_slot {
-                        let tyl = module.type_registry.get_type_layout(decl.type_id);
-                        if params.support_buffer_address && tyl.is_buffer_address() {
+                        if params.support_buffer_address
+                            && module.type_registry.is_buffer_address(decl.type_id)
+                        {
                             let offset = match inline_size.entry(lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();

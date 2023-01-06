@@ -239,6 +239,18 @@ impl TypeRegistry {
         let tyl = self.get_type_layer(unmodified_id);
         tyl == TypeLayer::Void
     }
+
+    /// Returns `true` if the type is a buffer address
+    pub fn is_buffer_address(&self, id: TypeId) -> bool {
+        let unmodified_id = self.remove_modifier(id);
+        let tyl = self.get_type_layer(unmodified_id);
+
+        matches!(
+            tyl,
+            TypeLayer::Object(ObjectType::BufferAddress)
+                | TypeLayer::Object(ObjectType::RWBufferAddress)
+        )
+    }
 }
 
 impl Module {
@@ -587,23 +599,6 @@ impl TypeLayer {
             }
             _ => None,
         }
-    }
-}
-
-impl TypeLayout {
-    /// Returns `true` if the type is a buffer address
-    pub fn is_buffer_address(&self) -> bool {
-        let ty = if let TypeLayout::Modifier(_, inner) = self {
-            &**inner
-        } else {
-            self
-        };
-
-        matches!(
-            ty,
-            &TypeLayout::Object(ObjectType::BufferAddress)
-                | &TypeLayout::Object(ObjectType::RWBufferAddress)
-        )
     }
 }
 
