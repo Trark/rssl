@@ -604,16 +604,6 @@ impl TypeLayout {
         }
     }
 
-    pub fn max_dim(r1: Option<u32>, r2: Option<u32>) -> Option<u32> {
-        use std::cmp::max;
-        match (r1, r2) {
-            (Some(x1), Some(x2)) => Some(max(x1, x2)),
-            (Some(x1), None) => Some(x1),
-            (None, Some(x2)) => Some(x2),
-            (None, None) => None,
-        }
-    }
-
     /// Get the most significant type from two data types
     pub fn most_significant_data_type(left: &Self, right: &Self) -> Self {
         let (left_ty, left_mod) = left.clone().extract_modifier();
@@ -769,6 +759,29 @@ impl ScalarType {
             [b'f', b'l', b'o', b'a', b't', rest @ ..] => Some((rest, ScalarType::Float)),
             [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Some((rest, ScalarType::Double)),
             _ => None,
+        }
+    }
+}
+
+impl NumericDimension {
+    /// Construct a NumericDimension from optional dimension values
+    pub fn from_parts(x_opt: Option<u32>, y_opt: Option<u32>) -> Self {
+        match (x_opt, y_opt) {
+            (Some(x), Some(y)) => NumericDimension::Matrix(x, y),
+            (Some(x), None) => NumericDimension::Vector(x),
+            (None, None) => NumericDimension::Scalar,
+            _ => panic!("invalid numeric dimension parts"),
+        }
+    }
+
+    /// Get the maximum of two dimension values
+    pub fn max_dim(r1: Option<u32>, r2: Option<u32>) -> Option<u32> {
+        use std::cmp::max;
+        match (r1, r2) {
+            (Some(x1), Some(x2)) => Some(max(x1, x2)),
+            (Some(x1), None) => Some(x1),
+            (None, Some(x2)) => Some(x2),
+            (None, None) => None,
         }
     }
 }

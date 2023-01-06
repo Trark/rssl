@@ -597,21 +597,29 @@ fn resolve_arithmetic_types(
     context: &mut Context,
 ) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp)> {
     use rssl_ir::ScalarType;
-    use rssl_ir::TypeLayout;
 
     fn common_real_type(left: ScalarType, right: ScalarType) -> Result<ir::ScalarType, ()> {
         Ok(most_sig_scalar(left, right))
     }
 
     // Calculate the output type from the input type and operation
-    fn output_type(left: &TypeLayout, right: &TypeLayout, op: &ast::BinOp) -> ir::IntrinsicOp {
+    fn output_type(
+        left: ir::TypeId,
+        right: ir::TypeId,
+        op: &ast::BinOp,
+        context: &mut Context,
+    ) -> ir::IntrinsicOp {
         // Assert input validity
         {
-            let ls = left
-                .to_scalar()
+            let ls = context
+                .module
+                .type_registry
+                .extract_scalar(left)
                 .expect("non-numeric type in binary operation (lhs)");
-            let rs = right
-                .to_scalar()
+            let rs = context
+                .module
+                .type_registry
+                .extract_scalar(right)
                 .expect("non-numeric type in binary operation (rhs)");
             match *op {
                 ast::BinOp::LeftShift
@@ -683,46 +691,74 @@ fn resolve_arithmetic_types(
             Some(s) => s,
             None => return Err(()),
         };
-        let (ltl, rtl) = match (left_base_tyl, right_base_tyl) {
+        let (left_out_id, right_out_id) = match (left_base_tyl, right_base_tyl) {
             (ir::TypeLayer::Scalar(_), ir::TypeLayer::Scalar(_)) => {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_scalar(common_scalar);
-                let common_right = common_left.clone();
-                (common_left, common_right)
+                let id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Scalar(common_scalar));
+                (id, id)
             }
             (ir::TypeLayer::Scalar(_), ir::TypeLayer::Vector(_, x2)) => {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_scalar(common_scalar);
-                let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
-                (common_left, common_right)
+                let scalar_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Scalar(common_scalar));
+                let right_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Vector(scalar_id, x2));
+                (scalar_id, right_id)
             }
             (ir::TypeLayer::Vector(_, x1), ir::TypeLayer::Scalar(_)) => {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
-                let common_right = ir::TypeLayout::from_scalar(common_scalar);
-                (common_left, common_right)
+                let scalar_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Scalar(common_scalar));
+                let left_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Vector(scalar_id, x1));
+                (left_id, scalar_id)
             }
             (ir::TypeLayer::Vector(_, x1), ir::TypeLayer::Vector(_, x2))
                 if x1 == x2 || x1 == 1 || x2 == 1 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_vector(common_scalar, x1);
-                let common_right = ir::TypeLayout::from_vector(common_scalar, x2);
-                (common_left, common_right)
+                let scalar_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Scalar(common_scalar));
+                let left_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Vector(scalar_id, x1));
+                let right_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Vector(scalar_id, x2));
+                (left_id, right_id)
             }
             (ir::TypeLayer::Matrix(_, x1, y1), ir::TypeLayer::Matrix(_, x2, y2))
                 if x1 == x2 && y1 == y2 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
-                let common_left = ir::TypeLayout::from_matrix(common_scalar, x2, y2);
-                let common_right = common_left.clone();
-                (common_left, common_right)
+                let scalar_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Scalar(common_scalar));
+                let matrix_id = context
+                    .module
+                    .type_registry
+                    .register_type_layer(ir::TypeLayer::Matrix(scalar_id, x1, y1));
+                (matrix_id, matrix_id)
             }
             _ => return Err(()),
         };
-        let output_type = output_type(&ltl, &rtl, op);
-        let left_out_id = context.module.type_registry.register_type(ltl);
-        let right_out_id = context.module.type_registry.register_type(rtl);
+        let output_type = output_type(left_out_id, right_out_id, op, context);
         let elt = left_out_id.to_rvalue();
         let lc = ImplicitConversion::find(left, elt, &mut context.module)?;
         let ert = right_out_id.to_rvalue();
@@ -858,10 +894,13 @@ fn parse_expr_binop(
                     _ => return err_bad_type,
                 }
             };
-            let x = ir::TypeLayout::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
-            let y = ir::TypeLayout::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
-            let tyl = ir::TypeLayout::from_numeric_parts(scalar, x, y);
-            let ty = context.module.type_registry.register_type(tyl);
+            let x = ir::NumericDimension::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
+            let y = ir::NumericDimension::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
+            let numeric = ir::NumericType {
+                scalar,
+                dimension: ir::NumericDimension::from_parts(x, y),
+            };
+            let ty = context.module.type_registry.register_numeric_type(numeric);
             let ety = ty.to_rvalue();
             let lhs_cast = match ImplicitConversion::find(lhs_type, ety, &mut context.module) {
                 Ok(cast) => cast,
