@@ -183,7 +183,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                     context
                         .module
                         .type_registry
-                        .register_type_layer(ir::TypeLayer::Void),
+                        .register_type(ir::TypeLayer::Void),
                     expected_type,
                     ast.location,
                 ))
@@ -411,7 +411,7 @@ pub fn apply_variable_bind(
         ty = context
             .module
             .type_registry
-            .register_type_layer(ir::TypeLayer::Array(ty, constant_dim));
+            .register_type(ir::TypeLayer::Array(ty, constant_dim));
     }
 
     Ok(ty)

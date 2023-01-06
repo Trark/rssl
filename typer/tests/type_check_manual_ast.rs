@@ -235,14 +235,14 @@ fn test_ast_to_ir() {
             let mut reference_module = ir::Module::create();
             let void_id = reference_module
                 .type_registry
-                .register_type_layer(ir::TypeLayer::Void);
+                .register_type(ir::TypeLayer::Void);
             let int_id = reference_module
                 .type_registry
-                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::Int));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int));
             let const_int_id = reference_module.type_registry.make_const(int_id);
             reference_module
                 .type_registry
-                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt));
 
             assert_eq!(actual.type_registry, reference_module.type_registry);
             assert_eq!(actual.struct_registry, Vec::new());

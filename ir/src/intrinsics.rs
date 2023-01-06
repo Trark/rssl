@@ -262,15 +262,15 @@ impl IntrinsicOp {
                 match module.type_registry.get_type_layer(type_id) {
                     TypeLayer::Scalar(_) => module
                         .type_registry
-                        .register_type_layer(TypeLayer::Scalar(ScalarType::Bool))
+                        .register_type(TypeLayer::Scalar(ScalarType::Bool))
                         .to_rvalue(),
                     TypeLayer::Vector(_, x) => {
                         let bool_ty = module
                             .type_registry
-                            .register_type_layer(TypeLayer::Scalar(ScalarType::Bool));
+                            .register_type(TypeLayer::Scalar(ScalarType::Bool));
                         module
                             .type_registry
-                            .register_type_layer(TypeLayer::Vector(bool_ty, x))
+                            .register_type(TypeLayer::Vector(bool_ty, x))
                             .to_rvalue()
                     }
                     _ => panic!("invalid logical not intrinsic"),

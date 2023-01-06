@@ -285,7 +285,7 @@ impl Context {
                         let unmodified_id = self
                             .module
                             .type_registry
-                            .register_type_layer(ir::TypeLayer::Struct(*id));
+                            .register_type(ir::TypeLayer::Struct(*id));
                         let id = self
                             .module
                             .type_registry
@@ -312,7 +312,7 @@ impl Context {
                         let unmodified_id = self
                             .module
                             .type_registry
-                            .register_type_layer(ir::TypeLayer::Struct(sid));
+                            .register_type(ir::TypeLayer::Struct(sid));
                         let id = self
                             .module
                             .type_registry
@@ -546,7 +546,7 @@ impl Context {
         let type_id = self
             .module
             .type_registry
-            .register_type_layer(ir::TypeLayer::Struct(id));
+            .register_type(ir::TypeLayer::Struct(id));
         let data = StructData {
             members: HashMap::new(),
             methods: HashMap::new(),
@@ -602,7 +602,7 @@ impl Context {
         let type_id = self
             .module
             .type_registry
-            .register_type_layer(ir::TypeLayer::StructTemplate(id));
+            .register_type(ir::TypeLayer::StructTemplate(id));
         let data = StructTemplateData {
             scope: self.current_scope,
             instantiations: HashMap::new(),
@@ -643,7 +643,7 @@ impl Context {
         let type_id = self
             .module
             .type_registry
-            .register_type_layer(ir::TypeLayer::Enum(id));
+            .register_type(ir::TypeLayer::Enum(id));
 
         self.module.enum_registry.set_enum_type_id(id, type_id);
 
@@ -851,7 +851,7 @@ impl Context {
                 let ty_id = self
                     .module
                     .type_registry
-                    .register_type_layer(ir::TypeLayer::TemplateParam(id));
+                    .register_type(ir::TypeLayer::TemplateParam(id));
                 id_v.insert((id, ty_id));
                 Ok(id)
             }

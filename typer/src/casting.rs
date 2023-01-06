@@ -400,10 +400,10 @@ impl ImplicitConversion {
                         NumericDimension::Scalar => scalar_id,
                         NumericDimension::Vector(x) => module
                             .type_registry
-                            .register_type_layer(TypeLayer::Vector(scalar_id, x)),
+                            .register_type(TypeLayer::Vector(scalar_id, x)),
                         NumericDimension::Matrix(x, y) => module
                             .type_registry
-                            .register_type_layer(TypeLayer::Matrix(scalar_id, x, y)),
+                            .register_type(TypeLayer::Matrix(scalar_id, x, y)),
                     };
                     let id = module.type_registry.combine_modifier(id, m);
                     ExpressionType(id, vt)
@@ -462,34 +462,34 @@ fn test_implicitconversion() {
     let mut module = Module::create();
     let bool_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Scalar(ScalarType::Bool));
+        .register_type(TypeLayer::Scalar(ScalarType::Bool));
     let int_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Scalar(ScalarType::Int));
+        .register_type(TypeLayer::Scalar(ScalarType::Int));
     let int1_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Vector(int_ty, 1));
+        .register_type(TypeLayer::Vector(int_ty, 1));
     let uint_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Scalar(ScalarType::UInt));
+        .register_type(TypeLayer::Scalar(ScalarType::UInt));
     let uint1_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Vector(uint_ty, 1));
+        .register_type(TypeLayer::Vector(uint_ty, 1));
     let uint4_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Vector(uint_ty, 4));
+        .register_type(TypeLayer::Vector(uint_ty, 4));
     let float_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Scalar(ScalarType::Float));
+        .register_type(TypeLayer::Scalar(ScalarType::Float));
     let float4_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Vector(float_ty, 4));
+        .register_type(TypeLayer::Vector(float_ty, 4));
     let sampler_state_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Object(ObjectType::SamplerState));
+        .register_type(TypeLayer::Object(ObjectType::SamplerState));
     let buffer_f4_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Object(ObjectType::Buffer(float4_ty)));
+        .register_type(TypeLayer::Object(ObjectType::Buffer(float4_ty)));
 
     let basic_types = &[bool_ty, int_ty, uint_ty, float_ty, float4_ty];
 
@@ -617,13 +617,13 @@ fn test_get_rank() {
     let mut module = Module::create();
     let uint_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Scalar(ScalarType::UInt));
+        .register_type(TypeLayer::Scalar(ScalarType::UInt));
     let uint1_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Vector(uint_ty, 1));
+        .register_type(TypeLayer::Vector(uint_ty, 1));
     let uint4_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Vector(uint_ty, 4));
+        .register_type(TypeLayer::Vector(uint_ty, 4));
 
     assert_eq!(
         ImplicitConversion::find(uint_ty.to_rvalue(), uint1_ty.to_rvalue(), &mut module)
@@ -656,7 +656,7 @@ fn test_const() {
     let mut module = Module::create();
     let int_ty = module
         .type_registry
-        .register_type_layer(TypeLayer::Scalar(ScalarType::Int));
+        .register_type(TypeLayer::Scalar(ScalarType::Int));
     let const_int_ty = module.type_registry.make_const(int_ty);
 
     // Non-const to const rvalue

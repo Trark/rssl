@@ -41,7 +41,7 @@ pub enum TypeLayer {
 
 impl TypeRegistry {
     /// Get or create the type id from a type layer
-    pub fn register_type_layer(&mut self, layer: TypeLayer) -> TypeId {
+    pub fn register_type(&mut self, layer: TypeLayer) -> TypeId {
         // Search for an existing registration of the type
         for (i, existing) in self.layers.iter().enumerate() {
             if layer == *existing {
@@ -75,14 +75,12 @@ impl TypeRegistry {
 
     /// Get or create the type id from a numeric type
     pub fn register_numeric_type(&mut self, numeric: NumericType) -> TypeId {
-        let scalar_id = self.register_type_layer(TypeLayer::Scalar(numeric.scalar));
+        let scalar_id = self.register_type(TypeLayer::Scalar(numeric.scalar));
         match numeric.dimension {
             NumericDimension::Scalar => scalar_id,
-            NumericDimension::Vector(x) => {
-                self.register_type_layer(TypeLayer::Vector(scalar_id, x))
-            }
+            NumericDimension::Vector(x) => self.register_type(TypeLayer::Vector(scalar_id, x)),
             NumericDimension::Matrix(x, y) => {
-                self.register_type_layer(TypeLayer::Matrix(scalar_id, x, y))
+                self.register_type(TypeLayer::Matrix(scalar_id, x, y))
             }
         }
     }
@@ -126,7 +124,7 @@ impl TypeRegistry {
         if modifier == TypeModifier::default() {
             id
         } else {
-            self.register_type_layer(TypeLayer::Modifier(modifier, id))
+            self.register_type(TypeLayer::Modifier(modifier, id))
         }
     }
 
@@ -137,7 +135,7 @@ impl TypeRegistry {
             id
         } else {
             modifier.is_const = true;
-            self.register_type_layer(TypeLayer::Modifier(modifier, base))
+            self.register_type(TypeLayer::Modifier(modifier, base))
         }
     }
 
@@ -157,13 +155,11 @@ impl TypeRegistry {
     /// Replaces the scalar type inside a numeric type with the given scalar type
     pub fn transform_scalar(&mut self, id: TypeId, to_scalar: ScalarType) -> TypeId {
         let (base_id, modifer) = self.extract_modifier(id);
-        let scalar_id = self.register_type_layer(TypeLayer::Scalar(to_scalar));
+        let scalar_id = self.register_type(TypeLayer::Scalar(to_scalar));
         let new_id = match self.get_type_layer(base_id) {
             TypeLayer::Scalar(_) => scalar_id,
-            TypeLayer::Vector(_, x) => self.register_type_layer(TypeLayer::Vector(scalar_id, x)),
-            TypeLayer::Matrix(_, x, y) => {
-                self.register_type_layer(TypeLayer::Matrix(scalar_id, x, y))
-            }
+            TypeLayer::Vector(_, x) => self.register_type(TypeLayer::Vector(scalar_id, x)),
+            TypeLayer::Matrix(_, x, y) => self.register_type(TypeLayer::Matrix(scalar_id, x, y)),
             _ => panic!("non-numeric type in transform_scalar"),
         };
         self.combine_modifier(new_id, modifer)

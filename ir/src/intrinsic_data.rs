@@ -555,14 +555,12 @@ fn get_type_id(
     multi_type: Option<TypeId>,
 ) -> TypeId {
     match *ty {
-        TypeDef::Void => module.type_registry.register_type_layer(TypeLayer::Void),
+        TypeDef::Void => module.type_registry.register_type(TypeLayer::Void),
         TypeDef::Numeric(ref num) => module.type_registry.register_numeric_type(*num),
-        TypeDef::Object(ref obj) => module
-            .type_registry
-            .register_type_layer(TypeLayer::Object(*obj)),
+        TypeDef::Object(ref obj) => module.type_registry.register_type(TypeLayer::Object(*obj)),
         TypeDef::FunctionTemplateArgument => module
             .type_registry
-            .register_type_layer(TypeLayer::TemplateParam(TemplateTypeId(0))),
+            .register_type(TypeLayer::TemplateParam(TemplateTypeId(0))),
         TypeDef::ObjectTemplateArgument => object_template_type.unwrap(),
         TypeDef::MultiArgument => multi_type.unwrap(),
     }

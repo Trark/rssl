@@ -33,7 +33,7 @@ pub fn parse_rootdefinition_enum(
                     context
                         .module
                         .type_registry
-                        .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
+                        .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
                 ),
                 Some(last_value) => {
                     let next_value = match last_value.0 {

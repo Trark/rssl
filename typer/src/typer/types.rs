@@ -114,7 +114,7 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
             // Special case all the built in types
 
             if let Some(tyl) = parse_voidtype(name, &ir_args) {
-                let id = context.module.type_registry.register_type_layer(tyl);
+                let id = context.module.type_registry.register_type(tyl);
                 return Ok(id);
             }
 
@@ -123,7 +123,7 @@ pub fn parse_typelayout(ty: &ast::TypeLayout, context: &mut Context) -> TyperRes
             }
 
             if let Some(tyl) = parse_object_type(name, &ir_args, context) {
-                let id = context.module.type_registry.register_type_layer(tyl);
+                let id = context.module.type_registry.register_type(tyl);
                 return Ok(id);
             }
 
@@ -193,7 +193,7 @@ pub fn parse_data_layout(
                         };
 
                         let tyl = ir::TypeLayer::Vector(type_id, dim_x as u32);
-                        let id = context.module.type_registry.register_type_layer(tyl);
+                        let id = context.module.type_registry.register_type(tyl);
 
                         Some(id)
                     } else {
@@ -230,7 +230,7 @@ pub fn parse_data_layout(
                         };
 
                         let tyl = ir::TypeLayer::Matrix(type_id, dim_x as u32, dim_y as u32);
-                        let id = context.module.type_registry.register_type_layer(tyl);
+                        let id = context.module.type_registry.register_type(tyl);
 
                         Some(id)
                     } else {
@@ -283,11 +283,11 @@ fn parse_object_type(
             let f = context
                 .module
                 .type_registry
-                .register_type_layer(ir::TypeLayer::Scalar(ir::ScalarType::Float));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float));
             let f4 = context
                 .module
                 .type_registry
-                .register_type_layer(ir::TypeLayer::Vector(f, 4));
+                .register_type(ir::TypeLayer::Vector(f, 4));
             Some(f4)
         } else {
             None
@@ -673,7 +673,7 @@ pub fn apply_template_type_substitution(
         ir::TypeLayer::Array(tyl, len) => {
             let inner_ty = apply_template_type_substitution(tyl, remap, context);
             let layer = ir::TypeLayer::Array(inner_ty, len);
-            context.module.type_registry.register_type_layer(layer)
+            context.module.type_registry.register_type(layer)
         }
         _ => source_type,
     }
