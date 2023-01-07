@@ -3,7 +3,7 @@ use rssl_text::{Located, SourceLocation};
 use std::rc::Rc;
 
 /// Container of all registered functions
-#[derive(PartialEq, Clone, Default, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct FunctionRegistry {
     signatures: Vec<FunctionSignature>,
     names: Vec<FunctionNameDefinition>,
@@ -212,6 +212,19 @@ impl FunctionRegistry {
             }
         }
         None
+    }
+}
+
+impl Default for FunctionRegistry {
+    fn default() -> Self {
+        FunctionRegistry {
+            signatures: Vec::with_capacity(1024),
+            names: Vec::with_capacity(1024),
+            implementations: Vec::with_capacity(1024),
+            intrinsic_data: Vec::with_capacity(1024),
+            template_source: Vec::with_capacity(1024),
+            template_instantiation_data: Vec::with_capacity(1024),
+        }
     }
 }
 

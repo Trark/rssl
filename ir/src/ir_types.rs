@@ -10,7 +10,7 @@ pub struct TypeId(pub u32);
 pub struct ObjectId(pub u32);
 
 /// Container of all registered types
-#[derive(PartialEq, Eq, Clone, Default, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct TypeRegistry {
     /// Direct type information for each type id
     layers: Vec<TypeLayer>,
@@ -686,6 +686,16 @@ impl TypeModifier {
             column_major: self.column_major || other.column_major,
             unorm: self.unorm || other.unorm,
             snorm: self.snorm || other.snorm,
+        }
+    }
+}
+
+impl Default for TypeRegistry {
+    fn default() -> Self {
+        TypeRegistry {
+            layers: Vec::with_capacity(256),
+            object_layouts: Vec::with_capacity(64),
+            object_functions: Vec::with_capacity(64),
         }
     }
 }

@@ -83,7 +83,7 @@ impl Context {
                 parent_scope: usize::MAX,
                 scope_name: None,
                 variables: VariableBlock::new(),
-                function_ids: HashMap::new(),
+                function_ids: HashMap::with_capacity(1024),
                 types: HashMap::new(),
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
