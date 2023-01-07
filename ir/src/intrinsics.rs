@@ -278,7 +278,10 @@ impl IntrinsicOp {
             }
             BitwiseNot => {
                 assert_eq!(param_types.len(), 1);
-                param_types[0].0.to_rvalue()
+                module
+                    .type_registry
+                    .remove_modifier(param_types[0].0)
+                    .to_rvalue()
             }
             Add | Subtract | Multiply | Divide | Modulus | LeftShift | RightShift | BitwiseAnd
             | BitwiseOr | BitwiseXor => {

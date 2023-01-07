@@ -13,6 +13,44 @@ pub fn evaluate_constexpr(
                 arg_values.push(evaluate_constexpr(arg, module)?);
             }
             match *op {
+                ir::IntrinsicOp::PrefixIncrement => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(input + 1),
+                    ir::Constant::UInt(input) => ir::Constant::UInt(input + 1),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::PrefixDecrement => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(input - 1),
+                    ir::Constant::UInt(input) => ir::Constant::UInt(input - 1),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::PostfixIncrement => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(input + 1),
+                    ir::Constant::UInt(input) => ir::Constant::UInt(input + 1),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::PostfixDecrement => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(input - 1),
+                    ir::Constant::UInt(input) => ir::Constant::UInt(input - 1),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::Plus => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(input),
+                    ir::Constant::UInt(input) => ir::Constant::UInt(input),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::Minus => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(-input),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::LogicalNot => match arg_values[0] {
+                    ir::Constant::Bool(input) => ir::Constant::Bool(!input),
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::BitwiseNot => match arg_values[0] {
+                    ir::Constant::Int(input) => ir::Constant::Int(!input),
+                    ir::Constant::UInt(input) => ir::Constant::UInt(!input),
+                    _ => panic!("unexpected type in BitwiseNot"),
+                },
                 ir::IntrinsicOp::Add => match (&arg_values[0], &arg_values[1]) {
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs + rhs)

@@ -520,19 +520,46 @@ fn parse_expr_unaryop(
                 }
                 ast::UnaryOp::BitwiseNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    match context.module.type_registry.get_type_layer(input_ty_id) {
-                        ir::TypeLayer::Scalar(ir::ScalarType::Int)
-                        | ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
-                            (ir::IntrinsicOp::BitwiseNot, expr_ir, expr_ty.0.to_rvalue())
-                        }
-                        _ => {
-                            return Err(TyperError::UnaryOperationWrongTypes(
-                                op.clone(),
-                                ErrorType::Unknown,
-                                base_location,
-                            ))
-                        }
-                    }
+                    // We currently do not support vector arguments
+                    let (op_output_ety, op_input_ety) =
+                        match context.module.type_registry.get_type_layer(input_ty_id) {
+                            ir::TypeLayer::Scalar(ir::ScalarType::Int)
+                            | ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
+                                // Input is uncasted
+                                // Output has const / lvalue removed
+                                (input_ty_id.to_rvalue(), expr_ty)
+                            }
+                            ir::TypeLayer::Scalar(ir::ScalarType::Bool) => {
+                                let op_ety = context
+                                    .module
+                                    .type_registry
+                                    .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int))
+                                    .to_rvalue();
+
+                                // Input is casted to int rvalue
+                                // Output is the same as input
+                                (op_ety, op_ety)
+                            }
+                            _ => {
+                                return Err(TyperError::UnaryOperationWrongTypes(
+                                    op.clone(),
+                                    ErrorType::Unknown,
+                                    base_location,
+                                ))
+                            }
+                        };
+
+                    // Cast input expression to operator input type
+                    let expr_ir = if expr_ty != op_input_ety {
+                        let cast =
+                            ImplicitConversion::find(expr_ty, op_input_ety, &mut context.module)
+                                .unwrap();
+                        cast.apply(expr_ir, &mut context.module)
+                    } else {
+                        expr_ir
+                    };
+
+                    (ir::IntrinsicOp::BitwiseNot, expr_ir, op_output_ety)
                 }
             };
             Ok(TypedExpression::Value(
