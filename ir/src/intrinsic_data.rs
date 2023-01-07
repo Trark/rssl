@@ -331,6 +331,27 @@ pub fn add_intrinsics(module: &mut Module) {
     }
 }
 
+#[test]
+fn test_intrinsic_duplicates() {
+    let module = Module::create();
+    let intrinsic_count = module.function_registry.get_function_count();
+    for index_first in 1..intrinsic_count {
+        let id_first = FunctionId(index_first as u32);
+        let signature_first = module.function_registry.get_function_signature(id_first);
+        let name_first = module.function_registry.get_function_name(id_first);
+        for index_second in 0..index_first {
+            let id_second = FunctionId(index_second as u32);
+            let signature_second = module.function_registry.get_function_signature(id_second);
+            let name_second = module.function_registry.get_function_name(id_second);
+            if name_first == name_second
+                && signature_first.param_types == signature_second.param_types
+            {
+                panic!("Duplicate intrinsic function signature: {}", name_first);
+            }
+        }
+    }
+}
+
 const BUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => BufferGetDimensions },
     f! { D Load(int) => BufferLoad },

@@ -113,7 +113,7 @@ impl Context {
 
             // Register the function into the root scope
             context
-                .insert_function_in_scope(context.current_scope as usize, id)
+                .insert_function_in_scope(context.current_scope as usize, id, true)
                 .unwrap();
         }
 
@@ -481,7 +481,7 @@ impl Context {
 
     /// Add a registered function to the active scope
     pub fn add_function_to_current_scope(&mut self, id: ir::FunctionId) -> TyperResult<()> {
-        self.insert_function_in_scope(self.current_scope as usize, id)
+        self.insert_function_in_scope(self.current_scope as usize, id, false)
     }
 
     /// Register a new global variable
@@ -981,27 +981,48 @@ impl Context {
         &mut self,
         scope_index: usize,
         id: ir::FunctionId,
+        skip_checks: bool,
     ) -> TyperResult<()> {
-        let name_data = &self
+        let name_data = self
             .module
             .function_registry
             .get_function_name_definition(id);
-        let signature = &self.module.function_registry.get_function_signature(id);
 
-        // Error if a variable of the same name already exists
-        match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node, 0) {
-            Some(VariableExpression::Local(_, ref ty))
-            | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
-            | Some(VariableExpression::EnumValue(_, ref ty)) => {
-                return Err(TyperError::ValueAlreadyDefined(
-                    name_data.name.clone(),
-                    ty.to_error_type(),
-                    ErrorType::Unknown,
-                ));
+        if !skip_checks {
+            let signature = &self.module.function_registry.get_function_signature(id);
+
+            // Error if a variable of the same name already exists
+            match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node, 0)
+            {
+                Some(VariableExpression::Local(_, ref ty))
+                | Some(VariableExpression::Global(_, ref ty))
+                | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
+                | Some(VariableExpression::EnumValue(_, ref ty)) => {
+                    return Err(TyperError::ValueAlreadyDefined(
+                        name_data.name.clone(),
+                        ty.to_error_type(),
+                        ErrorType::Unknown,
+                    ));
+                }
+                Some(VariableExpression::Function(fns)) => {
+                    // Fail if the overload already exists
+                    for existing_id in fns.overloads {
+                        let existing_signature = self
+                            .module
+                            .function_registry
+                            .get_function_signature(existing_id);
+                        if existing_signature.param_types == signature.param_types {
+                            return Err(TyperError::ValueAlreadyDefined(
+                                name_data.name.clone(),
+                                ErrorType::Unknown,
+                                ErrorType::Unknown,
+                            ));
+                        }
+                    }
+                }
+                _ => {}
             }
-            _ => {}
-        };
+        }
 
         // Try to add the function
         match self.scopes[scope_index]
@@ -1009,20 +1030,6 @@ impl Context {
             .entry(name_data.name.node.clone())
         {
             Entry::Occupied(mut occupied) => {
-                // Fail if the overload already exists
-                for existing_id in occupied.get() {
-                    let existing_signature = self
-                        .module
-                        .function_registry
-                        .get_function_signature(*existing_id);
-                    if existing_signature.param_types == signature.param_types {
-                        return Err(TyperError::ValueAlreadyDefined(
-                            name_data.name.clone(),
-                            ErrorType::Unknown,
-                            ErrorType::Unknown,
-                        ));
-                    }
-                }
                 // Insert a new overload
                 occupied.get_mut().push(id);
             }
