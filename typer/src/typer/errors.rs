@@ -501,7 +501,7 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "struct '{}' does not contain member '{}'",
-                        get_struct_name(*id, context),
+                        context.module.get_struct_name(*id),
                         name
                     )
                 },
@@ -751,57 +751,7 @@ fn get_function_location(id: ir::FunctionId, context: &Context) -> SourceLocatio
 
 /// Get a string name from a type id for error display
 fn get_type_string(id: ir::TypeId, context: &Context) -> String {
-    get_type_layer_string(context.module.type_registry.get_type_layer(id), context)
-}
-
-/// Get a string name from a type for error display
-fn get_type_layer_string(tyl: ir::TypeLayer, context: &Context) -> String {
-    match tyl {
-        ir::TypeLayer::Void => "void".to_string(),
-        ir::TypeLayer::Scalar(st) => format!("{:?}", st),
-        ir::TypeLayer::Vector(ty, x) => format!("{}{}", get_type_string(ty, context), x),
-        ir::TypeLayer::Matrix(ty, x, y) => {
-            format!("{}{}x{}", get_type_string(ty, context), x, y)
-        }
-        ir::TypeLayer::Struct(sid) => get_struct_name(sid, context),
-        ir::TypeLayer::Enum(id) => get_enum_name(id, context),
-        ir::TypeLayer::Object(ot) => get_object_type_string(ot, context),
-        ir::TypeLayer::Array(ty, len) => {
-            format!("{}[{}]", get_type_string(ty, context), len)
-        }
-        ir::TypeLayer::Modifier(modifier, ty) => {
-            format!("{:?}{}", modifier, get_type_string(ty, context))
-        }
-        _ => format!("{:?}", tyl),
-    }
-}
-
-/// Get a string name from an intrinsic object type for error display
-fn get_object_type_string(object_type: ir::ObjectType, context: &Context) -> String {
-    use ir::ObjectType::*;
-    match object_type {
-        Buffer(ty) => format!("Buffer<{}>", get_type_string(ty, context)),
-        RWBuffer(ty) => format!("RWBuffer<{}>", get_type_string(ty, context)),
-        ByteAddressBuffer => "ByteAddressBuffer".to_string(),
-        RWByteAddressBuffer => "RWByteAddressBuffer".to_string(),
-        BufferAddress => "BufferAddress".to_string(),
-        RWBufferAddress => "RWBufferAddress".to_string(),
-        StructuredBuffer(ty) => {
-            format!("StructuredBuffer<{}>", get_type_string(ty, context))
-        }
-        RWStructuredBuffer(ty) => {
-            format!("RWStructuredBuffer<{}>", get_type_string(ty, context))
-        }
-        Texture2D(ty) => format!("Texture2D<{}>", get_type_string(ty, context)),
-        Texture2DMips(ty) => format!("Texture2D<{}>::Mips", get_type_string(ty, context)),
-        Texture2DMipsSlice(ty) => {
-            format!("Texture2D<{}>::MipsSlice", get_type_string(ty, context))
-        }
-        RWTexture2D(ty) => format!("RWTexture2D<{}>", get_type_string(ty, context)),
-        ConstantBuffer(ty) => format!("ConstantBuffer<{}>", get_type_string(ty, context)),
-        SamplerState => "SamplerState".to_string(),
-        SamplerComparisonState => "SamplerComparisonState".to_string(),
-    }
+    context.module.get_type_name_short(id)
 }
 
 /// Get a string name from a param type for error display
@@ -811,14 +761,4 @@ fn get_param_type_string(param: &ir::ParamType, context: &Context) -> String {
         param.input_modifier,
         get_type_string(param.type_id, context)
     )
-}
-
-/// Get a string name from a struct id for error display
-fn get_struct_name(id: ir::StructId, context: &Context) -> String {
-    context.module.get_struct_name(id).to_string()
-}
-
-/// Get a string name from an enum id for error display
-fn get_enum_name(id: ir::EnumId, context: &Context) -> String {
-    context.module.get_enum_name(id).to_string()
 }

@@ -1702,10 +1702,10 @@ fn parse_expr_internal(
             let ty_query = ty_query_res.expect("type unknown");
             assert!(
                 ty_query == *ty_expected,
-                "[{:?}, {:?}] != [{:?}, {:?}]: {:?}",
-                context.module.type_registry.get_type_layer(ty_query.0),
+                "[{}, {:?}] != [{}, {:?}]: {:?}",
+                context.module.get_type_name_short(ty_query.0),
                 ty_query.1,
-                context.module.type_registry.get_type_layer(ty_expected.0),
+                context.module.get_type_name_short(ty_expected.0),
                 ty_expected.1,
                 expr,
             );

@@ -93,6 +93,29 @@ impl Module {
         module
     }
 
+    /// Get a string name from a type id
+    pub fn get_type_name_short(&self, id: TypeId) -> String {
+        let tyl = self.type_registry.get_type_layer(id);
+        match tyl {
+            TypeLayer::Void => "void".to_string(),
+            TypeLayer::Scalar(st) => format!("{:?}", st),
+            TypeLayer::Vector(ty, x) => format!("{}{}", self.get_type_name_short(ty), x),
+            TypeLayer::Matrix(ty, x, y) => {
+                format!("{}{}x{}", self.get_type_name_short(ty), x, y)
+            }
+            TypeLayer::Struct(sid) => self.get_struct_name(sid).to_string(),
+            TypeLayer::Enum(id) => self.get_enum_name(id).to_string(),
+            TypeLayer::Object(ot) => self.get_object_type_string(ot),
+            TypeLayer::Array(ty, len) => {
+                format!("{}[{}]", self.get_type_name_short(ty), len)
+            }
+            TypeLayer::Modifier(modifier, ty) => {
+                format!("{:?}{}", modifier, self.get_type_name_short(ty))
+            }
+            _ => format!("{:?}", tyl),
+        }
+    }
+
     /// Get the name from a struct id
     pub fn get_struct_name(&self, id: StructId) -> &str {
         assert!(id.0 < self.struct_registry.len() as u32);
@@ -106,9 +129,36 @@ impl Module {
     }
 
     /// Get the name from an enum id
-    #[inline]
     pub fn get_enum_name(&self, id: EnumId) -> &str {
         &self.enum_registry.get_enum_definition(id).name.node
+    }
+
+    /// Get a string name from an intrinsic object type
+    fn get_object_type_string(&self, object_type: ObjectType) -> String {
+        use ObjectType::*;
+        match object_type {
+            Buffer(ty) => format!("Buffer<{}>", self.get_type_name_short(ty)),
+            RWBuffer(ty) => format!("RWBuffer<{}>", self.get_type_name_short(ty)),
+            ByteAddressBuffer => "ByteAddressBuffer".to_string(),
+            RWByteAddressBuffer => "RWByteAddressBuffer".to_string(),
+            BufferAddress => "BufferAddress".to_string(),
+            RWBufferAddress => "RWBufferAddress".to_string(),
+            StructuredBuffer(ty) => {
+                format!("StructuredBuffer<{}>", self.get_type_name_short(ty))
+            }
+            RWStructuredBuffer(ty) => {
+                format!("RWStructuredBuffer<{}>", self.get_type_name_short(ty))
+            }
+            Texture2D(ty) => format!("Texture2D<{}>", self.get_type_name_short(ty)),
+            Texture2DMips(ty) => format!("Texture2D<{}>::Mips", self.get_type_name_short(ty)),
+            Texture2DMipsSlice(ty) => {
+                format!("Texture2D<{}>::MipsSlice", self.get_type_name_short(ty))
+            }
+            RWTexture2D(ty) => format!("RWTexture2D<{}>", self.get_type_name_short(ty)),
+            ConstantBuffer(ty) => format!("ConstantBuffer<{}>", self.get_type_name_short(ty)),
+            SamplerState => "SamplerState".to_string(),
+            SamplerComparisonState => "SamplerComparisonState".to_string(),
+        }
     }
 
     /// Get the name from a function id
