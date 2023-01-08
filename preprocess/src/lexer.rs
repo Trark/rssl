@@ -894,9 +894,11 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "extern" => Token::Extern,
         "static" => Token::Static,
         "groupshared" => Token::GroupShared,
+        "constexpr" => Token::Constexpr,
         "sizeof" => Token::SizeOf,
         "template" => Token::Template,
         "typename" => Token::Typename,
+        "decltype" => Token::Decltype,
 
         // Unimplemented keywords
         "case" | "default" => Token::ReservedWord(id.0),
@@ -1682,6 +1684,13 @@ fn test_token() {
         Token::Id(Identifier("groupsharedshared".to_string()))
     );
 
+    assert_token!("constexpr", Token::Constexpr);
+    assert_token!("constexpr ", Token::Constexpr, 9);
+    assert_token!(
+        "constconstexpr",
+        Token::Id(Identifier("constconstexpr".to_string()))
+    );
+
     assert_token!("sizeof", Token::SizeOf);
     assert_token!("sizeof ", Token::SizeOf, 6);
     assert_token!("sizeofa", Token::Id(Identifier("sizeofa".to_string())));
@@ -1693,6 +1702,13 @@ fn test_token() {
     assert_token!("typename", Token::Typename);
     assert_token!("typename ", Token::Typename, 8);
     assert_token!("typenamea", Token::Id(Identifier("typenamea".to_string())));
+
+    assert_token!("decltype", Token::Decltype);
+    assert_token!("decltype ", Token::Decltype, 8);
+    assert_token!(
+        "decldecltype",
+        Token::Id(Identifier("decldecltype".to_string()))
+    );
 }
 
 #[test]

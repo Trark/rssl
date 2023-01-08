@@ -113,11 +113,13 @@ pub enum Token {
     Extern,
     Static,
     GroupShared,
+    Constexpr,
 
     SizeOf,
 
     Template,
     Typename,
+    Decltype,
 
     ReservedWord(String),
 
