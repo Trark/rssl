@@ -949,6 +949,29 @@ fn check_enum_int_cast() {
     // Increment operators should not be supported
     check_fail("enum S1 { A }; enum S2 { Z = ++A };");
     check_fail("enum S1 { A }; enum S2 { Z = --A };");
+
+    // Check evaluation of various operators work with enum -> primitive cast
+    check_types(
+        "enum S { A = 2u, B = 3, C = false }; void f() {
+        assert_type<S>(A);
+        assert_type<S>(B);
+        assert_type<S>(C);
+        assert_eval<int>(+A, (int)2);
+        assert_eval<int>(+B, (int)3);
+        assert_eval<int>(+C, (int)0);
+        assert_eval<int>(-A, (int)-2);
+        assert_eval<int>(-B, (int)-3);
+        assert_eval<int>(-C, (int)0);
+        assert_eval<int>(~A, ~(int)2);
+        assert_eval<int>(~B, ~(int)3);
+        assert_eval<int>(~C, ~(int)0);
+        assert_eval<bool>(!A, false);
+        assert_eval<bool>(!B, false);
+        assert_eval<bool>(!C, true);
+        assert_eval<bool>(A < B, true);
+        assert_eval<bool>(B < C, false);
+    }",
+    );
 }
 
 #[test]
