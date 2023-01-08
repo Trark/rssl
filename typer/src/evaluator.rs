@@ -33,13 +33,13 @@ pub fn evaluate_constexpr(
                     ir::Constant::UInt(input) => ir::Constant::UInt(input - 1),
                     _ => return Err(()),
                 },
-                ir::IntrinsicOp::Plus => match arg_values[0] {
-                    ir::Constant::Int(input) => ir::Constant::Int(input),
-                    ir::Constant::UInt(input) => ir::Constant::UInt(input),
-                    _ => return Err(()),
-                },
+                ir::IntrinsicOp::Plus => arg_values[0].clone(),
                 ir::IntrinsicOp::Minus => match arg_values[0] {
                     ir::Constant::Int(input) => ir::Constant::Int(-input),
+                    ir::Constant::UntypedInt(input) => ir::Constant::UntypedInt(-input),
+                    ir::Constant::Half(input) => ir::Constant::Half(-input),
+                    ir::Constant::Float(input) => ir::Constant::Float(-input),
+                    ir::Constant::Double(input) => ir::Constant::Double(-input),
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::LogicalNot => match arg_values[0] {
@@ -172,6 +172,23 @@ pub fn evaluate_constexpr(
             let tyl = module.type_registry.get_type_layer(unmodified);
             let inner_value = evaluate_constexpr(inner, module)?;
             match tyl {
+                ir::TypeLayer::Scalar(ir::ScalarType::Bool) => {
+                    let inner_value = match inner_value {
+                        ir::Constant::Enum(_, inner) => *inner,
+                        other => other,
+                    };
+                    match inner_value {
+                        ir::Constant::Bool(v) => ir::Constant::Bool(v),
+                        ir::Constant::UntypedInt(v) => ir::Constant::Bool(v != 0),
+                        ir::Constant::Int(v) => ir::Constant::Bool(v != 0),
+                        ir::Constant::UInt(v) => ir::Constant::Bool(v != 0),
+                        ir::Constant::Half(v) => ir::Constant::Bool(v != 0.0),
+                        ir::Constant::Float(v) => ir::Constant::Bool(v != 0.0),
+                        ir::Constant::Double(v) => ir::Constant::Bool(v != 0.0),
+                        ir::Constant::Enum(_, _) => unreachable!(),
+                        _ => return Err(()),
+                    }
+                }
                 ir::TypeLayer::Scalar(ir::ScalarType::Int) => {
                     let inner_value = match inner_value {
                         ir::Constant::Enum(_, inner) => *inner,
@@ -182,6 +199,9 @@ pub fn evaluate_constexpr(
                         ir::Constant::UntypedInt(v) => ir::Constant::Int(v as i32),
                         ir::Constant::Int(v) => ir::Constant::Int(v),
                         ir::Constant::UInt(v) => ir::Constant::Int(v as i32),
+                        ir::Constant::Half(v) => ir::Constant::Int(v as i32),
+                        ir::Constant::Float(v) => ir::Constant::Int(v as i32),
+                        ir::Constant::Double(v) => ir::Constant::Int(v as i32),
                         ir::Constant::Enum(_, _) => unreachable!(),
                         _ => return Err(()),
                     }
@@ -196,6 +216,60 @@ pub fn evaluate_constexpr(
                         ir::Constant::UntypedInt(v) => ir::Constant::UInt(v as u32),
                         ir::Constant::Int(v) => ir::Constant::UInt(v as u32),
                         ir::Constant::UInt(v) => ir::Constant::UInt(v),
+                        ir::Constant::Half(v) => ir::Constant::UInt(v as u32),
+                        ir::Constant::Float(v) => ir::Constant::UInt(v as u32),
+                        ir::Constant::Double(v) => ir::Constant::UInt(v as u32),
+                        ir::Constant::Enum(_, _) => unreachable!(),
+                        _ => return Err(()),
+                    }
+                }
+                ir::TypeLayer::Scalar(ir::ScalarType::Half) => {
+                    let inner_value = match inner_value {
+                        ir::Constant::Enum(_, inner) => *inner,
+                        other => other,
+                    };
+                    match inner_value {
+                        ir::Constant::Bool(v) => ir::Constant::Half(if v { 1.0 } else { 0.0 }),
+                        ir::Constant::UntypedInt(v) => ir::Constant::Half(v as f32),
+                        ir::Constant::Int(v) => ir::Constant::Half(v as f32),
+                        ir::Constant::UInt(v) => ir::Constant::Half(v as f32),
+                        ir::Constant::Half(v) => ir::Constant::Half(v),
+                        ir::Constant::Float(v) => ir::Constant::Half(v),
+                        ir::Constant::Double(v) => ir::Constant::Half(v as f32),
+                        ir::Constant::Enum(_, _) => unreachable!(),
+                        _ => return Err(()),
+                    }
+                }
+                ir::TypeLayer::Scalar(ir::ScalarType::Float) => {
+                    let inner_value = match inner_value {
+                        ir::Constant::Enum(_, inner) => *inner,
+                        other => other,
+                    };
+                    match inner_value {
+                        ir::Constant::Bool(v) => ir::Constant::Float(if v { 1.0 } else { 0.0 }),
+                        ir::Constant::UntypedInt(v) => ir::Constant::Float(v as f32),
+                        ir::Constant::Int(v) => ir::Constant::Float(v as f32),
+                        ir::Constant::UInt(v) => ir::Constant::Float(v as f32),
+                        ir::Constant::Half(v) => ir::Constant::Float(v),
+                        ir::Constant::Float(v) => ir::Constant::Float(v),
+                        ir::Constant::Double(v) => ir::Constant::Float(v as f32),
+                        ir::Constant::Enum(_, _) => unreachable!(),
+                        _ => return Err(()),
+                    }
+                }
+                ir::TypeLayer::Scalar(ir::ScalarType::Double) => {
+                    let inner_value = match inner_value {
+                        ir::Constant::Enum(_, inner) => *inner,
+                        other => other,
+                    };
+                    match inner_value {
+                        ir::Constant::Bool(v) => ir::Constant::Double(if v { 1.0 } else { 0.0 }),
+                        ir::Constant::UntypedInt(v) => ir::Constant::Double(v as f64),
+                        ir::Constant::Int(v) => ir::Constant::Double(v as f64),
+                        ir::Constant::UInt(v) => ir::Constant::Double(v as f64),
+                        ir::Constant::Half(v) => ir::Constant::Double(v as f64),
+                        ir::Constant::Float(v) => ir::Constant::Double(v as f64),
+                        ir::Constant::Double(v) => ir::Constant::Double(v),
                         ir::Constant::Enum(_, _) => unreachable!(),
                         _ => return Err(()),
                     }

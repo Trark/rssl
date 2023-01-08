@@ -486,8 +486,14 @@ fn parse_expr_unaryop(
                         expr_ty.0.to_rvalue(),
                     )
                 }
-                ast::UnaryOp::Plus => (ir::IntrinsicOp::Plus, expr_ir, expr_ty.0.to_rvalue()),
-                ast::UnaryOp::Minus => (ir::IntrinsicOp::Minus, expr_ir, expr_ty.0.to_rvalue()),
+                ast::UnaryOp::Plus => {
+                    let unmodified_id = context.module.type_registry.remove_modifier(expr_ty.0);
+                    (ir::IntrinsicOp::Plus, expr_ir, unmodified_id.to_rvalue())
+                }
+                ast::UnaryOp::Minus => {
+                    let unmodified_id = context.module.type_registry.remove_modifier(expr_ty.0);
+                    (ir::IntrinsicOp::Minus, expr_ir, unmodified_id.to_rvalue())
+                }
                 ast::UnaryOp::LogicalNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
                     let tyl = match context.module.type_registry.get_type_layer(input_ty_id) {

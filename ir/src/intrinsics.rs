@@ -254,7 +254,10 @@ impl IntrinsicOp {
             }
             PostfixIncrement | PostfixDecrement | Plus | Minus => {
                 assert_eq!(param_types.len(), 1);
-                param_types[0].0.to_rvalue()
+                module
+                    .type_registry
+                    .remove_modifier(param_types[0].0)
+                    .to_rvalue()
             }
             LogicalNot => {
                 assert_eq!(param_types.len(), 1);
