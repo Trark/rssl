@@ -477,6 +477,17 @@ impl TypeLayer {
         matches!(self, &TypeLayer::Object(_))
     }
 
+    /// Construct a [NumericDimension] from a layer
+    pub fn to_dimensions(self) -> NumericDimension {
+        assert!(!self.is_modifier());
+        match self {
+            TypeLayer::Vector(_, x) => NumericDimension::Vector(x),
+            TypeLayer::Matrix(_, x, y) => NumericDimension::Matrix(x, y),
+            // Treat all enum and non-numeric types as scalar
+            _ => NumericDimension::Scalar,
+        }
+    }
+
     /// Get the size of the first dimension for a vector or matrix
     pub fn to_x(&self) -> Option<u32> {
         assert!(!self.is_modifier());

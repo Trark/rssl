@@ -716,8 +716,16 @@ fn resolve_arithmetic_types(
     ) -> Result<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp), ()> {
         let left_base_id = context.module.type_registry.remove_modifier(left.0);
         let right_base_id = context.module.type_registry.remove_modifier(right.0);
-        let left_base_tyl = context.module.type_registry.get_type_layer(left_base_id);
-        let right_base_tyl = context.module.type_registry.get_type_layer(right_base_id);
+        let left_base_dim = context
+            .module
+            .type_registry
+            .get_type_layer(left_base_id)
+            .to_dimensions();
+        let right_base_dim = context
+            .module
+            .type_registry
+            .get_type_layer(right_base_id)
+            .to_dimensions();
         let ls = match context.module.type_registry.extract_scalar(left_base_id) {
             Some(s) => s,
             None => return Err(()),
@@ -726,8 +734,8 @@ fn resolve_arithmetic_types(
             Some(s) => s,
             None => return Err(()),
         };
-        let (left_out_id, right_out_id) = match (left_base_tyl, right_base_tyl) {
-            (ir::TypeLayer::Scalar(_), ir::TypeLayer::Scalar(_)) => {
+        let (left_out_id, right_out_id) = match (left_base_dim, right_base_dim) {
+            (ir::NumericDimension::Scalar, ir::NumericDimension::Scalar) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let id = context
                     .module
@@ -735,7 +743,7 @@ fn resolve_arithmetic_types(
                     .register_type(ir::TypeLayer::Scalar(common_scalar));
                 (id, id)
             }
-            (ir::TypeLayer::Scalar(_), ir::TypeLayer::Vector(_, x2)) => {
+            (ir::NumericDimension::Scalar, ir::NumericDimension::Vector(x2)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let scalar_id = context
                     .module
@@ -747,7 +755,7 @@ fn resolve_arithmetic_types(
                     .register_type(ir::TypeLayer::Vector(scalar_id, x2));
                 (scalar_id, right_id)
             }
-            (ir::TypeLayer::Vector(_, x1), ir::TypeLayer::Scalar(_)) => {
+            (ir::NumericDimension::Vector(x1), ir::NumericDimension::Scalar) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let scalar_id = context
                     .module
@@ -759,7 +767,7 @@ fn resolve_arithmetic_types(
                     .register_type(ir::TypeLayer::Vector(scalar_id, x1));
                 (left_id, scalar_id)
             }
-            (ir::TypeLayer::Vector(_, x1), ir::TypeLayer::Vector(_, x2))
+            (ir::NumericDimension::Vector(x1), ir::NumericDimension::Vector(x2))
                 if x1 == x2 || x1 == 1 || x2 == 1 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
@@ -777,7 +785,7 @@ fn resolve_arithmetic_types(
                     .register_type(ir::TypeLayer::Vector(scalar_id, x2));
                 (left_id, right_id)
             }
-            (ir::TypeLayer::Matrix(_, x1, y1), ir::TypeLayer::Matrix(_, x2, y2))
+            (ir::NumericDimension::Matrix(x1, y1), ir::NumericDimension::Matrix(x2, y2))
                 if x1 == x2 && y1 == y2 =>
             {
                 let common_scalar = common_real_type(ls, rs)?;
