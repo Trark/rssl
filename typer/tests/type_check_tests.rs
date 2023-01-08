@@ -1009,6 +1009,27 @@ fn check_enum_name_conflicts() {
 }
 
 #[test]
+fn check_enum_valid_value_types() {
+    check_types("enum E { A = 0 };");
+    check_types("enum E { A = false };");
+    check_types("enum E { A = 0u };");
+    check_fail("enum E { A = 0.0 };");
+    check_fail("enum E { A = 0.0h };");
+    check_fail("enum E { A = 0.0L };");
+    check_types("enum E1 { A1 }; enum E2 { A2 = A1 };");
+    check_fail("struct S {}; static const S s; enum E { A = s };");
+}
+
+#[test]
+fn check_enum_valid_value_range() {
+    check_types("enum E { A = 0, B = 0xFFFFFFFFu };");
+    check_types("enum E { A = 0, B = 0xFFFFFFFF };");
+    check_types("enum E { A = -2147483648, B = 2147483647 };");
+    // We don't support long enums
+    check_fail("enum E { A = 0, B = 18446744073709551615 };");
+}
+
+#[test]
 fn check_typedef() {
     check_types("typedef uint u32;");
     check_types("typedef uint u32; u32 x = 1;");

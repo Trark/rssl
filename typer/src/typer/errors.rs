@@ -152,6 +152,12 @@ pub enum TyperError {
     /// A short circuiting operator received a non-scalar expression
     ShortCircuitingVector(SourceLocation),
 
+    /// Enumeration range is too big to fit in a type
+    EnumTypeCanNotBeDeduced(SourceLocation, i128, i128),
+
+    /// Enumeration values are restricted in which types they can take
+    EnumValueMustBeInteger(SourceLocation),
+
     /// assert_type had invalid format
     AssertTypeInvalid(SourceLocation),
 
@@ -749,6 +755,16 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::ShortCircuitingVector(loc) => w.write_message(
                 &|f| write!(f, "operands for short circuiting operators must be scalar"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::EnumTypeCanNotBeDeduced(loc, min, max) => w.write_message(
+                &|f| write!(f, "enum range {} to {} can not fit in any type", min, max),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::EnumValueMustBeInteger(loc) => w.write_message(
+                &|f| write!(f, "enum value must be an integer type"),
                 *loc,
                 Severity::Error,
             ),

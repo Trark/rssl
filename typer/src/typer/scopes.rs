@@ -683,12 +683,76 @@ impl Context {
     }
 
     /// Finish registering an enum type
-    pub fn end_enum(&mut self) {
+    pub fn end_enum(&mut self) -> TyperResult<()> {
         let enum_scope = &mut self.scopes[self.current_scope];
         let parent_scope = enum_scope.parent_scope;
         let enum_id = enum_scope.owning_enum.unwrap();
 
         let mut enum_values = std::mem::take(&mut enum_scope.untyped_enum_values);
+
+        // Gather value range for enum values
+        // Zero is valid for all integer like types - and deduction is meant to assume a single 0 value if there are none
+        let mut min_value = 0;
+        let mut max_value = 0;
+        for enum_value_id in enum_values.values() {
+            let constant = &self
+                .module
+                .enum_registry
+                .get_enum_value(*enum_value_id)
+                .value;
+
+            match *constant {
+                ir::Constant::Bool(value) => {
+                    min_value = std::cmp::min(min_value, value as i128);
+                    max_value = std::cmp::max(max_value, value as i128);
+                }
+                ir::Constant::UntypedInt(value) => {
+                    min_value = std::cmp::min(min_value, value);
+                    max_value = std::cmp::max(max_value, value);
+                }
+                ir::Constant::Int(value) => {
+                    min_value = std::cmp::min(min_value, value as i128);
+                    max_value = std::cmp::max(max_value, value as i128);
+                }
+                ir::Constant::UInt(value) => {
+                    min_value = std::cmp::min(min_value, value as i128);
+                    max_value = std::cmp::max(max_value, value as i128);
+                }
+                ir::Constant::Long(value) => {
+                    min_value = std::cmp::min(min_value, value as i128);
+                    max_value = std::cmp::max(max_value, value as i128);
+                }
+                _ => panic!("invalid type inside enum value: {:?}", constant),
+            }
+        }
+
+        // Select the underlying type
+        // We don't try to make bool enums as they are 32-bit types anyway
+        // We don't support 64-bit enums
+        let scalar_type = if min_value >= i32::MIN as i128 && max_value <= i32::MAX as i128 {
+            ir::ScalarType::Int
+        } else if min_value >= u32::MIN as i128 && max_value <= u32::MAX as i128 {
+            ir::ScalarType::UInt
+        } else {
+            let location = self
+                .module
+                .enum_registry
+                .get_enum_definition(enum_id)
+                .name
+                .location;
+            return Err(TyperError::EnumTypeCanNotBeDeduced(
+                location, min_value, max_value,
+            ));
+        };
+
+        // Set the underlying type on the enum data
+        let underlying_ty = self
+            .module
+            .type_registry
+            .register_type(ir::TypeLayer::Scalar(scalar_type));
+        self.module
+            .enum_registry
+            .set_underlying_type_id(enum_id, underlying_ty, scalar_type);
 
         // Remove untyped enum values from the parent scope
         assert_eq!(
@@ -712,14 +776,7 @@ impl Context {
 
         self.pop_scope();
 
-        // Currently all enums have an underlying type of int
-        let int_ty = self
-            .module
-            .type_registry
-            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int));
-        self.module
-            .enum_registry
-            .set_underlying_type_id(enum_id, int_ty, ir::ScalarType::Int);
+        Ok(())
     }
 
     /// Register a new enum value
