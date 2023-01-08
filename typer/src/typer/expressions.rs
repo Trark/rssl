@@ -189,8 +189,8 @@ fn find_function_type(
             assert_eq!(candidate_casts.len(), against_casts.len());
             let mut not_worse_than = true;
             for (candidate_cast, against_cast) in candidate_casts.iter().zip(against_casts) {
-                let candidate_rank = candidate_cast.get_rank().get_numeric_rank().clone();
-                let against_rank = against_cast.get_rank().get_numeric_rank().clone();
+                let candidate_rank = *candidate_cast.get_rank().get_numeric_rank();
+                let against_rank = *against_cast.get_rank().get_numeric_rank();
                 match candidate_rank.compare(&against_rank) {
                     ConversionPriority::Better => {}
                     ConversionPriority::Equal => {}
@@ -486,44 +486,121 @@ fn parse_expr_unaryop(
                         expr_ty.0.to_rvalue(),
                     )
                 }
-                ast::UnaryOp::Plus => {
-                    let unmodified_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    (ir::IntrinsicOp::Plus, expr_ir, unmodified_id.to_rvalue())
-                }
-                ast::UnaryOp::Minus => {
-                    let unmodified_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    (ir::IntrinsicOp::Minus, expr_ir, unmodified_id.to_rvalue())
+                ast::UnaryOp::Plus | ast::UnaryOp::Minus => {
+                    let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
+                    let (op_output_ety, op_input_ety) =
+                        match context.module.type_registry.get_type_layer(input_ty_id) {
+                            ir::TypeLayer::Scalar(_)
+                            | ir::TypeLayer::Vector(..)
+                            | ir::TypeLayer::Matrix(..) => {
+                                // Input is uncasted
+                                // Output has const / lvalue removed
+                                (input_ty_id.to_rvalue(), expr_ty)
+                            }
+                            ir::TypeLayer::Enum(id)
+                                if matches!(
+                                    context.module.enum_registry.get_underlying_scalar(id),
+                                    ir::ScalarType::Int | ir::ScalarType::UInt
+                                ) =>
+                            {
+                                let op_ety = context
+                                    .module
+                                    .enum_registry
+                                    .get_underlying_type_id(id)
+                                    .to_rvalue();
+
+                                // Input is casted to int rvalue
+                                // Output is the same as input
+                                (op_ety, op_ety)
+                            }
+                            _ => {
+                                return Err(TyperError::UnaryOperationWrongTypes(
+                                    op.clone(),
+                                    ErrorType::Unknown,
+                                    base_location,
+                                ))
+                            }
+                        };
+
+                    // Cast input expression to operator input type
+                    let expr_ir = if expr_ty != op_input_ety {
+                        let cast =
+                            ImplicitConversion::find(expr_ty, op_input_ety, &mut context.module)
+                                .unwrap();
+                        cast.apply(expr_ir, &mut context.module)
+                    } else {
+                        expr_ir
+                    };
+
+                    let ir_op = match op {
+                        ast::UnaryOp::Plus => ir::IntrinsicOp::Plus,
+                        ast::UnaryOp::Minus => ir::IntrinsicOp::Minus,
+                        _ => unreachable!(),
+                    };
+
+                    (ir_op, expr_ir, op_output_ety)
                 }
                 ast::UnaryOp::LogicalNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
-                    let tyl = match context.module.type_registry.get_type_layer(input_ty_id) {
-                        ir::TypeLayer::Scalar(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
-                        ir::TypeLayer::Vector(_, x) => ir::TypeLayer::Vector(
-                            context
-                                .module
-                                .type_registry
-                                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Bool)),
-                            x,
-                        ),
-                        ir::TypeLayer::Matrix(_, x, y) => ir::TypeLayer::Matrix(
-                            context
-                                .module
-                                .type_registry
-                                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Bool)),
-                            x,
-                            y,
-                        ),
-                        _ => {
-                            return Err(TyperError::UnaryOperationWrongTypes(
-                                op.clone(),
-                                ErrorType::Unknown,
-                                base_location,
-                            ))
-                        }
+                    let (op_output_ety, op_input_ety) =
+                        match context.module.type_registry.get_type_layer(input_ty_id) {
+                            ir::TypeLayer::Scalar(_)
+                            | ir::TypeLayer::Vector(..)
+                            | ir::TypeLayer::Matrix(..) => {
+                                if let Some(ir::ScalarType::Bool) =
+                                    context.module.type_registry.extract_scalar(input_ty_id)
+                                {
+                                    // Input is uncasted
+                                    // Output has const / lvalue removed
+                                    (input_ty_id.to_rvalue(), expr_ty)
+                                } else {
+                                    let op_ety = context
+                                        .module
+                                        .type_registry
+                                        .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Bool))
+                                        .to_rvalue();
+
+                                    // Input is casted to bool rvalue
+                                    // Output is the same as input
+                                    (op_ety, op_ety)
+                                }
+                            }
+                            ir::TypeLayer::Enum(id)
+                                if matches!(
+                                    context.module.enum_registry.get_underlying_scalar(id),
+                                    ir::ScalarType::Int | ir::ScalarType::UInt
+                                ) =>
+                            {
+                                let op_ety = context
+                                    .module
+                                    .type_registry
+                                    .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Bool))
+                                    .to_rvalue();
+
+                                // Input is casted to bool rvalue
+                                // Output is the same as input
+                                (op_ety, op_ety)
+                            }
+                            _ => {
+                                return Err(TyperError::UnaryOperationWrongTypes(
+                                    op.clone(),
+                                    ErrorType::Unknown,
+                                    base_location,
+                                ))
+                            }
+                        };
+
+                    // Cast input expression to operator input type
+                    let expr_ir = if expr_ty != op_input_ety {
+                        let cast =
+                            ImplicitConversion::find(expr_ty, op_input_ety, &mut context.module)
+                                .unwrap();
+                        cast.apply(expr_ir, &mut context.module)
+                    } else {
+                        expr_ir
                     };
-                    let ty = context.module.type_registry.register_type(tyl);
-                    let ety = ty.to_rvalue();
-                    (ir::IntrinsicOp::LogicalNot, expr_ir, ety)
+
+                    (ir::IntrinsicOp::LogicalNot, expr_ir, op_output_ety)
                 }
                 ast::UnaryOp::BitwiseNot => {
                     let input_ty_id = context.module.type_registry.remove_modifier(expr_ty.0);
@@ -541,6 +618,22 @@ fn parse_expr_unaryop(
                                     .module
                                     .type_registry
                                     .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int))
+                                    .to_rvalue();
+
+                                // Input is casted to int rvalue
+                                // Output is the same as input
+                                (op_ety, op_ety)
+                            }
+                            ir::TypeLayer::Enum(id)
+                                if matches!(
+                                    context.module.enum_registry.get_underlying_scalar(id),
+                                    ir::ScalarType::Int | ir::ScalarType::UInt
+                                ) =>
+                            {
+                                let op_ety = context
+                                    .module
+                                    .enum_registry
+                                    .get_underlying_type_id(id)
                                     .to_rvalue();
 
                                 // Input is casted to int rvalue
@@ -726,13 +819,23 @@ fn resolve_arithmetic_types(
             .type_registry
             .get_type_layer(right_base_id)
             .to_dimensions();
-        let ls = match context.module.type_registry.extract_scalar(left_base_id) {
-            Some(s) => s,
-            None => return Err(()),
+        let ls = match context
+            .module
+            .type_registry
+            .get_non_vector_layer(left_base_id)
+        {
+            ir::TypeLayer::Scalar(s) => s,
+            ir::TypeLayer::Enum(id) => context.module.enum_registry.get_underlying_scalar(id),
+            _ => return Err(()),
         };
-        let rs = match context.module.type_registry.extract_scalar(right_base_id) {
-            Some(s) => s,
-            None => return Err(()),
+        let rs = match context
+            .module
+            .type_registry
+            .get_non_vector_layer(right_base_id)
+        {
+            ir::TypeLayer::Scalar(s) => s,
+            ir::TypeLayer::Enum(id) => context.module.enum_registry.get_underlying_scalar(id),
+            _ => return Err(()),
         };
         let (left_out_id, right_out_id) = match (left_base_dim, right_base_dim) {
             (ir::NumericDimension::Scalar, ir::NumericDimension::Scalar) => {
@@ -914,13 +1017,24 @@ fn parse_expr_binop(
                 }
                 ir::ScalarType::Bool
             } else {
-                let lhs_scalar = match context.module.type_registry.extract_scalar(left_base) {
-                    Some(s) => s,
-                    None => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
+                let lhs_scalar = match context.module.type_registry.get_non_vector_layer(left_base)
+                {
+                    ir::TypeLayer::Scalar(s) => s,
+                    ir::TypeLayer::Enum(id) => {
+                        context.module.enum_registry.get_underlying_scalar(id)
+                    }
+                    _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
                 };
-                let rhs_scalar = match context.module.type_registry.extract_scalar(right_base) {
-                    Some(s) => s,
-                    None => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
+                let rhs_scalar = match context
+                    .module
+                    .type_registry
+                    .get_non_vector_layer(right_base)
+                {
+                    ir::TypeLayer::Scalar(s) => s,
+                    ir::TypeLayer::Enum(id) => {
+                        context.module.enum_registry.get_underlying_scalar(id)
+                    }
+                    _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
                 };
                 match (lhs_scalar, rhs_scalar) {
                     (ir::ScalarType::Int, ir::ScalarType::Int) => ir::ScalarType::Int,

@@ -36,13 +36,14 @@ use rssl_ir::*;
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConversionRank(NumericRank, VectorRank);
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum NumericRank {
     Exact,
     Promotion,
     IntToBool,
     Conversion,
     HalfIsASecondClassCitizen,
+    EnumToNumeric,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -66,7 +67,11 @@ pub enum ConversionPriority {
 struct DimensionCast(NumericDimension, NumericDimension);
 
 #[derive(PartialEq, Debug, Clone)]
-struct NumericCast(ScalarType, ScalarType);
+struct PrimaryCast {
+    source: TypeId,
+    dest: TypeId,
+    rank: NumericRank,
+}
 
 #[derive(PartialEq, Debug, Clone)]
 struct ValueTypeCast(TypeId, ValueType, ValueType);
@@ -79,7 +84,7 @@ pub struct ImplicitConversion(
     ExpressionType,
     Option<ValueTypeCast>,
     Option<DimensionCast>,
-    Option<NumericCast>,
+    Option<PrimaryCast>,
     Option<ModifierCast>,
 );
 
@@ -111,6 +116,7 @@ impl NumericRank {
             NumericRank::IntToBool => 2,
             NumericRank::Conversion => 3,
             NumericRank::HalfIsASecondClassCitizen => 4,
+            NumericRank::EnumToNumeric => 5,
         }
     }
 }
@@ -119,74 +125,6 @@ impl VectorRank {
     pub fn worst_to_best() -> &'static [VectorRank] {
         const PRIO: &[VectorRank] = &[VectorRank::Contract, VectorRank::Expand, VectorRank::Exact];
         PRIO
-    }
-}
-
-impl NumericCast {
-    fn new(source: ScalarType, dest: ScalarType) -> Result<NumericCast, ()> {
-        match dest {
-            _ if source == dest => Err(()),
-            Bool | Int | UInt | Half | Float | Double => Ok(NumericCast(source, dest)),
-            UntypedInt => Err(()),
-        }
-    }
-
-    fn get_rank(&self) -> NumericRank {
-        match self {
-            NumericCast(Bool, dest) => match dest {
-                Bool => NumericRank::Exact,
-                Int | UInt | Float | Double => NumericRank::Conversion,
-                Half => NumericRank::HalfIsASecondClassCitizen,
-                UntypedInt => panic!(),
-            },
-            NumericCast(UntypedInt, dest) => match dest {
-                Int | UInt => NumericRank::Promotion,
-                Bool => NumericRank::IntToBool,
-                Float | Double | Half => NumericRank::Conversion,
-                UntypedInt => panic!(),
-            },
-            NumericCast(Int, dest) => match dest {
-                Int => NumericRank::Exact,
-                UInt => NumericRank::Promotion,
-                Bool => NumericRank::IntToBool,
-                Float | Double => NumericRank::Conversion,
-                Half => NumericRank::HalfIsASecondClassCitizen,
-                UntypedInt => panic!(),
-            },
-            NumericCast(UInt, dest) => match dest {
-                UInt => NumericRank::Exact,
-                Int => NumericRank::Promotion,
-                Bool => NumericRank::IntToBool,
-                Float | Double => NumericRank::Conversion,
-                Half => NumericRank::HalfIsASecondClassCitizen,
-                UntypedInt => panic!(),
-            },
-            NumericCast(Half, dest) => match dest {
-                Half => NumericRank::Exact,
-                Float | Double => NumericRank::Promotion,
-                Bool | Int | UInt => NumericRank::Conversion,
-                UntypedInt => panic!(),
-            },
-            NumericCast(Float, dest) => match dest {
-                Float => NumericRank::Exact,
-                Double => NumericRank::Promotion,
-                Bool | Int | UInt | Half => NumericRank::Conversion,
-                UntypedInt => panic!(),
-            },
-            NumericCast(Double, dest) => match dest {
-                Double => NumericRank::Exact,
-                Bool | Int | UInt | Half | Float => NumericRank::Conversion,
-                UntypedInt => panic!(),
-            },
-        }
-    }
-
-    fn get_target_type(&self, module: &mut Module, dim: NumericDimension) -> ExpressionType {
-        let id = module.type_registry.register_numeric_type(NumericType {
-            scalar: self.1,
-            dimension: dim,
-        });
-        id.to_rvalue()
     }
 }
 
@@ -244,6 +182,8 @@ impl ImplicitConversion {
                         NumericDimension::Vector(*x1),
                         NumericDimension::Scalar,
                     )),
+                    // Enum to scalar
+                    (TypeLayer::Enum(_), false) => None,
                     _ => return Err(()),
                 }
             }
@@ -288,22 +228,82 @@ impl ImplicitConversion {
             _ => return Err(()),
         };
 
-        let numeric_cast = if source_l == dest_l {
+        let primary_cast = if source_l == dest_l {
             None
+        } else if let TypeLayer::Enum(_) = module.type_registry.get_type_layer(source_id) {
+            match module.type_registry.extract_scalar(dest_id) {
+                Some(s) if s != ScalarType::UntypedInt => {}
+                _ => return Err(()),
+            }
+            Some(PrimaryCast {
+                source: source_id,
+                dest: dest_id,
+                rank: NumericRank::EnumToNumeric,
+            })
         } else {
             let source_scalar = match module.type_registry.extract_scalar(source_id) {
                 Some(s) => s,
                 None => return Err(()),
             };
             let dest_scalar = match module.type_registry.extract_scalar(dest_id) {
-                Some(s) => s,
-                None => return Err(()),
+                Some(s) if s != ScalarType::UntypedInt => s,
+                _ => return Err(()),
             };
             if source_scalar == dest_scalar {
                 None
             } else {
-                let cast = NumericCast::new(source_scalar, dest_scalar)?;
-                Some(cast)
+                let rank = match (source_scalar, dest_scalar) {
+                    (Bool, dest) => match dest {
+                        Bool => NumericRank::Exact,
+                        Int | UInt | Float | Double => NumericRank::Conversion,
+                        Half => NumericRank::HalfIsASecondClassCitizen,
+                        UntypedInt => panic!(),
+                    },
+                    (UntypedInt, dest) => match dest {
+                        Int | UInt => NumericRank::Promotion,
+                        Bool => NumericRank::IntToBool,
+                        Float | Double | Half => NumericRank::Conversion,
+                        UntypedInt => panic!(),
+                    },
+                    (Int, dest) => match dest {
+                        Int => NumericRank::Exact,
+                        UInt => NumericRank::Promotion,
+                        Bool => NumericRank::IntToBool,
+                        Float | Double => NumericRank::Conversion,
+                        Half => NumericRank::HalfIsASecondClassCitizen,
+                        UntypedInt => panic!(),
+                    },
+                    (UInt, dest) => match dest {
+                        UInt => NumericRank::Exact,
+                        Int => NumericRank::Promotion,
+                        Bool => NumericRank::IntToBool,
+                        Float | Double => NumericRank::Conversion,
+                        Half => NumericRank::HalfIsASecondClassCitizen,
+                        UntypedInt => panic!(),
+                    },
+                    (Half, dest) => match dest {
+                        Half => NumericRank::Exact,
+                        Float | Double => NumericRank::Promotion,
+                        Bool | Int | UInt => NumericRank::Conversion,
+                        UntypedInt => panic!(),
+                    },
+                    (Float, dest) => match dest {
+                        Float => NumericRank::Exact,
+                        Double => NumericRank::Promotion,
+                        Bool | Int | UInt | Half => NumericRank::Conversion,
+                        UntypedInt => panic!(),
+                    },
+                    (Double, dest) => match dest {
+                        Double => NumericRank::Exact,
+                        Bool | Int | UInt | Half | Float => NumericRank::Conversion,
+                        UntypedInt => panic!(),
+                    },
+                };
+                Some(PrimaryCast {
+                    source: source_id,
+                    dest: dest_id,
+                    rank,
+                })
             }
         };
 
@@ -330,7 +330,7 @@ impl ImplicitConversion {
             source,
             value_type_cast,
             dimension_cast,
-            numeric_cast,
+            primary_cast,
             modifier_cast,
         ))
     }
@@ -351,7 +351,7 @@ impl ImplicitConversion {
             Some(DimensionCast(from, to)) => panic!("invalid vector cast {:?} {:?}", from, to),
         };
         let num = match *num_cast {
-            Some(ref numeric) => numeric.get_rank(),
+            Some(ref primary) => primary.rank,
             None => NumericRank::Exact,
         };
         ConversionRank(num, vec)
@@ -362,7 +362,7 @@ impl ImplicitConversion {
             source_type,
             ref value_type_cast,
             ref dimension_cast,
-            ref numeric_cast,
+            ref primary_cast,
             ref mod_cast,
         ) = self;
         let ty = match *value_type_cast {
@@ -381,11 +381,8 @@ impl ImplicitConversion {
                 }
             }
         };
-        let ty = match *numeric_cast {
-            Some(ref nc) => nc.get_target_type(
-                module,
-                dim.expect("expecting numeric cast to operate on numeric type"),
-            ),
+        let ty = match *primary_cast {
+            Some(ref pc) => pc.dest.to_rvalue(),
             None => match dim {
                 Some(dim) => {
                     let ExpressionType(ty_modified, vt) = ty;

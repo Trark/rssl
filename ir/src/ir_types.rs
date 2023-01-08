@@ -152,6 +152,15 @@ impl TypeRegistry {
         }
     }
 
+    /// Get the layer after removing vector / matrix modifiers
+    pub fn get_non_vector_layer(&self, id: TypeId) -> TypeLayer {
+        match self.layers[id.0 as usize] {
+            TypeLayer::Vector(inner, _) => self.get_non_vector_layer(inner),
+            TypeLayer::Matrix(inner, _, _) => self.get_non_vector_layer(inner),
+            tyl => tyl,
+        }
+    }
+
     /// Replaces the scalar type inside a numeric type with the given scalar type
     pub fn transform_scalar(&mut self, id: TypeId, to_scalar: ScalarType) -> TypeId {
         let (base_id, modifer) = self.extract_modifier(id);

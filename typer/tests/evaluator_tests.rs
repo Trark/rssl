@@ -75,11 +75,9 @@ fn check_constexpr_minus() {
 #[test]
 fn check_constexpr_logical_not() {
     check_types("static const bool x = false; void f() { assert_eval<bool>(!x, true); }");
-
-    // Non-bool currently not implemented
-    check_types("static const uint x = 0; void f() { assert_type<bool>(!x); }");
-    check_types("static const int x = 0; void f() { assert_type<bool>(!x); }");
-    check_types("static const float x = 0; void f() { assert_type<bool>(!x); }");
+    check_types("static const uint x = 0; void f() { assert_eval<bool>(!x, true); }");
+    check_types("static const int x = 0; void f() { assert_eval<bool>(!x, true); }");
+    check_types("static const float x = 0; void f() { assert_eval<bool>(!x, true); }");
 }
 
 #[test]

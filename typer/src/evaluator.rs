@@ -33,13 +33,20 @@ pub fn evaluate_constexpr(
                     ir::Constant::UInt(input) => ir::Constant::UInt(input - 1),
                     _ => return Err(()),
                 },
-                ir::IntrinsicOp::Plus => arg_values[0].clone(),
+                ir::IntrinsicOp::Plus => match arg_values[0] {
+                    // Enum should have been pre-casted to an integer
+                    ir::Constant::Enum(_, _) => panic!("unexpected enum type in Plus"),
+                    // Valid types will just be passing through - all work will be done by implicit casts
+                    ref value => value.clone(),
+                },
                 ir::IntrinsicOp::Minus => match arg_values[0] {
                     ir::Constant::Int(input) => ir::Constant::Int(-input),
                     ir::Constant::UntypedInt(input) => ir::Constant::UntypedInt(-input),
                     ir::Constant::Half(input) => ir::Constant::Half(-input),
                     ir::Constant::Float(input) => ir::Constant::Float(-input),
                     ir::Constant::Double(input) => ir::Constant::Double(-input),
+                    // Enum should have been pre-casted to an integer
+                    ir::Constant::Enum(_, _) => panic!("unexpected enum type in Minus"),
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::LogicalNot => match arg_values[0] {

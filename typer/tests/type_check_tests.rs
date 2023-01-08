@@ -929,6 +929,29 @@ fn check_enum_value_init_references() {
 }
 
 #[test]
+fn check_enum_int_cast() {
+    // Check that an enum value can implicitly cast to int
+    check_types("enum S { A = 1 }; void f() { int s = A; }");
+
+    // Check that it still works from scoped name
+    check_types("enum S { A = 1 }; void f() { int s = S::A; }");
+
+    // Test that A and B implicitly cast to int before evaluating
+    check_types("enum S1 { A, B }; enum S2 { X = A | B, Z = assert_type<int>(assert_type<S1>(A) | assert_type<S1>(B)) };");
+    check_types("enum S1 { A, B }; enum S2 { X = A + B, Z = assert_type<int>(assert_type<S1>(A) + assert_type<S1>(B)) };");
+
+    // Most unary operations should convert to int
+    check_types("enum S1 { A }; enum S2 { Z = ~A };");
+    check_types("enum S1 { A }; enum S2 { Z = !A };");
+    check_types("enum S1 { A }; enum S2 { Z = +A };");
+    check_types("enum S1 { A }; enum S2 { Z = -A };");
+
+    // Increment operators should not be supported
+    check_fail("enum S1 { A }; enum S2 { Z = ++A };");
+    check_fail("enum S1 { A }; enum S2 { Z = --A };");
+}
+
+#[test]
 fn check_enum_name_conflicts() {
     // Two enums can not have the same name
     check_fail("enum S {}; enum S {};");
