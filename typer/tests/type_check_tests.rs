@@ -1307,25 +1307,25 @@ fn check_operator_minus() {
 
 #[test]
 fn check_operator_logical_not() {
-    check_types("void f() { bool x = false; !x; }");
-    check_types("void f() { const bool x = false; !x; }");
-    check_types("void f() { uint x = 0; !x; }");
-    check_types("void f() { const uint x = 0; !x; }");
-    check_types("void f() { int x = 0; !x; }");
-    check_types("void f() { const int x = 0; !x; }");
-    check_types("void f() { float x = 0; !x; }");
-    check_types("void f() { const float x = 0; !x; }");
+    check_types("void f() { bool x = false; assert_type<bool>(!x); }");
+    check_types("void f() { const bool x = false; assert_type<bool>(!x); }");
+    check_types("void f() { uint x = 0; assert_type<bool>(!x); }");
+    check_types("void f() { const uint x = 0; assert_type<bool>(!x); }");
+    check_types("void f() { int x = 0; assert_type<bool>(!x); }");
+    check_types("void f() { const int x = 0; assert_type<bool>(!x); }");
+    check_types("void f() { float x = 0; assert_type<bool>(!x); }");
+    check_types("void f() { const float x = 0; assert_type<bool>(!x); }");
     check_fail("void g(out bool x) {} void f() { bool x = false; g(!x); }");
 }
 
 #[test]
 fn check_operator_bitwise_not() {
-    check_types("void f() { uint x = 0; ~x; }");
-    check_types("void f() { const uint x = 0; ~x; }");
-    check_types("void f() { int x = 0; ~x; }");
-    check_types("void f() { const int x = 0; ~x; }");
-    check_types("void f() { bool x = false; ~x; }");
-    check_types("void f() { const bool x = false; ~x; }");
+    check_types("void f() { uint x = 0; ~x; assert_type<uint>(~x); }");
+    check_types("void f() { const uint x = 0; ~x; assert_type<uint>(~x); }");
+    check_types("void f() { int x = 0; ~x; assert_type<int>(~x); }");
+    check_types("void f() { const int x = 0; ~x; assert_type<int>(~x); }");
+    check_types("void f() { bool x = false; assert_type<int>(~x); }");
+    check_types("void f() { const bool x = false; assert_type<int>(~x); }");
     check_fail("void f() { float x = 0; ~x; }");
     check_fail("void f() { const float x = 0; ~x; }");
     check_fail("void g(out uint x) {} void f() { uint x = 0; g(~x); }");

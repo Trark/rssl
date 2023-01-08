@@ -151,6 +151,18 @@ pub enum TyperError {
 
     /// A short circuiting operator received a non-scalar expression
     ShortCircuitingVector(SourceLocation),
+
+    /// assert_type had invalid format
+    AssertTypeInvalid(SourceLocation),
+
+    /// assert_type failed type equality or assert_eval failed type check
+    AssertTypeFailed(SourceLocation, ir::TypeId, ir::TypeId),
+
+    /// assert_eval had invalid format
+    AssertEvalInvalid(SourceLocation),
+
+    /// assert_eval failed value equality
+    AssertEvalFailed(SourceLocation, ir::Constant, ir::Constant),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -737,6 +749,39 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::ShortCircuitingVector(loc) => w.write_message(
                 &|f| write!(f, "operands for short circuiting operators must be scalar"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::AssertTypeInvalid(loc) => w.write_message(
+                &|f| write!(f, "invalid assert_type arguments"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::AssertTypeFailed(loc, expected, received) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "expected type '{}' but received type '{}'",
+                        get_type_string(*expected, context),
+                        get_type_string(*received, context),
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::AssertEvalInvalid(loc) => w.write_message(
+                &|f| write!(f, "invalid assert_eval arguments"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::AssertEvalFailed(loc, expected, received) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "expected value '{:?}' but received value '{:?}'",
+                        expected, received,
+                    )
+                },
                 *loc,
                 Severity::Error,
             ),

@@ -4,6 +4,7 @@ use super::types::{
     apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
 };
 use crate::casting::{ConversionPriority, ImplicitConversion};
+use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::ExpressionType;
@@ -1516,6 +1517,29 @@ fn parse_expr_unchecked(
         ast::Expression::Call(ref func, ref template_args, ref args) => {
             // If we are a simple identifier then check of we are a type
             if let ast::Expression::Identifier(ref name) = func.node {
+                // Attempt to match special functions
+                if let Some(trivial_name) = name.try_trivial() {
+                    match trivial_name.as_str() {
+                        "assert_type" => {
+                            return parse_assert_type(
+                                func.get_location(),
+                                template_args,
+                                args,
+                                context,
+                            )
+                        }
+                        "assert_eval" => {
+                            return parse_assert_eval(
+                                func.get_location(),
+                                template_args,
+                                args,
+                                context,
+                            )
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Build an ast type from the pure identifier
                 let candidate_type = ast::Type::from_layout(ast::TypeLayout(
                     name.clone(),
@@ -1713,6 +1737,150 @@ fn parse_expr_constructor(
     } else {
         Err(TyperError::ConstructorWrongArgumentCount(error_location))
     }
+}
+
+/// Process and evaluate an assert_type
+fn parse_assert_type(
+    call_location: SourceLocation,
+    template_args: &[ast::ExpressionOrType],
+    args: &[Located<ast::Expression>],
+    context: &mut Context,
+) -> TyperResult<TypedExpression> {
+    if template_args.len() != 1 || args.len() != 1 {
+        return Err(TyperError::AssertTypeInvalid(call_location));
+    }
+
+    // Process type argument
+    let ty = match parse_expression_or_type(&template_args[0], context)? {
+        ir::TypeOrConstant::Type(ty) => ty,
+        ir::TypeOrConstant::Constant(_) => {
+            return Err(TyperError::AssertTypeInvalid(call_location))
+        }
+    };
+
+    // Process expression argument
+    let (expr_ir, expr_ty) = match parse_expr_internal(&args[0], context)? {
+        TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
+        texp => {
+            return Err(TyperError::FunctionPassedToAnotherFunction(
+                ErrorType::Unknown,
+                texp.to_error_type(),
+                args[0].get_location(),
+            ))
+        }
+    };
+
+    // Check the generated expression has the same type as the type argument
+    if ty != expr_ty.0 {
+        return Err(TyperError::AssertTypeFailed(
+            args[0].get_location(),
+            ty,
+            expr_ty.0,
+        ));
+    }
+
+    // Return the inner expression as the result for the generated module
+    Ok(TypedExpression::Value(expr_ir, expr_ty))
+}
+
+/// Process and evaluate an assert_eval
+fn parse_assert_eval(
+    call_location: SourceLocation,
+    template_args: &[ast::ExpressionOrType],
+    args: &[Located<ast::Expression>],
+    context: &mut Context,
+) -> TyperResult<TypedExpression> {
+    if template_args.len() > 1 || args.len() != 2 {
+        return Err(TyperError::AssertEvalInvalid(call_location));
+    }
+
+    // Process type argument if it exists
+    let ty = if template_args.is_empty() {
+        None
+    } else {
+        match parse_expression_or_type(&template_args[0], context)? {
+            ir::TypeOrConstant::Type(ty) => Some(ty),
+            ir::TypeOrConstant::Constant(_) => {
+                return Err(TyperError::AssertEvalInvalid(call_location))
+            }
+        }
+    };
+
+    // Process tested expression argument
+    let (left_expr_ir, left_expr_ty) = match parse_expr_internal(&args[0], context)? {
+        TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
+        texp => {
+            return Err(TyperError::FunctionPassedToAnotherFunction(
+                ErrorType::Unknown,
+                texp.to_error_type(),
+                args[0].get_location(),
+            ))
+        }
+    };
+
+    // Process reference expression argument
+    let (right_expr_ir, right_expr_ty) = match parse_expr_internal(&args[1], context)? {
+        TypedExpression::Value(expr_ir, expr_ty) => (expr_ir, expr_ty),
+        texp => {
+            return Err(TyperError::FunctionPassedToAnotherFunction(
+                ErrorType::Unknown,
+                texp.to_error_type(),
+                args[0].get_location(),
+            ))
+        }
+    };
+
+    // Check the generated expression has the same type as the type argument if it exists
+    if let Some(ty) = ty {
+        if ty != left_expr_ty.0 {
+            return Err(TyperError::AssertTypeFailed(
+                args[0].get_location(),
+                ty,
+                left_expr_ty.0,
+            ));
+        }
+
+        if ty != right_expr_ty.0 {
+            return Err(TyperError::AssertTypeFailed(
+                args[1].get_location(),
+                ty,
+                right_expr_ty.0,
+            ));
+        }
+    }
+
+    // Evaluate the left value - which is the value we expect to be generated from a complex expression
+    let generated_value = match evaluate_constexpr(&left_expr_ir, &mut context.module) {
+        Ok(value) => value,
+        Err(_) => {
+            return Err(TyperError::ExpressionIsNotConstantExpression(
+                args[0].get_location(),
+            ))
+        }
+    };
+
+    // Evaluate the right value - which is the value we expect to be a trivial reference result
+    let reference_value = match evaluate_constexpr(&right_expr_ir, &mut context.module) {
+        Ok(value) => value,
+        Err(_) => {
+            return Err(TyperError::ExpressionIsNotConstantExpression(
+                args[1].get_location(),
+            ))
+        }
+    };
+
+    // Check the evaluated values are the same and throw an error if not
+    if generated_value != reference_value {
+        return Err(TyperError::AssertEvalFailed(
+            args[0].get_location(),
+            reference_value,
+            generated_value,
+        ));
+    }
+
+    // Return the primary expression as the result for the generated module
+    // The reference expression is discarded
+    Ok(TypedExpression::Value(left_expr_ir, left_expr_ty))
 }
 
 /// Parse an expression internally within the expression parser

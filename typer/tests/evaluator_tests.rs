@@ -11,6 +11,9 @@ fn check_constexpr_literal_untyped_int() {
 fn check_constexpr_literal_uint() {
     // Literal uint directly into array parameter
     check_types("float x[1u];");
+
+    // Adding a type assert doesn't break the evaluation chain
+    check_types("float x[assert_type<uint>(1u)];");
 }
 
 #[test]
@@ -52,68 +55,85 @@ fn check_constexpr_cast_integers() {
 }
 
 #[test]
+fn check_constexpr_logical_not() {
+    check_types("static const bool x = false; void f() { assert_eval<bool>(!x, true); }");
+
+    // Non-bool currently not implemented
+    check_types("static const uint x = 0; void f() { assert_type<bool>(!x); }");
+    check_types("static const int x = 0; void f() { assert_type<bool>(!x); }");
+    check_types("static const float x = 0; void f() { assert_type<bool>(!x); }");
+}
+
+#[test]
+fn check_constexpr_bitwise_not() {
+    check_types("static const uint x = 3; void f() { assert_eval<uint>(~x, 0xFFFFFFFCu); }");
+    check_types("static const int x = 3; void f() { assert_eval<int>(~x, (int)0xFFFFFFFC); }");
+    check_types("static const bool x = false; void f() { assert_eval<int>(~x, (int)0xFFFFFFFF); }");
+}
+
+#[test]
 fn check_constexpr_add_integer() {
     // add two literal untyped ints - which creates a signed int add
-    check_types("float x[1 + 1];");
+    check_types("float x[assert_eval(1 + 1, (int)2)];");
 
     // add two literal uints
-    check_types("float x[1u + 1u];");
+    check_types("float x[assert_eval(1u + 1u, 2u)];");
 }
 
 #[test]
 fn check_constexpr_subtract_integer() {
-    check_types("float x[2 - 1];");
+    check_types("float x[assert_eval(2 - 1, (int)1)];");
     check_fail("float x[1 - 1];");
 
-    check_types("float x[2u - 1u];");
+    check_types("float x[assert_eval(2u - 1u, 1u)];");
     check_fail("float x[1u - 1u];");
 }
 
 #[test]
 fn check_constexpr_multiple_integer() {
-    check_types("float x[1 * 1];");
+    check_types("float x[assert_eval(1 * 1, (int)1)];");
     check_fail("float x[1 * 0];");
 
-    check_types("float x[1u * 1u];");
+    check_types("float x[assert_eval(1u * 1u, 1u)];");
     check_fail("float x[1u * 0u];");
 }
 
 #[test]
 fn check_constexpr_divide_integer() {
-    check_types("float x[1 / 1];");
+    check_types("float x[assert_eval(1 / 1, (int)1)];");
     check_fail("float x[1 / 0];");
     check_fail("float x[1 / 2];");
 
-    check_types("float x[1u / 1u];");
+    check_types("float x[assert_eval(1u / 1u, 1u)];");
     check_fail("float x[1u / 0u];");
     check_fail("float x[1u / 2u];");
 }
 
 #[test]
 fn check_constexpr_modulus_integer() {
-    check_types("float x[1 % 2];");
+    check_types("float x[assert_eval(1 % 2, (int)1)];");
     check_fail("float x[1 % 1];");
     check_fail("float x[1 % 0];");
 
-    check_types("float x[1u % 2u];");
+    check_types("float x[assert_eval(1u % 2u, 1u)];");
     check_fail("float x[1u % 1u];");
     check_fail("float x[1u % 0u];");
 }
 
 #[test]
 fn check_constexpr_left_shift() {
-    check_types("float x[1 << 1];");
+    check_types("float x[assert_eval(1 << 1, (int)2)];");
     check_fail("float x[0 << 1];");
 
-    check_types("float x[1u << 1u];");
+    check_types("float x[assert_eval(1u << 1u, 2u)];");
     check_fail("float x[0u << 1u];");
 }
 
 #[test]
 fn check_constexpr_right_shift() {
-    check_types("float x[2 >> 1];");
+    check_types("float x[assert_eval(2 >> 1, (int)1)];");
     check_fail("float x[1 >> 1];");
 
-    check_types("float x[2u >> 1u];");
+    check_types("float x[assert_eval(2u >> 1u, 1u)];");
     check_fail("float x[1u >> 1u];");
 }
