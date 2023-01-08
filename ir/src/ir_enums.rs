@@ -10,6 +10,12 @@ pub struct EnumRegistry {
     /// The type id used which links to each base enum id without modifiers
     type_ids: Vec<TypeId>,
 
+    /// The type id used which links to the underlying type for the enum
+    underlying_type_ids: Vec<TypeId>,
+
+    /// The scalar type for the underlying type for the enum
+    underlying_scalars: Vec<ScalarType>,
+
     /// The main data for an enum value
     enum_values: Vec<EnumValue>,
 }
@@ -57,6 +63,8 @@ impl EnumRegistry {
 
         // Set the type id to an invalid value - which we expect to be filled in almost immediately
         self.type_ids.push(TypeId(u32::MAX));
+        self.underlying_type_ids.push(TypeId(u32::MAX));
+        self.underlying_scalars.push(ScalarType::UntypedInt);
 
         id
     }
@@ -65,6 +73,18 @@ impl EnumRegistry {
     pub fn set_enum_type_id(&mut self, id: EnumId, type_id: TypeId) {
         assert_eq!(self.type_ids[id.0 as usize], TypeId(u32::MAX));
         self.type_ids[id.0 as usize] = type_id;
+    }
+
+    /// Set the base type id for an enum
+    pub fn set_underlying_type_id(
+        &mut self,
+        id: EnumId,
+        underlying_id: TypeId,
+        scalar: ScalarType,
+    ) {
+        assert_eq!(self.underlying_type_ids[id.0 as usize], TypeId(u32::MAX));
+        self.underlying_type_ids[id.0 as usize] = underlying_id;
+        self.underlying_scalars[id.0 as usize] = scalar;
     }
 
     /// Register a new enum value
@@ -95,14 +115,31 @@ impl EnumRegistry {
         &self.definitions[id.0 as usize]
     }
 
-    /// Set the base type id for an enum
+    /// Get the base type id for an enum
     #[inline]
     pub fn get_type_id(&self, id: EnumId) -> TypeId {
         assert_ne!(self.type_ids[id.0 as usize], TypeId(u32::MAX));
         self.type_ids[id.0 as usize]
     }
 
-    /// Set the base type id for an enum
+    /// Get the underlying type id for an enum
+    #[inline]
+    pub fn get_underlying_type_id(&self, id: EnumId) -> TypeId {
+        assert_ne!(self.type_ids[id.0 as usize], TypeId(u32::MAX));
+        self.underlying_type_ids[id.0 as usize]
+    }
+
+    /// Get the underlying type id for an enum
+    #[inline]
+    pub fn get_underlying_scalar(&self, id: EnumId) -> ScalarType {
+        assert_ne!(
+            self.underlying_scalars[id.0 as usize],
+            ScalarType::UntypedInt
+        );
+        self.underlying_scalars[id.0 as usize]
+    }
+
+    /// Get the definition for an enum value
     #[inline]
     pub fn get_enum_value(&self, id: EnumValueId) -> &EnumValue {
         &self.enum_values[id.0 as usize]

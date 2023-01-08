@@ -71,6 +71,7 @@ struct ScopeData {
     enum_scopes: HashMap<String, ScopeIndex>,
 
     owning_struct: Option<ir::StructId>,
+    owning_enum: Option<ir::EnumId>,
     function_return_type: Option<ir::TypeId>,
 }
 
@@ -93,6 +94,7 @@ impl Context {
                 namespaces: HashMap::new(),
                 enum_scopes: HashMap::new(),
                 owning_struct: None,
+                owning_enum: None,
                 function_return_type: None,
             }]),
             current_scope: 0,
@@ -141,6 +143,7 @@ impl Context {
             namespaces: HashMap::new(),
             enum_scopes: HashMap::new(),
             owning_struct: None,
+            owning_enum: None,
             function_return_type: None,
         });
         self.scopes.len() - 1
@@ -659,6 +662,8 @@ impl Context {
         let parent_scope = self.current_scope;
         let new_scope = self.push_scope_with_name(&name);
 
+        self.scopes[new_scope].owning_enum = Some(id);
+
         // Record the enum scope index in the parent scope
         self.scopes[parent_scope]
             .enum_scopes
@@ -681,6 +686,7 @@ impl Context {
     pub fn end_enum(&mut self) {
         let enum_scope = &mut self.scopes[self.current_scope];
         let parent_scope = enum_scope.parent_scope;
+        let enum_id = enum_scope.owning_enum.unwrap();
 
         let mut enum_values = std::mem::take(&mut enum_scope.untyped_enum_values);
 
@@ -705,6 +711,15 @@ impl Context {
         std::mem::swap(&mut enum_scope.enum_values, &mut enum_values);
 
         self.pop_scope();
+
+        // Currently all enums have an underlying type of int
+        let int_ty = self
+            .module
+            .type_registry
+            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int));
+        self.module
+            .enum_registry
+            .set_underlying_type_id(enum_id, int_ty, ir::ScalarType::Int);
     }
 
     /// Register a new enum value
