@@ -153,3 +153,75 @@ fn check_constexpr_right_shift() {
     check_types("float x[assert_eval(2u >> 1u, 1u)];");
     check_fail("float x[1u >> 1u];");
 }
+
+#[test]
+fn check_constexpr_boolean_and() {
+    check_types("void f() { assert_eval<bool>(true && true, true); }");
+    check_types("void f() { assert_eval<bool>(true && false, false); }");
+    check_types("void f() { assert_eval<bool>(false && true, false); }");
+    check_types("void f() { assert_eval<bool>(false && false, false); }");
+    check_types("void f() { assert_eval<bool>(0 && 0, false); }");
+    check_types("void f() { assert_eval<bool>(0 && 1, false); }");
+    check_types("void f() { assert_eval<bool>(1 && 0, false); }");
+    check_types("void f() { assert_eval<bool>(1 && 1, true); }");
+}
+
+#[test]
+fn check_constexpr_boolean_or() {
+    check_types("void f() { assert_eval<bool>(true || true, true); }");
+    check_types("void f() { assert_eval<bool>(true || false, true); }");
+    check_types("void f() { assert_eval<bool>(false || true, true); }");
+    check_types("void f() { assert_eval<bool>(false || false, false); }");
+    check_types("void f() { assert_eval<bool>(0 || 0, false); }");
+    check_types("void f() { assert_eval<bool>(0 || 1, true); }");
+    check_types("void f() { assert_eval<bool>(1 || 0, true); }");
+    check_types("void f() { assert_eval<bool>(1 || 1, true); }");
+}
+
+#[test]
+fn check_constexpr_less_than() {
+    check_types("void f() { assert_eval<bool>(true < true, false); }");
+    check_types("void f() { assert_eval<bool>(0 < 1, true); }");
+    check_types("void f() { assert_eval<bool>(0u < 1u, true); }");
+    check_types("void f() { assert_eval<bool>(0.0 < 1.0, true); }");
+}
+
+#[test]
+fn check_constexpr_less_equal() {
+    check_types("void f() { assert_eval<bool>(true <= true, true); }");
+    check_types("void f() { assert_eval<bool>(0 <= 1, true); }");
+    check_types("void f() { assert_eval<bool>(0u <= 1u, true); }");
+    check_types("void f() { assert_eval<bool>(0.0 <= 1.0, true); }");
+}
+
+#[test]
+fn check_constexpr_greater_than() {
+    check_types("void f() { assert_eval<bool>(true > true, false); }");
+    check_types("void f() { assert_eval<bool>(0 > 1, false); }");
+    check_types("void f() { assert_eval<bool>(0u > 1u, false); }");
+    check_types("void f() { assert_eval<bool>(0.0 > 1.0, false); }");
+}
+
+#[test]
+fn check_constexpr_greater_equal() {
+    check_types("void f() { assert_eval<bool>(true >= true, true); }");
+    check_types("void f() { assert_eval<bool>(0 >= 1, false); }");
+    check_types("void f() { assert_eval<bool>(0u >= 1u, false); }");
+    check_types("void f() { assert_eval<bool>(0.0 >= 1.0, false); }");
+}
+
+#[test]
+fn check_constexpr_equality() {
+    check_types("void f() { assert_eval<bool>(true == true, true); }");
+    check_types("void f() { assert_eval<bool>(0 == 1, false); }");
+    check_types("void f() { assert_eval<bool>(0u == 1u, false); }");
+    check_types("void f() { assert_eval<bool>(0.0 == 1.0, false); }");
+}
+
+#[test]
+fn check_constexpr_inequality() {
+    check_types("void f() { assert_eval<bool>(true != true, false); }");
+    check_types("void f() { assert_eval<bool>(0 != 1, true); }");
+    check_types("void f() { assert_eval<bool>(0u != 1u, true); }");
+    check_types("void f() { assert_eval<bool>(0.0 != 1.0, true); }");
+}

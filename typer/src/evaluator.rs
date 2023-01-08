@@ -160,6 +160,128 @@ pub fn evaluate_constexpr(
                     }
                     _ => return Err(()),
                 },
+                ir::IntrinsicOp::BooleanAnd => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => {
+                        ir::Constant::Bool(*lhs && *rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::BooleanOr => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => {
+                        ir::Constant::Bool(*lhs || *rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::LessThan => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => {
+                        ir::Constant::Bool(lhs < rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::LessEqual => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => {
+                        ir::Constant::Bool(lhs <= rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::GreaterThan => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => {
+                        ir::Constant::Bool(lhs > rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::GreaterEqual => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => {
+                        ir::Constant::Bool(lhs >= rhs)
+                    }
+                    _ => return Err(()),
+                },
+                ir::IntrinsicOp::Equality => ir::Constant::Bool(arg_values[0] == arg_values[1]),
+                ir::IntrinsicOp::Inequality => ir::Constant::Bool(arg_values[0] != arg_values[1]),
                 _ => return Err(()),
             }
         }
