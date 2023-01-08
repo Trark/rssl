@@ -754,6 +754,36 @@ impl Context {
             .enum_registry
             .set_underlying_type_id(enum_id, underlying_ty, scalar_type);
 
+        // Update values to be in the selected underlying type
+        for enum_value_id in enum_values.values() {
+            let constant = &self
+                .module
+                .enum_registry
+                .get_enum_value(*enum_value_id)
+                .value;
+
+            let value = match *constant {
+                ir::Constant::Bool(value) => value as i128,
+                ir::Constant::UntypedInt(value) => value,
+                ir::Constant::Int(value) => value as i128,
+                ir::Constant::UInt(value) => value as i128,
+                ir::Constant::Long(value) => value as i128,
+                _ => panic!("invalid type inside enum value: {:?}", constant),
+            };
+
+            let new_constant = match scalar_type {
+                ir::ScalarType::Int => ir::Constant::Int(value as i32),
+                ir::ScalarType::UInt => ir::Constant::UInt(value as u32),
+                _ => unreachable!(),
+            };
+
+            self.module.enum_registry.update_underlying_type(
+                *enum_value_id,
+                new_constant,
+                underlying_ty,
+            );
+        }
+
         // Remove untyped enum values from the parent scope
         assert_eq!(
             self.scopes[parent_scope].untyped_enum_values.len(),

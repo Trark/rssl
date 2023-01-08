@@ -109,6 +109,18 @@ impl EnumRegistry {
         id
     }
 
+    /// Update an enum value when the enum has selected an underlying type
+    pub fn update_underlying_type(
+        &mut self,
+        id: EnumValueId,
+        value: Constant,
+        underlying_type_id: TypeId,
+    ) {
+        let def = &mut self.enum_values[id.0 as usize];
+        def.value = value;
+        def.underlying_type_id = underlying_type_id;
+    }
+
     /// Get the definition from an enum id
     #[inline]
     pub fn get_enum_definition(&self, id: EnumId) -> &EnumDefinition {
