@@ -899,17 +899,20 @@ fn check_enums() {
 #[test]
 fn check_enum_value_init_references() {
     // Check we can initialize a value with another value
-    check_types("enum S { A, B = A };");
-    check_types("enum S { A, B = S::A };");
-    check_types("enum S { A, B = ::S::A };");
-    check_types("enum S { A, B = ::A };");
+    // The implied zero value on A is of type int
+    check_types("enum S { A, B = assert_eval<int>(A, (int)0) };");
+    check_types("enum S { A, B = assert_eval<int>(S::A, (int)0) };");
+    check_types("enum S { A, B = assert_eval<int>(::S::A, (int)0) };");
+    check_types("enum S { A, B = assert_eval<int>(::A, (int)0) };");
 
     // We can not use enum values declared later
     check_fail("enum S { A = B, B };");
 
     // Check we can initialize a value with a combination of other values
-    // A and B don't have proper types here so don't need to cast to int
-    check_types("enum S { A = 2u, B = 3, C = A | B };");
+    // A and B don't have proper enum type here so don't need to cast to int
+    // A is uint as it is initialized with a uint
+    // B is an untyped int as it is initialized with a literal - assert_eval will check for type equivalence but we can't write the direct type to check
+    check_types("enum S { A = 2u, B = 3, C = assert_eval<uint>(A, 2u) | assert_eval(B, 3) };");
     check_types("enum S { A = 2u, B = 3, C = S::A | S::B };");
     check_types("enum S { A = 2u, B = 3, C = ::S::A | ::S::B };");
     check_types("enum S { A = 2u, B = 3, C = ::A | ::B };");
@@ -919,10 +922,10 @@ fn check_enum_value_init_references() {
 
     // If evaluating A and B in a constant expression we have an implicit cast to int
     // Test the case where the int cast is explicit
-    check_types("enum S1 { A, B }; enum S2 { Z = (int)A | (int)B };");
-    check_types("enum S1 { A, B }; enum S2 { Z = (int)S1::A | (int)S1::B };");
-    check_types("enum S1 { A, B }; enum S2 { Z = (int)::S1::A | (int)::S1::B };");
-    check_types("enum S1 { A, B }; enum S2 { Z = (int)::A | (int)::B };");
+    check_types("enum S1 { A, B }; enum S2 { Z = (int)A | (int)assert_type<S1>(B) };");
+    check_types("enum S1 { A, B }; enum S2 { Z = (int)S1::A | (int)assert_type<S1>(S1::B) };");
+    check_types("enum S1 { A, B }; enum S2 { Z = (int)::S1::A | (int)assert_type<S1>(::S1::B) };");
+    check_types("enum S1 { A, B }; enum S2 { Z = (int)::A | (int)assert_type<S1>(::B) };");
 }
 
 #[test]
