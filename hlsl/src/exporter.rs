@@ -16,6 +16,10 @@ pub enum ExportError {
 }
 
 /// Export ir module to HLSL
+///
+/// We assume the generated code will be built with:
+/// * HLSL version 2021
+/// * If using half: -enable-16bit-types
 pub fn export_to_hlsl(module: &ir::Module) -> Result<ExportedSource, ExportError> {
     let mut context = ExportContext::new(module);
     let mut output_string = String::new();

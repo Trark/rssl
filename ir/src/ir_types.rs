@@ -555,6 +555,19 @@ impl TypeLayer {
 }
 
 impl ScalarType {
+    /// Get the size in bytes of the primitive scalar
+    pub const fn get_size(self) -> Option<u32> {
+        match self {
+            ScalarType::Bool => Some(4),
+            ScalarType::UntypedInt => None,
+            ScalarType::Int => Some(4),
+            ScalarType::UInt => Some(4),
+            ScalarType::Half => Some(2),
+            ScalarType::Float => Some(4),
+            ScalarType::Double => Some(8),
+        }
+    }
+
     /// Parse scalar type as part of a string
     const fn parse_str(input: &[u8]) -> Option<(&[u8], ScalarType)> {
         match input {

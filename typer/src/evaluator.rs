@@ -406,6 +406,21 @@ pub fn evaluate_constexpr(
                 _ => return Err(()),
             }
         }
+        ir::Expression::SizeOf(id) => {
+            let unmodified = module.type_registry.remove_modifier(id);
+
+            match module.type_registry.get_type_layer(unmodified) {
+                ir::TypeLayer::Scalar(scalar) => match scalar.get_size() {
+                    Some(size) => ir::Constant::UInt(size),
+                    None => return Err(()),
+                },
+                ir::TypeLayer::Enum(enum_id) => {
+                    let scalar = module.enum_registry.get_underlying_scalar(enum_id);
+                    ir::Constant::UInt(scalar.get_size().unwrap())
+                }
+                _ => return Err(()),
+            }
+        }
         _ => return Err(()),
     })
 }

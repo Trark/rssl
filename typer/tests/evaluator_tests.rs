@@ -225,3 +225,14 @@ fn check_constexpr_inequality() {
     check_types("void f() { assert_eval<bool>(0u != 1u, true); }");
     check_types("void f() { assert_eval<bool>(0.0 != 1.0, true); }");
 }
+
+#[test]
+fn check_constexpr_sizeof() {
+    check_types("void f() { assert_eval<uint>(sizeof(int), 4u); }");
+    check_types("void f() { assert_eval<uint>(sizeof(uint), 4u); }");
+    check_types("void f() { assert_eval<uint>(sizeof(bool), 4u); }");
+    check_types("void f() { assert_eval<uint>(sizeof(half), 2u); }");
+    check_types("void f() { assert_eval<uint>(sizeof(float), 4u); }");
+    check_types("void f() { assert_eval<uint>(sizeof(double), 8u); }");
+    check_types("enum E { A = false, B = 0u }; void f() { assert_eval<uint>(sizeof(E), 4u); }");
+}
