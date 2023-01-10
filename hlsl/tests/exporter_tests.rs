@@ -923,6 +923,36 @@ fn check_struct_member_precise() {
 }
 
 #[test]
+fn check_enum() {
+    check_rssl_to_hlsl(
+        "enum E
+{
+    A = false,
+    B = 1,
+    C = 2u,
+};
+
+void main() {
+    E v = A;
+    int mask = B | C;
+}
+",
+        "enum E
+{
+    A = 0,
+    B = 1,
+    C = 2,
+};
+
+void main() {
+    E v = E::A;
+    int mask = (int)E::B | (int)E::C;
+}
+",
+    );
+}
+
+#[test]
 fn check_typedef() {
     // Check we can declare and use a typedef - the type will be substituted at site of use.
     check_rssl_to_hlsl("typedef int CustomInt; CustomInt x = 0;", "int x = 0;\n");

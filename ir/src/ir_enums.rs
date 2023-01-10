@@ -16,6 +16,9 @@ pub struct EnumRegistry {
     /// The scalar type for the underlying type for the enum
     underlying_scalars: Vec<ScalarType>,
 
+    /// List of enum values for each enum
+    enum_value_id_for_type: Vec<Vec<EnumValueId>>,
+
     /// The main data for an enum value
     enum_values: Vec<EnumValue>,
 }
@@ -65,6 +68,7 @@ impl EnumRegistry {
         self.type_ids.push(TypeId(u32::MAX));
         self.underlying_type_ids.push(TypeId(u32::MAX));
         self.underlying_scalars.push(ScalarType::UntypedInt);
+        self.enum_value_id_for_type.push(Vec::new());
 
         id
     }
@@ -105,6 +109,8 @@ impl EnumRegistry {
             value,
             underlying_type_id,
         });
+
+        self.enum_value_id_for_type[enum_id.0 as usize].push(id);
 
         id
     }
@@ -149,6 +155,12 @@ impl EnumRegistry {
             ScalarType::UntypedInt
         );
         self.underlying_scalars[id.0 as usize]
+    }
+
+    /// Get the set of values for an enum
+    #[inline]
+    pub fn get_values(&self, id: EnumId) -> &[EnumValueId] {
+        &self.enum_value_id_for_type[id.0 as usize]
     }
 
     /// Get the definition for an enum value

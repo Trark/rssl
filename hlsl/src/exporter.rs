@@ -228,8 +228,8 @@ fn export_root_definition(
         ir::RootDefinition::StructTemplate(_) => {
             todo!("RootDefinition::StructTemplate")
         }
-        ir::RootDefinition::Enum(_) => {
-            todo!("RootDefinition::Enum")
+        ir::RootDefinition::Enum(id) => {
+            export_enum(*id, output, context)?;
         }
         ir::RootDefinition::ConstantBuffer(id) => {
             let cb = &module.cbuffer_registry[id.0 as usize];
@@ -582,6 +582,7 @@ fn export_type_impl(
         ir::TypeLayer::Struct(id) => {
             write!(output, "{}", context.get_struct_name_full(id)?).unwrap()
         }
+        ir::TypeLayer::Enum(id) => write!(output, "{}", context.get_enum_name_full(id)?).unwrap(),
         ir::TypeLayer::Object(ot) => {
             match ot {
                 ir::ObjectType::Buffer(ty) => {
@@ -974,7 +975,9 @@ fn export_subexpression(
         ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
         ir::Expression::ConstantVariable(_, name) => output.push_str(name),
-        ir::Expression::EnumValue(_) => todo!("Expression::EnumValue"),
+        ir::Expression::EnumValue(id) => {
+            write!(output, "{}", context.get_enum_value_name_full(*id)?).unwrap()
+        }
         ir::Expression::TernaryConditional(expr_cond, expr_true, expr_false) => {
             export_subexpression(expr_cond, prec, OperatorSide::Left, output, context)?;
             output.push_str(" ? ");
@@ -1592,6 +1595,36 @@ fn export_struct(
     Ok(())
 }
 
+/// Export ir enum to HLSL
+fn export_enum(
+    id: ir::EnumId,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    output.push_str("enum ");
+    output.push_str(context.get_enum_name(id)?);
+
+    context.new_line(output);
+    output.push('{');
+    context.push_indent();
+
+    for value_id in context.module.enum_registry.get_values(id) {
+        let value_data = context.module.enum_registry.get_enum_value(*value_id);
+
+        context.new_line(output);
+        output.push_str(context.get_enum_value_name(*value_id)?);
+        output.push_str(" = ");
+        export_literal(&value_data.value, output)?;
+        output.push(',');
+    }
+
+    context.pop_indent();
+    context.new_line(output);
+    output.push_str("};");
+
+    Ok(())
+}
+
 /// Export ir constant buffer to HLSL
 fn export_constant_buffer(
     decl: &ir::ConstantBuffer,
@@ -1714,6 +1747,30 @@ impl<'m> ExportContext<'m> {
             Some(sd) => Ok(&sd.full_name),
             None => Err(ExportError::NamelessId),
         }
+    }
+
+    /// Get the name of an enum
+    fn get_enum_name(&self, id: ir::EnumId) -> Result<&str, ExportError> {
+        Ok(&self.module.enum_registry.get_enum_definition(id).name)
+    }
+
+    /// Get the full name of an enum
+    fn get_enum_name_full(&self, id: ir::EnumId) -> Result<&ir::ScopedName, ExportError> {
+        Ok(&self.module.enum_registry.get_enum_definition(id).full_name)
+    }
+
+    /// Get the name of an enum value
+    fn get_enum_value_name(&self, id: ir::EnumValueId) -> Result<&str, ExportError> {
+        Ok(&self.module.enum_registry.get_enum_value(id).name)
+    }
+
+    /// Get the full name of an enum value
+    fn get_enum_value_name_full(&self, id: ir::EnumValueId) -> Result<ir::ScopedName, ExportError> {
+        let value = self.module.enum_registry.get_enum_value(id);
+        let enum_def = self.module.enum_registry.get_enum_definition(value.enum_id);
+        let mut name = enum_def.full_name.clone();
+        name.0.push(value.name.node.clone());
+        Ok(name)
     }
 
     /// Get the name of a constant buffer
