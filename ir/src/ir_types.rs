@@ -152,13 +152,19 @@ impl TypeRegistry {
         }
     }
 
+    /// Get the id after removing vector / matrix modifiers
+    pub fn get_non_vector_id(&self, id: TypeId) -> TypeId {
+        match self.layers[id.0 as usize] {
+            TypeLayer::Vector(inner, _) => self.get_non_vector_id(inner),
+            TypeLayer::Matrix(inner, _, _) => self.get_non_vector_id(inner),
+            _ => id,
+        }
+    }
+
     /// Get the layer after removing vector / matrix modifiers
     pub fn get_non_vector_layer(&self, id: TypeId) -> TypeLayer {
-        match self.layers[id.0 as usize] {
-            TypeLayer::Vector(inner, _) => self.get_non_vector_layer(inner),
-            TypeLayer::Matrix(inner, _, _) => self.get_non_vector_layer(inner),
-            tyl => tyl,
-        }
+        let non_vector_id = self.get_non_vector_id(id);
+        self.get_type_layer(non_vector_id)
     }
 
     /// Replaces the scalar type inside a numeric type with the given scalar type
