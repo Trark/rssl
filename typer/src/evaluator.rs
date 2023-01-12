@@ -134,6 +134,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::BitwiseAnd => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs & rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs & rhs)
                     }
@@ -143,6 +146,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::BitwiseOr => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs | rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs | rhs)
                     }
@@ -152,6 +158,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::BitwiseXor => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs ^ rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs ^ rhs)
                     }

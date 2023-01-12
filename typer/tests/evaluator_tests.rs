@@ -155,6 +155,54 @@ fn check_constexpr_right_shift() {
 }
 
 #[test]
+fn check_constexpr_bitwise_and() {
+    check_types("void f() { assert_eval(0 & 0, 0); }");
+    check_types("void f() { assert_eval(0 & 1, 0); }");
+    check_types("void f() { assert_eval(1 & 0, 0); }");
+    check_types("void f() { assert_eval(1 & 1, 1); }");
+    check_types("void f() { assert_eval((int)0 & (int)0, (int)0); }");
+    check_types("void f() { assert_eval((int)0 & (int)1, (int)0); }");
+    check_types("void f() { assert_eval((int)1 & (int)0, (int)0); }");
+    check_types("void f() { assert_eval((int)1 & (int)1, (int)1); }");
+    check_types("void f() { assert_eval<uint>(0u & 0u, 0u); }");
+    check_types("void f() { assert_eval<uint>(0u & 1u, 0u); }");
+    check_types("void f() { assert_eval<uint>(1u & 0u, 0u); }");
+    check_types("void f() { assert_eval<uint>(1u & 1u, 1u); }");
+}
+
+#[test]
+fn check_constexpr_bitwise_or() {
+    check_types("void f() { assert_eval(0 | 0, 0); }");
+    check_types("void f() { assert_eval(0 | 1, 1); }");
+    check_types("void f() { assert_eval(1 | 0, 1); }");
+    check_types("void f() { assert_eval(1 | 1, 1); }");
+    check_types("void f() { assert_eval((int)0 | (int)0, (int)0); }");
+    check_types("void f() { assert_eval((int)0 | (int)1, (int)1); }");
+    check_types("void f() { assert_eval((int)1 | (int)0, (int)1); }");
+    check_types("void f() { assert_eval((int)1 | (int)1, (int)1); }");
+    check_types("void f() { assert_eval<uint>(0u | 0u, 0u); }");
+    check_types("void f() { assert_eval<uint>(0u | 1u, 1u); }");
+    check_types("void f() { assert_eval<uint>(1u | 0u, 1u); }");
+    check_types("void f() { assert_eval<uint>(1u | 1u, 1u); }");
+}
+
+#[test]
+fn check_constexpr_bitwise_xor() {
+    check_types("void f() { assert_eval(0 ^ 0, 0); }");
+    check_types("void f() { assert_eval(0 ^ 1, 1); }");
+    check_types("void f() { assert_eval(1 ^ 0, 1); }");
+    check_types("void f() { assert_eval(1 ^ 1, 0); }");
+    check_types("void f() { assert_eval((int)0 ^ (int)0, (int)0); }");
+    check_types("void f() { assert_eval((int)0 ^ (int)1, (int)1); }");
+    check_types("void f() { assert_eval((int)1 ^ (int)0, (int)1); }");
+    check_types("void f() { assert_eval((int)1 ^ (int)1, (int)0); }");
+    check_types("void f() { assert_eval<uint>(0u ^ 0u, 0u); }");
+    check_types("void f() { assert_eval<uint>(0u ^ 1u, 1u); }");
+    check_types("void f() { assert_eval<uint>(1u ^ 0u, 1u); }");
+    check_types("void f() { assert_eval<uint>(1u ^ 1u, 0u); }");
+}
+
+#[test]
 fn check_constexpr_boolean_and() {
     check_types("void f() { assert_eval<bool>(true && true, true); }");
     check_types("void f() { assert_eval<bool>(true && false, false); }");
