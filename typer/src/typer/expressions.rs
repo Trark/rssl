@@ -856,7 +856,7 @@ fn resolve_arithmetic_types(
                     .module
                     .type_registry
                     .register_type(ir::TypeLayer::Vector(scalar_id, x2));
-                (scalar_id, right_id)
+                (right_id, right_id)
             }
             (ir::NumericDimension::Vector(x1), ir::NumericDimension::Scalar) => {
                 let common_scalar = common_real_type(ls, rs)?;
@@ -868,25 +868,26 @@ fn resolve_arithmetic_types(
                     .module
                     .type_registry
                     .register_type(ir::TypeLayer::Vector(scalar_id, x1));
-                (left_id, scalar_id)
+                (left_id, left_id)
             }
-            (ir::NumericDimension::Vector(x1), ir::NumericDimension::Vector(x2))
-                if x1 == x2 || x1 == 1 || x2 == 1 =>
-            {
+            (ir::NumericDimension::Vector(x1), ir::NumericDimension::Vector(x2)) => {
                 let common_scalar = common_real_type(ls, rs)?;
                 let scalar_id = context
                     .module
                     .type_registry
                     .register_type(ir::TypeLayer::Scalar(common_scalar));
-                let left_id = context
+                let output_dimension = match (x1, x2) {
+                    // Vector expansion or both 1
+                    (1, _) => x2,
+                    (_, 1) => x1,
+                    // Vector truncation or both the same
+                    _ => std::cmp::min(x1, x2),
+                };
+                let id = context
                     .module
                     .type_registry
-                    .register_type(ir::TypeLayer::Vector(scalar_id, x1));
-                let right_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Vector(scalar_id, x2));
-                (left_id, right_id)
+                    .register_type(ir::TypeLayer::Vector(scalar_id, output_dimension));
+                (id, id)
             }
             (ir::NumericDimension::Matrix(x1, y1), ir::NumericDimension::Matrix(x2, y2))
                 if x1 == x2 && y1 == y2 =>

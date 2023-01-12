@@ -1403,23 +1403,26 @@ fn check_operator_bitwise_not() {
 
 #[test]
 fn check_operator_add() {
-    check_types("void f() { uint x, y = 0; uint z = x + y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x + y; }");
-    check_types("void f() { float x; float2 y; float2 z = x + y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x + y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x + y); }");
+    check_types("void f() { float x; float2 y; assert_type<float2>(x + y); }");
 }
 
 #[test]
 fn check_operator_subtract() {
-    check_types("void f() { uint x, y = 0; uint z = x - y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x - y; }");
-    check_types("void f() { float x; float2 y; float2 z = x - y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x - y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x - y); }");
+    check_types("void f() { float x; float2 y; assert_type<float2>(x - y); }");
 }
 
 #[test]
 fn check_operator_multiply() {
-    check_types("void f() { uint x, y = 0; uint z = x * y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x * y; }");
-    check_types("void f() { float x; float2 y; float2 z = x * y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x * y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x * y); }");
+    // vector expansion on x
+    check_types("void f() { float x; float2 y; assert_type<float2>(x * y); }");
+    // vector truncation on y
+    check_types("void f() { float2 x; float3 y; assert_type<float2>(x * y); }");
 }
 
 #[test]
@@ -1432,48 +1435,48 @@ fn check_operator_divide() {
 
 #[test]
 fn check_operator_left_shift() {
-    check_types("void f() { uint x, y = 0; uint z = x << y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x << y; }");
-    check_types("void f() { uint x; uint2 y; uint2 z = x << y; }");
-    check_types("void f() { uint2 x; uint y; uint2 z = x << y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x << y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x << y); }");
+    check_types("void f() { uint x; uint2 y; assert_type<uint2>(x << y); }");
+    check_types("void f() { uint2 x; uint y; assert_type<uint2>(x << y); }");
 }
 
 #[test]
 fn check_operator_right_shift() {
-    check_types("void f() { uint x, y = 0; uint z = x >> y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x >> y; }");
-    check_types("void f() { uint x; uint2 y; uint2 z = x >> y; }");
-    check_types("void f() { uint2 x; uint y; uint2 z = x >> y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x >> y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x >> y); }");
+    check_types("void f() { uint x; uint2 y; assert_type<uint2>(x >> y); }");
+    check_types("void f() { uint2 x; uint y; assert_type<uint2>(x >> y); }");
 }
 
 #[test]
 fn check_operator_bitwise_and() {
-    check_types("void f() { uint x, y = 0; uint z = x & y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x & y; }");
-    check_types("void f() { uint x; uint2 y; uint2 z = x & y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x & y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x & y); }");
+    check_types("void f() { uint x; uint2 y; assert_type<uint2>(x & y); }");
 }
 
 #[test]
 fn check_operator_bitwise_or() {
-    check_types("void f() { uint x, y = 0; uint z = x | y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x | y; }");
-    check_types("void f() { uint x; uint2 y; uint2 z = x | y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x | y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x | y); }");
+    check_types("void f() { uint x; uint2 y; assert_type<uint2>(x | y); }");
 }
 
 #[test]
 fn check_operator_bitwise_xor() {
-    check_types("void f() { uint x, y = 0; uint z = x ^ y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x ^ y; }");
-    check_types("void f() { uint x; uint2 y; uint2 z = x ^ y; }");
+    check_types("void f() { uint x, y = 0; assert_type<uint>(x ^ y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<uint>(x ^ y); }");
+    check_types("void f() { uint x; uint2 y; assert_type<uint2>(x ^ y); }");
 }
 
 #[test]
 fn check_operator_boolean_and() {
-    check_types("void f() { bool x, y = 0; bool z = x && y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x && y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x && y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x && y); }");
 
-    check_types("void f() { uint x, y = 0; uint z = x && y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x && y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x && y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x && y); }");
 
     // Non-scalars forbidden from short circuiting operators
     check_fail("void f() { uint x; uint2 y; uint2 z = x && y; }");
@@ -1483,11 +1486,11 @@ fn check_operator_boolean_and() {
 
 #[test]
 fn check_operator_boolean_or() {
-    check_types("void f() { bool x, y = 0; bool z = x || y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x || y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x || y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x || y); }");
 
-    check_types("void f() { uint x, y = 0; uint z = x || y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x || y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x || y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x || y); }");
 
     // Non-scalars forbidden from short circuiting operators
     check_fail("void f() { uint x; uint2 y; uint2 z = x || y; }");
@@ -1497,68 +1500,69 @@ fn check_operator_boolean_or() {
 
 #[test]
 fn check_operator_less_than() {
-    check_types("void f() { uint x, y = 0; uint z = x < y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x < y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x < y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x < y); }");
 
-    check_types("void f() { bool x, y = 0; bool z = x < y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x < y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x < y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x < y); }");
 
-    check_types("void f() { uint x; uint2 y; bool2 z = x < y; }");
+    check_types("void f() { uint x; uint2 y; assert_type<bool2>(x < y); }");
 }
 
 #[test]
 fn check_operator_less_equal() {
-    check_types("void f() { uint x, y = 0; uint z = x <= y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x <= y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x <= y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x <= y); }");
 
-    check_types("void f() { bool x, y = 0; bool z = x <= y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x <= y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x <= y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x <= y); }");
 
-    check_types("void f() { uint x; uint2 y; bool2 z = x <= y; }");
+    check_types("void f() { uint x; uint2 y; assert_type<bool2>(x <= y); }");
 }
 
 #[test]
 fn check_operator_greater_than() {
-    check_types("void f() { uint x, y = 0; uint z = x > y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x > y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x > y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x > y); }");
 
-    check_types("void f() { bool x, y = 0; bool z = x > y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x > y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x > y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x > y); }");
 
-    check_types("void f() { uint x; uint2 y; bool2 z = x > y; }");
+    check_types("void f() { uint x; uint2 y; assert_type<bool2>(x > y); }");
 }
 
 #[test]
 fn check_operator_greater_equal() {
-    check_types("void f() { uint x, y = 0; uint z = x >= y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x >= y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x >= y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x >= y); }");
 
-    check_types("void f() { bool x, y = 0; bool z = x >= y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x >= y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x >= y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x >= y); }");
 
-    check_types("void f() { uint x; uint2 y; bool2 z = x >= y; }");
+    check_types("void f() { uint x; uint2 y; assert_type<bool2>(x >= y); }");
 }
 
 #[test]
 fn check_operator_equality() {
-    check_types("void f() { uint x, y = 0; uint z = x == y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x == y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x == y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x == y); }");
 
-    check_types("void f() { bool x, y = 0; bool z = x == y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x == y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x == y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x == y); }");
 
-    check_types("void f() { uint x; uint2 y; bool2 z = x == y; }");
+    check_types("void f() { uint x; uint2 y; assert_type<bool2>(x == y); }");
+    check_types("void f() { uint2 x; uint3 y; assert_type<bool2>(x == y); }");
 }
 
 #[test]
 fn check_operator_inequality() {
-    check_types("void f() { uint x, y = 0; uint z = x != y; }");
-    check_types("void f() { const uint x, y = 0; uint z = x != y; }");
+    check_types("void f() { uint x, y = 0; assert_type<bool>(x != y); }");
+    check_types("void f() { const uint x, y = 0; assert_type<bool>(x != y); }");
 
-    check_types("void f() { bool x, y = 0; bool z = x != y; }");
-    check_types("void f() { const bool x, y = 0; bool z = x != y; }");
+    check_types("void f() { bool x, y = 0; assert_type<bool>(x != y); }");
+    check_types("void f() { const bool x, y = 0; assert_type<bool>(x != y); }");
 
-    check_types("void f() { uint x; uint2 y; bool2 z = x != y; }");
+    check_types("void f() { uint x; uint2 y; assert_type<bool2>(x != y); }");
 }
 
 #[test]
