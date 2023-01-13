@@ -1018,26 +1018,8 @@ fn parse_expr_binop(
             } else {
                 let lhs_nv_id = context.module.type_registry.get_non_vector_id(left_base);
                 let rhs_nv_id = context.module.type_registry.get_non_vector_id(right_base);
-                let (lhs_nv_id, lhs_nv_layer) =
-                    match context.module.type_registry.get_type_layer(lhs_nv_id) {
-                        ir::TypeLayer::Enum(id) => (
-                            context.module.enum_registry.get_underlying_type_id(id),
-                            ir::TypeLayer::Scalar(
-                                context.module.enum_registry.get_underlying_scalar(id),
-                            ),
-                        ),
-                        tyl => (lhs_nv_id, tyl),
-                    };
-                let (rhs_nv_id, rhs_nv_layer) =
-                    match context.module.type_registry.get_type_layer(rhs_nv_id) {
-                        ir::TypeLayer::Enum(id) => (
-                            context.module.enum_registry.get_underlying_type_id(id),
-                            ir::TypeLayer::Scalar(
-                                context.module.enum_registry.get_underlying_scalar(id),
-                            ),
-                        ),
-                        tyl => (rhs_nv_id, tyl),
-                    };
+                let lhs_nv_layer = context.module.type_registry.get_type_layer(lhs_nv_id);
+                let rhs_nv_layer = context.module.type_registry.get_type_layer(rhs_nv_id);
                 match (lhs_nv_layer, rhs_nv_layer) {
                     (ir::TypeLayer::Scalar(s1), ir::TypeLayer::Scalar(s2)) => match (s1, s2) {
                         (ir::ScalarType::Bool, ir::ScalarType::Bool) => context
@@ -1067,6 +1049,13 @@ fn parse_expr_binop(
                         (ir::ScalarType::UInt, ir::ScalarType::UInt) => lhs_nv_id,
                         _ => return err_bad_type,
                     },
+                    (ir::TypeLayer::Enum(id1), ir::TypeLayer::Enum(id2)) => {
+                        if id1 == id2 {
+                            lhs_nv_id
+                        } else {
+                            return err_bad_type;
+                        }
+                    }
                     _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
                 }
             };

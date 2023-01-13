@@ -9,10 +9,20 @@ pub fn evaluate_constexpr(
         ir::Expression::Literal(ref v) => v.clone(),
         ir::Expression::IntrinsicOp(ref op, _, ref args) => {
             let mut arg_values = Vec::with_capacity(args.len());
+            let mut enum_wrap = None;
             for arg in args {
-                arg_values.push(evaluate_constexpr(arg, module)?);
+                let value = evaluate_constexpr(arg, module)?;
+                // If it is an enum then extract the underlying integer to do the operation
+                if let ir::Constant::Enum(enum_id, underlying) = value {
+                    assert!(enum_wrap.is_none() || enum_wrap == Some(enum_id));
+                    enum_wrap = Some(enum_id);
+                    arg_values.push(*underlying);
+                } else {
+                    assert!(enum_wrap.is_none());
+                    arg_values.push(value);
+                }
             }
-            match *op {
+            let result = match *op {
                 ir::IntrinsicOp::PrefixIncrement => match arg_values[0] {
                     ir::Constant::Int(input) => ir::Constant::Int(input + 1),
                     ir::Constant::UInt(input) => ir::Constant::UInt(input + 1),
@@ -319,6 +329,11 @@ pub fn evaluate_constexpr(
                 ir::IntrinsicOp::Equality => ir::Constant::Bool(arg_values[0] == arg_values[1]),
                 ir::IntrinsicOp::Inequality => ir::Constant::Bool(arg_values[0] != arg_values[1]),
                 _ => return Err(()),
+            };
+            if let Some(enum_id) = enum_wrap {
+                ir::Constant::Enum(enum_id, Box::new(result))
+            } else {
+                result
             }
         }
         ir::Expression::Global(id) => {

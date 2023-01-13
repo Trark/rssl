@@ -934,7 +934,8 @@ fn check_enum() {
 
 void main() {
     E v = A;
-    int mask = B | C;
+    E enumMask = B | C;
+    int underlyingMask = B | C;
 }
 ",
         "enum E
@@ -946,7 +947,8 @@ void main() {
 
 void main() {
     E v = E::A;
-    int mask = (int)E::B | (int)E::C;
+    E enumMask = E::B | E::C;
+    int underlyingMask = (int)(E::B | E::C);
 }
 ",
     );
