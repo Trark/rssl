@@ -90,7 +90,7 @@ fn check_constexpr_bitwise_not() {
 #[test]
 fn check_constexpr_add_integer() {
     // add two literal untyped ints - which creates a signed int add
-    check_types("float x[assert_eval(1 + 1, (int)2)];");
+    check_types("float x[assert_eval(1 + 1, 2)];");
 
     // add two literal uints
     check_types("float x[assert_eval(1u + 1u, 2u)];");
@@ -98,7 +98,7 @@ fn check_constexpr_add_integer() {
 
 #[test]
 fn check_constexpr_subtract_integer() {
-    check_types("float x[assert_eval(2 - 1, (int)1)];");
+    check_types("float x[assert_eval(2 - 1, 1)];");
     check_fail("float x[1 - 1];");
 
     check_types("float x[assert_eval(2u - 1u, 1u)];");
@@ -107,7 +107,7 @@ fn check_constexpr_subtract_integer() {
 
 #[test]
 fn check_constexpr_multiple_integer() {
-    check_types("float x[assert_eval(1 * 1, (int)1)];");
+    check_types("float x[assert_eval(1 * 1, 1)];");
     check_fail("float x[1 * 0];");
 
     check_types("float x[assert_eval(1u * 1u, 1u)];");
@@ -116,7 +116,7 @@ fn check_constexpr_multiple_integer() {
 
 #[test]
 fn check_constexpr_divide_integer() {
-    check_types("float x[assert_eval(1 / 1, (int)1)];");
+    check_types("float x[assert_eval(1 / 1, 1)];");
     check_fail("float x[1 / 0];");
     check_fail("float x[1 / 2];");
 
@@ -127,7 +127,7 @@ fn check_constexpr_divide_integer() {
 
 #[test]
 fn check_constexpr_modulus_integer() {
-    check_types("float x[assert_eval(1 % 2, (int)1)];");
+    check_types("float x[assert_eval(1 % 2, 1)];");
     check_fail("float x[1 % 1];");
     check_fail("float x[1 % 0];");
 
@@ -138,7 +138,7 @@ fn check_constexpr_modulus_integer() {
 
 #[test]
 fn check_constexpr_left_shift() {
-    check_types("float x[assert_eval(1 << 1, (int)2)];");
+    check_types("float x[assert_eval(1 << 1, 2)];");
     check_fail("float x[0 << 1];");
 
     check_types("float x[assert_eval(1u << 1u, 2u)];");
@@ -147,7 +147,7 @@ fn check_constexpr_left_shift() {
 
 #[test]
 fn check_constexpr_right_shift() {
-    check_types("float x[assert_eval(2 >> 1, (int)1)];");
+    check_types("float x[assert_eval(2 >> 1, 1)];");
     check_fail("float x[1 >> 1];");
 
     check_types("float x[assert_eval(2u >> 1u, 1u)];");

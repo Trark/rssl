@@ -59,6 +59,9 @@ pub fn evaluate_constexpr(
                     _ => panic!("unexpected type in BitwiseNot"),
                 },
                 ir::IntrinsicOp::Add => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs + rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs + rhs)
                     }
@@ -68,6 +71,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::Subtract => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs - rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs - rhs)
                     }
@@ -77,6 +83,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::Multiply => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs * rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs * rhs)
                     }
@@ -86,6 +95,12 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::Divide => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(match lhs.checked_div(*rhs) {
+                            Some(v) => v,
+                            None => return Err(()),
+                        })
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(match lhs.checked_div(*rhs) {
                             Some(v) => v,
@@ -101,6 +116,12 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::Modulus => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        if *rhs == 0 {
+                            return Err(());
+                        }
+                        ir::Constant::UntypedInt(lhs % rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         if *rhs == 0 {
                             return Err(());
@@ -116,6 +137,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::LeftShift => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs << rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs << rhs)
                     }
@@ -125,6 +149,9 @@ pub fn evaluate_constexpr(
                     _ => return Err(()),
                 },
                 ir::IntrinsicOp::RightShift => match (&arg_values[0], &arg_values[1]) {
+                    (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+                        ir::Constant::UntypedInt(lhs >> rhs)
+                    }
                     (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
                         ir::Constant::Int(lhs >> rhs)
                     }

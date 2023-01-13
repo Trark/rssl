@@ -683,23 +683,14 @@ fn most_sig_scalar(left: ir::ScalarType, right: ir::ScalarType) -> ir::ScalarTyp
     fn get_order(ty: &ScalarType) -> Option<u32> {
         match *ty {
             ScalarType::Bool => Some(0),
-            ScalarType::Int => Some(1),
-            ScalarType::UInt => Some(2),
-            ScalarType::Half => Some(3),
-            ScalarType::Float => Some(4),
-            ScalarType::Double => Some(5),
-            _ => None,
+            ScalarType::UntypedInt => Some(1),
+            ScalarType::Int => Some(2),
+            ScalarType::UInt => Some(3),
+            ScalarType::Half => Some(4),
+            ScalarType::Float => Some(5),
+            ScalarType::Double => Some(6),
         }
     }
-
-    let left = match left {
-        ScalarType::UntypedInt => ScalarType::Int,
-        scalar => scalar,
-    };
-    let right = match right {
-        ScalarType::UntypedInt => ScalarType::Int,
-        scalar => scalar,
-    };
 
     let left_order = match get_order(&left) {
         Some(order) => order,
@@ -756,11 +747,15 @@ fn resolve_arithmetic_types(
                 | ast::BinOp::BitwiseOr
                 | ast::BinOp::BitwiseXor => {
                     assert!(
-                        ls == ScalarType::Int || ls == ScalarType::UInt,
+                        ls == ScalarType::UntypedInt
+                            || ls == ScalarType::Int
+                            || ls == ScalarType::UInt,
                         "non-integer source in bitwise op (lhs)"
                     );
                     assert!(
-                        rs == ScalarType::Int || rs == ScalarType::UInt,
+                        rs == ScalarType::UntypedInt
+                            || rs == ScalarType::Int
+                            || rs == ScalarType::UInt,
                         "non-integer source in bitwise op (rhs)"
                     );
                 }
