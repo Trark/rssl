@@ -999,7 +999,7 @@ fn parse_expr_binop(
             let right_base = context.module.type_registry.remove_modifier(rhs_type.0);
             let lhs_tyl = context.module.type_registry.get_type_layer(left_base);
             let rhs_tyl = context.module.type_registry.get_type_layer(right_base);
-            let scalar = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
+            let target_nv_id = if *op == ast::BinOp::BooleanAnd || *op == ast::BinOp::BooleanOr {
                 let lhs_is_vector = matches!(
                     lhs_tyl,
                     ir::TypeLayer::Vector(..) | ir::TypeLayer::Matrix(..),
@@ -1011,49 +1011,78 @@ fn parse_expr_binop(
                 if lhs_is_vector || rhs_is_vector {
                     return Err(TyperError::ShortCircuitingVector(base_location));
                 }
-                ir::ScalarType::Bool
-            } else {
-                let lhs_scalar = match context.module.type_registry.get_non_vector_layer(left_base)
-                {
-                    ir::TypeLayer::Scalar(s) => s,
-                    ir::TypeLayer::Enum(id) => {
-                        context.module.enum_registry.get_underlying_scalar(id)
-                    }
-                    _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
-                };
-                let rhs_scalar = match context
+                context
                     .module
                     .type_registry
-                    .get_non_vector_layer(right_base)
-                {
-                    ir::TypeLayer::Scalar(s) => s,
-                    ir::TypeLayer::Enum(id) => {
-                        context.module.enum_registry.get_underlying_scalar(id)
-                    }
+                    .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Bool))
+            } else {
+                let lhs_nv_id = context.module.type_registry.get_non_vector_id(left_base);
+                let rhs_nv_id = context.module.type_registry.get_non_vector_id(right_base);
+                let (lhs_nv_id, lhs_nv_layer) =
+                    match context.module.type_registry.get_type_layer(lhs_nv_id) {
+                        ir::TypeLayer::Enum(id) => (
+                            context.module.enum_registry.get_underlying_type_id(id),
+                            ir::TypeLayer::Scalar(
+                                context.module.enum_registry.get_underlying_scalar(id),
+                            ),
+                        ),
+                        tyl => (lhs_nv_id, tyl),
+                    };
+                let (rhs_nv_id, rhs_nv_layer) =
+                    match context.module.type_registry.get_type_layer(rhs_nv_id) {
+                        ir::TypeLayer::Enum(id) => (
+                            context.module.enum_registry.get_underlying_type_id(id),
+                            ir::TypeLayer::Scalar(
+                                context.module.enum_registry.get_underlying_scalar(id),
+                            ),
+                        ),
+                        tyl => (rhs_nv_id, tyl),
+                    };
+                match (lhs_nv_layer, rhs_nv_layer) {
+                    (ir::TypeLayer::Scalar(s1), ir::TypeLayer::Scalar(s2)) => match (s1, s2) {
+                        (ir::ScalarType::Bool, ir::ScalarType::Bool) => context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
+                        (ir::ScalarType::Bool, ir::ScalarType::UntypedInt) => context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
+                        (ir::ScalarType::Bool, ir::ScalarType::Int) => rhs_nv_id,
+                        (ir::ScalarType::Bool, ir::ScalarType::UInt) => rhs_nv_id,
+                        (ir::ScalarType::UntypedInt, ir::ScalarType::Bool) => context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
+                        (ir::ScalarType::UntypedInt, ir::ScalarType::UntypedInt) => lhs_nv_id,
+                        (ir::ScalarType::UntypedInt, ir::ScalarType::Int) => rhs_nv_id,
+                        (ir::ScalarType::UntypedInt, ir::ScalarType::UInt) => rhs_nv_id,
+                        (ir::ScalarType::Int, ir::ScalarType::Bool) => lhs_nv_id,
+                        (ir::ScalarType::Int, ir::ScalarType::UntypedInt) => lhs_nv_id,
+                        (ir::ScalarType::Int, ir::ScalarType::Int) => lhs_nv_id,
+                        (ir::ScalarType::Int, ir::ScalarType::UInt) => rhs_nv_id,
+                        (ir::ScalarType::UInt, ir::ScalarType::Bool) => lhs_nv_id,
+                        (ir::ScalarType::UInt, ir::ScalarType::UntypedInt) => lhs_nv_id,
+                        (ir::ScalarType::UInt, ir::ScalarType::Int) => lhs_nv_id,
+                        (ir::ScalarType::UInt, ir::ScalarType::UInt) => lhs_nv_id,
+                        _ => return err_bad_type,
+                    },
                     _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
-                };
-                match (lhs_scalar, rhs_scalar) {
-                    (ir::ScalarType::Int, ir::ScalarType::Int) => ir::ScalarType::Int,
-                    (ir::ScalarType::Int, ir::ScalarType::UInt) => ir::ScalarType::UInt,
-                    (ir::ScalarType::UInt, ir::ScalarType::Int) => ir::ScalarType::UInt,
-                    (ir::ScalarType::UInt, ir::ScalarType::UInt) => ir::ScalarType::UInt,
-                    (ir::ScalarType::UntypedInt, ir::ScalarType::Int) => ir::ScalarType::Int,
-                    (ir::ScalarType::UntypedInt, ir::ScalarType::UInt) => ir::ScalarType::UInt,
-                    (ir::ScalarType::Int, ir::ScalarType::UntypedInt) => ir::ScalarType::Int,
-                    (ir::ScalarType::UInt, ir::ScalarType::UntypedInt) => ir::ScalarType::UInt,
-                    (ir::ScalarType::UntypedInt, ir::ScalarType::UntypedInt) => {
-                        ir::ScalarType::UntypedInt
-                    }
-                    _ => return err_bad_type,
                 }
             };
             let x = ir::NumericDimension::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
             let y = ir::NumericDimension::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
-            let numeric = ir::NumericType {
-                scalar,
-                dimension: ir::NumericDimension::from_parts(x, y),
+            let ty = match ir::NumericDimension::from_parts(x, y) {
+                ir::NumericDimension::Scalar => target_nv_id,
+                ir::NumericDimension::Vector(x) => context
+                    .module
+                    .type_registry
+                    .register_type(ir::TypeLayer::Vector(target_nv_id, x)),
+                ir::NumericDimension::Matrix(x, y) => context
+                    .module
+                    .type_registry
+                    .register_type(ir::TypeLayer::Matrix(target_nv_id, x, y)),
             };
-            let ty = context.module.type_registry.register_numeric_type(numeric);
             let ety = ty.to_rvalue();
             let lhs_cast = match ImplicitConversion::find(lhs_type, ety, &mut context.module) {
                 Ok(cast) => cast,

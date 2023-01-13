@@ -168,6 +168,10 @@ fn check_constexpr_bitwise_and() {
     check_types("void f() { assert_eval<uint>(0u & 1u, 0u); }");
     check_types("void f() { assert_eval<uint>(1u & 0u, 0u); }");
     check_types("void f() { assert_eval<uint>(1u & 1u, 1u); }");
+    check_types("void f() { assert_eval<int>(true & true, (int)1); }");
+    check_types("void f() { assert_eval<int>(true & false, (int)0); }");
+    check_types("void f() { assert_eval<int>(false & true, (int)0); }");
+    check_types("void f() { assert_eval<int>(false & false, (int)0); }");
 }
 
 #[test]
@@ -184,6 +188,10 @@ fn check_constexpr_bitwise_or() {
     check_types("void f() { assert_eval<uint>(0u | 1u, 1u); }");
     check_types("void f() { assert_eval<uint>(1u | 0u, 1u); }");
     check_types("void f() { assert_eval<uint>(1u | 1u, 1u); }");
+    check_types("void f() { assert_eval<int>(true | true, (int)1); }");
+    check_types("void f() { assert_eval<int>(true | false, (int)1); }");
+    check_types("void f() { assert_eval<int>(false | true, (int)1); }");
+    check_types("void f() { assert_eval<int>(false | false, (int)0); }");
 }
 
 #[test]
@@ -200,6 +208,10 @@ fn check_constexpr_bitwise_xor() {
     check_types("void f() { assert_eval<uint>(0u ^ 1u, 1u); }");
     check_types("void f() { assert_eval<uint>(1u ^ 0u, 1u); }");
     check_types("void f() { assert_eval<uint>(1u ^ 1u, 0u); }");
+    check_types("void f() { assert_eval<int>(true ^ true, (int)0); }");
+    check_types("void f() { assert_eval<int>(true ^ false, (int)1); }");
+    check_types("void f() { assert_eval<int>(false ^ true, (int)1); }");
+    check_types("void f() { assert_eval<int>(false ^ false, (int)0); }");
 }
 
 #[test]
