@@ -143,6 +143,15 @@ fn check_constexpr_left_shift() {
 
     check_types("float x[assert_eval(1u << 1u, 2u)];");
     check_fail("float x[0u << 1u];");
+
+    check_types("void f() { assert_eval(2 << 2, 8); }");
+    check_types("void f() { assert_eval<int>((int)2 << (int)2, (int)8); }");
+    check_types("void f() { assert_eval<uint>(2u << 2u, 8u); }");
+    check_types("void f() { assert_eval<int>(true << true, (int)2); }");
+    check_types("enum E { A = 1 }; void f() { assert_eval<E>(A << A, (E)2); }");
+
+    check_types("enum E { ZERO, ONE }; float x[ONE << ONE];");
+    check_fail("enum E { ZERO, ONE }; float x[ZERO << ONE];");
 }
 
 #[test]
@@ -152,6 +161,15 @@ fn check_constexpr_right_shift() {
 
     check_types("float x[assert_eval(2u >> 1u, 1u)];");
     check_fail("float x[1u >> 1u];");
+
+    check_types("void f() { assert_eval(2 >> 1, 1); }");
+    check_types("void f() { assert_eval<int>((int)2 >> (int)1, (int)1); }");
+    check_types("void f() { assert_eval<uint>(2u >> 1u, 1u); }");
+    check_types("void f() { assert_eval<int>(true >> false, (int)1); }");
+    check_types("enum E { A = 1 }; void f() { assert_eval<E>(A >> A, (E)0); }");
+
+    check_types("enum E { ZERO, ONE }; float x[ONE >> ZERO];");
+    check_fail("enum E { ZERO, ONE }; float x[ONE >> ONE];");
 }
 
 #[test]

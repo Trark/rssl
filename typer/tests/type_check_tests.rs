@@ -1439,6 +1439,12 @@ fn check_operator_left_shift() {
     check_types("void f() { const uint x, y = 0; assert_type<uint>(x << y); }");
     check_types("void f() { uint x; uint2 y; assert_type<uint2>(x << y); }");
     check_types("void f() { uint2 x; uint y; assert_type<uint2>(x << y); }");
+
+    check_fail("void f() { half x; half y; x << y; }");
+    check_fail("void f() { float x; float y; x << y; }");
+    check_fail("void f() { double x; double y; x << y; }");
+    check_fail("void f() { float x; uint y; x << y; }");
+    check_fail("void f() { uint x; float y; x << y; }");
 }
 
 #[test]
@@ -1447,6 +1453,12 @@ fn check_operator_right_shift() {
     check_types("void f() { const uint x, y = 0; assert_type<uint>(x >> y); }");
     check_types("void f() { uint x; uint2 y; assert_type<uint2>(x >> y); }");
     check_types("void f() { uint2 x; uint y; assert_type<uint2>(x >> y); }");
+
+    check_fail("void f() { half x; half y; x >> y; }");
+    check_fail("void f() { float x; float y; x >> y; }");
+    check_fail("void f() { double x; double y; x >> y; }");
+    check_fail("void f() { float x; uint y; x >> y; }");
+    check_fail("void f() { uint x; float y; x >> y; }");
 }
 
 #[test]

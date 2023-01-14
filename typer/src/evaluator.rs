@@ -400,6 +400,11 @@ fn evaluate_cast(
                 _ => return Err(()),
             }
         }
+        ir::TypeLayer::Enum(enum_id) => {
+            let underlying = module.enum_registry.get_underlying_type_id(enum_id);
+            let underlying_value = evaluate_cast(underlying, inner_value, module)?;
+            ir::Constant::Enum(enum_id, Box::new(underlying_value))
+        }
         _ => return Err(()),
     };
     Ok(result)

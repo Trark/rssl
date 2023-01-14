@@ -721,81 +721,6 @@ fn resolve_arithmetic_types(
         Ok(most_sig_scalar(left, right))
     }
 
-    // Calculate the output type from the input type and operation
-    fn output_type(
-        left: ir::TypeId,
-        right: ir::TypeId,
-        op: &ast::BinOp,
-        context: &mut Context,
-    ) -> ir::IntrinsicOp {
-        // Assert input validity
-        {
-            let ls = context
-                .module
-                .type_registry
-                .extract_scalar(left)
-                .expect("non-numeric type in binary operation (lhs)");
-            let rs = context
-                .module
-                .type_registry
-                .extract_scalar(right)
-                .expect("non-numeric type in binary operation (rhs)");
-            match *op {
-                ast::BinOp::LeftShift
-                | ast::BinOp::RightShift
-                | ast::BinOp::BitwiseAnd
-                | ast::BinOp::BitwiseOr
-                | ast::BinOp::BitwiseXor => {
-                    assert!(
-                        ls == ScalarType::UntypedInt
-                            || ls == ScalarType::Int
-                            || ls == ScalarType::UInt,
-                        "non-integer source in bitwise op (lhs)"
-                    );
-                    assert!(
-                        rs == ScalarType::UntypedInt
-                            || rs == ScalarType::Int
-                            || rs == ScalarType::UInt,
-                        "non-integer source in bitwise op (rhs)"
-                    );
-                }
-                ast::BinOp::BooleanAnd | ast::BinOp::BooleanOr => {
-                    assert!(
-                        ls == ScalarType::Bool,
-                        "non-boolean source in boolean op (lhs)"
-                    );
-                    assert!(
-                        rs == ScalarType::Bool,
-                        "non-boolean source in boolean op (rhs)"
-                    );
-                }
-                _ => {}
-            }
-        }
-
-        match *op {
-            ast::BinOp::Add => ir::IntrinsicOp::Add,
-            ast::BinOp::Subtract => ir::IntrinsicOp::Subtract,
-            ast::BinOp::Multiply => ir::IntrinsicOp::Multiply,
-            ast::BinOp::Divide => ir::IntrinsicOp::Divide,
-            ast::BinOp::Modulus => ir::IntrinsicOp::Modulus,
-            ast::BinOp::LeftShift => ir::IntrinsicOp::LeftShift,
-            ast::BinOp::RightShift => ir::IntrinsicOp::RightShift,
-            ast::BinOp::BitwiseAnd => ir::IntrinsicOp::BitwiseAnd,
-            ast::BinOp::BitwiseOr => ir::IntrinsicOp::BitwiseOr,
-            ast::BinOp::BitwiseXor => ir::IntrinsicOp::BitwiseXor,
-            ast::BinOp::LessThan => ir::IntrinsicOp::LessThan,
-            ast::BinOp::LessEqual => ir::IntrinsicOp::LessEqual,
-            ast::BinOp::GreaterThan => ir::IntrinsicOp::GreaterThan,
-            ast::BinOp::GreaterEqual => ir::IntrinsicOp::GreaterEqual,
-            ast::BinOp::Equality => ir::IntrinsicOp::Equality,
-            ast::BinOp::Inequality => ir::IntrinsicOp::Inequality,
-            ast::BinOp::BooleanAnd => ir::IntrinsicOp::BooleanAnd,
-            ast::BinOp::BooleanOr => ir::IntrinsicOp::BooleanOr,
-            _ => panic!("unexpected binop in resolve_arithmetic_types"),
-        }
-    }
-
     fn do_noerror(
         op: &ast::BinOp,
         left: ExpressionType,
@@ -900,7 +825,22 @@ fn resolve_arithmetic_types(
             }
             _ => return Err(()),
         };
-        let output_type = output_type(left_out_id, right_out_id, op, context);
+
+        let output_type = match *op {
+            ast::BinOp::Add => ir::IntrinsicOp::Add,
+            ast::BinOp::Subtract => ir::IntrinsicOp::Subtract,
+            ast::BinOp::Multiply => ir::IntrinsicOp::Multiply,
+            ast::BinOp::Divide => ir::IntrinsicOp::Divide,
+            ast::BinOp::Modulus => ir::IntrinsicOp::Modulus,
+            ast::BinOp::LessThan => ir::IntrinsicOp::LessThan,
+            ast::BinOp::LessEqual => ir::IntrinsicOp::LessEqual,
+            ast::BinOp::GreaterThan => ir::IntrinsicOp::GreaterThan,
+            ast::BinOp::GreaterEqual => ir::IntrinsicOp::GreaterEqual,
+            ast::BinOp::Equality => ir::IntrinsicOp::Equality,
+            ast::BinOp::Inequality => ir::IntrinsicOp::Inequality,
+            _ => panic!("unexpected binop in resolve_arithmetic_types"),
+        };
+
         let elt = left_out_id.to_rvalue();
         let lc = ImplicitConversion::find(left, elt, &mut context.module)?;
         let ert = right_out_id.to_rvalue();
@@ -957,24 +897,7 @@ fn parse_expr_binop(
         | ast::BinOp::GreaterThan
         | ast::BinOp::GreaterEqual
         | ast::BinOp::Equality
-        | ast::BinOp::Inequality
-        | ast::BinOp::LeftShift
-        | ast::BinOp::RightShift => {
-            if *op == ast::BinOp::LeftShift || *op == ast::BinOp::RightShift {
-                fn is_integer(ety: ExpressionType, context: &Context) -> bool {
-                    let base_id = context.module.type_registry.remove_modifier(ety.0);
-                    let sty = match context.module.type_registry.extract_scalar(base_id) {
-                        Some(s) => s,
-                        None => return false,
-                    };
-                    sty == ir::ScalarType::Int
-                        || sty == ir::ScalarType::UInt
-                        || sty == ir::ScalarType::UntypedInt
-                }
-                if !is_integer(lhs_type, context) || !is_integer(rhs_type, context) {
-                    return err_bad_type;
-                }
-            }
+        | ast::BinOp::Inequality => {
             let types = resolve_arithmetic_types(op, lhs_type, rhs_type, base_location, context)?;
             let (lhs_cast, rhs_cast, output_intrinsic) = types;
             let lhs_final = lhs_cast.apply(lhs_ir, &mut context.module);
@@ -990,7 +913,9 @@ fn parse_expr_binop(
             );
             Ok(TypedExpression::Value(node, output_type))
         }
-        ast::BinOp::BitwiseAnd
+        ast::BinOp::LeftShift
+        | ast::BinOp::RightShift
+        | ast::BinOp::BitwiseAnd
         | ast::BinOp::BitwiseOr
         | ast::BinOp::BitwiseXor
         | ast::BinOp::BooleanAnd
@@ -1032,6 +957,7 @@ fn parse_expr_binop(
                             .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
                         (ir::ScalarType::Bool, ir::ScalarType::Int) => rhs_nv_id,
                         (ir::ScalarType::Bool, ir::ScalarType::UInt) => rhs_nv_id,
+                        // TODO: Shift operators don't allow untyped integers on the left side in HLSL
                         (ir::ScalarType::UntypedInt, ir::ScalarType::Bool) => context
                             .module
                             .type_registry
@@ -1056,6 +982,9 @@ fn parse_expr_binop(
                             return err_bad_type;
                         }
                     }
+                    // TODO: Enum <-> integer
+                    // Left and right shift don't allow enum <-> integer
+                    // Other operators use the non-enum type for the operation
                     _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
                 }
             };
@@ -1088,6 +1017,8 @@ fn parse_expr_binop(
             let lhs_final = lhs_cast.apply(lhs_ir, &mut context.module);
             let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
             let i = match *op {
+                ast::BinOp::LeftShift => ir::IntrinsicOp::LeftShift,
+                ast::BinOp::RightShift => ir::IntrinsicOp::RightShift,
                 ast::BinOp::BitwiseAnd => ir::IntrinsicOp::BitwiseAnd,
                 ast::BinOp::BitwiseOr => ir::IntrinsicOp::BitwiseOr,
                 ast::BinOp::BitwiseXor => ir::IntrinsicOp::BitwiseXor,

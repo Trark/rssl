@@ -374,6 +374,7 @@ pub fn apply_variable_bind(
             Some(ref dim_expr) => {
                 let expr_ir = parse_expr(dim_expr, context)?.0;
                 let value = match evaluate_constexpr(&expr_ir, &mut context.module) {
+                    Ok(ir::Constant::Enum(_, val)) => val.to_uint64(),
                     Ok(val) => val.to_uint64(),
                     Err(()) => None,
                 };
