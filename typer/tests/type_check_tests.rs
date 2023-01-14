@@ -1466,6 +1466,7 @@ fn check_operator_bitwise_and() {
     check_types("void f() { uint x, y = 0; assert_type<uint>(x & y); }");
     check_types("void f() { const uint x, y = 0; assert_type<uint>(x & y); }");
     check_types("void f() { uint x; uint2 y; assert_type<uint2>(x & y); }");
+    check_types("void f() { uint2 x; uint3 y; assert_type<uint2>(x & y); }");
 }
 
 #[test]
@@ -1473,6 +1474,7 @@ fn check_operator_bitwise_or() {
     check_types("void f() { uint x, y = 0; assert_type<uint>(x | y); }");
     check_types("void f() { const uint x, y = 0; assert_type<uint>(x | y); }");
     check_types("void f() { uint x; uint2 y; assert_type<uint2>(x | y); }");
+    check_types("void f() { uint2 x; uint3 y; assert_type<uint2>(x | y); }");
 }
 
 #[test]
@@ -1480,6 +1482,7 @@ fn check_operator_bitwise_xor() {
     check_types("void f() { uint x, y = 0; assert_type<uint>(x ^ y); }");
     check_types("void f() { const uint x, y = 0; assert_type<uint>(x ^ y); }");
     check_types("void f() { uint x; uint2 y; assert_type<uint2>(x ^ y); }");
+    check_types("void f() { uint2 x; uint3 y; assert_type<uint2>(x ^ y); }");
 }
 
 #[test]

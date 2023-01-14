@@ -975,9 +975,22 @@ fn parse_expr_binop(
 
                 target
             };
-            let x = ir::NumericDimension::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
-            let y = ir::NumericDimension::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
-            let ty = match ir::NumericDimension::from_parts(x, y) {
+
+            // Most operators apply component-wise - we select the dimensions required after vector expansion / truncation
+            let dim = match select_vector_rank(lhs_tyl, rhs_tyl) {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(TyperError::BinaryOperationWrongTypes(
+                        op.clone(),
+                        lhs_type.to_error_type(),
+                        rhs_type.to_error_type(),
+                        base_location,
+                    ))
+                }
+            };
+
+            // Apply the found dimension (to both sides of input)
+            let ty = match dim {
                 ir::NumericDimension::Scalar => target_nv_id,
                 ir::NumericDimension::Vector(x) => context
                     .module
@@ -988,6 +1001,8 @@ fn parse_expr_binop(
                     .type_registry
                     .register_type(ir::TypeLayer::Matrix(target_nv_id, x, y)),
             };
+
+            // Cast the input expressions to the required input types
             let ety = ty.to_rvalue();
             let lhs_cast = match ImplicitConversion::find(lhs_type, ety, &mut context.module) {
                 Ok(cast) => cast,
@@ -1003,6 +1018,7 @@ fn parse_expr_binop(
             );
             let lhs_final = lhs_cast.apply(lhs_ir, &mut context.module);
             let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
+
             let i = match *op {
                 ast::BinOp::LeftShift => ir::IntrinsicOp::LeftShift,
                 ast::BinOp::RightShift => ir::IntrinsicOp::RightShift,
@@ -1132,6 +1148,31 @@ fn is_integer_or_bool_or_enum(id: ir::TypeId, context: &Context) -> bool {
         ir::TypeLayer::Enum(_) => true,
         _ => false,
     }
+}
+
+/// Get the vector or matrix dimension for an operator which applies piecewise to components
+fn select_vector_rank(
+    lhs_tyl: ir::TypeLayer,
+    rhs_tyl: ir::TypeLayer,
+) -> Result<ir::NumericDimension, ()> {
+    let left_dim = ir::NumericDimension::from_parts(lhs_tyl.to_x(), lhs_tyl.to_y());
+    let right_dim = ir::NumericDimension::from_parts(rhs_tyl.to_x(), rhs_tyl.to_y());
+    let operation_dim = match (left_dim, right_dim) {
+        (ir::NumericDimension::Scalar, ir::NumericDimension::Scalar) => left_dim,
+        (ir::NumericDimension::Scalar, ir::NumericDimension::Vector(_)) => right_dim,
+        (ir::NumericDimension::Vector(_), ir::NumericDimension::Scalar) => left_dim,
+        (ir::NumericDimension::Vector(_), ir::NumericDimension::Vector(1)) => left_dim,
+        (ir::NumericDimension::Vector(1), ir::NumericDimension::Vector(_)) => right_dim,
+        (ir::NumericDimension::Vector(x1), ir::NumericDimension::Vector(x2)) if x1 < x2 => left_dim,
+        (ir::NumericDimension::Vector(_), ir::NumericDimension::Vector(_)) => right_dim,
+        (ir::NumericDimension::Matrix(x1, y1), ir::NumericDimension::Matrix(x2, y2))
+            if x1 == x2 && y1 == y2 =>
+        {
+            left_dim
+        }
+        _ => return Err(()),
+    };
+    Ok(operation_dim)
 }
 
 fn parse_expr_ternary(
