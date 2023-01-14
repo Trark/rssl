@@ -42,9 +42,10 @@ pub enum TyperError {
     ),
     ConstructorWrongArgumentCount(SourceLocation),
 
+    NumericTypeExpected(SourceLocation),
+    IntegerTypeExpected(SourceLocation),
     UnaryOperationWrongTypes(ast::UnaryOp, ErrorType, SourceLocation),
     BinaryOperationWrongTypes(ast::BinOp, ErrorType, ErrorType, SourceLocation),
-    BinaryOperationNonNumericType(SourceLocation),
     TernaryConditionRequiresBoolean(ErrorType, SourceLocation),
     TernaryArmsMustHaveSameType(ErrorType, ErrorType, SourceLocation),
 
@@ -408,6 +409,16 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
+            TyperError::NumericTypeExpected(loc) => w.write_message(
+                &|f| write!(f, "numeric type expected"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::IntegerTypeExpected(loc) => w.write_message(
+                &|f| write!(f, "integer type expected"),
+                *loc,
+                Severity::Error,
+            ),
             TyperError::UnaryOperationWrongTypes(_, _, loc) => w.write_message(
                 &|f| write!(f, "operation does not support the given types"),
                 *loc,
@@ -415,11 +426,6 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::BinaryOperationWrongTypes(_, _, _, loc) => w.write_message(
                 &|f| write!(f, "operation does not support the given types"),
-                *loc,
-                Severity::Error,
-            ),
-            TyperError::BinaryOperationNonNumericType(loc) => w.write_message(
-                &|f| write!(f, "non-numeric type in binary operation"),
                 *loc,
                 Severity::Error,
             ),

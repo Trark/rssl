@@ -943,50 +943,37 @@ fn parse_expr_binop(
             } else {
                 let lhs_nv_id = context.module.type_registry.get_non_vector_id(left_base);
                 let rhs_nv_id = context.module.type_registry.get_non_vector_id(right_base);
-                let lhs_nv_layer = context.module.type_registry.get_type_layer(lhs_nv_id);
-                let rhs_nv_layer = context.module.type_registry.get_type_layer(rhs_nv_id);
-                match (lhs_nv_layer, rhs_nv_layer) {
-                    (ir::TypeLayer::Scalar(s1), ir::TypeLayer::Scalar(s2)) => match (s1, s2) {
-                        (ir::ScalarType::Bool, ir::ScalarType::Bool) => context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
-                        (ir::ScalarType::Bool, ir::ScalarType::UntypedInt) => context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
-                        (ir::ScalarType::Bool, ir::ScalarType::Int) => rhs_nv_id,
-                        (ir::ScalarType::Bool, ir::ScalarType::UInt) => rhs_nv_id,
-                        // TODO: Shift operators don't allow untyped integers on the left side in HLSL
-                        (ir::ScalarType::UntypedInt, ir::ScalarType::Bool) => context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
-                        (ir::ScalarType::UntypedInt, ir::ScalarType::UntypedInt) => lhs_nv_id,
-                        (ir::ScalarType::UntypedInt, ir::ScalarType::Int) => rhs_nv_id,
-                        (ir::ScalarType::UntypedInt, ir::ScalarType::UInt) => rhs_nv_id,
-                        (ir::ScalarType::Int, ir::ScalarType::Bool) => lhs_nv_id,
-                        (ir::ScalarType::Int, ir::ScalarType::UntypedInt) => lhs_nv_id,
-                        (ir::ScalarType::Int, ir::ScalarType::Int) => lhs_nv_id,
-                        (ir::ScalarType::Int, ir::ScalarType::UInt) => rhs_nv_id,
-                        (ir::ScalarType::UInt, ir::ScalarType::Bool) => lhs_nv_id,
-                        (ir::ScalarType::UInt, ir::ScalarType::UntypedInt) => lhs_nv_id,
-                        (ir::ScalarType::UInt, ir::ScalarType::Int) => lhs_nv_id,
-                        (ir::ScalarType::UInt, ir::ScalarType::UInt) => lhs_nv_id,
-                        _ => return err_bad_type,
-                    },
-                    (ir::TypeLayer::Enum(id1), ir::TypeLayer::Enum(id2)) => {
-                        if id1 == id2 {
-                            lhs_nv_id
-                        } else {
-                            return err_bad_type;
-                        }
+
+                // Require the inputs to be integer (or almost integer)
+                {
+                    if !is_integer_or_bool_or_enum(lhs_nv_id, context) {
+                        return Err(TyperError::IntegerTypeExpected(lhs.location));
                     }
-                    // TODO: Enum <-> integer
-                    // Left and right shift don't allow enum <-> integer
-                    // Other operators use the non-enum type for the operation
-                    _ => return Err(TyperError::BinaryOperationNonNumericType(base_location)),
+
+                    if !is_integer_or_bool_or_enum(rhs_nv_id, context) {
+                        return Err(TyperError::IntegerTypeExpected(rhs.location));
+                    }
                 }
+
+                let mut target = most_significant_non_vector(
+                    lhs_nv_id,
+                    rhs_nv_id,
+                    lhs.location,
+                    rhs.location,
+                    &mut context.module,
+                )?;
+
+                // Remap all bool types to int
+                if let Some(scalar) = context.module.type_registry.extract_scalar(target) {
+                    if scalar == ir::ScalarType::Bool {
+                        target = context
+                            .module
+                            .type_registry
+                            .transform_scalar(target, ir::ScalarType::Int)
+                    }
+                }
+
+                target
             };
             let x = ir::NumericDimension::max_dim(lhs_tyl.to_x(), rhs_tyl.to_x());
             let y = ir::NumericDimension::max_dim(lhs_tyl.to_y(), rhs_tyl.to_y());
@@ -1077,6 +1064,73 @@ fn parse_expr_binop(
             let node = ir::Expression::Sequence(Vec::from([lhs_ir, rhs_ir]));
             Ok(TypedExpression::Value(node, rhs_type))
         }
+    }
+}
+
+/// Get the type which is used for a binary operator
+fn most_significant_non_vector(
+    left: ir::TypeId,
+    right: ir::TypeId,
+    left_location: SourceLocation,
+    right_location: SourceLocation,
+    module: &mut ir::Module,
+) -> TyperResult<ir::TypeId> {
+    let left_order = match get_non_vector_conversion_rank(left, module) {
+        Some(order) => order,
+        None => return Err(TyperError::NumericTypeExpected(left_location)),
+    };
+
+    let right_order = match get_non_vector_conversion_rank(right, module) {
+        Some(order) => order,
+        None => return Err(TyperError::NumericTypeExpected(right_location)),
+    };
+
+    if left_order > right_order {
+        Ok(left)
+    } else {
+        Ok(right)
+    }
+}
+
+/// Get the priority for which side of an operator is more significant
+fn get_non_vector_conversion_rank(id: ir::TypeId, module: &mut ir::Module) -> Option<u32> {
+    match module.type_registry.get_type_layer(id) {
+        ir::TypeLayer::Void => None,
+        ir::TypeLayer::Scalar(scalar) => match scalar {
+            ir::ScalarType::Bool => Some(1),
+            ir::ScalarType::UntypedInt => Some(2),
+            ir::ScalarType::Int => Some(3),
+            ir::ScalarType::UInt => Some(4),
+            ir::ScalarType::Half => Some(5),
+            ir::ScalarType::Float => Some(6),
+            ir::ScalarType::Double => Some(7),
+        },
+        ir::TypeLayer::Vector(..) => panic!("vector not expected"),
+        ir::TypeLayer::Matrix(..) => panic!("matrix not expected"),
+        ir::TypeLayer::Struct(_) => None,
+        ir::TypeLayer::StructTemplate(_) => None,
+        // TODO: enum class
+        ir::TypeLayer::Enum(_) => Some(0),
+        ir::TypeLayer::Object(..) => None,
+        ir::TypeLayer::Array(..) => None,
+        ir::TypeLayer::TemplateParam(_) => panic!("template type not expected"),
+        ir::TypeLayer::Modifier(..) => panic!("modifier not expected"),
+    }
+}
+
+/// Check if a type is an integer-like type that can be used for bit operators
+fn is_integer_or_bool_or_enum(id: ir::TypeId, context: &Context) -> bool {
+    match context.module.type_registry.get_type_layer(id) {
+        ir::TypeLayer::Scalar(scalar) => matches!(
+            scalar,
+            ir::ScalarType::Bool
+                | ir::ScalarType::UntypedInt
+                | ir::ScalarType::Int
+                | ir::ScalarType::UInt
+        ),
+        // TODO: enum class
+        ir::TypeLayer::Enum(_) => true,
+        _ => false,
     }
 }
 
