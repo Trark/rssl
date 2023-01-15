@@ -503,13 +503,9 @@ fn parse_expr_unaryop(
                                     ir::ScalarType::Int | ir::ScalarType::UInt
                                 ) =>
                             {
-                                let op_ety = context
-                                    .module
-                                    .enum_registry
-                                    .get_underlying_type_id(id)
-                                    .to_rvalue();
+                                let op_ety =
+                                    context.module.enum_registry.get_type_id(id).to_rvalue();
 
-                                // Input is casted to int rvalue
                                 // Output is the same as input
                                 (op_ety, op_ety)
                             }
@@ -607,7 +603,8 @@ fn parse_expr_unaryop(
                     // We currently do not support vector arguments
                     let (op_output_ety, op_input_ety) =
                         match context.module.type_registry.get_type_layer(input_ty_id) {
-                            ir::TypeLayer::Scalar(ir::ScalarType::Int)
+                            ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt)
+                            | ir::TypeLayer::Scalar(ir::ScalarType::Int)
                             | ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
                                 // Input is uncasted
                                 // Output has const / lvalue removed
@@ -630,13 +627,9 @@ fn parse_expr_unaryop(
                                     ir::ScalarType::Int | ir::ScalarType::UInt
                                 ) =>
                             {
-                                let op_ety = context
-                                    .module
-                                    .enum_registry
-                                    .get_underlying_type_id(id)
-                                    .to_rvalue();
+                                let op_ety =
+                                    context.module.enum_registry.get_type_id(id).to_rvalue();
 
-                                // Input is casted to int rvalue
                                 // Output is the same as input
                                 (op_ety, op_ety)
                             }

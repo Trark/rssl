@@ -105,6 +105,7 @@ fn evaluate_operator(
             _ => return Err(()),
         },
         ir::IntrinsicOp::BitwiseNot => match arg_values[0] {
+            ir::Constant::UntypedInt(input) => ir::Constant::UntypedInt(!input),
             ir::Constant::Int(input) => ir::Constant::Int(!input),
             ir::Constant::UInt(input) => ir::Constant::UInt(!input),
             _ => panic!("unexpected type in BitwiseNot"),

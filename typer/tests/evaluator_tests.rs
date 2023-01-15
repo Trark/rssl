@@ -62,6 +62,7 @@ fn check_constexpr_plus() {
     check_types("static const half x = 1.0; void f() { assert_eval<half>(+x, 1.0H); }");
     check_types("static const float x = 1.0; void f() { assert_eval<float>(+x, 1.0); }");
     check_types("static const double x = 1.0; void f() { assert_eval<double>(+x, 1.0l); }");
+    check_types("enum E { ONE = 1 }; void f() { assert_eval<E>(+ONE, ONE); }");
 }
 
 #[test]
@@ -70,6 +71,7 @@ fn check_constexpr_minus() {
     check_types("static const half x = 1.0; void f() { assert_eval<half>(-x, -1.0h); }");
     check_types("static const float x = 1.0; void f() { assert_eval<float>(-x, -1.0); }");
     check_types("static const double x = 1.0; void f() { assert_eval<double>(-x, -1.0L); }");
+    check_types("enum E { ONE = 1 }; void f() { assert_eval<E>(-ONE, (E)-1); }");
 }
 
 #[test]
@@ -78,6 +80,7 @@ fn check_constexpr_logical_not() {
     check_types("static const uint x = 0; void f() { assert_eval<bool>(!x, true); }");
     check_types("static const int x = 0; void f() { assert_eval<bool>(!x, true); }");
     check_types("static const float x = 0; void f() { assert_eval<bool>(!x, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(!ZERO, true); assert_eval<bool>(!ONE, false); }");
 }
 
 #[test]
@@ -85,6 +88,15 @@ fn check_constexpr_bitwise_not() {
     check_types("static const uint x = 3; void f() { assert_eval<uint>(~x, 0xFFFFFFFCu); }");
     check_types("static const int x = 3; void f() { assert_eval<int>(~x, (int)0xFFFFFFFC); }");
     check_types("static const bool x = false; void f() { assert_eval<int>(~x, (int)0xFFFFFFFF); }");
+
+    check_types("void f() { assert_eval(~2, -3); }");
+    check_types("void f() { assert_eval<int>(~(int)2, (int)-3); }");
+    check_types("void f() { assert_eval<uint>(~2u, 0xFFFFFFFDu); }");
+    check_types("void f() { assert_eval<int>(~true, (int)-2); }");
+    check_types("enum E { A = 1 }; void f() { assert_eval<E>(~A, (E)0xFFFFFFFE); }");
+
+    check_types("enum E { NONE, ALL = 0xFFFFFFFFu }; float x[~NONE];");
+    check_fail("enum E { NONE, ALL = 0xFFFFFFFFu }; float x[~ALL];");
 }
 
 #[test]
