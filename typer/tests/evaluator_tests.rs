@@ -100,34 +100,55 @@ fn check_constexpr_bitwise_not() {
 }
 
 #[test]
-fn check_constexpr_add_integer() {
-    // add two literal untyped ints - which creates a signed int add
+fn check_constexpr_add() {
     check_types("float x[assert_eval(1 + 1, 2)];");
-
-    // add two literal uints
     check_types("float x[assert_eval(1u + 1u, 2u)];");
+
+    check_types("void f() { assert_eval(2 + 1, 3); }");
+    check_types("void f() { assert_eval<int>((int)2 + (int)1, (int)3); }");
+    check_types("void f() { assert_eval<uint>(2u + 1u, 3u); }");
+    check_types("void f() { assert_eval<int>(true + false, (int)1); }");
+    check_types("enum E { A = 1 }; void f() { assert_eval<E>(A + A, (E)2); }");
+
+    check_types("enum E { ZERO, ONE }; float x[ONE + ZERO];");
+    check_fail("enum E { ZERO, ONE }; float x[ZERO + ZERO];");
 }
 
 #[test]
-fn check_constexpr_subtract_integer() {
+fn check_constexpr_subtract() {
     check_types("float x[assert_eval(2 - 1, 1)];");
     check_fail("float x[1 - 1];");
 
     check_types("float x[assert_eval(2u - 1u, 1u)];");
     check_fail("float x[1u - 1u];");
+
+    check_types("void f() { assert_eval(2 - 1, 1); }");
+    check_types("void f() { assert_eval<int>((int)2 - (int)1, (int)1); }");
+    check_types("void f() { assert_eval<uint>(2u - 1u, 1u); }");
+    check_types("void f() { assert_eval<int>(true - false, (int)1); }");
+    check_types("enum E { A = 1 }; void f() { assert_eval<E>(A - A, (E)0); }");
+
+    check_types("enum E { ZERO, ONE }; float x[ONE - ZERO];");
+    check_fail("enum E { ZERO, ONE }; float x[ONE - ONE];");
 }
 
 #[test]
-fn check_constexpr_multiple_integer() {
+fn check_constexpr_multiple() {
     check_types("float x[assert_eval(1 * 1, 1)];");
     check_fail("float x[1 * 0];");
 
     check_types("float x[assert_eval(1u * 1u, 1u)];");
     check_fail("float x[1u * 0u];");
+
+    check_types("void f() { assert_eval(2 * 3, 6); }");
+    check_types("void f() { assert_eval<int>((int)2 * (int)3, (int)6); }");
+    check_types("void f() { assert_eval<uint>(2u * 3u, 6u); }");
+    check_types("void f() { assert_eval<int>(true * false, (int)0); }");
+    check_types("enum E { TWO = 2, FOUR = 4 }; void f() { assert_eval<E>(TWO * TWO, FOUR); }");
 }
 
 #[test]
-fn check_constexpr_divide_integer() {
+fn check_constexpr_divide() {
     check_types("float x[assert_eval(1 / 1, 1)];");
     check_fail("float x[1 / 0];");
     check_fail("float x[1 / 2];");
@@ -135,10 +156,16 @@ fn check_constexpr_divide_integer() {
     check_types("float x[assert_eval(1u / 1u, 1u)];");
     check_fail("float x[1u / 0u];");
     check_fail("float x[1u / 2u];");
+
+    check_types("void f() { assert_eval(12 / 2, 6); }");
+    check_types("void f() { assert_eval<int>((int)12 / (int)2, (int)6); }");
+    check_types("void f() { assert_eval<uint>(12u / 2u, 6u); }");
+    check_types("void f() { assert_eval<int>(true / true, (int)1); }");
+    check_types("enum E { TWO = 2, FOUR = 4 }; void f() { assert_eval<E>(FOUR / TWO, TWO); }");
 }
 
 #[test]
-fn check_constexpr_modulus_integer() {
+fn check_constexpr_modulus() {
     check_types("float x[assert_eval(1 % 2, 1)];");
     check_fail("float x[1 % 1];");
     check_fail("float x[1 % 0];");
@@ -146,6 +173,14 @@ fn check_constexpr_modulus_integer() {
     check_types("float x[assert_eval(1u % 2u, 1u)];");
     check_fail("float x[1u % 1u];");
     check_fail("float x[1u % 0u];");
+
+    check_types("void f() { assert_eval(9 % 5, 4); }");
+    check_types("void f() { assert_eval<int>((int)9 % (int)5, (int)4); }");
+    check_types("void f() { assert_eval<uint>(19u % 5u, 4u); }");
+    check_types("void f() { assert_eval<int>(true % true, (int)0); }");
+    check_types(
+        "enum E { TWO = 2, FOUR = 4, SIX = 6 }; void f() { assert_eval<E>(SIX % FOUR, TWO); }",
+    );
 }
 
 #[test]
@@ -274,6 +309,7 @@ fn check_constexpr_less_than() {
     check_types("void f() { assert_eval<bool>(0 < 1, true); }");
     check_types("void f() { assert_eval<bool>(0u < 1u, true); }");
     check_types("void f() { assert_eval<bool>(0.0 < 1.0, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO < ONE, true); }");
 }
 
 #[test]
@@ -282,6 +318,7 @@ fn check_constexpr_less_equal() {
     check_types("void f() { assert_eval<bool>(0 <= 1, true); }");
     check_types("void f() { assert_eval<bool>(0u <= 1u, true); }");
     check_types("void f() { assert_eval<bool>(0.0 <= 1.0, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO <= ONE, true); }");
 }
 
 #[test]
@@ -290,6 +327,7 @@ fn check_constexpr_greater_than() {
     check_types("void f() { assert_eval<bool>(0 > 1, false); }");
     check_types("void f() { assert_eval<bool>(0u > 1u, false); }");
     check_types("void f() { assert_eval<bool>(0.0 > 1.0, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO > ONE, false); }");
 }
 
 #[test]
@@ -298,6 +336,7 @@ fn check_constexpr_greater_equal() {
     check_types("void f() { assert_eval<bool>(0 >= 1, false); }");
     check_types("void f() { assert_eval<bool>(0u >= 1u, false); }");
     check_types("void f() { assert_eval<bool>(0.0 >= 1.0, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO >= ONE, false); }");
 }
 
 #[test]
@@ -306,6 +345,7 @@ fn check_constexpr_equality() {
     check_types("void f() { assert_eval<bool>(0 == 1, false); }");
     check_types("void f() { assert_eval<bool>(0u == 1u, false); }");
     check_types("void f() { assert_eval<bool>(0.0 == 1.0, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO == ONE, false); }");
 }
 
 #[test]
@@ -314,6 +354,7 @@ fn check_constexpr_inequality() {
     check_types("void f() { assert_eval<bool>(0 != 1, true); }");
     check_types("void f() { assert_eval<bool>(0u != 1u, true); }");
     check_types("void f() { assert_eval<bool>(0.0 != 1.0, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO != ONE, true); }");
 }
 
 #[test]

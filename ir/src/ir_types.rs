@@ -175,6 +175,7 @@ impl TypeRegistry {
             TypeLayer::Scalar(_) => scalar_id,
             TypeLayer::Vector(_, x) => self.register_type(TypeLayer::Vector(scalar_id, x)),
             TypeLayer::Matrix(_, x, y) => self.register_type(TypeLayer::Matrix(scalar_id, x, y)),
+            TypeLayer::Enum(_) => scalar_id,
             _ => panic!("non-numeric type in transform_scalar"),
         };
         self.combine_modifier(new_id, modifer)

@@ -701,157 +701,6 @@ fn most_sig_scalar(left: ir::ScalarType, right: ir::ScalarType) -> ir::ScalarTyp
     }
 }
 
-fn resolve_arithmetic_types(
-    binop: &ast::BinOp,
-    left: ExpressionType,
-    right: ExpressionType,
-    source_location: SourceLocation,
-    context: &mut Context,
-) -> TyperResult<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp)> {
-    use rssl_ir::ScalarType;
-
-    fn common_real_type(left: ScalarType, right: ScalarType) -> Result<ir::ScalarType, ()> {
-        Ok(most_sig_scalar(left, right))
-    }
-
-    fn do_noerror(
-        op: &ast::BinOp,
-        left: ExpressionType,
-        right: ExpressionType,
-        context: &mut Context,
-    ) -> Result<(ImplicitConversion, ImplicitConversion, ir::IntrinsicOp), ()> {
-        let left_base_id = context.module.type_registry.remove_modifier(left.0);
-        let right_base_id = context.module.type_registry.remove_modifier(right.0);
-        let left_base_dim = context
-            .module
-            .type_registry
-            .get_type_layer(left_base_id)
-            .to_dimensions();
-        let right_base_dim = context
-            .module
-            .type_registry
-            .get_type_layer(right_base_id)
-            .to_dimensions();
-        let ls = match context
-            .module
-            .type_registry
-            .get_non_vector_layer(left_base_id)
-        {
-            ir::TypeLayer::Scalar(s) => s,
-            ir::TypeLayer::Enum(id) => context.module.enum_registry.get_underlying_scalar(id),
-            _ => return Err(()),
-        };
-        let rs = match context
-            .module
-            .type_registry
-            .get_non_vector_layer(right_base_id)
-        {
-            ir::TypeLayer::Scalar(s) => s,
-            ir::TypeLayer::Enum(id) => context.module.enum_registry.get_underlying_scalar(id),
-            _ => return Err(()),
-        };
-        let (left_out_id, right_out_id) = match (left_base_dim, right_base_dim) {
-            (ir::NumericDimension::Scalar, ir::NumericDimension::Scalar) => {
-                let common_scalar = common_real_type(ls, rs)?;
-                let id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Scalar(common_scalar));
-                (id, id)
-            }
-            (ir::NumericDimension::Scalar, ir::NumericDimension::Vector(x2)) => {
-                let common_scalar = common_real_type(ls, rs)?;
-                let scalar_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Scalar(common_scalar));
-                let right_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Vector(scalar_id, x2));
-                (right_id, right_id)
-            }
-            (ir::NumericDimension::Vector(x1), ir::NumericDimension::Scalar) => {
-                let common_scalar = common_real_type(ls, rs)?;
-                let scalar_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Scalar(common_scalar));
-                let left_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Vector(scalar_id, x1));
-                (left_id, left_id)
-            }
-            (ir::NumericDimension::Vector(x1), ir::NumericDimension::Vector(x2)) => {
-                let common_scalar = common_real_type(ls, rs)?;
-                let scalar_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Scalar(common_scalar));
-                let output_dimension = match (x1, x2) {
-                    // Vector expansion or both 1
-                    (1, _) => x2,
-                    (_, 1) => x1,
-                    // Vector truncation or both the same
-                    _ => std::cmp::min(x1, x2),
-                };
-                let id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Vector(scalar_id, output_dimension));
-                (id, id)
-            }
-            (ir::NumericDimension::Matrix(x1, y1), ir::NumericDimension::Matrix(x2, y2))
-                if x1 == x2 && y1 == y2 =>
-            {
-                let common_scalar = common_real_type(ls, rs)?;
-                let scalar_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Scalar(common_scalar));
-                let matrix_id = context
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::Matrix(scalar_id, x1, y1));
-                (matrix_id, matrix_id)
-            }
-            _ => return Err(()),
-        };
-
-        let output_type = match *op {
-            ast::BinOp::Add => ir::IntrinsicOp::Add,
-            ast::BinOp::Subtract => ir::IntrinsicOp::Subtract,
-            ast::BinOp::Multiply => ir::IntrinsicOp::Multiply,
-            ast::BinOp::Divide => ir::IntrinsicOp::Divide,
-            ast::BinOp::Modulus => ir::IntrinsicOp::Modulus,
-            ast::BinOp::LessThan => ir::IntrinsicOp::LessThan,
-            ast::BinOp::LessEqual => ir::IntrinsicOp::LessEqual,
-            ast::BinOp::GreaterThan => ir::IntrinsicOp::GreaterThan,
-            ast::BinOp::GreaterEqual => ir::IntrinsicOp::GreaterEqual,
-            ast::BinOp::Equality => ir::IntrinsicOp::Equality,
-            ast::BinOp::Inequality => ir::IntrinsicOp::Inequality,
-            _ => panic!("unexpected binop in resolve_arithmetic_types"),
-        };
-
-        let elt = left_out_id.to_rvalue();
-        let lc = ImplicitConversion::find(left, elt, &mut context.module)?;
-        let ert = right_out_id.to_rvalue();
-        let rc = ImplicitConversion::find(right, ert, &mut context.module)?;
-        Ok((lc, rc, output_type))
-    }
-
-    match do_noerror(binop, left, right, context) {
-        Ok(res) => Ok(res),
-        Err(_) => Err(TyperError::BinaryOperationWrongTypes(
-            binop.clone(),
-            left.to_error_type(),
-            right.to_error_type(),
-            source_location,
-        )),
-    }
-}
-
 fn parse_expr_binop(
     op: &ast::BinOp,
     lhs: &Located<ast::Expression>,
@@ -890,23 +739,8 @@ fn parse_expr_binop(
         | ast::BinOp::GreaterThan
         | ast::BinOp::GreaterEqual
         | ast::BinOp::Equality
-        | ast::BinOp::Inequality => {
-            let types = resolve_arithmetic_types(op, lhs_type, rhs_type, base_location, context)?;
-            let (lhs_cast, rhs_cast, output_intrinsic) = types;
-            let lhs_final = lhs_cast.apply(lhs_ir, &mut context.module);
-            let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
-            let lhs_target = lhs_cast.get_target_type(&mut context.module);
-            let rhs_target = rhs_cast.get_target_type(&mut context.module);
-            let output_type =
-                output_intrinsic.get_return_type(&[lhs_target, rhs_target], &mut context.module);
-            let node = ir::Expression::IntrinsicOp(
-                output_intrinsic,
-                Vec::new(),
-                Vec::from([lhs_final, rhs_final]),
-            );
-            Ok(TypedExpression::Value(node, output_type))
-        }
-        ast::BinOp::LeftShift
+        | ast::BinOp::Inequality
+        | ast::BinOp::LeftShift
         | ast::BinOp::RightShift
         | ast::BinOp::BitwiseAnd
         | ast::BinOp::BitwiseOr
@@ -938,7 +772,15 @@ fn parse_expr_binop(
                 let rhs_nv_id = context.module.type_registry.get_non_vector_id(right_base);
 
                 // Require the inputs to be integer (or almost integer)
-                {
+                let require_integer = matches!(
+                    op,
+                    ast::BinOp::LeftShift
+                        | ast::BinOp::RightShift
+                        | ast::BinOp::BitwiseAnd
+                        | ast::BinOp::BitwiseOr
+                        | ast::BinOp::BitwiseXor
+                );
+                if require_integer {
                     if !is_integer_or_bool_or_enum(lhs_nv_id, context) {
                         return Err(TyperError::IntegerTypeExpected(lhs.location));
                     }
@@ -970,6 +812,7 @@ fn parse_expr_binop(
             };
 
             // Most operators apply component-wise - we select the dimensions required after vector expansion / truncation
+            // TODO: Multiply needs special handling to do matrix multiplies with different dimensions on each side
             let dim = match select_vector_rank(lhs_tyl, rhs_tyl) {
                 Ok(res) => res,
                 Err(_) => {
@@ -1013,6 +856,17 @@ fn parse_expr_binop(
             let rhs_final = rhs_cast.apply(rhs_ir, &mut context.module);
 
             let i = match *op {
+                ast::BinOp::Add => ir::IntrinsicOp::Add,
+                ast::BinOp::Subtract => ir::IntrinsicOp::Subtract,
+                ast::BinOp::Multiply => ir::IntrinsicOp::Multiply,
+                ast::BinOp::Divide => ir::IntrinsicOp::Divide,
+                ast::BinOp::Modulus => ir::IntrinsicOp::Modulus,
+                ast::BinOp::LessThan => ir::IntrinsicOp::LessThan,
+                ast::BinOp::LessEqual => ir::IntrinsicOp::LessEqual,
+                ast::BinOp::GreaterThan => ir::IntrinsicOp::GreaterThan,
+                ast::BinOp::GreaterEqual => ir::IntrinsicOp::GreaterEqual,
+                ast::BinOp::Equality => ir::IntrinsicOp::Equality,
+                ast::BinOp::Inequality => ir::IntrinsicOp::Inequality,
                 ast::BinOp::LeftShift => ir::IntrinsicOp::LeftShift,
                 ast::BinOp::RightShift => ir::IntrinsicOp::RightShift,
                 ast::BinOp::BitwiseAnd => ir::IntrinsicOp::BitwiseAnd,

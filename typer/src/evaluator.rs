@@ -284,6 +284,21 @@ fn evaluate_operator(
         ir::IntrinsicOp::Inequality => ir::Constant::Bool(arg_values[0] != arg_values[1]),
         _ => return Err(()),
     };
+
+    // Do not wrap in enum if the intrinsic outputs to another type
+    if matches!(
+        op,
+        ir::IntrinsicOp::LessThan
+            | ir::IntrinsicOp::LessEqual
+            | ir::IntrinsicOp::GreaterThan
+            | ir::IntrinsicOp::GreaterEqual
+            | ir::IntrinsicOp::Equality
+            | ir::IntrinsicOp::Inequality
+    ) {
+        enum_wrap = None;
+    }
+
+    // Wrap back in an enum if required
     Ok(if let Some(enum_id) = enum_wrap {
         ir::Constant::Enum(enum_id, Box::new(result))
     } else {

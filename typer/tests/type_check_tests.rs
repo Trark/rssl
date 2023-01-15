@@ -938,7 +938,7 @@ fn check_enum_int_cast() {
 
     // Test that A and B implicitly cast to int before evaluating
     check_types("enum S1 { A, B }; enum S2 { X = A | B, Z = assert_type<S1>(assert_type<S1>(A) | assert_type<S1>(B)) };");
-    check_types("enum S1 { A, B }; enum S2 { X = A + B, Z = assert_type<int>(assert_type<S1>(A) + assert_type<S1>(B)) };");
+    check_types("enum S1 { A, B }; enum S2 { X = A + B, Z = assert_type<S1>(assert_type<S1>(A) + assert_type<S1>(B)) };");
 
     // Most unary operations should convert to int
     check_types("enum S1 { A }; enum S2 { Z = ~A };");
