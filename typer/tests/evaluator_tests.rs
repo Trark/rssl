@@ -237,6 +237,10 @@ fn check_constexpr_bitwise_and() {
     check_types("void f() { assert_eval<int>(true & false, (int)0); }");
     check_types("void f() { assert_eval<int>(false & true, (int)0); }");
     check_types("void f() { assert_eval<int>(false & false, (int)0); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ZERO & ZERO, ZERO); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ZERO & ONE, ZERO); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ONE & ZERO, ZERO); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ONE & ONE, ONE); }");
 }
 
 #[test]
@@ -257,6 +261,10 @@ fn check_constexpr_bitwise_or() {
     check_types("void f() { assert_eval<int>(true | false, (int)1); }");
     check_types("void f() { assert_eval<int>(false | true, (int)1); }");
     check_types("void f() { assert_eval<int>(false | false, (int)0); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ZERO | ZERO, ZERO); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ZERO | ONE, ONE); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ONE | ZERO, ONE); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ONE | ONE, ONE); }");
 }
 
 #[test]
@@ -277,6 +285,10 @@ fn check_constexpr_bitwise_xor() {
     check_types("void f() { assert_eval<int>(true ^ false, (int)1); }");
     check_types("void f() { assert_eval<int>(false ^ true, (int)1); }");
     check_types("void f() { assert_eval<int>(false ^ false, (int)0); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ZERO ^ ZERO, ZERO); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ZERO ^ ONE, ONE); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ONE ^ ZERO, ONE); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<E>(ONE ^ ONE, ZERO); }");
 }
 
 #[test]
@@ -289,6 +301,10 @@ fn check_constexpr_boolean_and() {
     check_types("void f() { assert_eval<bool>(0 && 1, false); }");
     check_types("void f() { assert_eval<bool>(1 && 0, false); }");
     check_types("void f() { assert_eval<bool>(1 && 1, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO && ZERO, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO && ONE, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ONE && ZERO, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ONE && ONE, true); }");
 }
 
 #[test]
@@ -301,6 +317,10 @@ fn check_constexpr_boolean_or() {
     check_types("void f() { assert_eval<bool>(0 || 1, true); }");
     check_types("void f() { assert_eval<bool>(1 || 0, true); }");
     check_types("void f() { assert_eval<bool>(1 || 1, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO || ZERO, false); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ZERO || ONE, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ONE || ZERO, true); }");
+    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(ONE || ONE, true); }");
 }
 
 #[test]
