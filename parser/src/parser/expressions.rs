@@ -78,8 +78,14 @@ fn expr_leaf<'t>(
 }
 
 /// Parse either an expression or a type
-fn parse_expression_or_type(input: &[LexToken]) -> ParseResult<ExpressionOrType> {
-    let type_result = parse_type(input);
+fn parse_expression_or_type_with_or_without_symbols<'t>(
+    input: &'t [LexToken],
+    st: Option<&SymbolTable>,
+) -> ParseResult<'t, ExpressionOrType> {
+    let type_result = match st {
+        Some(st) => parse_type_with_symbols(input, st),
+        None => parse_type(input),
+    };
     let expr_result = parse_expression_resolve_symbols(input, Terminator::TypeList);
 
     match (type_result, expr_result) {
@@ -92,6 +98,19 @@ fn parse_expression_or_type(input: &[LexToken]) -> ParseResult<ExpressionOrType>
         (Err(_), Ok((rest, expr))) => Ok((rest, ExpressionOrType::Expression(expr))),
         (Err(err), Err(_)) => Err(err),
     }
+}
+
+/// Parse either an expression or a type
+fn parse_expression_or_type_with_symbols<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, ExpressionOrType> {
+    parse_expression_or_type_with_or_without_symbols(input, Some(st))
+}
+
+/// Parse either an expression or a type
+fn parse_expression_or_type(input: &[LexToken]) -> ParseResult<ExpressionOrType> {
+    parse_expression_or_type_with_or_without_symbols(input, None)
 }
 
 /// Parse a list of template arguments
@@ -355,9 +374,12 @@ fn expr_p2<'t>(
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::SizeOf)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, ty) = contextual(parse_type_with_symbols, st)(input)?;
+        let (input, ty) = contextual(parse_expression_or_type_with_symbols, st)(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
-        Ok((input, Located::new(Expression::SizeOf(ty), start.to_loc())))
+        Ok((
+            input,
+            Located::new(Expression::SizeOf(Box::new(ty)), start.to_loc()),
+        ))
     }
 
     expr_p2_unaryop(input, st)
@@ -1335,7 +1357,11 @@ fn test_sizeof() {
 
     expr.check(
         " sizeof ( float4 ) ",
-        Expression::SizeOf(Type::from("float4".loc(10))).loc(1),
+        Expression::SizeOf(Box::new(ExpressionOrType::Either(
+            Expression::Identifier("float4".loc(10).into()).loc(10),
+            Type::from("float4".loc(10)),
+        )))
+        .loc(1),
     );
 }
 
@@ -1459,7 +1485,11 @@ fn test_method_call() {
             vec![Expression::BinaryOperation(
                 BinOp::Multiply,
                 "i".as_bvar(19),
-                Expression::SizeOf(Type::from("float4".loc(30))).bloc(23),
+                Expression::SizeOf(Box::new(ExpressionOrType::Either(
+                    Expression::Identifier("float4".loc(30).into()).loc(30),
+                    Type::from("float4".loc(30)),
+                )))
+                .bloc(23),
             )
             .loc(19)],
         )
@@ -1626,11 +1656,15 @@ fn test_expression_fail_locations() {
     use test_support::*;
     let expr = ParserTester::new(parse_expression);
 
-    expr.expect_fail("func(4 * sizeof(uint|2))", ParseErrorReason::WrongToken, 20);
     expr.expect_fail(
-        "func(7, 4 * sizeof(uint|2))",
+        "func(4 * sizeof(const uint|2))",
         ParseErrorReason::WrongToken,
-        23,
+        26,
+    );
+    expr.expect_fail(
+        "func(7, 4 * sizeof(const uint|2))",
+        ParseErrorReason::WrongToken,
+        29,
     );
     expr.expect_fail(
         "func(4 * sizeof(uint)))",

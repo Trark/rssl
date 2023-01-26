@@ -1611,6 +1611,52 @@ fn check_assignment() {
 }
 
 #[test]
+fn check_operator_sizeof() {
+    check_types("void f() { assert_type<uint>(sizeof(bool)); }");
+    check_types("void f() { assert_type<uint>(sizeof(uint)); }");
+    check_types("void f() { assert_type<uint>(sizeof(float)); }");
+    check_types("void f() { assert_type<uint>(sizeof(const uint)); }");
+    check_types("void f() { assert_type<uint>(sizeof(uint const)); }");
+
+    // sizeof can apply to expressions
+    check_types("void f() { uint x; assert_type<uint>(sizeof(x)); }");
+    check_types("void f() { uint x; assert_type<uint>(sizeof(x + x)); }");
+
+    // sizeof can apply to struct types and expressions with struct type
+    check_types("struct S {}; void f() { assert_type<uint>(sizeof(S)); }");
+    check_types("struct S {}; void f() { S s; assert_type<uint>(sizeof(s)); }");
+
+    // sizeof can apply to enum types and expressions with enum type
+    check_types("enum E {}; void f() { assert_type<uint>(sizeof(E)); }");
+    check_types("enum E {}; void f() { E e; assert_type<uint>(sizeof(e)); }");
+
+    // expression parsed for non-type uint and fails to type check when uint is a type instead of non-type identifier
+    check_fail("void f() { uint x; assert_type<uint>(sizeof(uint | 7)); }");
+    check_fail("void f() { uint x; assert_type<uint>(sizeof(7 | uint)); }");
+
+    // sizeof takes an expression with local variable T - not type T
+    check_types("typedef float T; void f() { uint T; assert_type<uint>(sizeof(T|7)); }");
+
+    // uint literal has uint type so has a size
+    check_types("void f() { sizeof(0u); }");
+
+    // literal int does not have a size
+    check_fail("void f() { sizeof(0); }");
+
+    // using sizeof() to determine an enum value is okay
+    check_types("enum E { A = 0, B = assert_type<uint>(sizeof(0.0)) };");
+
+    // using sizeof() on an enum to init another enum is okoy
+    check_types("enum E1 { A = 0 }; enum E2 { B = assert_type<uint>(sizeof(A)) };");
+
+    // using sizeof() on an enum value from the same enum is okay if the value is typed
+    check_types("enum E { A = 0u, B = assert_type<uint>(sizeof(A)) };");
+
+    // using sizeof() on an enum value from the same enum is not okay if the value is untyped
+    check_fail("enum E { A = 0, B = assert_type<uint>(sizeof(A)) };");
+}
+
+#[test]
 fn check_constructors() {
     check_types("int x = int(7);");
     check_types("int x = (int)(7);");

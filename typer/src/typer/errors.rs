@@ -92,6 +92,9 @@ pub enum TyperError {
     /// A variable was declared with an incomplete type
     VariableHasIncompleteType(ir::TypeId, SourceLocation),
 
+    /// sizeof() expression was given a literal type
+    SizeOfHasLiteralType(ir::TypeId, SourceLocation),
+
     /// Incorrect register type was used for a resource
     InvalidRegisterType(ir::RegisterType, ir::RegisterType, SourceLocation),
 
@@ -591,6 +594,17 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "Variable declared with incomplete type '{}'",
+                        get_type_string(*ty, context)
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::SizeOfHasLiteralType(ty, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "sizeof applied to literal type '{}'",
                         get_type_string(*ty, context)
                     )
                 },

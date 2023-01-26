@@ -1588,14 +1588,41 @@ fn parse_expr_unchecked(
                 )),
             }
         }
-        ast::Expression::SizeOf(ref ty) => {
-            let ir_type = parse_type(ty, context)?;
+        ast::Expression::SizeOf(ref expr_or_ty) => {
+            let (ty, loc) = match **expr_or_ty {
+                ast::ExpressionOrType::Type(ref ast_ty) => {
+                    let ty = parse_type(ast_ty, context)?;
+                    (ty, ast_ty.get_location())
+                }
+                ast::ExpressionOrType::Expression(ref ast_expr) => {
+                    let ty = parse_expr(ast_expr, context)?.1 .0;
+                    (ty, ast_expr.get_location())
+                }
+                ast::ExpressionOrType::Either(ref ast_expr, ref ast_ty) => {
+                    // TODO: Only try the path that should succeed based on known types
+                    if let Ok(ir_ty) = parse_type(ast_ty, context) {
+                        (ir_ty, ast_ty.get_location())
+                    } else {
+                        let ty = parse_expr(ast_expr, context)?.1 .0;
+                        (ty, ast_expr.get_location())
+                    }
+                }
+            };
+
+            // Forbid sizeof() on untyped literals
+            let ty_nomod = context.module.type_registry.remove_modifier(ty);
+            if let Some(scalar) = context.module.type_registry.extract_scalar(ty_nomod) {
+                if scalar == ir::ScalarType::UntypedInt {
+                    return Err(TyperError::SizeOfHasLiteralType(ty, loc));
+                }
+            }
+
             let uint_ty = context
                 .module
                 .type_registry
                 .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt));
             Ok(TypedExpression::Value(
-                ir::Expression::SizeOf(ir_type),
+                ir::Expression::SizeOf(ty),
                 uint_ty.to_rvalue(),
             ))
         }

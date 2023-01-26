@@ -26,7 +26,8 @@ pub enum Expression {
         Vec<Located<Expression>>,
     ),
     Cast(Type, Box<Located<Expression>>),
-    SizeOf(Type),
+    /// sizeof() an expression or a direct type
+    SizeOf(Box<ExpressionOrType>),
     /// Set of expressions which may be selected depending on known type names
     AmbiguousParseBranch(Vec<ConstrainedExpression>),
 }

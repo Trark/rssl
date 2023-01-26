@@ -553,9 +553,9 @@ fn test_local_variables() {
         },
     );
     statement.expect_fail(
-        "half g = func(4 * sizeof(uint^7));",
+        "half g = func(4 * sizeof(const uint^7));",
         ParseErrorReason::WrongToken,
-        29,
+        35,
     );
 
     statement.check(
