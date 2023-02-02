@@ -6,6 +6,7 @@ mod errors;
 mod expressions;
 mod functions;
 mod globals;
+mod pipelines;
 mod scopes;
 mod statements;
 mod structs;
@@ -77,6 +78,10 @@ fn parse_rootdefinition(
             context.exit_namespace();
             let ns = ir::RootDefinition::Namespace(name.clone(), ir_defs);
             Ok(Vec::from([ns]))
+        }
+        ast::RootDefinition::Pipeline(ref def) => {
+            pipelines::parse_pipeline(def, context)?;
+            Ok(Vec::new())
         }
     }
 }

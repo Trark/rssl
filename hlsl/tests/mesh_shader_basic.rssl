@@ -22,3 +22,13 @@ void MeshShader(
 {
     SetMeshOutputCounts(124, 64);
 }
+
+Pipeline Main
+{
+    MeshShader = MeshShader;
+
+    // Arbitrary set of test properties even though we do not have a pixel shader
+    RenderTargetFormat0 = "R8G8B8A8_UNORM";
+    RenderTargetFormat2 = "R32G32_UINT";
+    DepthTargetFormat = "D32_FLOAT";
+}

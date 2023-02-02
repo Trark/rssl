@@ -1,6 +1,7 @@
 use crate::ast_enums::EnumDefinition;
 use crate::ast_functions::FunctionDefinition;
 use crate::ast_globals::{ConstantBuffer, GlobalVariable};
+use crate::ast_pipelines::PipelineDefinition;
 use crate::ast_structs::StructDefinition;
 use crate::ast_types::Typedef;
 
@@ -22,4 +23,5 @@ pub enum RootDefinition {
     GlobalVariable(GlobalVariable),
     Function(FunctionDefinition),
     Namespace(String, Vec<RootDefinition>),
+    Pipeline(PipelineDefinition),
 }

@@ -29,6 +29,9 @@ pub struct Module {
     /// The root definitions in the module
     pub root_definitions: Vec<RootDefinition>,
 
+    /// The shader pipelines that can be built
+    pub pipelines: Vec<PipelineDefinition>,
+
     /// Flags that change how we build the module
     pub flags: ModuleFlags,
 

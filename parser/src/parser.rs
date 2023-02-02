@@ -149,6 +149,17 @@ fn match_identifier(input: &[LexToken]) -> ParseResult<&Identifier> {
     }
 }
 
+/// Match a non-keyword named identifier token
+fn match_named_identifier<'t>(
+    name: &'static str,
+    input: &'t [LexToken],
+) -> ParseResult<'t, &'t Identifier> {
+    match input {
+        [LexToken(Token::Id(ref id), _), rest @ ..] if id.0 == name => Ok((rest, id)),
+        _ => ParseErrorReason::wrong_token(input),
+    }
+}
+
 /// Match a single < that may or may not be followed by whitespace
 fn match_left_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
     match input {
@@ -209,6 +220,9 @@ mod globals;
 
 // Implement parsing for functions
 mod functions;
+
+// Implement parsing for pipelines
+mod pipelines;
 
 // Implement parsing for root definitions
 mod root_definitions;

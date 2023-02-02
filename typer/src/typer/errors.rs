@@ -173,6 +173,27 @@ pub enum TyperError {
 
     /// assert_eval failed value equality
     AssertEvalFailed(SourceLocation, ir::Constant, ir::Constant),
+
+    /// No stages were declared for a pipeline definition
+    PipelineNoEntryPoint(SourceLocation),
+
+    /// Incompatible stages were declared in a pipeline definition
+    PipelineInvalidStageCombination(SourceLocation),
+
+    /// Pipeline entry point must be a function identifier
+    PipelineEntryPointFunctionUnknown(SourceLocation),
+
+    /// A property with an unknown name was declared
+    PipelinePropertyUnknown(SourceLocation),
+
+    /// A property was declared twice
+    PipelinePropertyDuplicate(SourceLocation),
+
+    /// A graphics state was used in a non-graphics pipeline
+    PipelinePropertyRequiresGraphicsPipeline(SourceLocation),
+
+    /// A state value expects a string argument but received a different expression
+    PipelinePropertyRequiresStringArgument(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -818,6 +839,44 @@ impl CompileError for TyperExternalError {
                         expected, received,
                     )
                 },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelineNoEntryPoint(loc) => w.write_message(
+                &|f| write!(f, "pipeline must have at least one entry point"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelineInvalidStageCombination(loc) => w.write_message(
+                &|f| write!(f, "pipeline has an invalid combination of stages"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelineEntryPointFunctionUnknown(loc) => w.write_message(
+                &|f| write!(f, "unknown function for entry point"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelinePropertyUnknown(loc) => {
+                w.write_message(&|f| write!(f, "unknown property"), *loc, Severity::Error)
+            }
+            TyperError::PipelinePropertyDuplicate(loc) => w.write_message(
+                &|f| write!(f, "property declared multiple times"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelinePropertyRequiresGraphicsPipeline(loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "graphics pipeline state may only be applied to a graphics pipeline"
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelinePropertyRequiresStringArgument(loc) => w.write_message(
+                &|f| write!(f, "state requires a string argument"),
                 *loc,
                 Severity::Error,
             ),

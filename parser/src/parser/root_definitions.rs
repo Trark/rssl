@@ -2,6 +2,7 @@ use super::*;
 use enums::parse_enum_definition;
 use functions::parse_function_definition;
 use globals::{parse_constant_buffer, parse_global_variable};
+use pipelines::parse_pipeline_definition;
 use structs::parse_struct_definition;
 use types::parse_typedef;
 
@@ -41,6 +42,11 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
 
     let res = res.select(match parse_namespace(input) {
         Ok((rest, def)) => return Ok((rest, def)),
+        Err(err) => Err(err),
+    });
+
+    let res = res.select(match parse_pipeline_definition(input) {
+        Ok((rest, def)) => return Ok((rest, RootDefinition::Pipeline(def))),
         Err(err) => Err(err),
     });
 
