@@ -101,7 +101,7 @@ impl Module {
         let tyl = self.type_registry.get_type_layer(id);
         match tyl {
             TypeLayer::Void => "void".to_string(),
-            TypeLayer::Scalar(st) => format!("{:?}", st),
+            TypeLayer::Scalar(st) => format!("{st:?}"),
             TypeLayer::Vector(ty, x) => format!("{}{}", self.get_type_name_short(ty), x),
             TypeLayer::Matrix(ty, x, y) => {
                 format!("{}{}x{}", self.get_type_name_short(ty), x, y)
@@ -115,7 +115,7 @@ impl Module {
             TypeLayer::Modifier(modifier, ty) => {
                 format!("{:?}{}", modifier, self.get_type_name_short(ty))
             }
-            _ => format!("{:?}", tyl),
+            _ => format!("{tyl:?}"),
         }
     }
 
@@ -473,14 +473,14 @@ impl std::fmt::Display for ScopedName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let (last, scopes) = self.0.split_last().unwrap();
         for scope in scopes {
-            write!(f, "{}::", scope)?;
+            write!(f, "{scope}::")?;
         }
-        write!(f, "{}", last)
+        write!(f, "{last}")
     }
 }
 
 impl std::fmt::Debug for ScopedName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }

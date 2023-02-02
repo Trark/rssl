@@ -136,7 +136,7 @@ impl<
         match (self.0)(&tokens) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
-                    panic!("{:?}", exp);
+                    panic!("{exp:?}");
                 } else {
                     assert_eq!(
                         (ParseErrorReason::TokensUnconsumed, rem[0].1),

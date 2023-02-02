@@ -56,7 +56,7 @@ pub fn check_rssl_to_hlsl_params(
         }
         Err(err) => {
             // TODO: Error printing
-            panic!("{:?}", err)
+            panic!("{err:?}")
         }
     }
 }

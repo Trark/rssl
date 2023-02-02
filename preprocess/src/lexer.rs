@@ -161,7 +161,7 @@ impl CompileError for LexerError {
                 "header name contains invalid characters"
             }
         };
-        w.write_message(&|f| write!(f, "{}", text), self.location, Severity::Error)
+        w.write_message(&|f| write!(f, "{text}"), self.location, Severity::Error)
     }
 }
 
@@ -672,7 +672,7 @@ fn calculate_float_from_parts(
         left_combined *= 10f64;
         left_combined += digit as f64;
     }
-    let left_float = left_combined as f64;
+    let left_float = left_combined;
 
     let mut right_combined = 0f64;
     let right_len = right.len();
@@ -680,7 +680,7 @@ fn calculate_float_from_parts(
         right_combined *= 10f64;
         right_combined += digit as f64;
     }
-    let mut right_float = right_combined as f64;
+    let mut right_float = right_combined;
     for _ in 0..right_len {
         right_float /= 10f64;
     }

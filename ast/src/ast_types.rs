@@ -254,9 +254,9 @@ impl std::fmt::Display for TypeLayout {
         if let Some((last, non_last)) = self.1.split_last() {
             write!(f, "<")?;
             for arg in non_last {
-                write!(f, "{:?}, ", arg)?;
+                write!(f, "{arg:?}, ")?;
             }
-            write!(f, "{:?}", last)?;
+            write!(f, "{last:?}")?;
             write!(f, ">")?;
         }
         Ok(())
@@ -269,9 +269,9 @@ impl std::fmt::Debug for TypeLayout {
         if let Some((last, non_last)) = self.1.split_last() {
             write!(f, "<")?;
             for arg in non_last {
-                write!(f, "{:?}, ", arg)?;
+                write!(f, "{arg:?}, ")?;
             }
-            write!(f, "{:?}", last)?;
+            write!(f, "{last:?}")?;
             write!(f, ">")?;
         }
         Ok(())
@@ -281,7 +281,7 @@ impl std::fmt::Debug for TypeLayout {
 impl std::fmt::Debug for TypeModifierSet {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         for modifier in &self.modifiers {
-            write!(f, "{:?} ", modifier)?;
+            write!(f, "{modifier:?} ")?;
         }
         Ok(())
     }

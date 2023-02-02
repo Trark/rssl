@@ -115,7 +115,7 @@ impl Context {
 
             // Register the function into the root scope
             context
-                .insert_function_in_scope(context.current_scope as usize, id, true)
+                .insert_function_in_scope(context.current_scope, id, true)
                 .unwrap();
         }
 
@@ -484,7 +484,7 @@ impl Context {
 
     /// Add a registered function to the active scope
     pub fn add_function_to_current_scope(&mut self, id: ir::FunctionId) -> TyperResult<()> {
-        self.insert_function_in_scope(self.current_scope as usize, id, false)
+        self.insert_function_in_scope(self.current_scope, id, false)
     }
 
     /// Register a new global variable
@@ -722,7 +722,7 @@ impl Context {
                     min_value = std::cmp::min(min_value, value as i128);
                     max_value = std::cmp::max(max_value, value as i128);
                 }
-                _ => panic!("invalid type inside enum value: {:?}", constant),
+                _ => panic!("invalid type inside enum value: {constant:?}"),
             }
         }
 
@@ -768,7 +768,7 @@ impl Context {
                 ir::Constant::Int(value) => value as i128,
                 ir::Constant::UInt(value) => value as i128,
                 ir::Constant::Long(value) => value as i128,
-                _ => panic!("invalid type inside enum value: {:?}", constant),
+                _ => panic!("invalid type inside enum value: {constant:?}"),
             };
 
             let new_constant = match scalar_type {
@@ -1372,7 +1372,7 @@ impl VariableBlock {
         name: Located<String>,
         type_id: ir::TypeId,
     ) -> TyperResult<ir::VariableId> {
-        if let Some(&(ref ty, _)) = self.variables.get(&name.node) {
+        if let Some((ty, _)) = self.variables.get(&name.node) {
             return Err(TyperError::ValueAlreadyDefined(
                 name,
                 ty.to_error_type(),
@@ -1396,7 +1396,7 @@ impl VariableBlock {
 
     fn find_variable(&self, name: &str, scopes_up: u32) -> Option<VariableExpression> {
         match self.variables.get(name) {
-            Some(&(ref ty, ref id)) => {
+            Some((ty, id)) => {
                 let var = ir::VariableRef(*id, ir::ScopeRef(scopes_up));
                 Some(VariableExpression::Local(var, *ty))
             }
@@ -1406,18 +1406,18 @@ impl VariableBlock {
 
     fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
         let ir::VariableRef(ref id, _) = var_ref;
-        for &(ref var_ty, ref var_id) in self.variables.values() {
+        for (var_ty, var_id) in self.variables.values() {
             if id == var_id {
                 return Ok(var_ty.to_lvalue());
             }
         }
-        panic!("Invalid local variable id: {:?}", var_ref);
+        panic!("Invalid local variable id: {var_ref:?}");
     }
 
     fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::TypeId)> {
         self.variables
             .iter()
-            .fold(HashMap::new(), |mut map, (name, &(ref ty, ref id))| {
+            .fold(HashMap::new(), |mut map, (name, (ty, id))| {
                 map.insert(*id, (name.clone(), *ty));
                 map
             })

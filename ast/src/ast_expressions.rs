@@ -228,9 +228,9 @@ impl std::fmt::Debug for ScopedIdentifier {
 impl std::fmt::Debug for ExpressionOrType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ExpressionOrType::Type(ty) => write!(f, "{:?}", ty),
-            ExpressionOrType::Expression(expr) => write!(f, "{:?}", expr),
-            ExpressionOrType::Either(expr, ty) => write!(f, "[{:?} | {:?}]", expr, ty),
+            ExpressionOrType::Type(ty) => write!(f, "{ty:?}"),
+            ExpressionOrType::Expression(expr) => write!(f, "{expr:?}"),
+            ExpressionOrType::Either(expr, ty) => write!(f, "[{expr:?} | {ty:?}]"),
         }
     }
 }

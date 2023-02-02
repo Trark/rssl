@@ -180,9 +180,9 @@ fn find_function_type(
 
     // Cull everything that isn't equal best at matching numeric type
     let mut winning_numeric_casts = Vec::with_capacity(1);
-    for &(ref candidate, ref candidate_casts) in &casts {
+    for (candidate, candidate_casts) in &casts {
         let mut winning = true;
-        for &(ref against, ref against_casts) in &casts {
+        for (against, against_casts) in &casts {
             if candidate == against {
                 continue;
             }
@@ -229,7 +229,7 @@ fn find_function_type(
             .collect::<Vec<_>>();
 
         let mut best_order = casts[0].2.clone();
-        for &(_, _, ref order) in &casts {
+        for (_, _, order) in &casts {
             if *order < best_order {
                 best_order = order.clone();
             }
@@ -237,7 +237,7 @@ fn find_function_type(
 
         let casts = casts
             .into_iter()
-            .filter(|&(_, _, ref order)| *order == best_order)
+            .filter(|(_, _, order)| *order == best_order)
             .collect::<Vec<_>>();
 
         if casts.len() == 1 {
@@ -1282,7 +1282,7 @@ fn parse_expr_unchecked(
             }?;
             let ety = match get_expression_type(&node, context) {
                 Ok(ety) => ety,
-                Err(err) => panic!("internal error: type unknown ({:?}", err),
+                Err(err) => panic!("internal error: type unknown ({err:?}"),
             };
             Ok(TypedExpression::Value(node, ety))
         }
@@ -1980,13 +1980,7 @@ pub fn parse_expr(
     {
         let ety_res = get_expression_type(&expr_ir, context);
         let ety = ety_res.expect("type unknown");
-        assert!(
-            ety == expr_ety,
-            "{:?} == {:?}: {:?}",
-            ety,
-            expr_ety,
-            expr_ir
-        );
+        assert!(ety == expr_ety, "{ety:?} == {expr_ety:?}: {expr_ir:?}");
     }
 
     Ok((expr_ir, expr_ety))

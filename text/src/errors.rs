@@ -33,7 +33,7 @@ impl<'s, 'f> MessagePrinter<'s, 'f> {
             let file_location = self.source_manager.get_file_location(loc);
 
             // Print basic failure reason
-            write!(self.formatter, "{}: {}: ", file_location, sev_str)?;
+            write!(self.formatter, "{file_location}: {sev_str}: ")?;
             write(self.formatter)?;
             writeln!(self.formatter)?;
 
@@ -42,7 +42,7 @@ impl<'s, 'f> MessagePrinter<'s, 'f> {
                 .write_source_for_error(self.formatter, Some(loc))
         } else {
             // Print basic failure reason
-            write!(self.formatter, "{}: ", sev_str)?;
+            write!(self.formatter, "{sev_str}: ")?;
             write(self.formatter)?;
             writeln!(self.formatter)
         }

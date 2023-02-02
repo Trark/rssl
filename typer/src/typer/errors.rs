@@ -286,12 +286,12 @@ impl CompileError for TyperExternalError {
                 )
             }
             TyperError::UnknownIdentifier(name) => w.write_message(
-                &|f| write!(f, "'{}' was not declared in this scope", name),
+                &|f| write!(f, "'{name}' was not declared in this scope"),
                 name.get_location(),
                 Severity::Error,
             ),
             TyperError::UnknownType(et, loc) => w.write_message(
-                &|f| write!(f, "unknown type name: {:?}", et),
+                &|f| write!(f, "unknown type name: {et:?}"),
                 *loc,
                 Severity::Error,
             ),
@@ -379,9 +379,9 @@ impl CompileError for TyperExternalError {
                 w.write_message(
                     &|f| {
                         if *ambiguous_success {
-                            write!(f, "ambiguous call to {}(", func_name)?;
+                            write!(f, "ambiguous call to {func_name}(")?;
                         } else {
-                            write!(f, "no matching function for call to {}(", func_name)?;
+                            write!(f, "no matching function for call to {func_name}(")?;
                         }
                         if let Some((last_arg, not_last)) = types.split_last() {
                             for arg in not_last {
@@ -540,7 +540,7 @@ impl CompileError for TyperExternalError {
                 Severity::Error,
             ),
             TyperError::ConstantDoesNotExist(_, name, loc) => w.write_message(
-                &|f| write!(f, "constant buffer does not contain member '{}'", name),
+                &|f| write!(f, "constant buffer does not contain member '{name}'"),
                 *loc,
                 Severity::Error,
             ),
@@ -557,12 +557,12 @@ impl CompileError for TyperExternalError {
                 Severity::Error,
             ),
             TyperError::ExpectedExpressionReceivedType(name, _) => w.write_message(
-                &|f| write!(f, "identifier '{}' is not expected to be a type", name),
+                &|f| write!(f, "identifier '{name}' is not expected to be a type"),
                 name.get_location(),
                 Severity::Error,
             ),
             TyperError::ExpectedTypeReceivedExpression(name) => w.write_message(
-                &|f| write!(f, "identifier '{}' is expected to be a type", name),
+                &|f| write!(f, "identifier '{name}' is expected to be a type"),
                 name.get_location(),
                 Severity::Error,
             ),
@@ -633,13 +633,7 @@ impl CompileError for TyperExternalError {
                 Severity::Error,
             ),
             TyperError::InvalidRegisterType(used, expected, loc) => w.write_message(
-                &|f| {
-                    write!(
-                        f,
-                        "invalid register type '{}' - expected '{}'",
-                        used, expected
-                    )
-                },
+                &|f| write!(f, "invalid register type '{used}' - expected '{expected}'"),
                 *loc,
                 Severity::Error,
             ),
@@ -655,7 +649,7 @@ impl CompileError for TyperExternalError {
                 Severity::Error,
             ),
             TyperError::FunctionAttributeUnknown(name, loc) => w.write_message(
-                &|f| write!(f, "unknown function attribute '{}'", name),
+                &|f| write!(f, "unknown function attribute '{name}'"),
                 *loc,
                 Severity::Error,
             ),
@@ -663,15 +657,14 @@ impl CompileError for TyperExternalError {
                 &|f| {
                     write!(
                         f,
-                        "unexpected number of arguments to function attribute '{}'",
-                        name
+                        "unexpected number of arguments to function attribute '{name}'"
                     )
                 },
                 *loc,
                 Severity::Error,
             ),
             TyperError::StatementAttributeUnknown(name, loc) => w.write_message(
-                &|f| write!(f, "unknown statement attribute '{}'", name),
+                &|f| write!(f, "unknown statement attribute '{name}'"),
                 *loc,
                 Severity::Error,
             ),
@@ -679,8 +672,7 @@ impl CompileError for TyperExternalError {
                 &|f| {
                     write!(
                         f,
-                        "unexpected number of arguments to statement attribute '{}'",
-                        name
+                        "unexpected number of arguments to statement attribute '{name}'"
                     )
                 },
                 *loc,
@@ -725,8 +717,7 @@ impl CompileError for TyperExternalError {
                 &|f| {
                     write!(
                         f,
-                        "modifier '{:?}' may not be used with '{:?}'",
-                        modifier, existing_modifier,
+                        "modifier '{modifier:?}' may not be used with '{existing_modifier:?}'"
                     )
                 },
                 *loc,
@@ -758,7 +749,7 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::InterpolationModifierRequiresInputModifier(interp, loc, input) => w
                 .write_message(
-                    &|f| write!(f, "'{:?}' modifier requires '{:?}' modifier", interp, input),
+                    &|f| write!(f, "'{interp:?}' modifier requires '{input:?}' modifier"),
                     *loc,
                     Severity::Error,
                 ),
@@ -800,7 +791,7 @@ impl CompileError for TyperExternalError {
                 Severity::Error,
             ),
             TyperError::EnumTypeCanNotBeDeduced(loc, min, max) => w.write_message(
-                &|f| write!(f, "enum range {} to {} can not fit in any type", min, max),
+                &|f| write!(f, "enum range {min} to {max} can not fit in any type"),
                 *loc,
                 Severity::Error,
             ),
@@ -835,8 +826,7 @@ impl CompileError for TyperExternalError {
                 &|f| {
                     write!(
                         f,
-                        "expected value '{:?}' but received value '{:?}'",
-                        expected, received,
+                        "expected value '{expected:?}' but received value '{received:?}'"
                     )
                 },
                 *loc,

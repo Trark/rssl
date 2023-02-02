@@ -338,7 +338,7 @@ impl ImplicitConversion {
     pub fn get_rank(&self) -> ConversionRank {
         use rssl_ir::NumericDimension::Scalar;
         use rssl_ir::NumericDimension::Vector;
-        let &ImplicitConversion(_, _, ref dim_cast, ref num_cast, _) = self;
+        let ImplicitConversion(_, _, dim_cast, num_cast, _) = self;
         let vec = match *dim_cast {
             None
             | Some(DimensionCast(Scalar, Vector(1)))
@@ -348,7 +348,7 @@ impl ImplicitConversion {
             }
             Some(DimensionCast(Vector(_), Scalar)) => VectorRank::Contract,
             Some(DimensionCast(Vector(ref l), Vector(ref r))) if l > r => VectorRank::Contract,
-            Some(DimensionCast(from, to)) => panic!("invalid vector cast {:?} {:?}", from, to),
+            Some(DimensionCast(from, to)) => panic!("invalid vector cast {from:?} {to:?}"),
         };
         let num = match *num_cast {
             Some(ref primary) => primary.rank,

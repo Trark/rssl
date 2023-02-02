@@ -43,18 +43,12 @@ impl CompileError for ParseError {
 
         match &self.0 {
             ParseErrorReason::InvalidSlotType(slot_string) => w.write_message(
-                &|f| write!(f, "register type is not supported in '{}'", slot_string),
+                &|f| write!(f, "register type is not supported in '{slot_string}'"),
                 loc,
                 Severity::Error,
             ),
             ParseErrorReason::InvalidSlotIndex(slot_string) => w.write_message(
-                &|f| {
-                    write!(
-                        f,
-                        "register index should be an integer in '{}'",
-                        slot_string
-                    )
-                },
+                &|f| write!(f, "register index should be an integer in '{slot_string}'"),
                 loc,
                 Severity::Error,
             ),

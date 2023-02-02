@@ -202,7 +202,7 @@ impl FunctionRegistry {
     ) -> Option<FunctionId> {
         // We currently search all function ids instead of maintaining a map
         for i in 0..self.get_function_count() {
-            let other_id = FunctionId(i as u32);
+            let other_id = FunctionId(i);
             if let Some(instantiation_data) = self.get_template_instantiation_data(other_id) {
                 if instantiation_data.parent_id == id
                     && instantiation_data.template_args == template_args

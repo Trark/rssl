@@ -175,7 +175,7 @@ fn test_ast_pass() {
         ],
     };
     let res = rssl_typer::type_check(&module);
-    assert!(res.is_ok(), "{:?}", res);
+    assert!(res.is_ok(), "{res:?}");
 }
 
 #[test]
@@ -264,7 +264,7 @@ fn test_ast_to_ir() {
 
             let mut intrinsic_func_id = None;
             for i in 0..actual.function_registry.get_function_count() {
-                let id = ir::FunctionId(i as u32);
+                let id = ir::FunctionId(i);
                 if let Some(ir::Intrinsic::GroupMemoryBarrierWithGroupSync) =
                     actual.function_registry.get_intrinsic_data(id)
                 {
@@ -335,6 +335,6 @@ fn test_ast_to_ir() {
 
             assert_eq!(actual.cbuffer_registry, Vec::new());
         }
-        Err(err) => panic!("Failed to type check: {:?}", err),
+        Err(err) => panic!("Failed to type check: {err:?}"),
     }
 }

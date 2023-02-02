@@ -302,7 +302,7 @@ fn export_global_variable(
     }) = decl.api_slot
     {
         assert_eq!(decl.init, None);
-        write!(output, " = g_inlineDescriptor{}.{}", set, name).unwrap();
+        write!(output, " = g_inlineDescriptor{set}.{name}").unwrap();
     } else {
         export_initializer(&decl.init, output, context)?;
     }
@@ -320,11 +320,11 @@ fn export_register_annotation(
     if let Some(slot) = &slot {
         output.push_str(" : register(");
         match slot.slot_type {
-            Some(register_type) => write!(output, "{}", register_type).unwrap(),
+            Some(register_type) => write!(output, "{register_type}").unwrap(),
             None => panic!("Exporter requires register types in api binding metadata"),
         }
         match slot.location {
-            ApiLocation::Index(index) => write!(output, "{}", index).unwrap(),
+            ApiLocation::Index(index) => write!(output, "{index}").unwrap(),
             ApiLocation::InlineConstant(_) => {
                 panic!("export_register_annotation did not expect an inline constant")
             }
@@ -345,9 +345,9 @@ fn export_vk_binding_annotation(
         match slot.location {
             ApiLocation::Index(index) => {
                 if slot.set != 0 {
-                    write!(output, "[[vk::binding({}, {})]] ", index, slot.set).unwrap()
+                    write!(output, "[[vk::binding({index}, {})]] ", slot.set).unwrap()
                 } else {
-                    write!(output, "[[vk::binding({})]] ", index).unwrap()
+                    write!(output, "[[vk::binding({index})]] ").unwrap()
                 }
             }
             ApiLocation::InlineConstant(_) => {
@@ -522,7 +522,7 @@ fn export_semantic_annotation(
             ir::Semantic::InstanceId => output.push_str("SV_InstanceID"),
             ir::Semantic::PrimitiveId => output.push_str("SV_PrimitiveID"),
             ir::Semantic::Position => output.push_str("SV_Position"),
-            ir::Semantic::Target(i) => write!(output, "SV_Target{}", i).unwrap(),
+            ir::Semantic::Target(i) => write!(output, "SV_Target{i}").unwrap(),
             ir::Semantic::Depth => output.push_str("SV_Depth"),
             ir::Semantic::DepthGreaterEqual => output.push_str("SV_DepthGreaterEqual"),
             ir::Semantic::DepthLessEqual => output.push_str("SV_DepthLessEqual"),
@@ -571,13 +571,13 @@ fn export_type_impl(
             // Allowed types in a vector should construct valid vector type names
             // This will break down for vector of enums
             export_type_impl(st, false, output, output_array, context)?;
-            write!(output, "{}", x).unwrap()
+            write!(output, "{x}").unwrap()
         }
         ir::TypeLayer::Matrix(st, x, y) => {
             // Allowed types in a matrix should construct valid matrix type names
             // This will break down for vector of enums
             export_type_impl(st, false, output, output_array, context)?;
-            write!(output, "{}x{}", x, y).unwrap()
+            write!(output, "{x}x{y}").unwrap()
         }
         ir::TypeLayer::Struct(id) => {
             write!(output, "{}", context.get_struct_name_full(id)?).unwrap()
@@ -645,14 +645,14 @@ fn export_type_impl(
         }
         ir::TypeLayer::Array(ty, len) => {
             export_type_impl(ty, false, output, output_array, context)?;
-            write!(output_array, "[{}]", len).unwrap();
+            write!(output_array, "[{len}]").unwrap();
         }
         ir::TypeLayer::Modifier(mut modifier, ty) => {
             if suppress_const_volatile {
                 modifier.is_const = false;
                 modifier.volatile = false;
             }
-            write!(output, "{:?}", modifier).unwrap();
+            write!(output, "{modifier:?}").unwrap();
             export_type_impl(ty, false, output, output_array, context)?;
         }
         _ => todo!("Type layout not implemented: {:?}", tyl),
@@ -691,20 +691,20 @@ fn export_literal(literal: &ir::Constant, output: &mut String) -> Result<(), Exp
     match literal {
         ir::Constant::Bool(true) => output.push_str("true"),
         ir::Constant::Bool(false) => output.push_str("false"),
-        ir::Constant::UntypedInt(v) => write!(output, "{}", v).unwrap(),
+        ir::Constant::UntypedInt(v) => write!(output, "{v}").unwrap(),
         // There is no signed integer suffix - but the way we generate code should avoid overload issues with unsigned integers
-        ir::Constant::Int(v) => write!(output, "{}", v).unwrap(),
-        ir::Constant::UInt(v) => write!(output, "{}u", v).unwrap(),
-        ir::Constant::Long(v) => write!(output, "{}l", v).unwrap(),
-        ir::Constant::Half(v) => write!(output, "{}h", v).unwrap(),
+        ir::Constant::Int(v) => write!(output, "{v}").unwrap(),
+        ir::Constant::UInt(v) => write!(output, "{v}u").unwrap(),
+        ir::Constant::Long(v) => write!(output, "{v}l").unwrap(),
+        ir::Constant::Half(v) => write!(output, "{v}h").unwrap(),
         ir::Constant::Float(v) if *v == (*v as i64 as f32) => {
             write!(output, "{}.0", *v as i64).unwrap()
         }
         ir::Constant::Float(v) if *v > i64::MAX as f32 || *v < i64::MIN as f32 => {
-            write!(output, "{}.0", v).unwrap()
+            write!(output, "{v}.0").unwrap()
         }
-        ir::Constant::Float(v) => write!(output, "{}", v).unwrap(),
-        ir::Constant::Double(v) => write!(output, "{}L", v).unwrap(),
+        ir::Constant::Float(v) => write!(output, "{v}").unwrap(),
+        ir::Constant::Double(v) => write!(output, "{v}L").unwrap(),
         ir::Constant::String(_) => panic!("literal string not expected in output"),
         ir::Constant::Enum(_, _) => panic!("literal enum not expected in output"),
     }
@@ -813,7 +813,7 @@ fn export_statement_attribute(
         ir::StatementAttribute::Branch => output.push_str("[branch]"),
         ir::StatementAttribute::Flatten => output.push_str("[flatten]"),
         ir::StatementAttribute::Unroll(None) => output.push_str("[unroll]"),
-        ir::StatementAttribute::Unroll(Some(v)) => write!(output, "[unroll({})]", v).unwrap(),
+        ir::StatementAttribute::Unroll(Some(v)) => write!(output, "[unroll({v})]").unwrap(),
         ir::StatementAttribute::Loop => output.push_str("[loop]"),
         ir::StatementAttribute::Fastopt => output.push_str("[fastopt]"),
         ir::StatementAttribute::AllowUavCondition => output.push_str("[allow_uav_condition]"),

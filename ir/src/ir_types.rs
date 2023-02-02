@@ -835,16 +835,16 @@ impl std::fmt::Debug for TypeLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             TypeLayer::Void => write!(f, "void"),
-            TypeLayer::Scalar(ref st) => write!(f, "{:?}", st),
-            TypeLayer::Vector(ref st, ref x) => write!(f, "vector<{:?}, {}>", st, x),
-            TypeLayer::Matrix(ref st, ref x, ref y) => write!(f, "matrix<{:?}, {}, {}>", st, x, y),
+            TypeLayer::Scalar(ref st) => write!(f, "{st:?}"),
+            TypeLayer::Vector(ref st, ref x) => write!(f, "vector<{st:?}, {x}>"),
+            TypeLayer::Matrix(ref st, ref x, ref y) => write!(f, "matrix<{st:?}, {x}, {y}>"),
             TypeLayer::Struct(ref sid) => write!(f, "struct<{}>", sid.0),
             TypeLayer::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
             TypeLayer::Enum(ref id) => write!(f, "enum<{}>", id.0),
-            TypeLayer::Object(ref ot) => write!(f, "{:?}", ot),
-            TypeLayer::Array(ref ty, ref len) => write!(f, "type<{:?}>[{}]", ty, len),
+            TypeLayer::Object(ref ot) => write!(f, "{ot:?}"),
+            TypeLayer::Array(ref ty, ref len) => write!(f, "type<{ty:?}>[{len}]"),
             TypeLayer::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
-            TypeLayer::Modifier(ref modifier, ref ty) => write!(f, "{:?}type<{:?}>", modifier, ty),
+            TypeLayer::Modifier(ref modifier, ref ty) => write!(f, "{modifier:?}type<{ty:?}>"),
         }
     }
 }
@@ -927,19 +927,19 @@ impl std::fmt::Debug for ObjectType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use self::ObjectType::*;
         match *self {
-            Buffer(ref dt) => write!(f, "Buffer<{:?}>", dt),
-            RWBuffer(ref dt) => write!(f, "RWBuffer<{:?}>", dt),
+            Buffer(ref dt) => write!(f, "Buffer<{dt:?}>"),
+            RWBuffer(ref dt) => write!(f, "RWBuffer<{dt:?}>"),
             ByteAddressBuffer => write!(f, "ByteAddressBuffer"),
             RWByteAddressBuffer => write!(f, "RWByteAddressBuffer"),
             BufferAddress => write!(f, "BufferAddress"),
             RWBufferAddress => write!(f, "RWBufferAddress"),
-            StructuredBuffer(ref st) => write!(f, "StructuredBuffer<{:?}>", st),
-            RWStructuredBuffer(ref st) => write!(f, "RWStructuredBuffer<{:?}>", st),
-            Texture2D(ref dt) => write!(f, "Texture2D<{:?}>", dt),
-            Texture2DMips(ref dt) => write!(f, "Texture2D<{:?}>::Mips", dt),
-            Texture2DMipsSlice(ref dt) => write!(f, "Texture2D<{:?}>::MipsSlice", dt),
-            RWTexture2D(ref dt) => write!(f, "RWTexture2D<{:?}>", dt),
-            ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{:?}>", st),
+            StructuredBuffer(ref st) => write!(f, "StructuredBuffer<{st:?}>"),
+            RWStructuredBuffer(ref st) => write!(f, "RWStructuredBuffer<{st:?}>"),
+            Texture2D(ref dt) => write!(f, "Texture2D<{dt:?}>"),
+            Texture2DMips(ref dt) => write!(f, "Texture2D<{dt:?}>::Mips"),
+            Texture2DMipsSlice(ref dt) => write!(f, "Texture2D<{dt:?}>::MipsSlice"),
+            RWTexture2D(ref dt) => write!(f, "RWTexture2D<{dt:?}>"),
+            ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{st:?}>"),
             SamplerState => write!(f, "SamplerState"),
             SamplerComparisonState => write!(f, "SamplerComparisonState"),
         }

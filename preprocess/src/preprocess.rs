@@ -54,12 +54,12 @@ impl CompileError for PreprocessError {
                 Severity::Error,
             ),
             PreprocessError::MacroAlreadyDefined(s) => w.write_message(
-                &|f| write!(f, "macro '{}' already defined", s),
+                &|f| write!(f, "macro '{s}' already defined"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             PreprocessError::MacroRequiresArguments(s) => w.write_message(
-                &|f| write!(f, "macro function '{}' requires arguments", s),
+                &|f| write!(f, "macro function '{s}' requires arguments"),
                 SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
@@ -89,7 +89,7 @@ impl CompileError for PreprocessError {
                 Severity::Error,
             ),
             PreprocessError::FailedToFindFile(loc, name, _) => w.write_message(
-                &|f| write!(f, "failed to load file: '{}'", name),
+                &|f| write!(f, "failed to load file: '{name}'"),
                 *loc,
                 Severity::Error,
             ),
@@ -657,7 +657,7 @@ fn apply_single_macro(
             let right_string = unlex(std::slice::from_ref(right_token), source_manager);
 
             // Combine the strings
-            let new_fragment = format!("{}{}", left_string, right_string);
+            let new_fragment = format!("{left_string}{right_string}");
 
             // Register the combined string as a file
             let file_id =
