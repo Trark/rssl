@@ -113,7 +113,7 @@ pub enum TyperError {
     /// Attribute on a statement has an unexpected number of arguments
     StatementAttributeUnexpectedArgumentCount(String, SourceLocation),
 
-    /// [unroll] requires the argument be a constexpr integer
+    /// \[unroll\] requires the argument be a constexpr integer
     AttributeUnrollArgumentMustBeIntegerConstant(SourceLocation),
 
     /// String types should not appear in main language
