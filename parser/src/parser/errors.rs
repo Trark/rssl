@@ -52,6 +52,16 @@ impl CompileError for ParseError {
                 loc,
                 Severity::Error,
             ),
+            ParseErrorReason::InvalidSpaceIdentifier(space_string) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "expect space identifier of form 'spaceX' but received '{space_string}'"
+                    )
+                },
+                loc,
+                Severity::Error,
+            ),
             _ => w.write_message(
                 &|f| write!(f, "failed to parse source"),
                 loc,
@@ -71,6 +81,7 @@ pub enum ParseErrorReason {
     SymbolIsNotAType,
     InvalidSlotType(String),
     InvalidSlotIndex(String),
+    InvalidSpaceIdentifier(String),
     UnexpectedAttribute(String),
 }
 

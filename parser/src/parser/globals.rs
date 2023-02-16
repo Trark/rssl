@@ -96,8 +96,11 @@ fn test_global_variable() {
                 name: "g_myBuffer".to_string().loc(7),
                 bind: Default::default(),
                 slot: Some(Register {
-                    slot_type: RegisterType::T,
-                    index: 1,
+                    slot: Some(RegisterSlot {
+                        slot_type: RegisterType::T,
+                        index: 1,
+                    }),
+                    space: None,
                 }),
                 init: None,
             }]),
@@ -115,8 +118,11 @@ fn test_global_variable() {
                 name: "g_myBuffer".to_string().loc(14),
                 bind: Default::default(),
                 slot: Some(Register {
-                    slot_type: RegisterType::T,
-                    index: 1,
+                    slot: Some(RegisterSlot {
+                        slot_type: RegisterType::T,
+                        index: 1,
+                    }),
+                    space: None,
                 }),
                 init: None,
             }]),
@@ -144,8 +150,11 @@ fn test_global_variable() {
                 name: "g_myBuffer".to_string().loc(23),
                 bind: Default::default(),
                 slot: Some(Register {
-                    slot_type: RegisterType::T,
-                    index: 1,
+                    slot: Some(RegisterSlot {
+                        slot_type: RegisterType::T,
+                        index: 1,
+                    }),
+                    space: None,
                 }),
                 init: None,
             }]),
@@ -163,8 +172,11 @@ fn test_global_variable() {
                 name: "g_myBuffer".to_string().loc(29),
                 bind: Default::default(),
                 slot: Some(Register {
-                    slot_type: RegisterType::T,
-                    index: 1,
+                    slot: Some(RegisterSlot {
+                        slot_type: RegisterType::T,
+                        index: 1,
+                    }),
+                    space: None,
                 }),
                 init: None,
             }]),
@@ -333,8 +345,11 @@ fn test_constant_buffer() {
         ConstantBuffer {
             name: "globals".to_string().loc(8),
             slot: Some(Register {
-                slot_type: RegisterType::B,
-                index: 12,
+                slot: Some(RegisterSlot {
+                    slot_type: RegisterType::B,
+                    index: 12,
+                }),
+                space: None,
             }),
             members: Vec::from([
                 ConstantVariable {
@@ -385,110 +400,220 @@ fn parse_register(input: &[LexToken]) -> ParseResult<Option<Register>> {
     let (input, _) = parse_token(Token::Register)(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
     let identifier_input_start = input;
-    let (input, id) = match_identifier(input)?;
+    let (mut input, id) = match_identifier(input)?;
+
+    let mut slot = None;
+    let mut space = None;
+
+    if let Some(index) = parse_space_identifier(&id.0) {
+        space = Some(index);
+    } else {
+        // Identifiers must have at least one character
+        // Only single byte chars should be valid identifiers so the split is safe
+        let (register_type_char, register_index_str) = id.0.split_at(1);
+
+        let slot_type = match register_type_char {
+            "t" => RegisterType::T,
+            "u" => RegisterType::U,
+            "b" => RegisterType::B,
+            "s" => RegisterType::S,
+            _ => {
+                return Err(ParseErrorContext(
+                    identifier_input_start,
+                    ParseErrorReason::InvalidSlotType(id.0.clone()),
+                ))
+            }
+        };
+
+        let index = {
+            if register_index_str.chars().all(|c| char::is_ascii_digit(&c)) {
+                match register_index_str.parse::<u32>() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        return Err(ParseErrorContext(
+                            identifier_input_start,
+                            ParseErrorReason::InvalidSlotIndex(id.0.clone()),
+                        ));
+                    }
+                }
+            } else {
+                return Err(ParseErrorContext(
+                    identifier_input_start,
+                    ParseErrorReason::InvalidSlotIndex(id.0.clone()),
+                ));
+            }
+        };
+
+        slot = Some(RegisterSlot { slot_type, index });
+    }
+
+    if space.is_none() {
+        // Parse an optional space identifier
+        let (rest, space_identifier) = match parse_token(Token::Comma)(input) {
+            Ok((space_start, _)) => match match_identifier(space_start) {
+                Ok((input, id)) => (input, Some((id, space_start))),
+                Err(err) => return Err(err),
+            },
+            Err(_) => (input, None),
+        };
+
+        // Convert the space identifier into a space index
+        space = match space_identifier {
+            Some((id, space_start)) => match parse_space_identifier(&id.0) {
+                Some(index) => Some(index),
+                None => {
+                    return Err(ParseErrorContext(
+                        space_start,
+                        ParseErrorReason::InvalidSpaceIdentifier(id.0.clone()),
+                    ))
+                }
+            },
+            None => None,
+        };
+
+        input = rest;
+    }
+
     let (input, _) = parse_token(Token::RightParen)(input)?;
 
-    // Identifiers must have at least one character
-    // Only single byte chars should be valid identifiers so the split is safe
-    let (register_type_char, register_index_str) = id.0.split_at(1);
-
-    let slot_type = match register_type_char {
-        "t" => RegisterType::T,
-        "u" => RegisterType::U,
-        "b" => RegisterType::B,
-        "s" => RegisterType::S,
-        _ => {
-            return Err(ParseErrorContext(
-                identifier_input_start,
-                ParseErrorReason::InvalidSlotType(id.0.clone()),
-            ))
-        }
-    };
-
-    let index = {
-        if register_index_str.chars().all(|c| char::is_ascii_digit(&c)) {
-            match register_index_str.parse::<u32>() {
-                Ok(v) => v,
-                Err(_) => {
-                    return Err(ParseErrorContext(
-                        identifier_input_start,
-                        ParseErrorReason::InvalidSlotIndex(id.0.clone()),
-                    ));
-                }
-            }
-        } else {
-            return Err(ParseErrorContext(
-                identifier_input_start,
-                ParseErrorReason::InvalidSlotIndex(id.0.clone()),
-            ));
-        }
-    };
-
-    let register = Register { slot_type, index };
+    let register = Register { slot, space };
     Ok((input, Some(register)))
+}
+
+/// Attempt to turn a space identifier into a space index
+fn parse_space_identifier(space_identifier: &str) -> Option<u32> {
+    if let Some(index_string) = space_identifier.strip_prefix("space") {
+        if let Ok(index) = index_string.parse::<u32>() {
+            Some(index)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
 }
 
 #[test]
 fn test_register() {
     use test_support::*;
-    let globalvariable = ParserTester::new(parse_register);
+    let register = ParserTester::new(parse_register);
 
-    globalvariable.check(
+    register.check(
         ": register(t0)",
         Some(Register {
-            slot_type: RegisterType::T,
-            index: 0,
+            slot: Some(RegisterSlot {
+                slot_type: RegisterType::T,
+                index: 0,
+            }),
+            space: None,
         }),
     );
 
-    globalvariable.check(
+    register.check(
         ": register(t1)",
         Some(Register {
-            slot_type: RegisterType::T,
-            index: 1,
+            slot: Some(RegisterSlot {
+                slot_type: RegisterType::T,
+                index: 1,
+            }),
+            space: None,
         }),
     );
 
-    globalvariable.check(
+    register.check(
         ": register(u1)",
         Some(Register {
-            slot_type: RegisterType::U,
-            index: 1,
+            slot: Some(RegisterSlot {
+                slot_type: RegisterType::U,
+                index: 1,
+            }),
+            space: None,
         }),
     );
 
-    globalvariable.expect_fail(
+    register.expect_fail(
         ": register(p0)",
         ParseErrorReason::InvalidSlotType("p0".to_string()),
         11,
     );
 
-    globalvariable.expect_fail(
+    register.expect_fail(
         ": register(tY)",
         ParseErrorReason::InvalidSlotIndex("tY".to_string()),
         11,
     );
 
-    globalvariable.expect_fail(
+    register.expect_fail(
         ": register(pY)",
         ParseErrorReason::InvalidSlotType("pY".to_string()),
         11,
     );
 
-    globalvariable.check(
+    register.check(
         ": register(t4294967295)",
         Some(Register {
-            slot_type: RegisterType::T,
-            index: u32::MAX,
+            slot: Some(RegisterSlot {
+                slot_type: RegisterType::T,
+                index: u32::MAX,
+            }),
+            space: None,
         }),
     );
 
-    globalvariable.expect_fail(
+    register.expect_fail(
         ": register(t4294967296)",
         ParseErrorReason::InvalidSlotIndex("t4294967296".to_string()),
         11,
     );
 
+    register.check(
+        ": register(t1, space2)",
+        Some(Register {
+            slot: Some(RegisterSlot {
+                slot_type: RegisterType::T,
+                index: 1,
+            }),
+            space: Some(2),
+        }),
+    );
+
+    register.expect_fail(
+        ": register(t1, space)",
+        ParseErrorReason::InvalidSpaceIdentifier("space".to_string()),
+        15,
+    );
+
+    register.check(
+        ": register(t1, space4294967295)",
+        Some(Register {
+            slot: Some(RegisterSlot {
+                slot_type: RegisterType::T,
+                index: 1,
+            }),
+            space: Some(u32::MAX),
+        }),
+    );
+
+    register.expect_fail(
+        ": register(t1, space4294967296)",
+        ParseErrorReason::InvalidSpaceIdentifier("space4294967296".to_string()),
+        15,
+    );
+
+    register.check(
+        ": register(space2)",
+        Some(Register {
+            slot: None,
+            space: Some(2),
+        }),
+    );
+
+    register.expect_fail(
+        ": register(space2, space3)",
+        ParseErrorReason::WrongToken,
+        17,
+    );
+
     // This parser does not expect semicolon on the end
-    globalvariable.expect_fail(": register(t0);", ParseErrorReason::TokensUnconsumed, 14);
+    register.expect_fail(": register(t0);", ParseErrorReason::TokensUnconsumed, 14);
 }

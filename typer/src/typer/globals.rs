@@ -58,7 +58,7 @@ pub fn parse_rootdefinition_globalvariable(
 
         let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
         gv_ir.lang_slot = match &global_variable.slot {
-            Some(slot) => {
+            Some(register) => {
                 let unmodified_base_id = context.module.type_registry.remove_modifier(base_id);
                 let unmodified_base_tyl = context
                     .module
@@ -66,17 +66,24 @@ pub fn parse_rootdefinition_globalvariable(
                     .get_type_layer(unmodified_base_id);
                 if let ir::TypeLayer::Object(ot) = unmodified_base_tyl {
                     let expected_slot_type = ot.get_register_type();
-                    if slot.slot_type != expected_slot_type {
-                        return Err(TyperError::InvalidRegisterType(
-                            slot.slot_type,
-                            expected_slot_type,
-                            global_variable.name.location,
-                        ));
+
+                    let index = if let Some(slot) = &register.slot {
+                        if slot.slot_type != expected_slot_type {
+                            return Err(TyperError::InvalidRegisterType(
+                                slot.slot_type,
+                                expected_slot_type,
+                                global_variable.name.location,
+                            ));
+                        }
+                        Some(slot.index)
+                    } else {
+                        None
                     };
-                    Some(ir::LanguageBinding {
-                        set: 0,
-                        index: slot.index,
-                    })
+
+                    ir::LanguageBinding {
+                        set: register.space.unwrap_or(0),
+                        index,
+                    }
                 } else {
                     return Err(TyperError::InvalidRegisterAnnotation(
                         type_id,
@@ -84,7 +91,7 @@ pub fn parse_rootdefinition_globalvariable(
                     ));
                 }
             }
-            None => None,
+            None => ir::LanguageBinding::default(),
         };
         gv_ir.init = var_init;
 
@@ -187,20 +194,26 @@ pub fn parse_rootdefinition_constantbuffer(
     };
     let cb_ir = &mut context.module.cbuffer_registry[id.0 as usize];
     cb_ir.lang_binding = match &cb.slot {
-        Some(slot) => {
-            if slot.slot_type != ir::RegisterType::B {
-                return Err(TyperError::InvalidRegisterType(
-                    slot.slot_type,
-                    ir::RegisterType::B,
-                    cb.name.location,
-                ));
+        Some(register) => {
+            let index = if let Some(slot) = &register.slot {
+                if slot.slot_type != ir::RegisterType::B {
+                    return Err(TyperError::InvalidRegisterType(
+                        slot.slot_type,
+                        ir::RegisterType::B,
+                        cb.name.location,
+                    ));
+                };
+                Some(slot.index)
+            } else {
+                None
             };
-            Some(ir::LanguageBinding {
-                set: 0,
-                index: slot.index,
-            })
+
+            ir::LanguageBinding {
+                set: register.space.unwrap_or(0),
+                index,
+            }
         }
-        None => None,
+        None => ir::LanguageBinding::default(),
     };
     cb_ir.members = members;
 

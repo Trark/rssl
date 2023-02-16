@@ -30,8 +30,11 @@ fn test_ast_pass() {
                     name: Located::none("g_myOutBuffer".to_string()),
                     bind: Default::default(),
                     slot: Some(ast::Register {
-                        slot_type: ast::RegisterType::U,
-                        index: 0,
+                        slot: Some(ast::RegisterSlot {
+                            slot_type: ast::RegisterType::U,
+                            index: 0,
+                        }),
+                        space: None,
                     }),
                     init: None,
                 }],
@@ -324,7 +327,7 @@ fn test_ast_to_ir() {
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
                     type_id: const_int_id,
                     storage_class: ir::GlobalStorage::Static,
-                    lang_slot: None,
+                    lang_slot: ir::LanguageBinding::default(),
                     api_slot: None,
                     init: Some(ir::Initializer::Expression(ir::Expression::Literal(
                         ir::Constant::Int(4),

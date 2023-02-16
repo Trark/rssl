@@ -222,20 +222,20 @@ impl Module {
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &module.cbuffer_registry[id.0 as usize];
-                    if let Some(LanguageBinding {
+                    if let LanguageBinding {
                         set: 0,
-                        index: slot,
-                    }) = cb.lang_binding
+                        index: Some(slot),
+                    } = cb.lang_binding
                     {
                         used_values.insert(slot);
                     }
                 }
                 RootDefinition::GlobalVariable(id) => {
                     let decl = &module.global_registry[id.0 as usize];
-                    if let Some(LanguageBinding {
+                    if let LanguageBinding {
                         set: 0,
-                        index: slot,
-                    }) = decl.lang_slot
+                        index: Some(slot),
+                    } = decl.lang_slot
                     {
                         used_values.insert(slot);
                     }
@@ -267,22 +267,19 @@ impl Module {
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];
-                    if cb.lang_binding.is_none() {
+                    if cb.lang_binding.index.is_none() {
                         let mut slot = *next_value;
                         while used_values.contains(&slot) {
                             slot += 1;
                         }
                         *next_value = slot + 1;
 
-                        cb.lang_binding = Some(LanguageBinding {
-                            set: 0,
-                            index: slot,
-                        });
+                        cb.lang_binding.index = Some(slot);
                     }
                 }
                 RootDefinition::GlobalVariable(id) => {
                     let decl = &mut module.global_registry[id.0 as usize];
-                    if decl.lang_slot.is_none() {
+                    if decl.lang_slot.index.is_none() {
                         // Find the slot type that we are adding
                         let unmodified_id = module.type_registry.remove_modifier(decl.type_id);
                         let tyl = module.type_registry.get_type_layer(unmodified_id);
@@ -293,10 +290,7 @@ impl Module {
                             }
                             *next_value = slot + 1;
 
-                            decl.lang_slot = Some(LanguageBinding {
-                                set: 0,
-                                index: slot,
-                            });
+                            decl.lang_slot.index = Some(slot);
                         }
                     }
                 }
@@ -317,6 +311,8 @@ impl Module {
     }
 
     /// Assign api binding locations to all global resources
+    ///
+    /// Api slots are assigned independent of language register assignments
     pub fn assign_api_bindings(mut self, params: AssignBindingsParams) -> Self {
         assert!(!self.flags.assigned_api_slots);
         self.flags.assigned_api_slots = true;
@@ -338,8 +334,8 @@ impl Module {
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];
                     assert_eq!(cb.api_binding, None);
-                    if let Some(lang_slot) = cb.lang_binding {
-                        let index = match used_slots.entry(lang_slot.set) {
+                    if cb.lang_binding.index.is_some() {
+                        let index = match used_slots.entry(cb.lang_binding.set) {
                             std::collections::hash_map::Entry::Occupied(mut o) => {
                                 let slot = *o.get();
                                 *o.get_mut() += 1;
@@ -352,7 +348,7 @@ impl Module {
                         };
 
                         cb.api_binding = Some(ApiBinding {
-                            set: lang_slot.set,
+                            set: cb.lang_binding.set,
                             location: ApiLocation::Index(index),
                             slot_type: if params.require_slot_type {
                                 Some(RegisterType::B)
@@ -365,11 +361,11 @@ impl Module {
                 RootDefinition::GlobalVariable(id) => {
                     let decl = &mut module.global_registry[id.0 as usize];
                     assert_eq!(decl.api_slot, None);
-                    if let Some(lang_slot) = decl.lang_slot {
+                    if decl.lang_slot.index.is_some() {
                         if params.support_buffer_address
                             && module.type_registry.is_buffer_address(decl.type_id)
                         {
-                            let offset = match inline_size.entry(lang_slot.set) {
+                            let offset = match inline_size.entry(decl.lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
                                     *o.get_mut() += 8;
@@ -382,7 +378,7 @@ impl Module {
                             };
 
                             decl.api_slot = Some(ApiBinding {
-                                set: lang_slot.set,
+                                set: decl.lang_slot.set,
                                 location: ApiLocation::InlineConstant(offset),
                                 slot_type: None,
                             });
@@ -390,7 +386,7 @@ impl Module {
                             assert_eq!(decl.storage_class, GlobalStorage::Extern);
                             decl.storage_class = GlobalStorage::Static;
                         } else {
-                            let index = match used_slots.entry(lang_slot.set) {
+                            let index = match used_slots.entry(decl.lang_slot.set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
                                     *o.get_mut() += 1;
@@ -403,7 +399,7 @@ impl Module {
                             };
 
                             decl.api_slot = Some(ApiBinding {
-                                set: lang_slot.set,
+                                set: decl.lang_slot.set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
                                     let unmodified_id =

@@ -20,7 +20,7 @@ pub struct GlobalVariable {
     pub storage_class: GlobalStorage,
 
     /// Binding point from the users perspective
-    pub lang_slot: Option<LanguageBinding>,
+    pub lang_slot: LanguageBinding,
 
     /// Binding point from the target APIs perspective
     pub api_slot: Option<ApiBinding>,
@@ -42,7 +42,7 @@ pub struct ConstantBuffer {
     pub name: Located<String>,
 
     /// Binding point from the users perspective
-    pub lang_binding: Option<LanguageBinding>,
+    pub lang_binding: LanguageBinding,
 
     /// Binding point from the target APIs perspective
     pub api_binding: Option<ApiBinding>,
@@ -67,13 +67,17 @@ pub struct ConstantVariable {
 }
 
 /// Binding slot from the perspective of language
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
 pub struct LanguageBinding {
     /// Descriptor set index
+    ///
+    /// As the default space is always zero this value is always valid
     pub set: u32,
 
     /// Binding number into the descriptor set
-    pub index: u32,
+    ///
+    /// This is [None] for unspecified register index values before automatic slot assignment
+    pub index: Option<u32>,
 }
 
 /// Binding slot from the perspective of target api

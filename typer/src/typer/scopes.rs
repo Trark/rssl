@@ -502,7 +502,7 @@ impl Context {
             full_name,
             type_id,
             storage_class,
-            lang_slot: None,
+            lang_slot: ir::LanguageBinding::default(),
             api_slot: None,
             init: None,
             constexpr_value: None,
@@ -907,7 +907,7 @@ impl Context {
         self.module.cbuffer_registry.push(ir::ConstantBuffer {
             id,
             name,
-            lang_binding: None,
+            lang_binding: ir::LanguageBinding::default(),
             api_binding: None,
             members: Vec::new(),
         });

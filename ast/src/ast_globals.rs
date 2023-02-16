@@ -18,10 +18,23 @@ pub struct GlobalVariableName {
     pub init: Option<Initializer>,
 }
 
-/// The resource binding slot for a global parameter
+/// The resource binding annotation for a global parameter
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Register {
+    /// Slot type and index
+    pub slot: Option<RegisterSlot>,
+
+    /// Space index the register is bound into
+    pub space: Option<u32>,
+}
+
+/// The resource binding slot for a register annotation
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct RegisterSlot {
+    /// Type of resource that is bound
     pub slot_type: RegisterType,
+
+    /// Slot index the resource is bound into
     pub index: u32,
 }
 

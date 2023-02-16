@@ -65,12 +65,13 @@ fn analyse_bindings(
             if let Some(api_slot) = cb.api_binding {
                 let lang_slot = cb
                     .lang_binding
+                    .index
                     .expect("Lang slot expected to be present when api slot is present");
-                assert_eq!(lang_slot.set, api_slot.set);
+                assert_eq!(cb.lang_binding.set, api_slot.set);
 
                 let binding = DescriptorBinding {
                     name: context.get_constant_buffer_name(cb.id)?.to_string(),
-                    lang_binding: lang_slot.index,
+                    lang_binding: lang_slot,
                     api_binding: api_slot.location,
                     descriptor_type: DescriptorType::ConstantBuffer,
                 };
@@ -116,12 +117,13 @@ fn analyse_bindings(
             if let Some(api_slot) = decl.api_slot {
                 let lang_slot = decl
                     .lang_slot
+                    .index
                     .expect("Lang slot expected to be present when api slot is present");
-                assert_eq!(lang_slot.set, api_slot.set);
+                assert_eq!(decl.lang_slot.set, api_slot.set);
 
                 let binding = DescriptorBinding {
                     name: context.get_global_name(decl.id)?.to_string(),
-                    lang_binding: lang_slot.index,
+                    lang_binding: lang_slot,
                     api_binding: api_slot.location,
                     descriptor_type,
                 };
@@ -328,6 +330,9 @@ fn export_register_annotation(
             ApiLocation::InlineConstant(_) => {
                 panic!("export_register_annotation did not expect an inline constant")
             }
+        }
+        if slot.set != 0 {
+            write!(output, ", space{}", slot.set).unwrap();
         }
         output.push(')');
     }
