@@ -1,6 +1,6 @@
 use crate::*;
 use rssl_text::SourceLocation;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Represents a full parsed and type checked source file
 #[derive(PartialEq, Clone, Default, Debug)]
@@ -204,112 +204,6 @@ impl Module {
         self.cbuffer_registry[id.0 as usize].name.location
     }
 
-    /// Assign slot numbers to resource bindings
-    ///
-    /// Slots are assigned within a single namespace.
-    /// Only object types will receive a slot.
-    pub fn assign_slot_numbers(mut self) -> Self {
-        // Search definitions for used slot numbers
-        fn search_definition(
-            module: &Module,
-            decl: &RootDefinition,
-            used_values: &mut HashSet<u32>,
-        ) {
-            match decl {
-                RootDefinition::Struct(_)
-                | RootDefinition::StructTemplate(_)
-                | RootDefinition::Enum(_)
-                | RootDefinition::Function(_) => {}
-                RootDefinition::ConstantBuffer(id) => {
-                    let cb = &module.cbuffer_registry[id.0 as usize];
-                    if let LanguageBinding {
-                        set: 0,
-                        index: Some(slot),
-                    } = cb.lang_binding
-                    {
-                        used_values.insert(slot);
-                    }
-                }
-                RootDefinition::GlobalVariable(id) => {
-                    let decl = &module.global_registry[id.0 as usize];
-                    if let LanguageBinding {
-                        set: 0,
-                        index: Some(slot),
-                    } = decl.lang_slot
-                    {
-                        used_values.insert(slot);
-                    }
-                }
-                RootDefinition::Namespace(_, decls) => {
-                    for decl in decls {
-                        search_definition(module, decl, used_values)
-                    }
-                }
-            }
-        }
-
-        let mut used_values = HashSet::new();
-        for decl in &self.root_definitions {
-            search_definition(&self, decl, &mut used_values)
-        }
-
-        // Add slot numbers to definitions without them
-        fn process_definition(
-            module: &mut Module,
-            decl: &mut RootDefinition,
-            used_values: &HashSet<u32>,
-            next_value: &mut u32,
-        ) {
-            match decl {
-                RootDefinition::Struct(_)
-                | RootDefinition::StructTemplate(_)
-                | RootDefinition::Enum(_)
-                | RootDefinition::Function(_) => {}
-                RootDefinition::ConstantBuffer(id) => {
-                    let cb = &mut module.cbuffer_registry[id.0 as usize];
-                    if cb.lang_binding.index.is_none() {
-                        let mut slot = *next_value;
-                        while used_values.contains(&slot) {
-                            slot += 1;
-                        }
-                        *next_value = slot + 1;
-
-                        cb.lang_binding.index = Some(slot);
-                    }
-                }
-                RootDefinition::GlobalVariable(id) => {
-                    let decl = &mut module.global_registry[id.0 as usize];
-                    if decl.lang_slot.index.is_none() {
-                        // Find the slot type that we are adding
-                        let unmodified_id = module.type_registry.remove_modifier(decl.type_id);
-                        let tyl = module.type_registry.get_type_layer(unmodified_id);
-                        if tyl.is_object() {
-                            let mut slot = *next_value;
-                            while used_values.contains(&slot) {
-                                slot += 1;
-                            }
-                            *next_value = slot + 1;
-
-                            decl.lang_slot.index = Some(slot);
-                        }
-                    }
-                }
-                RootDefinition::Namespace(_, decls) => {
-                    for decl in decls {
-                        process_definition(module, decl, used_values, next_value)
-                    }
-                }
-            }
-        }
-
-        let mut next_value = 0;
-        for decl in &mut self.root_definitions.clone() {
-            process_definition(&mut self, decl, &used_values, &mut next_value)
-        }
-
-        self
-    }
-
     /// Assign api binding locations to all global resources
     ///
     /// Api slots are assigned independent of language register assignments
@@ -334,7 +228,7 @@ impl Module {
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];
                     assert_eq!(cb.api_binding, None);
-                    if cb.lang_binding.index.is_some() {
+                    {
                         let index = match used_slots.entry(cb.lang_binding.set) {
                             std::collections::hash_map::Entry::Occupied(mut o) => {
                                 let slot = *o.get();
@@ -360,8 +254,10 @@ impl Module {
                 }
                 RootDefinition::GlobalVariable(id) => {
                     let decl = &mut module.global_registry[id.0 as usize];
+                    let unmodified_ty_id = module.type_registry.remove_modifier(decl.type_id);
+                    let unmodified_tyl = module.type_registry.get_type_layer(unmodified_ty_id);
                     assert_eq!(decl.api_slot, None);
-                    if decl.lang_slot.index.is_some() {
+                    if unmodified_tyl.is_object() {
                         if params.support_buffer_address
                             && module.type_registry.is_buffer_address(decl.type_id)
                         {

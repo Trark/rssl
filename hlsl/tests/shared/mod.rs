@@ -37,11 +37,14 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
 pub fn check_rssl_to_hlsl_params(
     source_rssl: &str,
     expected_hlsl: &str,
-    assign_bindings_params: rssl_ir::AssignBindingsParams,
+    assign_bindings_params: Option<rssl_ir::AssignBindingsParams>,
 ) {
     let (ir, _) = parse_from_str(source_rssl);
 
-    let ir = ir.assign_api_bindings(assign_bindings_params);
+    let ir = match assign_bindings_params {
+        Some(params) => ir.assign_api_bindings(params),
+        None => ir,
+    };
 
     match rssl_hlsl::export_to_hlsl(&ir) {
         Ok(output) => {
@@ -63,10 +66,15 @@ pub fn check_rssl_to_hlsl_params(
 
 #[track_caller]
 pub fn check_rssl_to_hlsl(source_rssl: &str, expected_hlsl: &str) {
+    check_rssl_to_hlsl_params(source_rssl, expected_hlsl, None)
+}
+
+#[track_caller]
+pub fn check_rssl_to_hlsl_dx(source_rssl: &str, expected_hlsl: &str) {
     check_rssl_to_hlsl_params(
         source_rssl,
         expected_hlsl,
-        rssl_ir::AssignBindingsParams::default(),
+        Some(rssl_ir::AssignBindingsParams::default()),
     )
 }
 
@@ -75,9 +83,9 @@ pub fn check_rssl_to_hlsl_vk(source_rssl: &str, expected_hlsl: &str) {
     check_rssl_to_hlsl_params(
         source_rssl,
         expected_hlsl,
-        rssl_ir::AssignBindingsParams {
+        Some(rssl_ir::AssignBindingsParams {
             require_slot_type: false,
             support_buffer_address: true,
-        },
+        }),
     )
 }

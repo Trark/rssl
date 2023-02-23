@@ -1020,7 +1020,7 @@ void main() {
 
 #[test]
 fn check_object_types() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("object_types.rssl"),
         include_str!("object_types.hlsl"),
     );
@@ -1090,7 +1090,7 @@ void f() {
 
 #[test]
 fn check_byte_buffer() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("byte_buffer.rssl"),
         include_str!("byte_buffer.hlsl"),
     );
@@ -1098,7 +1098,7 @@ fn check_byte_buffer() {
 
 #[test]
 fn check_buffer_address() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("buffer_address.rssl"),
         include_str!("buffer_address.hlsl"),
     );
@@ -1111,7 +1111,7 @@ fn check_buffer_address() {
 
 #[test]
 fn check_structured_buffer() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("structured_buffer.rssl"),
         include_str!("structured_buffer.hlsl"),
     );
@@ -1119,7 +1119,7 @@ fn check_structured_buffer() {
 
 #[test]
 fn check_texel_buffer() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("texel_buffer.rssl"),
         include_str!("texel_buffer.hlsl"),
     );
@@ -1127,7 +1127,7 @@ fn check_texel_buffer() {
 
 #[test]
 fn check_texture2d() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("texture2d.rssl"),
         include_str!("texture2d.hlsl"),
     );
@@ -1162,7 +1162,7 @@ fn check_namespaces() {
 
 #[test]
 fn check_cluster_expand() {
-    check_rssl_to_hlsl(
+    check_rssl_to_hlsl_dx(
         include_str!("cluster_expand.rssl"),
         include_str!("cluster_expand.hlsl"),
     );
