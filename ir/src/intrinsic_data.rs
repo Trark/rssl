@@ -155,10 +155,17 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { M acos(M) => Acos | float, float2, float3, float4 },
     f! { M asin(M) => Asin | float, float2, float3, float4 },
+    f! { M atan(M) => Atan | float, float2, float3, float4 },
+    f! { M atan2(M, M) => Atan2 | float, float2, float3, float4 },
     f! { M cos(M) => Cos | float, float2, float3, float4 },
+    f! { M cosh(M) => Cosh | float, float2, float3, float4 },
     f! { M sin(M) => Sin | float, float2, float3, float4 },
+    f! { M sinh(M) => Sinh | float, float2, float3, float4 },
     f! { void sincos(M, out M, out M) => Sincos | float, float2, float3, float4 },
+    f! { M tan(M) => Tan | float, float2, float3, float4 },
+    f! { M tanh(M) => Tanh | float, float2, float3, float4 },
     f! { M sqrt(M) => Sqrt | float, float2, float3, float4 },
+    f! { M rsqrt(M) => RcpSqrt | float, float2, float3, float4 },
     f! { M pow(M, M) => Pow | float, float2, float3, float4 },
     f! { M exp(M) => Exp | float, float2, float3, float4 },
     f! { M exp2(M) => Exp2 | float, float2, float3, float4 },
@@ -184,6 +191,11 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { uint f32tof16(float) => F32ToF16 },
 
     f! { M floor(M) => Floor | float, float2, float3, float4 },
+    f! { M ceil(M) => Ceil | float, float2, float3, float4 },
+    f! { M trunc(M) => Trunc | float, float2, float3, float4 },
+    f! { M round(M) => Round | float, float2, float3, float4 },
+    f! { M frac(M) => Frac | float, float2, float3, float4 },
+    f! { M modf(M, out M) => Modf | float, float2, float3, float4, int, int2, int3, int4 },
 
     f! { M lerp(M, M, M) => Lerp | float, float2, float3, float4 },
 
@@ -192,6 +204,16 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { bool3 isnan(float3) => IsNaN },
     f! { bool4 isnan(float4) => IsNaN },
 
+    f! { bool isinf(float) => IsInfinite },
+    f! { bool2 isinf(float2) => IsInfinite },
+    f! { bool3 isinf(float3) => IsInfinite },
+    f! { bool4 isinf(float4) => IsInfinite },
+
+    f! { bool isfinite(float) => IsFinite },
+    f! { bool2 isfinite(float2) => IsFinite },
+    f! { bool3 isfinite(float3) => IsFinite },
+    f! { bool4 isfinite(float4) => IsFinite },
+
     f! { float length(M) => Length | float1, float2, float3, float4 },
 
     f! { M min(M, M) => Min | int, int2, int3, int4, float, float2, float3, float4 },
@@ -199,6 +221,14 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { M normalize(M) => Normalize | float1, float2, float3, float4 },
     f! { M rcp(M) => Rcp | float, float2, float3, float4 },
+
+    f! { M reflect(M, M) => Reflect | float, float2, float3, float4 },
+    f! { M refract(M, M, float) => Refract | float, float2, float3, float4 },
+
+    f! { M countbits(M) => CountBits | uint, uint2, uint3, uint4 },
+    f! { M reversebits(M) => ReverseBits | uint, uint2, uint3, uint4 },
+    f! { M firstbithigh(M) => FirstBitHigh | uint, uint2, uint3, uint4, int, int2, int3, int4 },
+    f! { M firstbitlow(M) => FirstBitLow | uint, uint2, uint3, uint4, int, int2, int3, int4 },
 
     f! { M saturate(M) => Saturate | float, float2, float3, float4 },
 
@@ -243,13 +273,16 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { M WaveReadLaneAt(M, uint) => WaveReadLaneAt | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
     f! { M WaveReadLaneFirst(M) => WaveReadLaneFirst | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
 
-    f! { bool WaveActiveAllEqual(M) => WaveActiveAllEqual | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
+    f! { bool WaveActiveAllEqual(M) => WaveActiveAllEqual | uint, int, float },
+    f! { bool2 WaveActiveAllEqual(M) => WaveActiveAllEqual | uint2, int2, float2 },
+    f! { bool3 WaveActiveAllEqual(M) => WaveActiveAllEqual | uint3, int3, float3 },
+    f! { bool4 WaveActiveAllEqual(M) => WaveActiveAllEqual | uint4, int4, float4 },
     f! { uint WaveActiveCountBits(bool) => WaveActiveCountBits },
     f! { M WaveActiveSum(M) => WaveActiveSum | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
     f! { M WaveActiveProduct(M) => WaveActiveProduct | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
-    f! { M WaveActiveBitAnd(M) => WaveActiveBitAnd | uint, uint2, uint3, uint4, int, int2, int3, int4 },
-    f! { M WaveActiveBitOr(M) => WaveActiveBitOr | uint, uint2, uint3, uint4, int, int2, int3, int4 },
-    f! { M WaveActiveBitXor(M) => WaveActiveBitXor | uint, uint2, uint3, uint4, int, int2, int3, int4 },
+    f! { M WaveActiveBitAnd(M) => WaveActiveBitAnd | uint, uint2, uint3, uint4 },
+    f! { M WaveActiveBitOr(M) => WaveActiveBitOr | uint, uint2, uint3, uint4 },
+    f! { M WaveActiveBitXor(M) => WaveActiveBitXor | uint, uint2, uint3, uint4 },
     f! { M WaveActiveMin(M) => WaveActiveMin | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
     f! { M WaveActiveMax(M) => WaveActiveMax | uint, uint2, uint3, uint4, int, int2, int3, int4, float, float2, float3, float4 },
 

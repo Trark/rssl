@@ -1207,10 +1207,17 @@ fn export_intrinsic_function(
         // Transcendental functions
         Acos => Form::Invoke("acos"),
         Asin => Form::Invoke("asin"),
+        Atan => Form::Invoke("atan"),
+        Atan2 => Form::Invoke("atan2"),
         Cos => Form::Invoke("cos"),
+        Cosh => Form::Invoke("cosh"),
         Sin => Form::Invoke("sin"),
+        Sinh => Form::Invoke("sinh"),
         Sincos => Form::Invoke("sincos"),
+        Tan => Form::Invoke("tan"),
+        Tanh => Form::Invoke("tanh"),
         Sqrt => Form::Invoke("sqrt"),
+        RcpSqrt => Form::Invoke("rsqrt"),
         Pow => Form::Invoke("pow"),
         Exp => Form::Invoke("exp"),
         Exp2 => Form::Invoke("exp2"),
@@ -1222,12 +1229,27 @@ fn export_intrinsic_function(
         F32ToF16 => Form::Invoke("f32tof16"),
 
         Floor => Form::Invoke("floor"),
+        Ceil => Form::Invoke("ceil"),
+        Trunc => Form::Invoke("trunc"),
+        Round => Form::Invoke("round"),
+        Frac => Form::Invoke("frac"),
+        Modf => Form::Invoke("modf"),
 
         IsNaN => Form::Invoke("isnan"),
+        IsInfinite => Form::Invoke("isinf"),
+        IsFinite => Form::Invoke("isfinite"),
 
         Length => Form::Invoke("length"),
         Normalize => Form::Invoke("normalize"),
         Rcp => Form::Invoke("rcp"),
+
+        Reflect => Form::Invoke("reflect"),
+        Refract => Form::Invoke("refract"),
+
+        CountBits => Form::Invoke("countbits"),
+        ReverseBits => Form::Invoke("reversebits"),
+        FirstBitHigh => Form::Invoke("firstbithigh"),
+        FirstBitLow => Form::Invoke("firstbitlow"),
 
         Saturate => Form::Invoke("saturate"),
 

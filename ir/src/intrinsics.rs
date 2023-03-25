@@ -65,10 +65,17 @@ pub enum Intrinsic {
     // Transcendental functions
     Acos,
     Asin,
+    Atan,
+    Atan2,
     Cos,
+    Cosh,
     Sin,
+    Sinh,
     Sincos,
+    Tan,
+    Tanh,
     Sqrt,
+    RcpSqrt,
     Pow,
     Exp,
     Exp2,
@@ -80,12 +87,27 @@ pub enum Intrinsic {
     F32ToF16,
 
     Floor,
+    Ceil,
+    Trunc,
+    Round,
+    Frac,
+    Modf,
 
     IsNaN,
+    IsInfinite,
+    IsFinite,
 
     Length,
     Normalize,
     Rcp,
+
+    Reflect,
+    Refract,
+
+    CountBits,
+    ReverseBits,
+    FirstBitHigh,
+    FirstBitLow,
 
     Saturate,
 
