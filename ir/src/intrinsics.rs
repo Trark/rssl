@@ -260,6 +260,18 @@ pub enum Intrinsic {
     // RWTexture2D methods
     RWTexture2DGetDimensions,
     RWTexture2DLoad,
+
+    // Texture3D methods
+    Texture3DGetDimensions,
+    Texture3DLoad,
+    Texture3DSample,
+    Texture3DSampleBias,
+    Texture3DSampleGrad,
+    Texture3DSampleLevel,
+
+    // RWTexture3D methods
+    RWTexture3DGetDimensions,
+    RWTexture3DLoad,
 }
 
 impl IntrinsicOp {

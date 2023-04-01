@@ -342,6 +342,12 @@ fn parse_object_type(
         "RWTexture2D" => Some(ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(
             get_data_type(template_args, false, context)?,
         ))),
+        "Texture3D" => Some(ir::TypeLayer::Object(ir::ObjectType::Texture3D(
+            get_data_type(template_args, true, context)?,
+        ))),
+        "RWTexture3D" => Some(ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(
+            get_data_type(template_args, false, context)?,
+        ))),
         "ConstantBuffer" => Some(ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(
             get_structured_type(template_args, context)?,
         ))),

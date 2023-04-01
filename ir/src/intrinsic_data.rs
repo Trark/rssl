@@ -478,6 +478,34 @@ const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D Load(int2, out uint) => RWTexture2DLoad },
 ];
 
+const TEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(int, out uint, out uint, out uint, out uint) => Texture3DGetDimensions },
+    f! { D Load(int4) => Texture3DLoad },
+    f! { D Load(int4, int3) => Texture3DLoad },
+    f! { D Load(int4, int3, out uint) => Texture3DLoad },
+    f! { D Sample(SamplerState, float3) => Texture3DSample },
+    f! { D Sample(SamplerState, float3, int3) => Texture3DSample },
+    f! { D Sample(SamplerState, float3, int3, float) => Texture3DSample },
+    f! { D Sample(SamplerState, float3, int3, float, out uint) => Texture3DSample },
+    f! { D SampleBias(SamplerState, float3, float) => Texture3DSampleBias },
+    f! { D SampleBias(SamplerState, float3, float, int3) => Texture3DSampleBias },
+    f! { D SampleBias(SamplerState, float3, float, int3, float) => Texture3DSampleBias },
+    f! { D SampleBias(SamplerState, float3, float, int3, float, out uint) => Texture3DSampleBias },
+    f! { D SampleGrad(SamplerState, float3, float, float) => Texture3DSampleGrad },
+    f! { D SampleGrad(SamplerState, float3, float, float, int3) => Texture3DSampleGrad },
+    f! { D SampleGrad(SamplerState, float3, float, float, int3, float) => Texture3DSampleGrad },
+    f! { D SampleGrad(SamplerState, float3, float, float, int3, float, out uint) => Texture3DSampleGrad },
+    f! { D SampleLevel(SamplerState, float3, float) => Texture3DSampleLevel },
+    f! { D SampleLevel(SamplerState, float3, float, int3) => Texture3DSampleLevel },
+    f! { D SampleLevel(SamplerState, float3, float, int3, out uint) => Texture3DSampleLevel },
+];
+
+const RWTEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint, out uint, out uint) => RWTexture3DGetDimensions },
+    f! { D Load(int3) => RWTexture3DLoad },
+    f! { D Load(int3, out uint) => RWTexture3DLoad },
+];
+
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => ByteAddressBufferGetDimensions },
     f! { uint Load(uint) => ByteAddressBufferLoad },
@@ -541,6 +569,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         ObjectType::RWStructuredBuffer(_) => RWSTRUCTUREDBUFFER_INTRINSICS,
         ObjectType::Texture2D(_) => TEXTURE2D_INTRINSICS,
         ObjectType::RWTexture2D(_) => RWTEXTURE2D_INTRINSICS,
+        ObjectType::Texture3D(_) => TEXTURE3D_INTRINSICS,
+        ObjectType::RWTexture3D(_) => RWTEXTURE3D_INTRINSICS,
         ObjectType::ByteAddressBuffer => BYTEADDRESSBUFFER_INTRINSICS,
         ObjectType::RWByteAddressBuffer => RWBYTEADDRESSBUFFER_INTRINSICS,
         ObjectType::BufferAddress => BUFFERADDRESS_INTRINSICS,
@@ -554,6 +584,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         | ObjectType::RWBuffer(ty)
         | ObjectType::Texture2D(ty)
         | ObjectType::RWTexture2D(ty)
+        | ObjectType::Texture3D(ty)
+        | ObjectType::RWTexture3D(ty)
         | ObjectType::StructuredBuffer(ty)
         | ObjectType::RWStructuredBuffer(ty) => Some(ty),
         _ => None,

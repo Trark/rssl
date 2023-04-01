@@ -1134,6 +1134,14 @@ fn check_texture2d() {
 }
 
 #[test]
+fn check_texture3d() {
+    check_rssl_to_hlsl_dx(
+        include_str!("texture3d.rssl"),
+        include_str!("texture3d.hlsl"),
+    );
+}
+
+#[test]
 fn check_semantics() {
     check_rssl_to_hlsl(
         "float4 main(uint id : SV_VertexID) : SV_Position { return 0; }",

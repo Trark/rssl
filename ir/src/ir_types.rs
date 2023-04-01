@@ -397,6 +397,12 @@ pub enum ObjectType {
 
     RWTexture2D(TypeId),
 
+    Texture3D(TypeId),
+    Texture3DMips(TypeId),
+    Texture3DMipsSlice(TypeId),
+
+    RWTexture3D(TypeId),
+
     ConstantBuffer(TypeId),
 
     SamplerState,
@@ -771,19 +777,24 @@ impl ObjectType {
             | ObjectType::ByteAddressBuffer
             | ObjectType::BufferAddress
             | ObjectType::StructuredBuffer(_)
-            | ObjectType::Texture2D(_) => RegisterType::T,
+            | ObjectType::Texture2D(_)
+            | ObjectType::Texture3D(_) => RegisterType::T,
 
             ObjectType::RWBuffer(_)
             | ObjectType::RWByteAddressBuffer
             | ObjectType::RWBufferAddress
             | ObjectType::RWStructuredBuffer(_)
-            | ObjectType::RWTexture2D(_) => RegisterType::U,
+            | ObjectType::RWTexture2D(_)
+            | ObjectType::RWTexture3D(_) => RegisterType::U,
 
             ObjectType::ConstantBuffer(_) => RegisterType::B,
 
             ObjectType::SamplerState | ObjectType::SamplerComparisonState => RegisterType::S,
 
-            ObjectType::Texture2DMips(_) | ObjectType::Texture2DMipsSlice(_) => {
+            ObjectType::Texture2DMips(_)
+            | ObjectType::Texture2DMipsSlice(_)
+            | ObjectType::Texture3DMips(_)
+            | ObjectType::Texture3DMipsSlice(_) => {
                 panic!("get_register_type called on non-root object types")
             }
         }
@@ -939,6 +950,10 @@ impl std::fmt::Debug for ObjectType {
             Texture2DMips(ref dt) => write!(f, "Texture2D<{dt:?}>::Mips"),
             Texture2DMipsSlice(ref dt) => write!(f, "Texture2D<{dt:?}>::MipsSlice"),
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{dt:?}>"),
+            Texture3D(ref dt) => write!(f, "Texture3D<{dt:?}>"),
+            Texture3DMips(ref dt) => write!(f, "Texture3D<{dt:?}>::Mips"),
+            Texture3DMipsSlice(ref dt) => write!(f, "Texture3D<{dt:?}>::MipsSlice"),
+            RWTexture3D(ref dt) => write!(f, "RWTexture3D<{dt:?}>"),
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{st:?}>"),
             SamplerState => write!(f, "SamplerState"),
             SamplerComparisonState => write!(f, "SamplerComparisonState"),

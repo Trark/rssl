@@ -158,6 +158,12 @@ impl Module {
                 format!("Texture2D<{}>::MipsSlice", self.get_type_name_short(ty))
             }
             RWTexture2D(ty) => format!("RWTexture2D<{}>", self.get_type_name_short(ty)),
+            Texture3D(ty) => format!("Texture3D<{}>", self.get_type_name_short(ty)),
+            Texture3DMips(ty) => format!("Texture3D<{}>::Mips", self.get_type_name_short(ty)),
+            Texture3DMipsSlice(ty) => {
+                format!("Texture3D<{}>::MipsSlice", self.get_type_name_short(ty))
+            }
+            RWTexture3D(ty) => format!("RWTexture3D<{}>", self.get_type_name_short(ty)),
             ConstantBuffer(ty) => format!("ConstantBuffer<{}>", self.get_type_name_short(ty)),
             SamplerState => "SamplerState".to_string(),
             SamplerComparisonState => "SamplerComparisonState".to_string(),

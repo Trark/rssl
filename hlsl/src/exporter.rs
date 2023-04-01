@@ -106,6 +106,10 @@ fn analyse_bindings(
                 ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(_)) => {
                     DescriptorType::RwTexture2d
                 }
+                ir::TypeLayer::Object(ir::ObjectType::Texture3D(_)) => DescriptorType::Texture3d,
+                ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(_)) => {
+                    DescriptorType::RwTexture3d
+                }
                 _ => DescriptorType::PushConstants,
             };
 
@@ -625,6 +629,21 @@ fn export_type_impl(
                     export_type(ty, output, context)?;
                     output.push('>');
                 }
+
+                ir::ObjectType::Texture3D(ty) => {
+                    output.push_str("Texture3D<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::Texture3DMips(_) | ir::ObjectType::Texture3DMipsSlice(_) => {
+                    panic!("trying to export Texture3D.mips intermediates");
+                }
+                ir::ObjectType::RWTexture3D(ty) => {
+                    output.push_str("RWTexture3D<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
+                }
+
                 ir::ObjectType::ConstantBuffer(ty) => {
                     output.push_str("ConstantBuffer<");
                     export_type(ty, output, context)?;
@@ -1378,6 +1397,16 @@ fn export_intrinsic_function(
 
         RWTexture2DGetDimensions => Form::Method("GetDimensions"),
         RWTexture2DLoad => Form::Method("Load"),
+
+        Texture3DGetDimensions => Form::Method("GetDimensions"),
+        Texture3DLoad => Form::Method("Load"),
+        Texture3DSample => Form::Method("Sample"),
+        Texture3DSampleBias => Form::Method("SampleBias"),
+        Texture3DSampleGrad => Form::Method("SampleGrad"),
+        Texture3DSampleLevel => Form::Method("SampleLevel"),
+
+        RWTexture3DGetDimensions => Form::Method("GetDimensions"),
+        RWTexture3DLoad => Form::Method("Load"),
     };
 
     match form {

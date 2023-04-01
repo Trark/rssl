@@ -1195,91 +1195,52 @@ fn parse_expr_unchecked(
                 .module
                 .type_registry
                 .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt));
-            let node = match tyl_nomod {
+
+            let index_type = match tyl_nomod {
                 ir::TypeLayer::Array(_, _)
                 | ir::TypeLayer::Vector(_, _)
-                | ir::TypeLayer::Object(ir::ObjectType::Buffer(_))
-                | ir::TypeLayer::Object(ir::ObjectType::RWBuffer(_))
-                | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(_))
-                | ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
-                    let index_type = uint_ty;
-                    let index = index_type.to_rvalue();
-                    let cast_to_int_result =
-                        ImplicitConversion::find(subscript_ty, index, &mut context.module);
-                    let subscript_final = match cast_to_int_result {
-                        Err(_) => {
-                            return Err(TyperError::ArraySubscriptIndexNotInteger(
-                                subscript.get_location(),
-                            ))
-                        }
-                        Ok(cast) => cast.apply(subscript_ir, &mut context.module),
-                    };
-                    let array = Box::new(array_ir);
-                    let sub = Box::new(subscript_final);
-                    let sub_node = ir::Expression::ArraySubscript(array, sub);
-                    Ok(sub_node)
-                }
+                | ir::TypeLayer::Object(
+                    ir::ObjectType::Buffer(_)
+                    | ir::ObjectType::RWBuffer(_)
+                    | ir::ObjectType::StructuredBuffer(_)
+                    | ir::ObjectType::RWStructuredBuffer(_)
+                    | ir::ObjectType::Texture2DMips(_)
+                    | ir::ObjectType::Texture3DMips(_),
+                ) => uint_ty,
                 ir::TypeLayer::Object(
-                    ir::ObjectType::Texture2D(_) | ir::ObjectType::Texture2DMipsSlice(_),
-                ) => {
-                    let index_type = context
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayer::Vector(uint_ty, 2));
-                    let index = index_type.to_rvalue();
-                    let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
-                    let subscript_final = match cast {
-                        Err(_) => {
-                            return Err(TyperError::ArraySubscriptIndexNotInteger(
-                                subscript.get_location(),
-                            ))
-                        }
-                        Ok(cast) => cast.apply(subscript_ir, &mut context.module),
-                    };
-                    let array = Box::new(array_ir);
-                    let sub = Box::new(subscript_final);
-                    let sub_node = ir::Expression::ArraySubscript(array, sub);
-                    Ok(sub_node)
+                    ir::ObjectType::Texture2D(_)
+                    | ir::ObjectType::Texture2DMipsSlice(_)
+                    | ir::ObjectType::RWTexture2D(_),
+                ) => context
+                    .module
+                    .type_registry
+                    .register_type(ir::TypeLayer::Vector(uint_ty, 2)),
+                ir::TypeLayer::Object(
+                    ir::ObjectType::Texture3D(_)
+                    | ir::ObjectType::Texture3DMipsSlice(_)
+                    | ir::ObjectType::RWTexture3D(_),
+                ) => context
+                    .module
+                    .type_registry
+                    .register_type(ir::TypeLayer::Vector(uint_ty, 3)),
+                _ => return Err(TyperError::ArrayIndexingNonArrayType(array.location)),
+            };
+
+            let index = index_type.to_rvalue();
+            let cast_to_int_result =
+                ImplicitConversion::find(subscript_ty, index, &mut context.module);
+            let subscript_final = match cast_to_int_result {
+                Err(_) => {
+                    return Err(TyperError::ArraySubscriptIndexNotInteger(
+                        subscript.get_location(),
+                    ))
                 }
-                ir::TypeLayer::Object(ir::ObjectType::Texture2DMips(_)) => {
-                    let index_type = uint_ty;
-                    let index = index_type.to_rvalue();
-                    let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
-                    let subscript_final = match cast {
-                        Err(_) => {
-                            return Err(TyperError::ArraySubscriptIndexNotInteger(
-                                subscript.get_location(),
-                            ))
-                        }
-                        Ok(cast) => cast.apply(subscript_ir, &mut context.module),
-                    };
-                    let array = Box::new(array_ir);
-                    let sub = Box::new(subscript_final);
-                    let sub_node = ir::Expression::ArraySubscript(array, sub);
-                    Ok(sub_node)
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(_)) => {
-                    let index_type = context
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayer::Vector(uint_ty, 2));
-                    let index = index_type.to_rvalue();
-                    let cast = ImplicitConversion::find(subscript_ty, index, &mut context.module);
-                    let subscript_final = match cast {
-                        Err(_) => {
-                            return Err(TyperError::ArraySubscriptIndexNotInteger(
-                                subscript.get_location(),
-                            ))
-                        }
-                        Ok(cast) => cast.apply(subscript_ir, &mut context.module),
-                    };
-                    let array = Box::new(array_ir);
-                    let sub = Box::new(subscript_final);
-                    let sub_node = ir::Expression::ArraySubscript(array, sub);
-                    Ok(sub_node)
-                }
-                _ => Err(TyperError::ArrayIndexingNonArrayType(array.location)),
-            }?;
+                Ok(cast) => cast.apply(subscript_ir, &mut context.module),
+            };
+            let array = Box::new(array_ir);
+            let sub = Box::new(subscript_final);
+            let node = ir::Expression::ArraySubscript(array, sub);
+
             let ety = match get_expression_type(&node, context) {
                 Ok(ety) => ety,
                 Err(err) => panic!("internal error: type unknown ({err:?}"),
@@ -1491,6 +1452,17 @@ fn parse_expr_unchecked(
                             let composite = Box::new(composite_ir);
                             let member = ir::Expression::Member(composite, member.node.clone());
                             let mips_oty = ir::ObjectType::Texture2DMips(ty);
+                            let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                            let mips_ty = context.module.type_registry.register_type(mips_tyl);
+                            return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
+                        }
+                    }
+
+                    if let ir::ObjectType::Texture3D(ty) = object_type {
+                        if member.node == "mips" {
+                            let composite = Box::new(composite_ir);
+                            let member = ir::Expression::Member(composite, member.node.clone());
+                            let mips_oty = ir::ObjectType::Texture3DMips(ty);
                             let mips_tyl = ir::TypeLayer::Object(mips_oty);
                             let mips_ty = context.module.type_registry.register_type(mips_tyl);
                             return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
@@ -2093,14 +2065,21 @@ fn get_expression_type(
                 ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty)) => {
+                | ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::Texture3D(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::Texture3DMipsSlice(ty)) => {
                     context.module.type_registry.make_const(ty)
                 }
                 ir::TypeLayer::Object(ir::ObjectType::RWBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(ty)) => ty,
+                | ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(ty))
+                | ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(ty)) => ty,
                 ir::TypeLayer::Object(ir::ObjectType::Texture2DMips(ty)) => {
                     let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty));
+                    context.module.type_registry.register_type(tyl)
+                }
+                ir::TypeLayer::Object(ir::ObjectType::Texture3DMips(ty)) => {
+                    let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture3DMipsSlice(ty));
                     context.module.type_registry.register_type(tyl)
                 }
                 _ => {
@@ -2122,6 +2101,16 @@ fn get_expression_type(
             if let ir::TypeLayer::Object(ir::ObjectType::Texture2D(inner)) = tyl {
                 if name == "mips" {
                     let mips_oty = ir::ObjectType::Texture2DMips(inner);
+                    let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                    let mips_ty = context.module.type_registry.register_type(mips_tyl);
+                    return Ok(mips_ty.to_lvalue());
+                }
+            }
+
+            // Handle mips member of Texture3D
+            if let ir::TypeLayer::Object(ir::ObjectType::Texture3D(inner)) = tyl {
+                if name == "mips" {
+                    let mips_oty = ir::ObjectType::Texture3DMips(inner);
                     let mips_tyl = ir::TypeLayer::Object(mips_oty);
                     let mips_ty = context.module.type_registry.register_type(mips_tyl);
                     return Ok(mips_ty.to_lvalue());

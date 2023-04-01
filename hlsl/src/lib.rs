@@ -78,6 +78,12 @@ pub enum DescriptorType {
 
     /// A read-write storage 2d texture
     RwTexture2d,
+
+    /// A read-only sampled 3d texture
+    Texture3d,
+
+    /// A read-write storage 3d texture
+    RwTexture3d,
 }
 
 /// A definition of a constant buffer that serves other bindings
