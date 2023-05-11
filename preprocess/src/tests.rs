@@ -503,3 +503,8 @@ M()(2)(1)(2)(3)(2)(1)(2)",
         "[fn] + [f2] + [f1] + [f2] + F3(2)(1)(2)\n"
     );
 }
+
+#[test]
+fn test_default_defines() {
+    assert_text!("#if __HLSL_VERSION == 2021\nX\n#else\nY\n#endif", "X\n");
+}

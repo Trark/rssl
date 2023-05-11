@@ -180,6 +180,7 @@ pub struct PreprocessTokenData {
 pub struct LexToken(pub Token, pub SourceLocation);
 
 impl PreprocessToken {
+    /// Construct a new token with the given source range
     pub fn new(
         tok: Token,
         base_location: SourceLocation,
@@ -193,6 +194,17 @@ impl PreprocessToken {
             PreprocessTokenData {
                 start_location: base_location.offset(start_offset),
                 end_location: base_location.offset(end_offset),
+            },
+        )
+    }
+
+    /// Construct a new token with the unknown source range
+    pub fn without_location(tok: Token) -> Self {
+        PreprocessToken(
+            tok,
+            PreprocessTokenData {
+                start_location: SourceLocation::UNKNOWN,
+                end_location: SourceLocation::UNKNOWN,
             },
         )
     }

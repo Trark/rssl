@@ -1329,8 +1329,18 @@ fn preprocess_initial_file(
     file_loader: &mut FileLoader,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     let mut tokens = Vec::<PreprocessToken>::default();
-    let mut macros = vec![];
+    let mut macros = Vec::new();
     let mut condition_chain = ConditionChain::new();
+
+    // Add initial macros
+    // We mirror the semantics of HLSL 2021
+    macros.push(Macro {
+        name: "__HLSL_VERSION".to_string(),
+        is_function: false,
+        num_params: 0,
+        tokens: Vec::from([PreprocessToken::without_location(Token::LiteralInt(2021))]),
+        location: SourceLocation::UNKNOWN,
+    });
 
     preprocess_included_file(
         &mut tokens,
