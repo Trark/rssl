@@ -65,23 +65,54 @@ fn parse_p14(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionPa
 }
 
 fn parse_p10(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
-    let left = parse_p3(stream)?;
+    let left = parse_p9(stream)?;
     let (stream, left_value) = left;
 
     if let Some((tok, rest)) = stream.split_first() {
         match tok {
             Token::EqualsEquals => {
-                let (rest, right_value) = parse_p3(rest)?;
+                let (rest, right_value) = parse_p9(rest)?;
                 let value = u64::from(left_value == right_value);
                 return Ok((rest, value));
             }
             Token::ExclamationPointEquals => {
-                let (rest, right_value) = parse_p3(rest)?;
+                let (rest, right_value) = parse_p9(rest)?;
                 let value = u64::from(left_value != right_value);
                 return Ok((rest, value));
             }
             _ => {}
         }
+    }
+
+    Ok(left)
+}
+
+fn parse_p9(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    let left = parse_p3(stream)?;
+    let (stream, left_value) = left;
+
+    match stream {
+        [Token::LeftAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
+            let (rest, right_value) = parse_p3(rest)?;
+            let value = u64::from(left_value <= right_value);
+            return Ok((rest, value));
+        }
+        [Token::RightAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
+            let (rest, right_value) = parse_p3(rest)?;
+            let value = u64::from(left_value >= right_value);
+            return Ok((rest, value));
+        }
+        [Token::LeftAngleBracket(_), rest @ ..] => {
+            let (rest, right_value) = parse_p3(rest)?;
+            let value = u64::from(left_value < right_value);
+            return Ok((rest, value));
+        }
+        [Token::RightAngleBracket(_), rest @ ..] => {
+            let (rest, right_value) = parse_p3(rest)?;
+            let value = u64::from(left_value > right_value);
+            return Ok((rest, value));
+        }
+        _ => {}
     }
 
     Ok(left)
@@ -184,4 +215,12 @@ fn test_condition_parser() {
     assert_eq!(eval("0 != 1"), true);
     assert_eq!(eval("1 != 0"), true);
     assert_eq!(eval("1 != 1"), false);
+    assert_eq!(eval("0 < 0"), false);
+    assert_eq!(eval("0 < 1"), true);
+    assert_eq!(eval("1 <= 0"), false);
+    assert_eq!(eval("1 <= 1"), true);
+    assert_eq!(eval("1 > 0"), true);
+    assert_eq!(eval("1 > 1"), false);
+    assert_eq!(eval("1 >= 1"), true);
+    assert_eq!(eval("1 >= 2"), false);
 }
