@@ -1213,6 +1213,7 @@ fn parse_expr_unchecked(
             let index_type = match tyl_nomod {
                 ir::TypeLayer::Array(_, _)
                 | ir::TypeLayer::Vector(_, _)
+                | ir::TypeLayer::Matrix(_, _, _)
                 | ir::TypeLayer::Object(
                     ir::ObjectType::Buffer(_)
                     | ir::ObjectType::RWBuffer(_)
@@ -2071,11 +2072,21 @@ fn get_expression_type(
         ir::Expression::ArraySubscript(ref array, _) => {
             let array_ty = get_expression_type(array, context)?;
             // Todo: Modifiers on object type template parameters
-            let array_ty_nomod = context.module.type_registry.remove_modifier(array_ty.0);
+            let (array_ty_nomod, modifer) =
+                context.module.type_registry.extract_modifier(array_ty.0);
             let array_tyl_nomod = context.module.type_registry.get_type_layer(array_ty_nomod);
             let ty = match array_tyl_nomod {
                 ir::TypeLayer::Array(element, _) => element,
-                ir::TypeLayer::Vector(st, _) => st,
+                ir::TypeLayer::Vector(st, _) => {
+                    context.module.type_registry.combine_modifier(st, modifer)
+                }
+                ir::TypeLayer::Matrix(st, _, y) => {
+                    let ty = context
+                        .module
+                        .type_registry
+                        .register_type(ir::TypeLayer::Vector(st, y));
+                    context.module.type_registry.combine_modifier(ty, modifer)
+                }
                 ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
                 | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty))

@@ -400,6 +400,24 @@ fn check_expression_vector_index() {
 }
 
 #[test]
+fn check_expression_matrix_index() {
+    check_rssl_to_hlsl(
+        "void f() {
+    float2x4 m0;
+    float4 v1 = m0[0];
+    float v2 = m0[1][2];
+}
+",
+        "void f() {
+    float2x4 m0;
+    float4 v1 = m0[0u];
+    float v2 = m0[1u][2u];
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_block() {
     check_rssl_to_hlsl(
         "void f() {
