@@ -1514,6 +1514,19 @@ fn check_operator_boolean_or() {
 }
 
 #[test]
+fn check_operator_ternary_conditional() {
+    check_types("void f() { bool x, y, z = 0; assert_type<bool>(x ? y : z); }");
+    check_types("void f() { const bool x, y, z = 0; assert_type<bool>(x ? y : z); }");
+
+    check_types("void f() { uint x, y, z = 0; assert_type<uint>(x ? y : z); }");
+    check_types("void f() { const uint x, y, z = 0; assert_type<uint>(x ? y : z); }");
+
+    // Non-scalars forbidden from condition
+    check_types("void f() { uint x; uint2 y, z; uint2 a = x ? y : z; }");
+    check_fail("void f() { uint2 x; uint2 y, z; uint2 a = x ? y : z; }");
+}
+
+#[test]
 fn check_operator_less_than() {
     check_types("void f() { uint x, y = 0; assert_type<bool>(x < y); }");
     check_types("void f() { const uint x, y = 0; assert_type<bool>(x < y); }");

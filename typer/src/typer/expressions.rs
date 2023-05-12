@@ -1135,6 +1135,20 @@ fn parse_expr_ternary(
         .type_registry
         .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Bool));
 
+    // Check for vector values in the condition
+    {
+        let cond_input_base = context.module.type_registry.remove_modifier(cond_ety.0);
+        let cond_input_tyl = context.module.type_registry.get_type_layer(cond_input_base);
+        let cond_input_is_vector = matches!(
+            cond_input_tyl,
+            ir::TypeLayer::Vector(..) | ir::TypeLayer::Matrix(..),
+        );
+
+        if cond_input_is_vector {
+            return Err(TyperError::ShortCircuitingVector(cond_location));
+        }
+    }
+
     // Cast the condition
     let cond_cast =
         match ImplicitConversion::find(cond_ety, bool_ty.to_rvalue(), &mut context.module) {
