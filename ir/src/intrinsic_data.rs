@@ -474,10 +474,79 @@ const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D GatherCmpAlpha(SamplerComparisonState, float2, float, int2, int2, int2, int2, out uint) => Texture2DGatherCmpAlpha },
 ];
 
+const TEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(int, out uint, out uint, out uint, out uint) => Texture2DArrayGetDimensions },
+    f! { D Load(int4) => Texture2DArrayLoad },
+    f! { D Load(int4, int2) => Texture2DArrayLoad },
+    f! { D Load(int4, int2, out uint) => Texture2DArrayLoad },
+    f! { D Sample(SamplerState, float3) => Texture2DArraySample },
+    f! { D Sample(SamplerState, float3, int2) => Texture2DArraySample },
+    f! { D Sample(SamplerState, float3, int2, float) => Texture2DArraySample },
+    f! { D Sample(SamplerState, float3, int2, float, out uint) => Texture2DArraySample },
+    f! { D SampleBias(SamplerState, float3, float) => Texture2DArraySampleBias },
+    f! { D SampleBias(SamplerState, float3, float, int2) => Texture2DArraySampleBias },
+    f! { D SampleBias(SamplerState, float3, float, int2, float) => Texture2DArraySampleBias },
+    f! { D SampleBias(SamplerState, float3, float, int2, float, out uint) => Texture2DArraySampleBias },
+    f! { D SampleCmp(SamplerComparisonState, float3, float, int2) => Texture2DArraySampleCmp },
+    f! { D SampleCmp(SamplerComparisonState, float3, float, int2, float) => Texture2DArraySampleCmp },
+    f! { D SampleCmp(SamplerComparisonState, float3, float, int2, float, out uint) => Texture2DArraySampleCmp },
+    f! { D SampleCmpLevelZero(SamplerComparisonState, float3, float, int2) => Texture2DArraySampleCmpLevelZero },
+    f! { D SampleCmpLevelZero(SamplerComparisonState, float3, float, int2, out uint) => Texture2DArraySampleCmpLevelZero },
+    f! { D SampleGrad(SamplerState, float3, float, float) => Texture2DArraySampleGrad },
+    f! { D SampleGrad(SamplerState, float3, float, float, int2) => Texture2DArraySampleGrad },
+    f! { D SampleGrad(SamplerState, float3, float, float, int2, float) => Texture2DArraySampleGrad },
+    f! { D SampleGrad(SamplerState, float3, float, float, int2, float, out uint) => Texture2DArraySampleGrad },
+    f! { D SampleLevel(SamplerState, float3, float) => Texture2DArraySampleLevel },
+    f! { D SampleLevel(SamplerState, float3, float, int2) => Texture2DArraySampleLevel },
+    f! { D SampleLevel(SamplerState, float3, float, int2, out uint) => Texture2DArraySampleLevel },
+    f! { D Gather(SamplerState, float3, int2) => Texture2DArrayGatherRed },
+    f! { D Gather(SamplerState, float3, int2, out uint) => Texture2DArrayGatherRed },
+    f! { D GatherRed(SamplerState, float3, int2) => Texture2DArrayGatherRed },
+    f! { D GatherRed(SamplerState, float3, int2, out uint) => Texture2DArrayGatherRed },
+    f! { D GatherRed(SamplerState, float3, int2, int2, int2, int2) => Texture2DArrayGatherRed },
+    f! { D GatherRed(SamplerState, float3, int2, int2, int2, int2, out uint) => Texture2DArrayGatherRed },
+    f! { D GatherGreen(SamplerState, float3, int2) => Texture2DArrayGatherGreen },
+    f! { D GatherGreen(SamplerState, float3, int2, out uint) => Texture2DArrayGatherGreen },
+    f! { D GatherGreen(SamplerState, float3, int2, int2, int2, int2) => Texture2DArrayGatherGreen },
+    f! { D GatherGreen(SamplerState, float3, int2, int2, int2, int2, out uint) => Texture2DArrayGatherGreen },
+    f! { D GatherBlue(SamplerState, float3, int2) => Texture2DArrayGatherBlue },
+    f! { D GatherBlue(SamplerState, float3, int2, out uint) => Texture2DArrayGatherBlue },
+    f! { D GatherBlue(SamplerState, float3, int2, int2, int2, int2) => Texture2DArrayGatherBlue },
+    f! { D GatherBlue(SamplerState, float3, int2, int2, int2, int2, out uint) => Texture2DArrayGatherBlue },
+    f! { D GatherAlpha(SamplerState, float3, int2) => Texture2DArrayGatherAlpha },
+    f! { D GatherAlpha(SamplerState, float3, int2, out uint) => Texture2DArrayGatherAlpha },
+    f! { D GatherAlpha(SamplerState, float3, int2, int2, int2, int2) => Texture2DArrayGatherAlpha },
+    f! { D GatherAlpha(SamplerState, float3, int2, int2, int2, int2, out uint) => Texture2DArrayGatherAlpha },
+    f! { D GatherCmp(SamplerComparisonState, float3, float, int2) => Texture2DArrayGatherCmpRed },
+    f! { D GatherCmp(SamplerComparisonState, float3, float, int2, out uint) => Texture2DArrayGatherCmpRed },
+    f! { D GatherCmpRed(SamplerComparisonState, float3, float, int2) => Texture2DArrayGatherCmpRed },
+    f! { D GatherCmpRed(SamplerComparisonState, float3, float, int2, out uint) => Texture2DArrayGatherCmpRed },
+    f! { D GatherCmpRed(SamplerComparisonState, float3, float, int2, int2, int2, int2) => Texture2DArrayGatherCmpRed },
+    f! { D GatherCmpRed(SamplerComparisonState, float3, float, int2, int2, int2, int2, out uint) => Texture2DArrayGatherCmpRed },
+    f! { D GatherCmpGreen(SamplerComparisonState, float3, float, int2) => Texture2DArrayGatherCmpGreen },
+    f! { D GatherCmpGreen(SamplerComparisonState, float3, float, int2, out uint) => Texture2DArrayGatherCmpGreen },
+    f! { D GatherCmpGreen(SamplerComparisonState, float3, float, int2, int2, int2, int2) => Texture2DArrayGatherCmpGreen },
+    f! { D GatherCmpGreen(SamplerComparisonState, float3, float, int2, int2, int2, int2, out uint) => Texture2DArrayGatherCmpGreen },
+    f! { D GatherCmpBlue(SamplerComparisonState, float3, float, int2) => Texture2DArrayGatherCmpBlue },
+    f! { D GatherCmpBlue(SamplerComparisonState, float3, float, int2, out uint) => Texture2DArrayGatherCmpBlue },
+    f! { D GatherCmpBlue(SamplerComparisonState, float3, float, int2, int2, int2, int2) => Texture2DArrayGatherCmpBlue },
+    f! { D GatherCmpBlue(SamplerComparisonState, float3, float, int2, int2, int2, int2, out uint) => Texture2DArrayGatherCmpBlue },
+    f! { D GatherCmpAlpha(SamplerComparisonState, float3, float, int2) => Texture2DArrayGatherCmpAlpha },
+    f! { D GatherCmpAlpha(SamplerComparisonState, float3, float, int2, out uint) => Texture2DArrayGatherCmpAlpha },
+    f! { D GatherCmpAlpha(SamplerComparisonState, float3, float, int2, int2, int2, int2) => Texture2DArrayGatherCmpAlpha },
+    f! { D GatherCmpAlpha(SamplerComparisonState, float3, float, int2, int2, int2, int2, out uint) => Texture2DArrayGatherCmpAlpha },
+];
+
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint) => RWTexture2DGetDimensions },
     f! { D Load(int2) => RWTexture2DLoad },
     f! { D Load(int2, out uint) => RWTexture2DLoad },
+];
+
+const RWTEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void GetDimensions(out uint, out uint, out uint) => RWTexture2DArrayGetDimensions },
+    f! { D Load(int3) => RWTexture2DArrayLoad },
+    f! { D Load(int3, out uint) => RWTexture2DArrayLoad },
 ];
 
 const TEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
@@ -570,7 +639,9 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         ObjectType::StructuredBuffer(_) => STRUCTUREDBUFFER_INTRINSICS,
         ObjectType::RWStructuredBuffer(_) => RWSTRUCTUREDBUFFER_INTRINSICS,
         ObjectType::Texture2D(_) => TEXTURE2D_INTRINSICS,
+        ObjectType::Texture2DArray(_) => TEXTURE2DARRAY_INTRINSICS,
         ObjectType::RWTexture2D(_) => RWTEXTURE2D_INTRINSICS,
+        ObjectType::RWTexture2DArray(_) => RWTEXTURE2DARRAY_INTRINSICS,
         ObjectType::Texture3D(_) => TEXTURE3D_INTRINSICS,
         ObjectType::RWTexture3D(_) => RWTEXTURE3D_INTRINSICS,
         ObjectType::ByteAddressBuffer => BYTEADDRESSBUFFER_INTRINSICS,
@@ -585,7 +656,9 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         ObjectType::Buffer(ty)
         | ObjectType::RWBuffer(ty)
         | ObjectType::Texture2D(ty)
+        | ObjectType::Texture2DArray(ty)
         | ObjectType::RWTexture2D(ty)
+        | ObjectType::RWTexture2DArray(ty)
         | ObjectType::Texture3D(ty)
         | ObjectType::RWTexture3D(ty)
         | ObjectType::StructuredBuffer(ty)

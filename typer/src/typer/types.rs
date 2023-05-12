@@ -339,7 +339,13 @@ fn parse_object_type(
         "Texture2D" => Some(ir::TypeLayer::Object(ir::ObjectType::Texture2D(
             get_data_type(template_args, true, context)?,
         ))),
+        "Texture2DArray" => Some(ir::TypeLayer::Object(ir::ObjectType::Texture2DArray(
+            get_data_type(template_args, true, context)?,
+        ))),
         "RWTexture2D" => Some(ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(
+            get_data_type(template_args, false, context)?,
+        ))),
+        "RWTexture2DArray" => Some(ir::TypeLayer::Object(ir::ObjectType::RWTexture2DArray(
             get_data_type(template_args, false, context)?,
         ))),
         "Texture3D" => Some(ir::TypeLayer::Object(ir::ObjectType::Texture3D(

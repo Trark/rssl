@@ -103,8 +103,14 @@ fn analyse_bindings(
                 ir::TypeLayer::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
                 ir::TypeLayer::Object(ir::ObjectType::RWBuffer(_)) => DescriptorType::RwTexelBuffer,
                 ir::TypeLayer::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
+                ir::TypeLayer::Object(ir::ObjectType::Texture2DArray(_)) => {
+                    DescriptorType::Texture2dArray
+                }
                 ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(_)) => {
                     DescriptorType::RwTexture2d
+                }
+                ir::TypeLayer::Object(ir::ObjectType::RWTexture2DArray(_)) => {
+                    DescriptorType::RwTexture2dArray
                 }
                 ir::TypeLayer::Object(ir::ObjectType::Texture3D(_)) => DescriptorType::Texture3d,
                 ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(_)) => {
@@ -613,6 +619,7 @@ fn export_type_impl(
                     export_type(ty, output, context)?;
                     output.push('>');
                 }
+
                 ir::ObjectType::Texture2D(ty) => {
                     output.push_str("Texture2D<");
                     export_type(ty, output, context)?;
@@ -624,8 +631,28 @@ fn export_type_impl(
                     // Trying to use mips-slice will likely break HLSL anyway as you can't make intermediates of these
                     panic!("trying to export Texture2D.mips intermediates");
                 }
+
+                ir::ObjectType::Texture2DArray(ty) => {
+                    output.push_str("Texture2DArray<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
+                }
+                ir::ObjectType::Texture2DArrayMips(_)
+                | ir::ObjectType::Texture2DArrayMipsSlice(_) => {
+                    // We do not expect intermediate values for mips to get exported
+                    // It's possible to make shaders in HLSL that reference these but these are all silly use cases
+                    // Trying to use mips-slice will likely break HLSL anyway as you can't make intermediates of these
+                    panic!("trying to export Texture2DArray.mips intermediates");
+                }
+
                 ir::ObjectType::RWTexture2D(ty) => {
                     output.push_str("RWTexture2D<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
+                }
+
+                ir::ObjectType::RWTexture2DArray(ty) => {
+                    output.push_str("RWTexture2DArray<");
                     export_type(ty, output, context)?;
                     output.push('>');
                 }
@@ -1397,8 +1424,28 @@ fn export_intrinsic_function(
         Texture2DGatherCmpBlue => Form::Method("GatherCmpBlue"),
         Texture2DGatherCmpAlpha => Form::Method("GatherCmpAlpha"),
 
+        Texture2DArrayGetDimensions => Form::Method("GetDimensions"),
+        Texture2DArrayLoad => Form::Method("Load"),
+        Texture2DArraySample => Form::Method("Sample"),
+        Texture2DArraySampleBias => Form::Method("SampleBias"),
+        Texture2DArraySampleCmp => Form::Method("SampleCmp"),
+        Texture2DArraySampleCmpLevelZero => Form::Method("SampleCmpLevelZero"),
+        Texture2DArraySampleGrad => Form::Method("SampleGrad"),
+        Texture2DArraySampleLevel => Form::Method("SampleLevel"),
+        Texture2DArrayGatherRed => Form::Method("GatherRed"),
+        Texture2DArrayGatherGreen => Form::Method("GatherGreen"),
+        Texture2DArrayGatherBlue => Form::Method("GatherBlue"),
+        Texture2DArrayGatherAlpha => Form::Method("GatherAlpha"),
+        Texture2DArrayGatherCmpRed => Form::Method("GatherCmpRed"),
+        Texture2DArrayGatherCmpGreen => Form::Method("GatherCmpGreen"),
+        Texture2DArrayGatherCmpBlue => Form::Method("GatherCmpBlue"),
+        Texture2DArrayGatherCmpAlpha => Form::Method("GatherCmpAlpha"),
+
         RWTexture2DGetDimensions => Form::Method("GetDimensions"),
         RWTexture2DLoad => Form::Method("Load"),
+
+        RWTexture2DArrayGetDimensions => Form::Method("GetDimensions"),
+        RWTexture2DArrayLoad => Form::Method("Load"),
 
         Texture3DGetDimensions => Form::Method("GetDimensions"),
         Texture3DLoad => Form::Method("Load"),

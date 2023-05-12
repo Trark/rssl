@@ -76,8 +76,14 @@ pub enum DescriptorType {
     /// A read-only sampled 2d texture
     Texture2d,
 
+    /// A read-only sampled 2d texture array
+    Texture2dArray,
+
     /// A read-write storage 2d texture
     RwTexture2d,
+
+    /// A read-write storage 2d texture array
+    RwTexture2dArray,
 
     /// A read-only sampled 3d texture
     Texture3d,

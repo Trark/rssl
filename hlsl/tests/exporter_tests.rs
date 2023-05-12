@@ -1152,6 +1152,14 @@ fn check_texture2d() {
 }
 
 #[test]
+fn check_texture2darray() {
+    check_rssl_to_hlsl_dx(
+        include_str!("texture2darray.rssl"),
+        include_str!("texture2darray.hlsl"),
+    );
+}
+
+#[test]
 fn check_texture3d() {
     check_rssl_to_hlsl_dx(
         include_str!("texture3d.rssl"),

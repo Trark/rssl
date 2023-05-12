@@ -259,9 +259,31 @@ pub enum Intrinsic {
     Texture2DGatherCmpBlue,
     Texture2DGatherCmpAlpha,
 
+    // Texture2DArray methods
+    Texture2DArrayGetDimensions,
+    Texture2DArrayLoad,
+    Texture2DArraySample,
+    Texture2DArraySampleBias,
+    Texture2DArraySampleCmp,
+    Texture2DArraySampleCmpLevelZero,
+    Texture2DArraySampleGrad,
+    Texture2DArraySampleLevel,
+    Texture2DArrayGatherRed,
+    Texture2DArrayGatherGreen,
+    Texture2DArrayGatherBlue,
+    Texture2DArrayGatherAlpha,
+    Texture2DArrayGatherCmpRed,
+    Texture2DArrayGatherCmpGreen,
+    Texture2DArrayGatherCmpBlue,
+    Texture2DArrayGatherCmpAlpha,
+
     // RWTexture2D methods
     RWTexture2DGetDimensions,
     RWTexture2DLoad,
+
+    // RWTexture2DArray methods
+    RWTexture2DArrayGetDimensions,
+    RWTexture2DArrayLoad,
 
     // Texture3D methods
     Texture3DGetDimensions,

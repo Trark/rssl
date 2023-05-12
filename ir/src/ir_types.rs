@@ -395,7 +395,13 @@ pub enum ObjectType {
     Texture2DMips(TypeId),
     Texture2DMipsSlice(TypeId),
 
+    Texture2DArray(TypeId),
+    Texture2DArrayMips(TypeId),
+    Texture2DArrayMipsSlice(TypeId),
+
     RWTexture2D(TypeId),
+
+    RWTexture2DArray(TypeId),
 
     Texture3D(TypeId),
     Texture3DMips(TypeId),
@@ -778,6 +784,7 @@ impl ObjectType {
             | ObjectType::BufferAddress
             | ObjectType::StructuredBuffer(_)
             | ObjectType::Texture2D(_)
+            | ObjectType::Texture2DArray(_)
             | ObjectType::Texture3D(_) => RegisterType::T,
 
             ObjectType::RWBuffer(_)
@@ -785,6 +792,7 @@ impl ObjectType {
             | ObjectType::RWBufferAddress
             | ObjectType::RWStructuredBuffer(_)
             | ObjectType::RWTexture2D(_)
+            | ObjectType::RWTexture2DArray(_)
             | ObjectType::RWTexture3D(_) => RegisterType::U,
 
             ObjectType::ConstantBuffer(_) => RegisterType::B,
@@ -793,6 +801,8 @@ impl ObjectType {
 
             ObjectType::Texture2DMips(_)
             | ObjectType::Texture2DMipsSlice(_)
+            | ObjectType::Texture2DArrayMips(_)
+            | ObjectType::Texture2DArrayMipsSlice(_)
             | ObjectType::Texture3DMips(_)
             | ObjectType::Texture3DMipsSlice(_) => {
                 panic!("get_register_type called on non-root object types")
@@ -949,7 +959,11 @@ impl std::fmt::Debug for ObjectType {
             Texture2D(ref dt) => write!(f, "Texture2D<{dt:?}>"),
             Texture2DMips(ref dt) => write!(f, "Texture2D<{dt:?}>::Mips"),
             Texture2DMipsSlice(ref dt) => write!(f, "Texture2D<{dt:?}>::MipsSlice"),
+            Texture2DArray(ref dt) => write!(f, "Texture2DArray<{dt:?}>"),
+            Texture2DArrayMips(ref dt) => write!(f, "Texture2DArray<{dt:?}>::Mips"),
+            Texture2DArrayMipsSlice(ref dt) => write!(f, "Texture2DArray<{dt:?}>::MipsSlice"),
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{dt:?}>"),
+            RWTexture2DArray(ref dt) => write!(f, "RWTexture2DArray<{dt:?}>"),
             Texture3D(ref dt) => write!(f, "Texture3D<{dt:?}>"),
             Texture3DMips(ref dt) => write!(f, "Texture3D<{dt:?}>::Mips"),
             Texture3DMipsSlice(ref dt) => write!(f, "Texture3D<{dt:?}>::MipsSlice"),

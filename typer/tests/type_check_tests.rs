@@ -1226,9 +1226,15 @@ fn check_object_type_globals() {
     check_types("Texture2D tex;");
     check_types("Texture2D<uint4> tex;");
     check_types("Texture2D<const uint4> tex;");
+    check_types("Texture2DArray tex;");
+    check_types("Texture2DArray<uint4> tex;");
+    check_types("Texture2DArray<const uint4> tex;");
     check_types("RWTexture2D<float4> tex;");
     check_types("RWTexture2D<uint4> tex;");
     check_types("RWTexture2D<const uint4> tex;");
+    check_types("RWTexture2DArray<float4> tex;");
+    check_types("RWTexture2DArray<uint4> tex;");
+    check_types("RWTexture2DArray<const uint4> tex;");
 
     // HLSL forbids constant buffers with non-struct types - maybe we should as well
     check_types("ConstantBuffer<uint4> buf;");
@@ -1266,9 +1272,26 @@ fn check_texture_index() {
     check_fail(
         "RWTexture2D<const float4> tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }",
     );
+
+    check_types(
+        "RWTexture2DArray<float4> tex; void main() { tex[uint3(0, 0, 0)] = float4(1, 2, 3, 4); }",
+    );
+    check_types(
+        "RWTexture2DArray<float4> tex; void sub(out float4 v) {} void main() { sub(tex[uint3(0, 0, 0)]); }",
+    );
+    check_fail(
+        "RWTexture2DArray<const float4> tex; void main() { tex[uint3(0, 0, 0)] = float4(1, 2, 3, 4); }",
+    );
+
     check_types("Texture2D tex; void main() { float x = tex[uint2(0, 0)]; }");
     check_fail("Texture2D tex; void main() { tex[uint2(0, 0)] = float4(1, 2, 3, 4); }");
     check_fail("Texture2D tex; void sub(out float4 v) {} void main() { sub(tex[uint2(0, 0)]); }");
+
+    check_types("Texture2DArray tex; void main() { float x = tex[uint3(0, 0, 0)]; }");
+    check_fail("Texture2DArray tex; void main() { tex[uint3(0, 0, 0)] = float4(1, 2, 3, 4); }");
+    check_fail(
+        "Texture2DArray tex; void sub(out float4 v) {} void main() { sub(tex[uint3(0, 0, 0)]); }",
+    );
 }
 
 #[test]
