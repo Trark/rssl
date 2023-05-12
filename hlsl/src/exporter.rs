@@ -1289,6 +1289,8 @@ fn export_intrinsic_function(
         Lerp => Form::Invoke("lerp"),
         SmoothStep => Form::Invoke("smoothstep"),
 
+        Transpose => Form::Invoke("transpose"),
+
         DDX => Form::Invoke("ddx"),
         DDXCoarse => Form::Invoke("ddx_coarse"),
         DDXFine => Form::Invoke("ddx_fine"),

@@ -128,6 +128,8 @@ pub enum Intrinsic {
     Lerp,
     SmoothStep,
 
+    Transpose,
+
     // Derivatives
     DDX,
     DDXCoarse,

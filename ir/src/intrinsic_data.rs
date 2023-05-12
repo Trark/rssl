@@ -245,6 +245,8 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { M step(M, M) => Step | float, float2, float3, float4 },
 
+    f! { M transpose(M) => Transpose | float2x2, float3x3, float4x4 },
+
     f! { M ddx(M) => DDX | float, float2, float3, float4 },
     f! { M ddx_coarse(M) => DDXCoarse | float, float2, float3, float4 },
     f! { M ddx_fine(M) => DDXFine | float, float2, float3, float4 },
