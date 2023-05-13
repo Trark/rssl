@@ -161,12 +161,21 @@ impl<'a> FileLoader<'a> {
         }
     }
 
-    fn load(&mut self, file_name: &str) -> Result<InputFile, IncludeError> {
+    fn load(
+        &mut self,
+        file_name: &str,
+        parent_file: Option<FileId>,
+    ) -> Result<InputFile, IncludeError> {
+        let parent_name = match parent_file {
+            Some(id) => self.source_manager.get_file_name(id),
+            None => "",
+        };
+
         let id = match self.file_name_remap.get(file_name) {
             Some(id) => *id,
             None => {
                 // Load the file
-                let file_data = self.include_handler.load(file_name)?;
+                let file_data = self.include_handler.load(file_name, parent_name)?;
 
                 // Add it to the source manager
                 let id = self
@@ -1087,7 +1096,7 @@ fn preprocess_command(
             };
 
             // Include the file
-            match file_loader.load(&file_name) {
+            match file_loader.load(&file_name, Some(file_id)) {
                 Ok(file) => {
                     preprocess_included_file(buffer, file_loader, file, macros, condition_chain)?;
                     Ok(())
@@ -1364,7 +1373,7 @@ pub fn preprocess(
     include_handler: &mut dyn IncludeHandler,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     let mut file_loader = FileLoader::new(source_manager, include_handler);
-    match file_loader.load(entry_file_name) {
+    match file_loader.load(entry_file_name, None) {
         Ok(file) => preprocess_initial_file(file, &mut file_loader),
         Err(err) => Err(PreprocessError::FailedToFindFile(
             SourceLocation::UNKNOWN,

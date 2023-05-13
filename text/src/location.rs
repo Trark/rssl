@@ -67,6 +67,11 @@ impl SourceManager {
         (file_id, base_location)
     }
 
+    /// Get the name of a given file
+    pub fn get_file_name(&self, file_id: FileId) -> &str {
+        &self.files[file_id.0 as usize].file_name.0
+    }
+
     /// Get the full source for a given file
     pub fn get_contents(&self, file_id: FileId) -> &str {
         &self.files[file_id.0 as usize].contents
