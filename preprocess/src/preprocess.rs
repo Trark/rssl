@@ -12,7 +12,6 @@ pub enum PreprocessError {
     InvalidInclude(SourceLocation),
     InvalidDefine(SourceLocation),
     InvalidUndef(SourceLocation),
-    MacroAlreadyDefined(String),
     MacroRequiresArguments(String),
     MacroArgumentsNeverEnd,
     MacroExpectsDifferentNumberOfArguments,
@@ -57,11 +56,6 @@ impl CompileError for PreprocessError {
             PreprocessError::InvalidUndef(loc) => w.write_message(
                 &|f| write!(f, "invalid #undef command"),
                 *loc,
-                Severity::Error,
-            ),
-            PreprocessError::MacroAlreadyDefined(s) => w.write_message(
-                &|f| write!(f, "macro '{s}' already defined"),
-                SourceLocation::UNKNOWN,
                 Severity::Error,
             ),
             PreprocessError::MacroRequiresArguments(s) => w.write_message(
@@ -233,7 +227,7 @@ struct Macro {
 }
 
 impl Macro {
-    fn parse(command: &[PreprocessToken], macros: &[Macro]) -> Result<Macro, PreprocessError> {
+    fn parse(command: &[PreprocessToken]) -> Result<Macro, PreprocessError> {
         let command = trim_whitespace_start(command);
 
         let location = command.first().get_location();
@@ -245,15 +239,6 @@ impl Macro {
             } else {
                 return Err(PreprocessError::InvalidDefine(location));
             };
-
-        // Ensure the macro does not already exist
-        for current_macro in macros.iter() {
-            if *current_macro.name == name {
-                return Err(PreprocessError::MacroAlreadyDefined(
-                    current_macro.name.clone(),
-                ));
-            }
-        }
 
         // Consume macro parameters from body
         let (param_tokens, is_function, body) =
@@ -821,7 +806,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B 0", &mut source_manager), &[]).unwrap(),
+            Macro::parse(&ll("B 0", &mut source_manager)).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: false,
@@ -840,7 +825,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B(x) x", &mut source_manager), &[]).unwrap(),
+            Macro::parse(&ll("B(x) x", &mut source_manager)).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -859,7 +844,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B(x,y) x", &mut source_manager), &[]).unwrap(),
+            Macro::parse(&ll("B(x,y) x", &mut source_manager)).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -878,7 +863,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B(x,y) y", &mut source_manager), &[]).unwrap(),
+            Macro::parse(&ll("B(x,y) y", &mut source_manager)).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -897,7 +882,7 @@ fn macro_from_definition() {
     {
         let mut source_manager = SourceManager::new();
         assert_eq!(
-            Macro::parse(&ll("B(x,xy) (x || xy)", &mut source_manager), &[]).unwrap(),
+            Macro::parse(&ll("B(x,xy) (x || xy)", &mut source_manager)).unwrap(),
             Macro {
                 name: "B".to_string(),
                 is_function: true,
@@ -955,8 +940,8 @@ fn macro_resolve() {
         run(
             &main_tokens,
             &[
-                Macro::parse(&m1_tokens, &[]).unwrap(),
-                Macro::parse(&m2_tokens, &[]).unwrap(),
+                Macro::parse(&m1_tokens).unwrap(),
+                Macro::parse(&m2_tokens).unwrap(),
             ],
             "(A || 0) && 1",
             &[
@@ -989,8 +974,8 @@ fn macro_resolve() {
         run(
             &main_tokens,
             &[
-                Macro::parse(&m1_tokens, &[]).unwrap(),
-                Macro::parse(&m2_tokens, &[]).unwrap(),
+                Macro::parse(&m1_tokens).unwrap(),
+                Macro::parse(&m2_tokens).unwrap(),
             ],
             "(A || (0 && 1)) && 1",
             &[
@@ -1183,7 +1168,11 @@ fn preprocess_command(
                 return Ok(());
             }
 
-            let macro_def = Macro::parse(command, macros)?;
+            let macro_def = Macro::parse(command)?;
+
+            // Remove any existing macros with the same name
+            macros.retain(|m| m.name != macro_def.name);
+
             macros.push(macro_def);
 
             Ok(())
