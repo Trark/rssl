@@ -112,6 +112,7 @@ pub enum Token {
 
     Extern,
     Static,
+    Inline,
     GroupShared,
     Constexpr,
 

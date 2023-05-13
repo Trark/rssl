@@ -893,6 +893,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
 
         "extern" => Token::Extern,
         "static" => Token::Static,
+        "inline" => Token::Inline,
         "groupshared" => Token::GroupShared,
         "constexpr" => Token::Constexpr,
         "sizeof" => Token::SizeOf,
@@ -1675,6 +1676,13 @@ fn test_token() {
     assert_token!(
         "staticconst",
         Token::Id(Identifier("staticconst".to_string()))
+    );
+
+    assert_token!("inline", Token::Inline);
+    assert_token!("inline ", Token::Inline, 6);
+    assert_token!(
+        "inlinestatic",
+        Token::Id(Identifier("inlinestatic".to_string()))
     );
 
     assert_token!("groupshared", Token::GroupShared);

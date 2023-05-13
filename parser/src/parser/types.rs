@@ -71,6 +71,11 @@ fn parse_type_modifiers_before<'t>(
             [LexToken(Token::InOut, loc), rest @ ..] => (TypeModifier::InOut, *loc, rest),
             [LexToken(Token::Extern, loc), rest @ ..] => (TypeModifier::Extern, *loc, rest),
             [LexToken(Token::Static, loc), rest @ ..] => (TypeModifier::Static, *loc, rest),
+            [LexToken(Token::Inline, _), rest @ ..] => {
+                // Ignore all inline modifiers
+                input = rest;
+                continue;
+            }
             [LexToken(Token::GroupShared, loc), rest @ ..] => {
                 (TypeModifier::GroupShared, *loc, rest)
             }
