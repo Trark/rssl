@@ -67,6 +67,21 @@ fn test_define() {
 }
 
 #[test]
+fn test_undef() {
+    assert_text!("#define X 0\n#undef X\nX", "X\n");
+    assert_text!("#define X(a) a\n#undef X\nX(2)", "X(2)\n");
+    assert_text!("#undef X\n", "");
+    assert_err!(
+        "#undef  X X\n",
+        PreprocessError::InvalidUndef(SourceLocation::first().offset(1))
+    );
+    assert_err!(
+        "#undef\n",
+        PreprocessError::InvalidUndef(SourceLocation::first().offset(1))
+    );
+}
+
+#[test]
 fn test_macro_function() {
     // Single argument macro and invocation
     assert_text!("#define X(a) a\nX(2)", "2\n");

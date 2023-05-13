@@ -11,6 +11,7 @@ pub enum PreprocessError {
     UnknownCommand(SourceLocation),
     InvalidInclude(SourceLocation),
     InvalidDefine(SourceLocation),
+    InvalidUndef(SourceLocation),
     MacroAlreadyDefined(String),
     MacroRequiresArguments(String),
     MacroArgumentsNeverEnd,
@@ -50,6 +51,11 @@ impl CompileError for PreprocessError {
             ),
             PreprocessError::InvalidDefine(loc) => w.write_message(
                 &|f| write!(f, "invalid #define command"),
+                *loc,
+                Severity::Error,
+            ),
+            PreprocessError::InvalidUndef(loc) => w.write_message(
+                &|f| write!(f, "invalid #undef command"),
                 *loc,
                 Severity::Error,
             ),
@@ -1181,6 +1187,29 @@ fn preprocess_command(
             macros.push(macro_def);
 
             Ok(())
+        }
+        "undef" => {
+            if skip {
+                return Ok(());
+            }
+
+            let command = trim_whitespace(command);
+
+            if let [PreprocessToken(Token::Id(Identifier(s)), _)] = command {
+                let previous_count = macros.len();
+                macros.retain(|m| m.name != *s);
+                let current_count = macros.len();
+
+                if previous_count == current_count {
+                    // No macro removed
+                    Ok(())
+                } else {
+                    assert_eq!(current_count + 1, previous_count);
+                    Ok(())
+                }
+            } else {
+                Err(PreprocessError::InvalidUndef(command_location))
+            }
         }
         "pragma" => {
             if skip {
