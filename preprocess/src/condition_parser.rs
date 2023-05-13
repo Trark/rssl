@@ -25,7 +25,7 @@ pub fn parse(
         })
         .collect::<Vec<_>>();
 
-    match parse_p15(&tokens) {
+    match parse_p12(&tokens) {
         Ok((&[], value)) => Ok(value != 0),
         Ok((_, _)) => Err(PreprocessError::FailedToParseIfCondition(location)),
         Err(_) => Err(PreprocessError::FailedToParseIfCondition(location)),
@@ -38,89 +38,124 @@ type ConditionValue = u64;
 /// Error type for internal condition parsing errors
 struct ConditionParseError;
 
-fn parse_p15(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
-    let left = parse_p14(stream)?;
-    let (stream, left_value) = left;
-
-    if let Some((Token::VerticalBarVerticalBar, rest)) = stream.split_first() {
-        let (rest, right_value) = parse_p14(rest)?;
-        let value = u64::from(left_value != 0 || right_value != 0);
-        return Ok((rest, value));
-    }
-
-    Ok(left)
+/// Any operator with two arguments that the condition parser supports
+pub enum BinOp {
+    BooleanAnd,
+    BooleanOr,
+    LessThan,
+    LessEqual,
+    GreaterThan,
+    GreaterEqual,
+    Equality,
+    Inequality,
 }
 
-fn parse_p14(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
-    let left = parse_p10(stream)?;
-    let (stream, left_value) = left;
-
-    if let Some((Token::AmpersandAmpersand, rest)) = stream.split_first() {
-        let (rest, right_value) = parse_p10(rest)?;
-        let value = u64::from(left_value != 0 && right_value != 0);
-        return Ok((rest, value));
+impl BinOp {
+    /// Apply the operation to input values
+    fn apply(&self, left: ConditionValue, right: ConditionValue) -> ConditionValue {
+        match self {
+            BinOp::BooleanAnd => u64::from(left != 0 && right != 0),
+            BinOp::BooleanOr => u64::from(left != 0 || right != 0),
+            BinOp::LessThan => u64::from(left < right),
+            BinOp::LessEqual => u64::from(left <= right),
+            BinOp::GreaterThan => u64::from(left > right),
+            BinOp::GreaterEqual => u64::from(left >= right),
+            BinOp::Equality => u64::from(left == right),
+            BinOp::Inequality => u64::from(left != right),
+        }
     }
-
-    Ok(left)
 }
 
-fn parse_p10(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
-    let left = parse_p9(stream)?;
-    let (stream, left_value) = left;
+/// Combine binary operations
+fn combine_rights(left: ConditionValue, rights: Vec<(BinOp, ConditionValue)>) -> ConditionValue {
+    let mut final_value = left;
+    for val in rights.iter() {
+        let (ref op, ref exp) = *val;
+        final_value = op.apply(final_value, *exp);
+    }
+    final_value
+}
 
-    if let Some((tok, rest)) = stream.split_first() {
-        match tok {
-            Token::EqualsEquals => {
-                let (rest, right_value) = parse_p9(rest)?;
-                let value = u64::from(left_value == right_value);
-                return Ok((rest, value));
+/// Parse multiple binary operations
+fn parse_binary_operations(
+    operator_fn: impl Fn(&[Token]) -> Result<(&[Token], BinOp), ConditionParseError>,
+    expression_fn: impl Fn(&[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError>,
+    input: &[Token],
+) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    let (input, left) = expression_fn(input)?;
+
+    // Parse as many operators / right expressions as we can
+    let mut input = input;
+    let mut rights = Vec::new();
+    // First attempt to parse an operator
+    while let Ok((rest, op)) = operator_fn(input) {
+        // Then after an operator is successfully parsed
+        // Unconditionally parse right side
+        let (rest, right) = expression_fn(rest)?;
+
+        rights.push((op, right));
+        input = rest;
+    }
+
+    let expr = combine_rights(left, rights);
+    Ok((input, expr))
+}
+
+fn parse_p12(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    fn parse_op(input: &[Token]) -> Result<(&[Token], BinOp), ConditionParseError> {
+        match input {
+            [Token::VerticalBarVerticalBar, rest @ ..] => Ok((rest, BinOp::BooleanOr)),
+            _ => Err(ConditionParseError),
+        }
+    }
+
+    parse_binary_operations(parse_op, parse_p11, stream)
+}
+
+fn parse_p11(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    fn parse_op(input: &[Token]) -> Result<(&[Token], BinOp), ConditionParseError> {
+        match input {
+            [Token::AmpersandAmpersand, rest @ ..] => Ok((rest, BinOp::BooleanAnd)),
+            _ => Err(ConditionParseError),
+        }
+    }
+
+    parse_binary_operations(parse_op, parse_p7, stream)
+}
+
+fn parse_p7(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    fn parse_op(input: &[Token]) -> Result<(&[Token], BinOp), ConditionParseError> {
+        match input {
+            [Token::EqualsEquals, rest @ ..] => Ok((rest, BinOp::Equality)),
+            [Token::ExclamationPointEquals, rest @ ..] => Ok((rest, BinOp::Inequality)),
+            _ => Err(ConditionParseError),
+        }
+    }
+
+    parse_binary_operations(parse_op, parse_p6, stream)
+}
+
+fn parse_p6(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+    fn parse_op(input: &[Token]) -> Result<(&[Token], BinOp), ConditionParseError> {
+        match input {
+            [Token::LeftAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
+                Ok((rest, BinOp::LessEqual))
             }
-            Token::ExclamationPointEquals => {
-                let (rest, right_value) = parse_p9(rest)?;
-                let value = u64::from(left_value != right_value);
-                return Ok((rest, value));
+            [Token::RightAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
+                Ok((rest, BinOp::GreaterEqual))
             }
-            _ => {}
+            [Token::LeftAngleBracket(_), rest @ ..] => Ok((rest, BinOp::LessThan)),
+            [Token::RightAngleBracket(_), rest @ ..] => Ok((rest, BinOp::GreaterThan)),
+            _ => Err(ConditionParseError),
         }
     }
 
-    Ok(left)
+    parse_binary_operations(parse_op, parse_p2, stream)
 }
 
-fn parse_p9(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
-    let left = parse_p3(stream)?;
-    let (stream, left_value) = left;
-
-    match stream {
-        [Token::LeftAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
-            let (rest, right_value) = parse_p3(rest)?;
-            let value = u64::from(left_value <= right_value);
-            return Ok((rest, value));
-        }
-        [Token::RightAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
-            let (rest, right_value) = parse_p3(rest)?;
-            let value = u64::from(left_value >= right_value);
-            return Ok((rest, value));
-        }
-        [Token::LeftAngleBracket(_), rest @ ..] => {
-            let (rest, right_value) = parse_p3(rest)?;
-            let value = u64::from(left_value < right_value);
-            return Ok((rest, value));
-        }
-        [Token::RightAngleBracket(_), rest @ ..] => {
-            let (rest, right_value) = parse_p3(rest)?;
-            let value = u64::from(left_value > right_value);
-            return Ok((rest, value));
-        }
-        _ => {}
-    }
-
-    Ok(left)
-}
-
-fn parse_p3(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
+fn parse_p2(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
     if let Some((Token::ExclamationPoint, rest)) = stream.split_first() {
-        let (rest, right_value) = parse_p3(rest)?;
+        let (rest, right_value) = parse_p2(rest)?;
         let value = u64::from(right_value == 0);
         return Ok((rest, value));
     }
@@ -136,7 +171,7 @@ fn parse_leaf(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionP
             Token::LiteralInt(v) => return Ok((rest, *v)),
             Token::LiteralUInt(v) => return Ok((rest, *v)),
             Token::LeftParen => {
-                let (rest, inner) = parse_p15(rest)?;
+                let (rest, inner) = parse_p12(rest)?;
                 if let Some((Token::RightParen, rest)) = rest.split_first() {
                     return Ok((rest, inner));
                 }
@@ -171,10 +206,12 @@ fn test_condition_parser() {
     assert_eq!(eval("0 && 1"), false);
     assert_eq!(eval("1 && 0"), false);
     assert_eq!(eval("1 && 1"), true);
+    assert_eq!(eval("1 && 1 && 1"), true);
     assert_eq!(eval("0 || 0"), false);
     assert_eq!(eval("0 || 1"), true);
     assert_eq!(eval("1 || 0"), true);
     assert_eq!(eval("1 || 1"), true);
+    assert_eq!(eval("0 || 0 || 1"), true);
     assert_eq!(eval("0 && 0 || 1"), true);
     assert_eq!(eval("0 && 1 || 1"), true);
     assert_eq!(eval("1 && 0 || 1"), true);
@@ -223,4 +260,5 @@ fn test_condition_parser() {
     assert_eq!(eval("1 > 1"), false);
     assert_eq!(eval("1 >= 1"), true);
     assert_eq!(eval("1 >= 2"), false);
+    assert_eq!(eval("1 < 5 <= 1 > 0 <= 0"), false);
 }
