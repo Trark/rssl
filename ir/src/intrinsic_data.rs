@@ -197,7 +197,13 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { float4 mul(float4x4, float4) => Mul },
 
     f! { float f16tof32(uint) => F16ToF32 },
+    f! { float2 f16tof32(uint2) => F16ToF32 },
+    f! { float3 f16tof32(uint3) => F16ToF32 },
+    f! { float4 f16tof32(uint4) => F16ToF32 },
     f! { uint f32tof16(float) => F32ToF16 },
+    f! { uint2 f32tof16(float2) => F32ToF16 },
+    f! { uint3 f32tof16(float3) => F32ToF16 },
+    f! { uint4 f32tof16(float4) => F32ToF16 },
 
     f! { M floor(M) => Floor | float, float2, float3, float4 },
     f! { M ceil(M) => Ceil | float, float2, float3, float4 },

@@ -130,7 +130,13 @@ void test() {
     float3 mul_f3x3_f3 = mul((float3x3)0, (float3)0);
     float4 mul_f4x4_f4 = mul((float4x4)0, (float4)0);
     float f16tof32_1 = f16tof32(0u);
+    float2 f16tof32_2 = f16tof32(uint2(0u, 0u));
+    float3 f16tof32_3 = f16tof32(uint3(0u, 0u, 0u));
+    float4 f16tof32_4 = f16tof32(uint4(0u, 0u, 0u, 0u));
     uint f32tof16_1 = f32tof16(0.0);
+    uint2 f32tof16_2 = f32tof16(float2(0.0, 0.0));
+    uint3 f32tof16_3 = f32tof16(float3(0.0, 0.0, 0.0));
+    uint4 f32tof16_4 = f32tof16(float4(0.0, 0.0, 0.0, 0.0));
     float floor_1 = floor(0.0);
     float2 floor_2 = floor(float2(0.0, 0.0));
     float3 floor_3 = floor(float3(0.0, 0.0, 0.0));
