@@ -289,6 +289,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             local_variable.name.location,
             &local_variable.bind,
             &local_variable.init,
+            false,
             context,
         )?;
 
@@ -373,6 +374,7 @@ pub fn apply_variable_bind(
     loc: SourceLocation,
     bind: &ast::VariableBind,
     init: &Option<ast::Initializer>,
+    allow_unbounded: bool,
     context: &mut Context,
 ) -> TyperResult<ir::TypeId> {
     for dim in &bind.0 {
@@ -390,7 +392,7 @@ pub fn apply_variable_bind(
                             dim_expr.get_location(),
                         ))
                     }
-                    Some(val) => val,
+                    Some(val) => Some(val),
                     None => {
                         let p = (**dim_expr).clone();
                         return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
@@ -404,7 +406,8 @@ pub fn apply_variable_bind(
                 Some(ast::Initializer::Aggregate(ref exprs)) if exprs.is_empty() => {
                     return Err(TyperError::ArrayDimensionsMustBeNonZero(loc))
                 }
-                Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
+                Some(ast::Initializer::Aggregate(ref exprs)) => Some(exprs.len() as u64),
+                _ if allow_unbounded => None,
                 _ => return Err(TyperError::ArrayDimensionNotSpecified(loc)),
             },
         };
@@ -496,7 +499,7 @@ fn parse_initializer(
 
                     ir::Initializer::Aggregate(elements)
                 }
-                ir::TypeLayer::Array(ref inner, ref dim) => {
+                ir::TypeLayer::Array(ref inner, Some(ref dim)) => {
                     if exprs.len() as u64 != *dim {
                         return Err(TyperError::InitializerAggregateWrongDimension(
                             variable_location,

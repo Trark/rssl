@@ -34,7 +34,7 @@ pub enum TypeLayer {
     StructTemplate(StructTemplateId),
     Enum(EnumId),
     Object(ObjectType),
-    Array(TypeId, u64),
+    Array(TypeId, Option<u64>),
     TemplateParam(TemplateTypeId),
     Modifier(TypeModifier, TypeId),
 }
@@ -863,7 +863,8 @@ impl std::fmt::Debug for TypeLayer {
             TypeLayer::StructTemplate(ref sid) => write!(f, "struct_template<{}>", sid.0),
             TypeLayer::Enum(ref id) => write!(f, "enum<{}>", id.0),
             TypeLayer::Object(ref ot) => write!(f, "{ot:?}"),
-            TypeLayer::Array(ref ty, ref len) => write!(f, "type<{ty:?}>[{len}]"),
+            TypeLayer::Array(ref ty, Some(ref len)) => write!(f, "type<{ty:?}>[{len}]"),
+            TypeLayer::Array(ref ty, None) => write!(f, "type<{ty:?}>[]"),
             TypeLayer::TemplateParam(ref id) => write!(f, "typename<{}>", id.0),
             TypeLayer::Modifier(ref modifier, ref ty) => write!(f, "{modifier:?}type<{ty:?}>"),
         }

@@ -728,7 +728,8 @@ pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) ->
     let base_type = parse_type(&td.source, context)?;
 
     // Apply the array modifier
-    let type_id = apply_variable_bind(base_type, td.name.location, &td.bind, &None, context)?;
+    let type_id =
+        apply_variable_bind(base_type, td.name.location, &td.bind, &None, false, context)?;
 
     // Register the typedef
     context.register_typedef(td.name.clone(), type_id)?;

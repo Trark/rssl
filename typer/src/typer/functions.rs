@@ -87,6 +87,7 @@ pub fn parse_function_signature(
                 param.name.location,
                 &param.bind,
                 &None,
+                false,
                 context,
             )?;
 

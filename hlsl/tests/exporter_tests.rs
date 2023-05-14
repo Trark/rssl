@@ -1050,6 +1050,15 @@ fn check_object_types() {
 }
 
 #[test]
+fn check_object_array() {
+    // Specific size
+    check_rssl_to_hlsl("Buffer<uint> g_buffer[6];", "Buffer<uint> g_buffer[6];\n");
+
+    // Unbounded
+    check_rssl_to_hlsl("Buffer<uint> g_buffer[];", "Buffer<uint> g_buffer[];\n");
+}
+
+#[test]
 fn check_unorm_snorm() {
     check_rssl_to_hlsl(
         "Buffer<unorm float4> g_buffer;",

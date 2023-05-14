@@ -131,6 +131,7 @@ fn parse_struct_internal(
                         def.name.location,
                         &def.bind,
                         &None,
+                        false,
                         context,
                     )?;
                     member_map.insert(name.clone(), type_id);

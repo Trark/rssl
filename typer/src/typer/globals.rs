@@ -30,6 +30,7 @@ pub fn parse_rootdefinition_globalvariable(
             global_variable.name.location,
             &global_variable.bind,
             &global_variable.init,
+            true,
             context,
         )?;
 
@@ -180,8 +181,14 @@ pub fn parse_rootdefinition_constantbuffer(
 
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
-            let type_id =
-                apply_variable_bind(base_type, def.name.location, &def.bind, &None, context)?;
+            let type_id = apply_variable_bind(
+                base_type,
+                def.name.location,
+                &def.bind,
+                &None,
+                false,
+                context,
+            )?;
             members_map.insert(var_name.node.clone(), type_id);
             members.push(ir::ConstantVariable {
                 name: var_name.node,

@@ -109,8 +109,11 @@ impl Module {
             TypeLayer::Struct(sid) => self.get_struct_name(sid).to_string(),
             TypeLayer::Enum(id) => self.get_enum_name(id).to_string(),
             TypeLayer::Object(ot) => self.get_object_type_string(ot),
-            TypeLayer::Array(ty, len) => {
-                format!("{}[{}]", self.get_type_name_short(ty), len)
+            TypeLayer::Array(ty, Some(len)) => {
+                format!("{}[{len}]", self.get_type_name_short(ty))
+            }
+            TypeLayer::Array(ty, None) => {
+                format!("{}[]", self.get_type_name_short(ty))
             }
             TypeLayer::Modifier(modifier, ty) => {
                 format!("{:?}{}", modifier, self.get_type_name_short(ty))

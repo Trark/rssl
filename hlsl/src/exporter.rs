@@ -685,8 +685,12 @@ fn export_type_impl(
             };
         }
         ir::TypeLayer::Array(ty, len) => {
-            export_type_impl(ty, false, output, output_array, context)?;
-            write!(output_array, "[{len}]").unwrap();
+            export_type_impl(ty, suppress_const_volatile, output, output_array, context)?;
+            match len {
+                Some(len) => write!(output_array, "[{len}]"),
+                None => write!(output_array, "[]"),
+            }
+            .unwrap()
         }
         ir::TypeLayer::Modifier(mut modifier, ty) => {
             if suppress_const_volatile {
