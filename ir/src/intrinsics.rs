@@ -152,6 +152,8 @@ pub enum Intrinsic {
     InterlockedOr,
     InterlockedXor,
 
+    NonUniformResourceIndex,
+
     // Wave Query Intrinsics
     WaveGetLaneCount,
     WaveGetLaneIndex,

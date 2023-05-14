@@ -311,6 +311,7 @@ void test() {
     InterlockedMin(g_sharedValue, 0u, out_u1);
     InterlockedOr(g_sharedValue, 0u, out_u1);
     InterlockedXor(g_sharedValue, 0u, out_u1);
+    uint non_uniform_resource_index = NonUniformResourceIndex(0u);
     uint lane_count = WaveGetLaneCount();
     uint lane_index = WaveGetLaneIndex();
     bool is_first = WaveIsFirstLane();

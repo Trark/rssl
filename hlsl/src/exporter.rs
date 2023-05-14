@@ -1342,6 +1342,8 @@ fn export_intrinsic_function(
         InterlockedOr => Form::Invoke("InterlockedOr"),
         InterlockedXor => Form::Invoke("InterlockedXor"),
 
+        NonUniformResourceIndex => Form::Invoke("NonUniformResourceIndex"),
+
         WaveGetLaneCount => Form::Invoke("WaveGetLaneCount"),
         WaveGetLaneIndex => Form::Invoke("WaveGetLaneIndex"),
         WaveIsFirstLane => Form::Invoke("WaveIsFirstLane"),

@@ -279,6 +279,8 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void InterlockedXor(M, M, out M) => InterlockedXor | uint, int },
     f! { void InterlockedXor(M, M) => InterlockedXor | uint, int },
 
+    f! { uint NonUniformResourceIndex(uint) => NonUniformResourceIndex },
+
     f! { uint WaveGetLaneCount() => WaveGetLaneCount },
     f! { uint WaveGetLaneIndex() => WaveGetLaneIndex },
     f! { bool WaveIsFirstLane() => WaveIsFirstLane },
