@@ -870,6 +870,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "discard" => Token::Discard,
 
         "struct" => Token::Struct,
+        "class" => Token::Struct, // For now treat class and struct as the same
         "enum" => Token::Enum,
         "typedef" => Token::Typedef,
         "cbuffer" => Token::ConstantBuffer,
@@ -905,12 +906,10 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "case" | "default" => Token::ReservedWord(id.0),
 
         // Reserved keywords for future use
-        "auto" | "catch" | "char" | "class" | "const_cast" | "delete" | "dynamic_cast"
-        | "explicit" | "friend" | "goto" | "long" | "mutable" | "new" | "operator" | "private"
-        | "protected" | "public" | "reinterpret_cast" | "short" | "signed" | "static_cast"
-        | "this" | "throw" | "try" | "union" | "unsigned" | "using" | "virtual" => {
-            Token::ReservedWord(id.0)
-        }
+        "auto" | "catch" | "char" | "const_cast" | "delete" | "dynamic_cast" | "explicit"
+        | "friend" | "goto" | "long" | "mutable" | "new" | "operator" | "private" | "protected"
+        | "public" | "reinterpret_cast" | "short" | "signed" | "static_cast" | "this" | "throw"
+        | "try" | "union" | "unsigned" | "using" | "virtual" => Token::ReservedWord(id.0),
 
         _ => Token::Id(id),
     };
