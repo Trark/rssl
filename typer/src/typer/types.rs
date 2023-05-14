@@ -304,6 +304,7 @@ fn parse_object_type(
             match layer {
                 ir::TypeLayer::Scalar(_)
                 | ir::TypeLayer::Vector(_, _)
+                | ir::TypeLayer::Matrix(_, _, _)
                 | ir::TypeLayer::Struct(_) => Some(*id),
                 _ => None,
             }
