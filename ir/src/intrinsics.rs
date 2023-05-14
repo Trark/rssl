@@ -59,6 +59,9 @@ pub enum Intrinsic {
 
     All,
     Any,
+    And,
+    Or,
+    Select,
 
     Abs,
 

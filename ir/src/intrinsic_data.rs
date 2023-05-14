@@ -119,6 +119,15 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { bool all(M) => All | bool, bool2, bool3, bool4 },
     f! { bool any(M) => Any | bool, bool2, bool3, bool4 },
+    f! { M and(M, M) => And | bool, bool2, bool3, bool4 },
+    f! { M or(M, M) => Or | bool, bool2, bool3, bool4 },
+
+    // Common select variants
+    // We do not currently support any template type deduction so are limited in what types are can support
+    f! { M select(bool, M, M) => Select | bool, float, int, uint, double, half },
+    f! { M select(bool2, M, M) => Select | bool2, float2, int2, uint2, double2, half2 },
+    f! { M select(bool3, M, M) => Select | bool3, float3, int3, uint3, double3, half3 },
+    f! { M select(bool4, M, M) => Select | bool4, float4, int4, uint4, double4, half4 },
 
     f! { M abs(M) => Abs | int, int2, int3, int4, float, float2, float3, float4 },
 

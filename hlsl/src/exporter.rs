@@ -1247,6 +1247,9 @@ fn export_intrinsic_function(
 
         All => Form::Invoke("all"),
         Any => Form::Invoke("any"),
+        And => Form::Invoke("and"),
+        Or => Form::Invoke("or"),
+        Select => Form::Invoke("select"),
 
         Abs => Form::Invoke("abs"),
 
