@@ -126,7 +126,13 @@ fn parse_struct_internal(
                     }
 
                     let name = def.name.node.clone();
-                    let type_id = apply_variable_bind(base_type, &def.bind, &None, context)?;
+                    let type_id = apply_variable_bind(
+                        base_type,
+                        def.name.location,
+                        &def.bind,
+                        &None,
+                        context,
+                    )?;
                     member_map.insert(name.clone(), type_id);
                     members.push(ir::StructMember {
                         name,

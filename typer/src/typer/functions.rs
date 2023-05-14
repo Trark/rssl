@@ -82,7 +82,13 @@ pub fn parse_function_signature(
             let mut var_type = parse_paramtype(&param.param_type, context)?;
 
             // If the parameter has type information bound to the name then apply it to the type now
-            var_type.type_id = apply_variable_bind(var_type.type_id, &param.bind, &None, context)?;
+            var_type.type_id = apply_variable_bind(
+                var_type.type_id,
+                param.name.location,
+                &param.bind,
+                &None,
+                context,
+            )?;
 
             vec.push(var_type);
         }

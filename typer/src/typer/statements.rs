@@ -284,8 +284,13 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
         }
 
         // Apply variable bound type modifications
-        let type_id =
-            apply_variable_bind(base_id, &local_variable.bind, &local_variable.init, context)?;
+        let type_id = apply_variable_bind(
+            base_id,
+            local_variable.name.location,
+            &local_variable.bind,
+            &local_variable.init,
+            context,
+        )?;
 
         // Parse the initializer
         let var_init = parse_initializer_opt(
@@ -365,6 +370,7 @@ fn parse_localtype(
 /// Apply part of type applied to variable name onto the type itself
 pub fn apply_variable_bind(
     mut ty: ir::TypeId,
+    loc: SourceLocation,
     bind: &ast::VariableBind,
     init: &Option<ast::Initializer>,
     context: &mut Context,
@@ -396,16 +402,10 @@ pub fn apply_variable_bind(
             }
             None => match *init {
                 Some(ast::Initializer::Aggregate(ref exprs)) if exprs.is_empty() => {
-                    return Err(TyperError::ArrayDimensionsMustBeNonZero(
-                        SourceLocation::UNKNOWN,
-                    ))
+                    return Err(TyperError::ArrayDimensionsMustBeNonZero(loc))
                 }
                 Some(ast::Initializer::Aggregate(ref exprs)) => exprs.len() as u64,
-                _ => {
-                    return Err(TyperError::ArrayDimensionNotSpecified(
-                        SourceLocation::UNKNOWN,
-                    ))
-                }
+                _ => return Err(TyperError::ArrayDimensionNotSpecified(loc)),
             },
         };
 

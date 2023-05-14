@@ -27,6 +27,7 @@ pub fn parse_rootdefinition_globalvariable(
         // Resolve type bind
         let type_id = apply_variable_bind(
             base_id,
+            global_variable.name.location,
             &global_variable.bind,
             &global_variable.init,
             context,
@@ -179,7 +180,8 @@ pub fn parse_rootdefinition_constantbuffer(
 
             let var_name = def.name.clone();
             let var_offset = def.offset.clone();
-            let type_id = apply_variable_bind(base_type, &def.bind, &None, context)?;
+            let type_id =
+                apply_variable_bind(base_type, def.name.location, &def.bind, &None, context)?;
             members_map.insert(var_name.node.clone(), type_id);
             members.push(ir::ConstantVariable {
                 name: var_name.node,
