@@ -621,6 +621,7 @@ pub fn deny_interpolation_modifier(
 }
 
 /// Ensure mesh entry point modifiers do not appear as a type modifier
+/// And also the geometry shader triangle modifier
 pub fn deny_mesh_shader_modifiers(
     modifiers: &ast::TypeModifierSet,
     position: TypePosition,
@@ -628,7 +629,12 @@ pub fn deny_mesh_shader_modifiers(
     for modifier in &modifiers.modifiers {
         if matches!(
             &modifier.node,
-            ast::TypeModifier::Vertices
+            ast::TypeModifier::Point
+                | ast::TypeModifier::Line
+                | ast::TypeModifier::Triangle
+                | ast::TypeModifier::LineAdj
+                | ast::TypeModifier::TriangleAdj
+                | ast::TypeModifier::Vertices
                 | ast::TypeModifier::Primitives
                 | ast::TypeModifier::Indices
                 | ast::TypeModifier::Payload
@@ -749,7 +755,15 @@ pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) ->
 pub fn is_illegal_variable_name(name: &Located<String>) -> bool {
     matches!(
         name.as_str(),
-        "nointerpolation" | "linear" | "centroid" | "noperspective"
+        "nointerpolation"
+            | "linear"
+            | "centroid"
+            | "noperspective"
+            | "point"
+            | "line"
+            | "triangle"
+            | "lineadj"
+            | "triangleadj"
     )
 }
 
@@ -763,6 +777,11 @@ pub fn is_illegal_type_name(name: &Located<String>) -> bool {
             | "centroid"
             | "noperspective"
             | "sample"
+            | "point"
+            | "line"
+            | "triangle"
+            | "lineadj"
+            | "triangleadj"
             | "vertices"
             | "primitives"
             | "indices"

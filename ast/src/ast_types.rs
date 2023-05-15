@@ -83,6 +83,21 @@ pub enum TypeModifier {
     /// sample interpolation modifier
     Sample,
 
+    /// Geometry shader point primitive type
+    Point,
+
+    /// Geometry shader line primitive type
+    Line,
+
+    /// Geometry shader triangle primitive type
+    Triangle,
+
+    /// Geometry shader lineadj primitive type
+    LineAdj,
+
+    /// Geometry shader triangleadj primitive type
+    TriangleAdj,
+
     /// Mesh shader vertices output
     Vertices,
 
@@ -308,6 +323,11 @@ impl std::fmt::Debug for TypeModifier {
             TypeModifier::Centroid => write!(f, "centroid"),
             TypeModifier::NoPerspective => write!(f, "noperspective"),
             TypeModifier::Sample => write!(f, "sample"),
+            TypeModifier::Point => write!(f, "point"),
+            TypeModifier::Line => write!(f, "line"),
+            TypeModifier::Triangle => write!(f, "triangle"),
+            TypeModifier::LineAdj => write!(f, "lineadj"),
+            TypeModifier::TriangleAdj => write!(f, "triangleadj"),
             TypeModifier::Vertices => write!(f, "vertices"),
             TypeModifier::Primitives => write!(f, "primitives"),
             TypeModifier::Indices => write!(f, "indices"),

@@ -141,6 +141,13 @@ fn check_global_type_modifiers() {
     check_fail("noperspective float x;");
     check_fail("sample float x;");
 
+    // Geometry shader primitive types are not allowed
+    check_fail("point float x;");
+    check_fail("line float x;");
+    check_fail("triangle float x;");
+    check_fail("lineadj float x;");
+    check_fail("triangleadj float x;");
+
     // Mesh shader output modifiers are not allowed
     check_fail("vertices float x;");
     check_fail("primitives float x;");
@@ -156,6 +163,11 @@ fn check_global_variable_with_contextual_keyword_names() {
     check_fail("uint centroid;");
     check_fail("uint noperspective;");
     check_types("uint sample;");
+    check_fail("uint point;");
+    check_fail("uint line;");
+    check_fail("uint triangle;");
+    check_fail("uint lineadj;");
+    check_fail("uint triangleadj;");
     check_types("uint vertices;");
     check_types("uint primitives;");
     check_types("uint indices;");
@@ -411,6 +423,19 @@ fn check_function_param_type_interpolators() {
 }
 
 #[test]
+fn check_function_param_type_geometry_modifiers() {
+    check_types("void f(point float x[1]) {}");
+    check_types("void f(line float x[2]) {}");
+    check_types("void f(triangle float x[3]) {}");
+    check_types("void f(lineadj float x[4]) {}");
+    check_types("void f(triangleadj float x[6]) {}");
+
+    check_types("void f(in triangle float x[3]) {}");
+
+    // No validation for modifier used on correct element count
+}
+
+#[test]
 fn check_function_param_type_mesh_modifiers() {
     check_types("void f(out vertices float x[1]) {}");
     check_fail("void f(vertices float x[1]) {}");
@@ -483,6 +508,13 @@ fn check_function_return_type_modifiers() {
     check_fail("noperspective float f() { return 0; }");
     check_fail("sample float f() { return 0; }");
 
+    // Geometry shader primitive types are not allowed
+    check_fail("point float f() { return 0; }");
+    check_fail("line float f() { return 0; }");
+    check_fail("triangle float f() { return 0; }");
+    check_fail("lineadj float f() { return 0; }");
+    check_fail("triangleadj float f() { return 0; }");
+
     // Mesh shader output modifiers are not allowed
     check_fail("vertices float f() { return 0; }");
     check_fail("primitives float f() { return 0; }");
@@ -498,6 +530,11 @@ fn check_function_with_contextual_keyword_names() {
     check_fail("void centroid() {}");
     check_fail("void noperspective() {}");
     check_types("void sample() { sample(); (sample)(); }");
+    check_fail("void point() {}");
+    check_fail("void line() {}");
+    check_fail("void triangle() {}");
+    check_fail("void lineadj() {}");
+    check_fail("void triangleadj() {}");
     check_types("void vertices() { vertices(); (vertices)(); }");
     check_types("void primitives() { primitives(); (primitives)(); }");
     check_types("void indices() { indices(); (indices)(); }");
@@ -547,6 +584,13 @@ fn check_local_variable_type_modifiers() {
     check_fail("void f() { noperspective float x; }");
     check_fail("void f() { sample float x; }");
 
+    // Geometry shader primitive types are not allowed
+    check_fail("void f() { point float x; }");
+    check_fail("void f() { line float x; }");
+    check_fail("void f() { triangle float x; }");
+    check_fail("void f() { lineadj float x; }");
+    check_fail("void f() { triangleadj float x; }");
+
     // Mesh shader output modifiers are not allowed
     check_fail("void f() { vertices float x; }");
     check_fail("void f() { primitives float x; }");
@@ -562,7 +606,12 @@ fn check_local_variable_with_contextual_keyword_names() {
     check_fail("void f() { uint linear; }");
     check_fail("void f() { uint centroid; }");
     check_fail("void f() { uint noperspective; }");
-    check_types("void f() { uint sample; }");
+    check_types("void f() { uint sample; sample = sample; }");
+    check_fail("void f() { uint point; }");
+    check_fail("void f() { uint line; }");
+    check_fail("void f() { uint triangle; }");
+    check_fail("void f() { uint lineadj; }");
+    check_fail("void f() { uint triangleadj; }");
     check_types("void f() { uint vertices; vertices = vertices; }");
     check_types("void f() { uint primitives; primitives = (primitives); }");
     check_types("void f() { uint indices; (indices) = indices; }");
@@ -696,6 +745,11 @@ fn check_struct_with_contextual_keyword_names() {
     check_fail("struct centroid {};");
     check_fail("struct noperspective {};");
     check_fail("struct sample {};");
+    check_fail("struct point {};");
+    check_fail("struct line {};");
+    check_fail("struct triangle {};");
+    check_fail("struct lineadj {};");
+    check_fail("struct triangleadj {};");
     check_fail("struct vertices {};");
     check_fail("struct primitives {};");
     check_fail("struct indices {};");
@@ -754,6 +808,13 @@ fn check_struct_member_type_modifiers() {
     check_fail("struct S { noperspective sample float x; };");
     check_fail("struct S { sample nointerpolation float x; };");
 
+    // Geometry shader primitive types are not allowed
+    check_fail("struct S { point float x; };");
+    check_fail("struct S { line float x; };");
+    check_fail("struct S { triangle float x; };");
+    check_fail("struct S { lineadj float x; };");
+    check_fail("struct S { triangleadj float x; };");
+
     // Mesh shader output modifiers are not allowed
     check_fail("struct S { vertices float x; };");
     check_fail("struct S { primitives float x; };");
@@ -774,6 +835,11 @@ fn check_struct_member_with_contextual_keyword_names() {
     check_fail("struct S { uint centroid; };");
     check_fail("struct S { uint noperspective; };");
     check_types("struct S { uint sample; }; void f(S s) { s.sample; }");
+    check_fail("struct S { uint point; };");
+    check_fail("struct S { uint line; };");
+    check_fail("struct S { uint triangle; };");
+    check_fail("struct S { uint lineadj; };");
+    check_fail("struct S { uint triangleadj; };");
     check_types("struct S { uint vertices; }; void f(S s) { s.vertices; }");
     check_types("struct S { uint primitives; }; void f(S s) { s.primitives; }");
     check_types("struct S { uint indices; }; void f(S s) { s.indices; }");
@@ -800,6 +866,11 @@ fn check_struct_method_with_contextual_keyword_names() {
     check_fail("struct S { void centroid() {} };");
     check_fail("struct S { void noperspective() {} };");
     check_types("struct S { void sample() {} }; void f(S s) { s.sample(); }");
+    check_fail("struct S { void point() {} };");
+    check_fail("struct S { void line() {} };");
+    check_fail("struct S { void triangle() {} };");
+    check_fail("struct S { void lineadj() {} };");
+    check_fail("struct S { void triangleadj() {} };");
     check_types("struct S { void vertices() {} }; void f(S s) { s.vertices(); }");
     check_types("struct S { void primitives() {} }; void f(S s) { s.primitives(); }");
     check_types("struct S { void indices() {} }; void f(S s) { s.indices(); }");
@@ -1074,6 +1145,13 @@ fn check_typedef_type_modifiers() {
     check_fail("typedef noperspective uint X;");
     check_fail("typedef sample uint X;");
 
+    // Geometry shader primitive types are not allowed
+    check_fail("typedef point uint X;");
+    check_fail("typedef line uint X;");
+    check_fail("typedef triangle uint X;");
+    check_fail("typedef lineadj uint X;");
+    check_fail("typedef triangleadj uint X;");
+
     // Mesh shader output modifiers are not allowed
     check_fail("typedef vertices uint X;");
     check_fail("typedef primitives uint X;");
@@ -1095,6 +1173,11 @@ fn check_typedef_with_contextual_keyword_names() {
     check_fail("typedef uint centroid;");
     check_fail("typedef uint noperspective;");
     check_types("typedef uint sample;");
+    check_fail("typedef uint point;");
+    check_fail("typedef uint line;");
+    check_fail("typedef uint triangle;");
+    check_fail("typedef uint lineadj;");
+    check_fail("typedef uint triangleadj;");
     check_types("typedef uint vertices;");
     check_types("typedef uint primitives;");
     check_types("typedef uint3 indices;");
@@ -1172,6 +1255,13 @@ fn check_cbuffer_member_type_modifiers() {
     check_fail("cbuffer S { noperspective float x; }");
     check_fail("cbuffer S { sample float x; }");
 
+    // Geometry shader primitive types are not allowed
+    check_fail("cbuffer S { point float x; }");
+    check_fail("cbuffer S { line float x; }");
+    check_fail("cbuffer S { triangle float x; }");
+    check_fail("cbuffer S { lineadj float x; }");
+    check_fail("cbuffer S { triangleadj float x; }");
+
     // Mesh shader output modifiers are not allowed
     check_fail("cbuffer S { vertices float x; }");
     check_fail("cbuffer S { primitives float x; }");
@@ -1192,6 +1282,11 @@ fn check_cbuffer_member_with_contextual_keyword_names() {
     check_fail("cbuffer MyConstants { uint centroid; };");
     check_fail("cbuffer MyConstants { uint noperspective; };");
     check_types("cbuffer MyConstants { uint sample; }; void f() { sample; }");
+    check_fail("cbuffer MyConstants { uint point; };");
+    check_fail("cbuffer MyConstants { uint line; };");
+    check_fail("cbuffer MyConstants { uint triangle; };");
+    check_fail("cbuffer MyConstants { uint lineadj; };");
+    check_fail("cbuffer MyConstants { uint triangleadj; };");
     check_types("cbuffer MyConstants { uint vertices; }; void f() { vertices; }");
     check_types("cbuffer MyConstants { uint primitives; }; void f() { primitives; }");
     check_types("cbuffer MyConstants { uint indices; }; void f() { indices; }");
