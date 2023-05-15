@@ -172,6 +172,8 @@ impl Module {
             }
             RWTexture2D(ty) => format!("RWTexture2D<{}>", self.get_type_name_short(ty)),
             RWTexture2DArray(ty) => format!("RWTexture2DArray<{}>", self.get_type_name_short(ty)),
+            TextureCube(ty) => format!("TextureCube<{}>", self.get_type_name_short(ty)),
+            TextureCubeArray(ty) => format!("TextureCubeArray<{}>", self.get_type_name_short(ty)),
             Texture3D(ty) => format!("Texture3D<{}>", self.get_type_name_short(ty)),
             Texture3DMips(ty) => format!("Texture3D<{}>::Mips", self.get_type_name_short(ty)),
             Texture3DMipsSlice(ty) => {

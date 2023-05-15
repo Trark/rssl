@@ -290,6 +290,12 @@ pub enum Intrinsic {
     RWTexture2DArrayGetDimensions,
     RWTexture2DArrayLoad,
 
+    // TextureCube methods
+    TextureCubeSample,
+
+    // TextureCubeArray methods
+    TextureCubeArraySample,
+
     // Texture3D methods
     Texture3DGetDimensions,
     Texture3DLoad,

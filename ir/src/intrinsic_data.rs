@@ -572,6 +572,18 @@ const RWTEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D Load(int3, out uint) => RWTexture2DArrayLoad },
 ];
 
+const TEXTURECUBE_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { D Sample(SamplerState, float3) => TextureCubeSample },
+    f! { D Sample(SamplerState, float3, float) => TextureCubeSample },
+    f! { D Sample(SamplerState, float3, float, out uint) => TextureCubeSample },
+];
+
+const TEXTURECUBEARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { D Sample(SamplerState, float4) => TextureCubeArraySample },
+    f! { D Sample(SamplerState, float4, float) => TextureCubeArraySample },
+    f! { D Sample(SamplerState, float4, float, out uint) => TextureCubeArraySample },
+];
+
 const TEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(int, out uint, out uint, out uint, out uint) => Texture3DGetDimensions },
     f! { D Load(int4) => Texture3DLoad },
@@ -665,6 +677,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         ObjectType::Texture2DArray(_) => TEXTURE2DARRAY_INTRINSICS,
         ObjectType::RWTexture2D(_) => RWTEXTURE2D_INTRINSICS,
         ObjectType::RWTexture2DArray(_) => RWTEXTURE2DARRAY_INTRINSICS,
+        ObjectType::TextureCube(_) => TEXTURECUBE_INTRINSICS,
+        ObjectType::TextureCubeArray(_) => TEXTURECUBEARRAY_INTRINSICS,
         ObjectType::Texture3D(_) => TEXTURE3D_INTRINSICS,
         ObjectType::RWTexture3D(_) => RWTEXTURE3D_INTRINSICS,
         ObjectType::ByteAddressBuffer => BYTEADDRESSBUFFER_INTRINSICS,
@@ -682,6 +696,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         | ObjectType::Texture2DArray(ty)
         | ObjectType::RWTexture2D(ty)
         | ObjectType::RWTexture2DArray(ty)
+        | ObjectType::TextureCube(ty)
+        | ObjectType::TextureCubeArray(ty)
         | ObjectType::Texture3D(ty)
         | ObjectType::RWTexture3D(ty)
         | ObjectType::StructuredBuffer(ty)

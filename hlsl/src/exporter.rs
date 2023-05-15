@@ -112,6 +112,12 @@ fn analyse_bindings(
                 ir::TypeLayer::Object(ir::ObjectType::RWTexture2DArray(_)) => {
                     DescriptorType::RwTexture2dArray
                 }
+                ir::TypeLayer::Object(ir::ObjectType::TextureCube(_)) => {
+                    DescriptorType::TextureCube
+                }
+                ir::TypeLayer::Object(ir::ObjectType::TextureCubeArray(_)) => {
+                    DescriptorType::TextureCubeArray
+                }
                 ir::TypeLayer::Object(ir::ObjectType::Texture3D(_)) => DescriptorType::Texture3d,
                 ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(_)) => {
                     DescriptorType::RwTexture3d
@@ -653,6 +659,18 @@ fn export_type_impl(
 
                 ir::ObjectType::RWTexture2DArray(ty) => {
                     output.push_str("RWTexture2DArray<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
+                }
+
+                ir::ObjectType::TextureCube(ty) => {
+                    output.push_str("TextureCube<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
+                }
+
+                ir::ObjectType::TextureCubeArray(ty) => {
+                    output.push_str("TextureCubeArray<");
                     export_type(ty, output, context)?;
                     output.push('>');
                 }
@@ -1455,6 +1473,10 @@ fn export_intrinsic_function(
 
         RWTexture2DArrayGetDimensions => Form::Method("GetDimensions"),
         RWTexture2DArrayLoad => Form::Method("Load"),
+
+        TextureCubeSample => Form::Method("Sample"),
+
+        TextureCubeArraySample => Form::Method("Sample"),
 
         Texture3DGetDimensions => Form::Method("GetDimensions"),
         Texture3DLoad => Form::Method("Load"),

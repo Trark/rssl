@@ -403,6 +403,9 @@ pub enum ObjectType {
 
     RWTexture2DArray(TypeId),
 
+    TextureCube(TypeId),
+    TextureCubeArray(TypeId),
+
     Texture3D(TypeId),
     Texture3DMips(TypeId),
     Texture3DMipsSlice(TypeId),
@@ -785,6 +788,8 @@ impl ObjectType {
             | ObjectType::StructuredBuffer(_)
             | ObjectType::Texture2D(_)
             | ObjectType::Texture2DArray(_)
+            | ObjectType::TextureCube(_)
+            | ObjectType::TextureCubeArray(_)
             | ObjectType::Texture3D(_) => RegisterType::T,
 
             ObjectType::RWBuffer(_)
@@ -965,6 +970,8 @@ impl std::fmt::Debug for ObjectType {
             Texture2DArrayMipsSlice(ref dt) => write!(f, "Texture2DArray<{dt:?}>::MipsSlice"),
             RWTexture2D(ref dt) => write!(f, "RWTexture2D<{dt:?}>"),
             RWTexture2DArray(ref dt) => write!(f, "RWTexture2DArray<{dt:?}>"),
+            TextureCube(ref dt) => write!(f, "TextureCube<{dt:?}>"),
+            TextureCubeArray(ref dt) => write!(f, "TextureCubeArray<{dt:?}>"),
             Texture3D(ref dt) => write!(f, "Texture3D<{dt:?}>"),
             Texture3DMips(ref dt) => write!(f, "Texture3D<{dt:?}>::Mips"),
             Texture3DMipsSlice(ref dt) => write!(f, "Texture3D<{dt:?}>::MipsSlice"),
