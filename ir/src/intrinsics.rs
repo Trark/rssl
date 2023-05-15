@@ -293,9 +293,11 @@ pub enum Intrinsic {
 
     // TextureCube methods
     TextureCubeSample,
+    TextureCubeSampleLevel,
 
     // TextureCubeArray methods
     TextureCubeArraySample,
+    TextureCubeArraySampleLevel,
 
     // Texture3D methods
     Texture3DGetDimensions,

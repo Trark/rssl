@@ -1476,8 +1476,10 @@ fn export_intrinsic_function(
         RWTexture2DArrayLoad => Form::Method("Load"),
 
         TextureCubeSample => Form::Method("Sample"),
+        TextureCubeSampleLevel => Form::Method("SampleLevel"),
 
         TextureCubeArraySample => Form::Method("Sample"),
+        TextureCubeArraySampleLevel => Form::Method("SampleLevel"),
 
         Texture3DGetDimensions => Form::Method("GetDimensions"),
         Texture3DLoad => Form::Method("Load"),

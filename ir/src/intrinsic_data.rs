@@ -585,12 +585,16 @@ const TEXTURECUBE_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D Sample(SamplerState, float3) => TextureCubeSample },
     f! { D Sample(SamplerState, float3, float) => TextureCubeSample },
     f! { D Sample(SamplerState, float3, float, out uint) => TextureCubeSample },
+    f! { D SampleLevel(SamplerState, float3, float) => TextureCubeSampleLevel },
+    f! { D SampleLevel(SamplerState, float3, float, out uint) => TextureCubeSampleLevel },
 ];
 
 const TEXTURECUBEARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { D Sample(SamplerState, float4) => TextureCubeArraySample },
     f! { D Sample(SamplerState, float4, float) => TextureCubeArraySample },
     f! { D Sample(SamplerState, float4, float, out uint) => TextureCubeArraySample },
+    f! { D SampleLevel(SamplerState, float4, float) => TextureCubeArraySampleLevel },
+    f! { D SampleLevel(SamplerState, float4, float, out uint) => TextureCubeArraySampleLevel },
 ];
 
 const TEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
