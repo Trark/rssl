@@ -95,6 +95,7 @@ pub enum Intrinsic {
     Round,
     Frac,
     Modf,
+    Fmod,
 
     IsNaN,
     IsInfinite,

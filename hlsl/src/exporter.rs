@@ -1305,6 +1305,7 @@ fn export_intrinsic_function(
         Round => Form::Invoke("round"),
         Frac => Form::Invoke("frac"),
         Modf => Form::Invoke("modf"),
+        Fmod => Form::Invoke("fmod"),
 
         IsNaN => Form::Invoke("isnan"),
         IsInfinite => Form::Invoke("isinf"),

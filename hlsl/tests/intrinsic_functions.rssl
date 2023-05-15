@@ -161,6 +161,10 @@ void test() {
     float2 modf_2 = modf(float2(0.0, 0.0), out_f2);
     float3 modf_3 = modf(float3(0.0, 0.0, 0.0), out_f3);
     float4 modf_4 = modf(float4(0.0, 0.0, 0.0, 0.0), out_f4);
+    float fmod_1 = fmod(0.0, 0.0);
+    float2 fmod_2 = fmod(float2(0.0, 0.0), float2(0.0, 0.0));
+    float3 fmod_3 = fmod(float3(0.0, 0.0, 0.0), float3(0.0, 0.0, 0.0));
+    float4 fmod_4 = fmod(float4(0.0, 0.0, 0.0, 0.0), float4(0.0, 0.0, 0.0, 0.0));
     float lerp_f1 = lerp(0.0, 0.0, 0.0);
     float2 lerp_f2 = lerp(float2(0.0, 0.0), float2(0.0, 0.0), float2(0.0, 0.0));
     float3 lerp_f3 = lerp(float3(0.0, 0.0, 0.0), float3(0.0, 0.0, 0.0), float3(0.0, 0.0, 0.0));

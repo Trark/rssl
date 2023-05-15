@@ -211,6 +211,7 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { M round(M) => Round | float, float2, float3, float4 },
     f! { M frac(M) => Frac | float, float2, float3, float4 },
     f! { M modf(M, out M) => Modf | float, float2, float3, float4, int, int2, int3, int4 },
+    f! { M fmod(M, M) => Fmod | float, float2, float3, float4 },
 
     f! { M lerp(M, M, M) => Lerp | float, float2, float3, float4 },
 
