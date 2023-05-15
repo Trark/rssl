@@ -4,7 +4,7 @@ SamplerState g_sampler : register(s2);
 
 void test() {
     uint outInt;
-    g_input.GetDimensions(0, outInt, outInt, outInt, outInt);
+    g_input.GetDimensions(0u, outInt, outInt, outInt, outInt);
     g_output.GetDimensions(outInt, outInt, outInt);
     const float4 load_srv = g_input.Load(int4(0, 0, 0, 0));
     const float4 load_srv_offset = g_input.Load(int4(0, 0, 0, 0), int3(0, 0, 0));

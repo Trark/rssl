@@ -436,7 +436,10 @@ const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
 ];
 
 const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
-    f! { void GetDimensions(int, out uint, out uint, out uint) => Texture2DGetDimensions },
+    f! { void GetDimensions(uint, out uint, out uint, out uint) => Texture2DGetDimensions },
+    f! { void GetDimensions(out uint, out uint) => Texture2DGetDimensions },
+    f! { void GetDimensions(uint, out float, out float, out float) => Texture2DGetDimensions },
+    f! { void GetDimensions(out float, out float) => Texture2DGetDimensions },
     f! { D Load(int3) => Texture2DLoad },
     f! { D Load(int3, int2) => Texture2DLoad },
     f! { D Load(int3, int2, out uint) => Texture2DLoad },
@@ -499,7 +502,10 @@ const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
 ];
 
 const TEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
-    f! { void GetDimensions(int, out uint, out uint, out uint, out uint) => Texture2DArrayGetDimensions },
+    f! { void GetDimensions(uint, out uint, out uint, out uint, out uint) => Texture2DArrayGetDimensions },
+    f! { void GetDimensions(out uint, out uint, out uint) => Texture2DArrayGetDimensions },
+    f! { void GetDimensions(uint, out float, out float, out float, out float) => Texture2DArrayGetDimensions },
+    f! { void GetDimensions(out float, out float, out float) => Texture2DArrayGetDimensions },
     f! { D Load(int4) => Texture2DArrayLoad },
     f! { D Load(int4, int2) => Texture2DArrayLoad },
     f! { D Load(int4, int2, out uint) => Texture2DArrayLoad },
@@ -563,12 +569,14 @@ const TEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
 
 const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint) => RWTexture2DGetDimensions },
+    f! { void GetDimensions(out float, out float) => RWTexture2DGetDimensions },
     f! { D Load(int2) => RWTexture2DLoad },
     f! { D Load(int2, out uint) => RWTexture2DLoad },
 ];
 
 const RWTEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint, out uint) => RWTexture2DArrayGetDimensions },
+    f! { void GetDimensions(out float, out float, out float) => RWTexture2DArrayGetDimensions },
     f! { D Load(int3) => RWTexture2DArrayLoad },
     f! { D Load(int3, out uint) => RWTexture2DArrayLoad },
 ];
@@ -586,7 +594,10 @@ const TEXTURECUBEARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
 ];
 
 const TEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
-    f! { void GetDimensions(int, out uint, out uint, out uint, out uint) => Texture3DGetDimensions },
+    f! { void GetDimensions(uint, out uint, out uint, out uint, out uint) => Texture3DGetDimensions },
+    f! { void GetDimensions(out uint, out uint, out uint) => Texture3DGetDimensions },
+    f! { void GetDimensions(uint, out float, out float, out float, out float) => Texture3DGetDimensions },
+    f! { void GetDimensions(out float, out float, out float) => Texture3DGetDimensions },
     f! { D Load(int4) => Texture3DLoad },
     f! { D Load(int4, int3) => Texture3DLoad },
     f! { D Load(int4, int3, out uint) => Texture3DLoad },
@@ -609,6 +620,7 @@ const TEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
 
 const RWTEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint, out uint) => RWTexture3DGetDimensions },
+    f! { void GetDimensions(out float, out float, out float) => RWTexture3DGetDimensions },
     f! { D Load(int3) => RWTexture3DLoad },
     f! { D Load(int3, out uint) => RWTexture3DLoad },
 ];
