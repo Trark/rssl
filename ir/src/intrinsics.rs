@@ -38,6 +38,11 @@ pub enum IntrinsicOp {
     ProductAssignment,
     QuotientAssignment,
     RemainderAssignment,
+    LeftShiftAssignment,
+    RightShiftAssignment,
+    BitwiseAndAssignment,
+    BitwiseOrAssignment,
+    BitwiseXorAssignment,
 }
 
 /// An intrinsic built in function
@@ -403,7 +408,9 @@ impl IntrinsicOp {
                 ty.to_rvalue()
             }
             Assignment | SumAssignment | DifferenceAssignment | ProductAssignment
-            | QuotientAssignment | RemainderAssignment => {
+            | QuotientAssignment | RemainderAssignment | LeftShiftAssignment
+            | RightShiftAssignment | BitwiseAndAssignment | BitwiseOrAssignment
+            | BitwiseXorAssignment => {
                 assert_eq!(param_types.len(), 2);
                 assert_eq!(param_types[0].0, param_types[1].0);
                 assert_eq!(param_types[0].1, ValueType::Lvalue);

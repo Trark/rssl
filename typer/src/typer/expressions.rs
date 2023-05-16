@@ -888,7 +888,12 @@ fn parse_expr_binop(
         | ast::BinOp::DifferenceAssignment
         | ast::BinOp::ProductAssignment
         | ast::BinOp::QuotientAssignment
-        | ast::BinOp::RemainderAssignment => {
+        | ast::BinOp::RemainderAssignment
+        | ast::BinOp::LeftShiftAssignment
+        | ast::BinOp::RightShiftAssignment
+        | ast::BinOp::BitwiseAndAssignment
+        | ast::BinOp::BitwiseOrAssignment
+        | ast::BinOp::BitwiseXorAssignment => {
             if context
                 .module
                 .type_registry
@@ -912,6 +917,11 @@ fn parse_expr_binop(
                         ast::BinOp::ProductAssignment => ir::IntrinsicOp::ProductAssignment,
                         ast::BinOp::QuotientAssignment => ir::IntrinsicOp::QuotientAssignment,
                         ast::BinOp::RemainderAssignment => ir::IntrinsicOp::RemainderAssignment,
+                        ast::BinOp::LeftShiftAssignment => ir::IntrinsicOp::LeftShiftAssignment,
+                        ast::BinOp::RightShiftAssignment => ir::IntrinsicOp::RightShiftAssignment,
+                        ast::BinOp::BitwiseAndAssignment => ir::IntrinsicOp::BitwiseAndAssignment,
+                        ast::BinOp::BitwiseOrAssignment => ir::IntrinsicOp::BitwiseOrAssignment,
+                        ast::BinOp::BitwiseXorAssignment => ir::IntrinsicOp::BitwiseXorAssignment,
                         _ => unreachable!(),
                     };
                     let rhs_type = rhs_cast.get_target_type(&mut context.module);

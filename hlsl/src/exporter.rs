@@ -1197,6 +1197,11 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
                 ProductAssignment => 16,
                 QuotientAssignment => 16,
                 RemainderAssignment => 16,
+                LeftShiftAssignment => 16,
+                RightShiftAssignment => 16,
+                BitwiseAndAssignment => 16,
+                BitwiseOrAssignment => 16,
+                BitwiseXorAssignment => 16,
             }
         }
     }
@@ -1590,6 +1595,11 @@ fn export_intrinsic_op(
         ProductAssignment => Form::Binary("*="),
         QuotientAssignment => Form::Binary("/="),
         RemainderAssignment => Form::Binary("%="),
+        LeftShiftAssignment => Form::Binary("<<="),
+        RightShiftAssignment => Form::Binary(">>="),
+        BitwiseAndAssignment => Form::Binary("&="),
+        BitwiseOrAssignment => Form::Binary("|="),
+        BitwiseXorAssignment => Form::Binary("^="),
     };
 
     match form {

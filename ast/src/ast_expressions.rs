@@ -103,6 +103,11 @@ pub enum BinOp {
     ProductAssignment,
     QuotientAssignment,
     RemainderAssignment,
+    LeftShiftAssignment,
+    RightShiftAssignment,
+    BitwiseAndAssignment,
+    BitwiseOrAssignment,
+    BitwiseXorAssignment,
     Sequence,
 }
 

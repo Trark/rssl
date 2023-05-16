@@ -494,11 +494,24 @@ fn expr_p5<'t>(
 ) -> ParseResult<'t, Located<Expression>> {
     fn parse_op<'t>(input: &'t [LexToken], st: &mut SymbolTable) -> ParseResult<'t, BinOp> {
         match input {
-            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => {
+            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
+            {
+                // Reject tokens that will become <<=
+                ParseErrorReason::wrong_token(input)
+            }
+            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(_), _), rest @ ..]
+                if rest.is_empty() || rest[0].0 != Token::Equals =>
+            {
                 Ok((rest, BinOp::LeftShift))
             }
+            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
+            {
+                // Reject tokens that will become >>=
+                ParseErrorReason::wrong_token(input)
+            }
             [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(_), _), rest @ ..]
-                if st.terminator != Terminator::TypeList =>
+                if st.terminator != Terminator::TypeList
+                    && (rest.is_empty() || rest[0].0 != Token::Equals) =>
             {
                 Ok((rest, BinOp::RightShift))
             }
@@ -524,7 +537,17 @@ fn expr_p6<'t>(
             {
                 Ok((rest, BinOp::GreaterEqual))
             }
+            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
+            {
+                // Reject tokens that will become <<=
+                ParseErrorReason::wrong_token(input)
+            }
             [LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => Ok((rest, BinOp::LessThan)),
+            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
+            {
+                // Reject tokens that will become >>=
+                ParseErrorReason::wrong_token(input)
+            }
             [LexToken(Token::RightAngleBracket(_), _), rest @ ..]
                 if st.terminator != Terminator::TypeList =>
             {
@@ -676,6 +699,19 @@ fn expr_p14<'t>(
             [LexToken(Token::PercentEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::RemainderAssignment))
             }
+            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..] => {
+                Ok((rest, BinOp::LeftShiftAssignment))
+            }
+            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..] => {
+                Ok((rest, BinOp::RightShiftAssignment))
+            }
+            [LexToken(Token::AmpersandEquals, _), rest @ ..] => {
+                Ok((rest, BinOp::BitwiseAndAssignment))
+            }
+            [LexToken(Token::VerticalBarEquals, _), rest @ ..] => {
+                Ok((rest, BinOp::BitwiseOrAssignment))
+            }
+            [LexToken(Token::HatEquals, _), rest @ ..] => Ok((rest, BinOp::BitwiseXorAssignment)),
             [] => ParseErrorReason::end_of_stream(),
             _ => ParseErrorReason::wrong_token(input),
         }
@@ -1548,6 +1584,36 @@ fn test_assignment_with_operators() {
     expr.check(
         "a %= b",
         Expression::BinaryOperation(BinOp::RemainderAssignment, "a".as_bvar(0), "b".as_bvar(5))
+            .loc(0),
+    );
+
+    expr.check(
+        "a <<= b",
+        Expression::BinaryOperation(BinOp::LeftShiftAssignment, "a".as_bvar(0), "b".as_bvar(6))
+            .loc(0),
+    );
+
+    expr.check(
+        "a >>= b",
+        Expression::BinaryOperation(BinOp::RightShiftAssignment, "a".as_bvar(0), "b".as_bvar(6))
+            .loc(0),
+    );
+
+    expr.check(
+        "a &= b",
+        Expression::BinaryOperation(BinOp::BitwiseAndAssignment, "a".as_bvar(0), "b".as_bvar(5))
+            .loc(0),
+    );
+
+    expr.check(
+        "a |= b",
+        Expression::BinaryOperation(BinOp::BitwiseOrAssignment, "a".as_bvar(0), "b".as_bvar(5))
+            .loc(0),
+    );
+
+    expr.check(
+        "a ^= b",
+        Expression::BinaryOperation(BinOp::BitwiseXorAssignment, "a".as_bvar(0), "b".as_bvar(5))
             .loc(0),
     );
 }
