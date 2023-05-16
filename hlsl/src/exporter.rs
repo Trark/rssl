@@ -829,10 +829,16 @@ fn export_statement(
 
             output.push_str("for (");
             export_for_init(init, output, context)?;
-            output.push_str("; ");
-            export_expression(cond, output, context)?;
-            output.push_str("; ");
-            export_expression(inc, output, context)?;
+            output.push(';');
+            if let Some(cond) = cond {
+                output.push(' ');
+                export_expression(cond, output, context)?;
+            }
+            output.push(';');
+            if let Some(inc) = inc {
+                output.push(' ');
+                export_expression(inc, output, context)?;
+            }
             output.push(')');
 
             context.new_line(output);

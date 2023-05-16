@@ -605,6 +605,18 @@ fn check_statement_for() {
 }
 ",
     );
+
+    check_rssl_to_hlsl(
+        "void f() {
+    for (;;);
+}",
+        "void f() {
+    for (;;)
+    {
+    }
+}
+",
+    );
 }
 
 #[test]

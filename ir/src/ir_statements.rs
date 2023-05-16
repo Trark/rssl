@@ -29,7 +29,7 @@ pub enum StatementKind {
     Block(ScopeBlock),
     If(Expression, ScopeBlock),
     IfElse(Expression, ScopeBlock, ScopeBlock),
-    For(ForInit, Expression, Expression, ScopeBlock),
+    For(ForInit, Option<Expression>, Option<Expression>, ScopeBlock),
     While(Expression, ScopeBlock),
     Break,
     Continue,

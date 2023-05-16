@@ -124,8 +124,8 @@ pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub ParseErrorReason);
 /// Get the significance value for a result
 pub fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
     match result {
-        Ok((rest, _)) => rest.len(),
-        Err(ParseErrorContext(rest, _)) => rest.len(),
+        Ok((rest, _)) => rest.len() * 2,
+        Err(ParseErrorContext(rest, _)) => rest.len() * 2 + 1,
     }
 }
 

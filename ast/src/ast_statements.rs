@@ -22,8 +22,8 @@ pub enum StatementKind {
     IfElse(Located<Expression>, Box<Statement>, Box<Statement>),
     For(
         InitStatement,
-        Located<Expression>,
-        Located<Expression>,
+        Option<Located<Expression>>,
+        Option<Located<Expression>>,
         Box<Statement>,
     ),
     While(Located<Expression>, Box<Statement>),

@@ -384,9 +384,9 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
             let (input, init) = parse_init_statement(input)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
-            let (input, cond) = parse_expression(input)?;
+            let (input, cond) = parse_optional(parse_expression)(input)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
-            let (input, inc) = parse_expression(input)?;
+            let (input, inc) = parse_optional(parse_expression)(input)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
             let (input, inner) = parse_statement(input)?;
             Ok((input, StatementKind::For(init, cond, inc, Box::new(inner))))
@@ -802,8 +802,8 @@ fn test_for() {
         Statement {
             kind: StatementKind::For(
                 InitStatement::Expression("a".as_var(4)),
-                "b".as_var(6),
-                "c".as_var(8),
+                Some("b".as_var(6)),
+                Some("c".as_var(8)),
                 Box::new(Statement {
                     kind: StatementKind::Expression(Expression::Call(
                         "func".as_bvar(10),
@@ -827,8 +827,10 @@ fn test_for() {
                     Type::from("uint".loc(5)),
                     Expression::Literal(Literal::UntypedInt(0)).loc(14),
                 )),
-                "i".as_var(17),
-                Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
+                Some("i".as_var(17)),
+                Some(
+                    Expression::UnaryOperation(UnaryOp::PostfixIncrement, "i".as_bvar(20)).loc(20),
+                ),
                 Box::new(Statement {
                     kind: StatementKind::Block(Vec::from([Statement {
                         kind: StatementKind::Expression(Expression::Call(
@@ -840,6 +842,23 @@ fn test_for() {
                         attributes: Vec::new(),
                     }])),
                     location: SourceLocation::first().offset(25),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
+    statement.check(
+        "for (;;) ;",
+        Statement {
+            kind: StatementKind::For(
+                InitStatement::Empty,
+                None,
+                None,
+                Box::new(Statement {
+                    kind: StatementKind::Empty,
+                    location: SourceLocation::first().offset(9),
                     attributes: Vec::new(),
                 }),
             ),

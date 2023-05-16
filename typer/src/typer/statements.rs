@@ -117,8 +117,14 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
         ast::StatementKind::For(ref init, ref cond, ref iter, ref statement) => {
             context.push_scope();
             let init_ir = parse_for_init(init, context)?;
-            let cond_ir = parse_expr(cond, context)?.0;
-            let iter_ir = parse_expr(iter, context)?.0;
+            let cond_ir = match cond {
+                Some(cond) => Some(parse_expr(cond, context)?.0),
+                None => None,
+            };
+            let iter_ir = match iter {
+                Some(iter) => Some(parse_expr(iter, context)?.0),
+                None => None,
+            };
             let scope_block = parse_scopeblock(statement, context)?;
             Ok(Vec::from([ir::Statement {
                 kind: ir::StatementKind::For(init_ir, cond_ir, iter_ir, scope_block),
