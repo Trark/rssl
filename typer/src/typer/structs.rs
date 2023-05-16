@@ -67,11 +67,14 @@ fn parse_struct_internal(
 
         // Register template arguments
         for (template_param, template_arg) in sd.template_params.0.iter().zip(template_args) {
-            match template_arg {
-                ir::TypeOrConstant::Type(ty) => {
-                    context.register_typedef(template_param.clone(), *ty)?
+            match (template_param, template_arg) {
+                (ast::TemplateParam::Type(ty_param), ir::TypeOrConstant::Type(ty)) => {
+                    context.register_typedef(ty_param.name.clone(), *ty)?
                 }
-                ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+                (ast::TemplateParam::Value(_), ir::TypeOrConstant::Constant(_)) => {
+                    todo!("Non-type template arguments")
+                }
+                _ => todo!("Inconsistent type/non-type parameter error handling"),
             }
         }
     }

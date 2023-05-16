@@ -67,7 +67,14 @@ pub fn parse_function_signature(
 
     let mut template_param_count = 0;
     for template_param in &fd.template_params.0 {
-        context.insert_template_type(template_param.clone())?;
+        match template_param {
+            ast::TemplateParam::Type(ty_param) => {
+                context.insert_template_type(ty_param.name.clone())?;
+            }
+            ast::TemplateParam::Value(_) => {
+                todo!("Non-type template arguments")
+            }
+        }
         template_param_count += 1;
     }
 

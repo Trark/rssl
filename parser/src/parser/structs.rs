@@ -182,7 +182,12 @@ fn test_struct() {
         "template<typename T> struct MyStruct { T a, b; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(28),
-            template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
+            template_params: TemplateParamList(Vec::from([TemplateParam::Type(
+                TemplateTypeParam {
+                    name: "T".to_string().loc(18),
+                    default: None,
+                },
+            )])),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("T".loc(39)),
                 defs: vec![

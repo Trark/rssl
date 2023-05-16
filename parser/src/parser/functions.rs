@@ -194,15 +194,81 @@ fn test_template_function() {
                 return_type: Type::from("void".loc(21)),
                 semantic: None,
             },
-            template_params: TemplateParamList(Vec::from(["T".to_string().loc(18)])),
-            params: vec![FunctionParam {
+            template_params: TemplateParamList(Vec::from([TemplateParam::Type(
+                TemplateTypeParam {
+                    name: "T".to_string().loc(18),
+                    default: None,
+                },
+            )])),
+            params: Vec::from([FunctionParam {
                 name: "arg".to_string().loc(30),
                 param_type: Type::from("T".loc(28)),
                 bind: Default::default(),
                 semantic: None,
-            }],
-            body: vec![],
-            attributes: vec![],
+            }]),
+            body: Vec::new(),
+            attributes: Vec::new(),
+        },
+    );
+
+    functiondefinition.check(
+        "template<uint L = 3> void f() {}",
+        FunctionDefinition {
+            name: "f".to_string().loc(26),
+            returntype: FunctionReturn {
+                return_type: Type::from("void".loc(21)),
+                semantic: None,
+            },
+
+            template_params: TemplateParamList(Vec::from([TemplateParam::Value(
+                TemplateValueParam {
+                    value_type: Type::from("uint".loc(9)),
+                    name: "L".to_string().loc(14),
+                    default: Some(Expression::Literal(Literal::UntypedInt(3)).loc(18)),
+                },
+            )])),
+            params: Vec::new(),
+            body: Vec::new(),
+            attributes: Vec::new(),
+        },
+    );
+
+    functiondefinition.check(
+        "template<> void f() {}",
+        FunctionDefinition {
+            name: "f".to_string().loc(16),
+            returntype: FunctionReturn {
+                return_type: Type::from("void".loc(11)),
+                semantic: None,
+            },
+            template_params: TemplateParamList(Vec::new()),
+            params: Vec::new(),
+            body: Vec::new(),
+            attributes: Vec::new(),
+        },
+    );
+
+    functiondefinition.check(
+        "template<typename T, typename G> void f() {}",
+        FunctionDefinition {
+            name: "f".to_string().loc(38),
+            returntype: FunctionReturn {
+                return_type: Type::from("void".loc(33)),
+                semantic: None,
+            },
+            template_params: TemplateParamList(Vec::from([
+                TemplateParam::Type(TemplateTypeParam {
+                    name: "T".to_string().loc(18),
+                    default: None,
+                }),
+                TemplateParam::Type(TemplateTypeParam {
+                    name: "G".to_string().loc(30),
+                    default: None,
+                }),
+            ])),
+            params: Vec::new(),
+            body: Vec::new(),
+            attributes: Vec::new(),
         },
     );
 }

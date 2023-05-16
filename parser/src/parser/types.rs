@@ -292,22 +292,63 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
         Err(_) => return Ok((input, TemplateParamList(Vec::new()))),
     };
 
-    let (mut input, _) = match_left_angle_bracket(input)?;
+    let (input, _) = match_left_angle_bracket(input)?;
 
-    // Require at least one template argument
-    // No specialisation supported
     let mut args = Vec::new();
+    let mut next = input;
     loop {
-        let (after_typename, _) = parse_token(Token::Typename)(input)?;
-        let (after_type, name) = match_identifier(after_typename)?;
-        args.push(Located::new(name.0.clone(), after_typename[0].1));
-        input = after_type;
+        match next {
+            [LexToken(Token::RightAngleBracket(_), _), ..] if args.is_empty() => {
+                // Empty argument list
+                break;
+            }
+            [LexToken(Token::Typename, _), rest @ ..] => {
+                // Process a type argument
+                let (input, name) = parse_variable_name(rest)?;
+                let (input, default) = match parse_token(Token::Equals)(input) {
+                    Ok((input, _)) => match parse_type(input) {
+                        Ok((input, expr)) => (input, Some(expr)),
+                        Err(err) => return Err(err),
+                    },
+                    Err(_) => (input, None),
+                };
+                args.push(TemplateParam::Type(TemplateTypeParam { name, default }));
+                next = input;
+            }
+            _ => {
+                // Process a value argument
+                let (input, value_type) = parse_type(next)?;
+                let (input, name) = parse_variable_name(input)?;
+                let (input, default) = match parse_token(Token::Equals)(input) {
+                    Ok((input, _)) => {
+                        // Parse an expression where both , and > will end the expression
+                        let expr_res = expressions::parse_expression_resolve_symbols(
+                            input,
+                            Terminator::TypeList,
+                        );
+                        match expr_res {
+                            Ok((input, expr)) => (input, Some(expr)),
+                            Err(err) => return Err(err),
+                        }
+                    }
+                    Err(_) => (input, None),
+                };
+                args.push(TemplateParam::Value(TemplateValueParam {
+                    value_type,
+                    name,
+                    default,
+                }));
+                next = input;
+            }
+        }
 
-        match parse_token(Token::Comma)(input) {
-            Ok((rest, _)) => input = rest,
+        // If we encounter a comma then process again - else leave the loop to consume the > outside the loop
+        match parse_token(Token::Comma)(next) {
+            Ok((rest, _)) => next = rest,
             Err(_) => break,
         }
     }
+    let input = next;
 
     let (input, _) = match_right_angle_bracket(input)?;
 

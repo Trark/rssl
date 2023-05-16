@@ -1,4 +1,5 @@
 use crate::ast_statements::VariableBind;
+use crate::Expression;
 use crate::ExpressionOrType;
 use crate::ScopedIdentifier;
 use rssl_text::{Locate, Located, SourceLocation};
@@ -130,8 +131,30 @@ pub enum Semantic {
 }
 
 /// Template parameters
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct TemplateParamList(pub Vec<Located<String>>);
+#[derive(PartialEq, Debug, Clone)]
+pub struct TemplateParamList(pub Vec<TemplateParam>);
+
+/// Template parameter - either a type or a value
+#[derive(PartialEq, Debug, Clone)]
+pub enum TemplateParam {
+    Type(TemplateTypeParam),
+    Value(TemplateValueParam),
+}
+
+/// Type template parameter
+#[derive(PartialEq, Debug, Clone)]
+pub struct TemplateTypeParam {
+    pub name: Located<String>,
+    pub default: Option<Type>,
+}
+
+/// Value template parameter
+#[derive(PartialEq, Debug, Clone)]
+pub struct TemplateValueParam {
+    pub value_type: Type,
+    pub name: Located<String>,
+    pub default: Option<Located<Expression>>,
+}
 
 /// A typedef definition
 #[derive(PartialEq, Debug, Clone)]
