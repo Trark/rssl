@@ -863,6 +863,7 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "else" => Token::Else,
         "for" => Token::For,
         "while" => Token::While,
+        "do" => Token::Do,
         "switch" => Token::Switch,
         "return" => Token::Return,
         "break" => Token::Break,
@@ -1551,6 +1552,10 @@ fn test_token() {
     assert_token!("while", Token::While);
     assert_token!("while ", Token::While, 5);
     assert_token!("whilea", Token::Id(Identifier("whilea".to_string())));
+
+    assert_token!("do", Token::Do);
+    assert_token!("do ", Token::Do, 2);
+    assert_token!("dowhile", Token::Id(Identifier("dowhile".to_string())));
 
     assert_token!("switch", Token::Switch);
     assert_token!("switch ", Token::Switch, 6);

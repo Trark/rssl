@@ -142,6 +142,16 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 attributes,
             }]))
         }
+        ast::StatementKind::DoWhile(ref statement, ref cond) => {
+            context.push_scope();
+            let scope_block = parse_scopeblock(statement, context)?;
+            let cond_ir = parse_expr(cond, context)?.0;
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::DoWhile(scope_block, cond_ir),
+                location: ast.location,
+                attributes,
+            }]))
+        }
         ast::StatementKind::Break => Ok(Vec::from([ir::Statement {
             kind: ir::StatementKind::Break,
             location: ast.location,

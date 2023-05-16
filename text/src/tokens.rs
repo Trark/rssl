@@ -83,6 +83,7 @@ pub enum Token {
     Else,
     For,
     While,
+    Do,
     Switch,
     Return,
     Break,

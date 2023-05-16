@@ -856,6 +856,20 @@ fn export_statement(
             export_scope_block(block, output, context)?;
             context.pop_scope();
         }
+        ir::StatementKind::DoWhile(block, cond) => {
+            output.push_str("do");
+
+            enter_scope_block(block, context);
+            context.new_line(output);
+            export_scope_block(block, output, context)?;
+            context.pop_scope();
+
+            context.new_line(output);
+            output.push_str("while (");
+            export_expression(cond, output, context)?;
+            output.push(')');
+            output.push(';');
+        }
         ir::StatementKind::Break => output.push_str("break;"),
         ir::StatementKind::Continue => output.push_str("continue;"),
         ir::StatementKind::Discard => output.push_str("discard;"),

@@ -31,6 +31,7 @@ pub enum StatementKind {
     IfElse(Expression, ScopeBlock, ScopeBlock),
     For(ForInit, Option<Expression>, Option<Expression>, ScopeBlock),
     While(Expression, ScopeBlock),
+    DoWhile(ScopeBlock, Expression),
     Break,
     Continue,
     Discard,

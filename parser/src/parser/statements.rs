@@ -398,6 +398,15 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
             let (input, inner) = parse_statement(input)?;
             Ok((input, StatementKind::While(cond, Box::new(inner))))
         }
+        LexToken(Token::Do, _) => {
+            let (input, inner) = parse_statement(tail)?;
+            let (input, _) = parse_token(Token::While)(input)?;
+            let (input, _) = parse_token(Token::LeftParen)(input)?;
+            let (input, cond) = parse_expression(input)?;
+            let (input, _) = parse_token(Token::RightParen)(input)?;
+            let (input, _) = parse_token(Token::Semicolon)(input)?;
+            Ok((input, StatementKind::DoWhile(Box::new(inner), cond)))
+        }
         LexToken(Token::Break, _) => Ok((tail, StatementKind::Break)),
         LexToken(Token::Continue, _) => Ok((tail, StatementKind::Continue)),
         LexToken(Token::Discard, _) => Ok((tail, StatementKind::Discard)),
@@ -875,5 +884,43 @@ fn test_for() {
         "for(int a = 0; a < 10 |^; a++) func(a);",
         ParseErrorReason::WrongToken,
         23,
+    );
+}
+
+#[test]
+fn test_do_while() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
+    statement.check(
+        "do {} while (a);",
+        Statement {
+            kind: StatementKind::DoWhile(
+                Box::new(Statement {
+                    kind: StatementKind::Block(Vec::new()),
+                    location: SourceLocation::first().offset(3),
+                    attributes: Vec::new(),
+                }),
+                "a".as_var(13),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
+
+    statement.check(
+        "do ; while (a);",
+        Statement {
+            kind: StatementKind::DoWhile(
+                Box::new(Statement {
+                    kind: StatementKind::Empty,
+                    location: SourceLocation::first().offset(3),
+                    attributes: Vec::new(),
+                }),
+                "a".as_var(12),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
     );
 }

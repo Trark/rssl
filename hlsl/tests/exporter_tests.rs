@@ -737,6 +737,33 @@ fn check_statement_while() {
 }
 
 #[test]
+fn check_statement_do_while() {
+    check_rssl_to_hlsl(
+        "void f() {
+    do
+    {
+        continue;
+        break;
+        discard;
+        return;
+    }
+    while (true);
+}",
+        "void f() {
+    do
+    {
+        continue;
+        break;
+        discard;
+        return;
+    }
+    while (true);
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_while_unroll() {
     check_rssl_to_hlsl(
         "void f() {

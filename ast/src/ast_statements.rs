@@ -27,6 +27,7 @@ pub enum StatementKind {
         Box<Statement>,
     ),
     While(Located<Expression>, Box<Statement>),
+    DoWhile(Box<Statement>, Located<Expression>),
     Break,
     Continue,
     Discard,
