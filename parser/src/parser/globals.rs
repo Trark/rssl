@@ -418,10 +418,8 @@ fn parse_register(input: &[LexToken]) -> ParseResult<Option<Register>> {
             "b" => RegisterType::B,
             "s" => RegisterType::S,
             _ => {
-                return Err(ParseErrorContext(
-                    identifier_input_start,
-                    ParseErrorReason::InvalidSlotType(id.0.clone()),
-                ))
+                return ParseErrorReason::InvalidSlotType(id.0.clone())
+                    .into_result(identifier_input_start)
             }
         };
 
@@ -430,17 +428,13 @@ fn parse_register(input: &[LexToken]) -> ParseResult<Option<Register>> {
                 match register_index_str.parse::<u32>() {
                     Ok(v) => v,
                     Err(_) => {
-                        return Err(ParseErrorContext(
-                            identifier_input_start,
-                            ParseErrorReason::InvalidSlotIndex(id.0.clone()),
-                        ));
+                        return ParseErrorReason::InvalidSlotIndex(id.0.clone())
+                            .into_result(identifier_input_start)
                     }
                 }
             } else {
-                return Err(ParseErrorContext(
-                    identifier_input_start,
-                    ParseErrorReason::InvalidSlotIndex(id.0.clone()),
-                ));
+                return ParseErrorReason::InvalidSlotIndex(id.0.clone())
+                    .into_result(identifier_input_start);
             }
         };
 
@@ -462,10 +456,8 @@ fn parse_register(input: &[LexToken]) -> ParseResult<Option<Register>> {
             Some((id, space_start)) => match parse_space_identifier(&id.0) {
                 Some(index) => Some(index),
                 None => {
-                    return Err(ParseErrorContext(
-                        space_start,
-                        ParseErrorReason::InvalidSpaceIdentifier(id.0.clone()),
-                    ))
+                    return ParseErrorReason::InvalidSpaceIdentifier(id.0.clone())
+                        .into_result(space_start)
                 }
             },
             None => None,

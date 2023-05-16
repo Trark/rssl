@@ -13,7 +13,7 @@ impl ParseError {
 
 impl<'a> From<ParseErrorContext<'a>> for ParseError {
     fn from(internal_error: ParseErrorContext<'a>) -> ParseError {
-        ParseError(internal_error.1, Some(internal_error.0.to_vec()))
+        ParseError(internal_error.2, Some(internal_error.0.to_vec()))
     }
 }
 
@@ -87,16 +87,21 @@ pub enum ParseErrorReason {
 
 impl ParseErrorReason {
     pub fn into_result<T>(self, remaining: &[LexToken]) -> ParseResult<T> {
-        Err(ParseErrorContext(remaining, self))
+        Err(ParseErrorContext(remaining, remaining.len(), self))
     }
 
     pub fn wrong_token<T>(remaining: &[LexToken]) -> ParseResult<T> {
-        Err(ParseErrorContext(remaining, ParseErrorReason::WrongToken))
+        Err(ParseErrorContext(
+            remaining,
+            remaining.len(),
+            ParseErrorReason::WrongToken,
+        ))
     }
 
     pub fn end_of_stream<'t, T>() -> ParseResult<'t, T> {
         Err(ParseErrorContext(
             &[],
+            0,
             ParseErrorReason::UnexpectedEndOfStream,
         ))
     }
@@ -109,23 +114,35 @@ pub trait ParseResultExt {
     /// Choose between two results based on the longest amount they parsed
     /// Favors self over next
     fn select(self, next: Self) -> Self;
+
+    /// Reset error point to an earlier location
+    fn rebase_fail_point(self, base_input: &[LexToken]) -> Self;
 }
 
 impl<'t, T> ParseResultExt for ParseResult<'t, T> {
     fn select(self, next: Self) -> Self {
         get_most_relevant_result(self, next)
     }
+
+    fn rebase_fail_point(self, base_input: &[LexToken]) -> Self {
+        match self {
+            Ok(ok) => Ok(ok),
+            Err(ParseErrorContext(rest, _, reason)) => {
+                Err(ParseErrorContext(rest, base_input.len(), reason))
+            }
+        }
+    }
 }
 
 /// Internal error type for propagating error information
 #[derive(PartialEq, Debug, Clone)]
-pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub ParseErrorReason);
+pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub usize, pub ParseErrorReason);
 
 /// Get the significance value for a result
 pub fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
     match result {
         Ok((rest, _)) => rest.len() * 2,
-        Err(ParseErrorContext(rest, _)) => rest.len() * 2 + 1,
+        Err(ParseErrorContext(_, significance, _)) => significance * 2 + 1,
     }
 }
 

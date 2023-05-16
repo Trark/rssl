@@ -175,9 +175,12 @@ fn expr_p1<'t>(
         input: &'t [LexToken],
         st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Precedence1Postfix>> {
-        let (input, template_args) = parse_template_args(input)?;
+        // If we fail before reaching the call parenthesis then other parse trees may be better fits
+        let start_input = input;
 
-        let (input, start) = parse_token(Token::LeftParen)(input)?;
+        let (input, template_args) = parse_template_args(input).rebase_fail_point(start_input)?;
+
+        let (input, start) = parse_token(Token::LeftParen)(input).rebase_fail_point(start_input)?;
 
         let mut input = input;
         let mut args = Vec::new();
@@ -246,7 +249,7 @@ fn expr_p1<'t>(
                     input = rest;
                     rights.push(right);
                 }
-                Err(ParseErrorContext(rest, _)) if rest.len() == input.len() => {
+                Err(ParseErrorContext(rest, _, _)) if rest.len() == input.len() => {
                     break;
                 }
                 Err(err) => return Err(err),
@@ -1134,6 +1137,24 @@ fn test_binary_op_multi() {
             BinOp::Add,
             Expression::BinaryOperation(BinOp::Add, "a".as_bvar(0), "b".as_bvar(1)).bloc(0),
             "c".as_bvar(2),
+        )
+        .loc(0),
+    );
+}
+
+#[test]
+fn test_condition_template_arg_ambiguity() {
+    use test_support::*;
+    let expr = ParserTester::new(parse_expression);
+
+    // This is almost ambiguous as a template argument <b && c> for a
+    expr.check(
+        "a < b && c > d",
+        Expression::BinaryOperation(
+            BinOp::BooleanAnd,
+            Expression::BinaryOperation(BinOp::LessThan, "a".as_bvar(0), "b".as_bvar(4)).bloc(0),
+            Expression::BinaryOperation(BinOp::GreaterThan, "c".as_bvar(9), "d".as_bvar(13))
+                .bloc(9),
         )
         .loc(0),
     );

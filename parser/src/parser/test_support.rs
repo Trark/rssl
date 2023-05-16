@@ -144,12 +144,12 @@ impl<
                     );
                 }
             }
-            Err(ParseErrorContext(_, ParseErrorReason::UnexpectedEndOfStream)) => {
+            Err(ParseErrorContext(_, _, ParseErrorReason::UnexpectedEndOfStream)) => {
                 panic!("Unexpected end of stream")
             }
             Err(err) => {
                 assert_eq!(
-                    (err.1, err.0[0].1),
+                    (err.2, err.0[0].1),
                     (error_reason, SourceLocation::first().offset(offset))
                 );
             }
