@@ -127,3 +127,5 @@ macro_rules! source {
 }
 
 mod capsaicin;
+
+mod ffx_fsr2;
