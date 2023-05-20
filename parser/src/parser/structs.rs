@@ -171,7 +171,7 @@ fn test_struct() {
                     returntype: Type::from("void".loc(26)).into(),
                     template_params: TemplateParamList(Vec::new()),
                     params: Vec::new(),
-                    body: Vec::new(),
+                    body: Some(Vec::new()),
                     attributes: Vec::new(),
                 }),
             ],

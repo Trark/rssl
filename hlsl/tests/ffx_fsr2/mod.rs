@@ -53,6 +53,10 @@ pub const FILES: &[(&str, &str)] = &[
         "#include \"test_config.h\"\n#include \"ffx_fsr2_lock_pass.hlsl\"",
     ),
     (
+        "rcas_pass",
+        "#include \"test_config.h\"\n#include \"ffx_fsr2_rcas_pass.hlsl\"",
+    ),
+    (
         "reconstruct_previous_depth_pass",
         "#include \"test_config.h\"\n#include \"ffx_fsr2_reconstruct_previous_depth_pass.hlsl\"",
     ),
@@ -80,6 +84,11 @@ fn compile_depth_clip_pass() {
 #[test]
 fn compile_lock_pass() {
     compile_file("lock_pass", FILES);
+}
+
+#[test]
+fn compile_rcas_pass() {
+    compile_file("rcas_pass", FILES);
 }
 
 #[test]

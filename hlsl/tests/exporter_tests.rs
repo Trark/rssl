@@ -133,6 +133,34 @@ fn check_functions() {
 }
 ",
     );
+
+    // Declared and defined functions - in a namespace to add some scoping
+    check_rssl_to_hlsl(
+        "namespace M {
+
+void f();
+
+void g();
+
+void f() {}
+
+void g() {}
+
+} // namespace M
+",
+        "namespace M {
+
+void f();
+
+void g();
+
+void f() {}
+
+void g() {}
+
+} // namespace M
+",
+    );
 }
 
 #[test]

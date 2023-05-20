@@ -152,6 +152,7 @@ fn parse_struct_internal(
                 let (signature, scope) = parse_function_signature(ast_func, Some(id), context)?;
 
                 // Register the method signature in the function list
+                // Functions can not be pre-declared multiple times like with free functions
                 let id = context.register_function(
                     ast_func.name.clone(),
                     signature.clone(),
@@ -162,7 +163,21 @@ fn parse_struct_internal(
                 // Add the method to the struct function set
                 match method_map.entry(ast_func.name.node.clone()) {
                     Entry::Occupied(mut o) => {
-                        // TODO: Detect duplicate signatures
+                        // Detect duplicate signatures
+                        for existing_id in o.get() {
+                            let existing_signature = context
+                                .module
+                                .function_registry
+                                .get_function_signature(*existing_id);
+                            if existing_signature.param_types == signature.param_types {
+                                return Err(TyperError::ValueAlreadyDefined(
+                                    ast_func.name.clone(),
+                                    ErrorType::Unknown,
+                                    ErrorType::Unknown,
+                                ));
+                            }
+                        }
+
                         o.get_mut().push(id);
                     }
                     Entry::Vacant(v) => {
@@ -183,7 +198,9 @@ fn parse_struct_internal(
     let mut methods = Vec::new();
     for (ast_func, id, signature) in methods_to_parse {
         if signature.template_params.0 == 0 {
-            parse_function_body(ast_func, id, signature, context)?;
+            if ast_func.body.is_some() {
+                parse_function_body(ast_func, id, signature, context)?;
+            }
             methods.push(id);
         } else {
             // Do not add the templated method to the tree for now

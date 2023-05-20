@@ -9,7 +9,7 @@ pub struct FunctionDefinition {
     pub returntype: FunctionReturn,
     pub template_params: TemplateParamList,
     pub params: Vec<FunctionParam>,
-    pub body: Vec<Statement>,
+    pub body: Option<Vec<Statement>>,
     pub attributes: Vec<Attribute>,
 }
 

@@ -115,7 +115,7 @@ impl Context {
 
             // Register the function into the root scope
             context
-                .insert_function_in_scope(context.current_scope, id, true)
+                .insert_function_in_scope(context.current_scope, id)
                 .unwrap();
         }
 
@@ -472,9 +472,19 @@ impl Context {
         Ok(id)
     }
 
+    /// Ensure we can insert a new function into the current scope
+    pub fn check_existing_functions(
+        &mut self,
+        name: &Located<String>,
+        signature: &ir::FunctionSignature,
+        is_definition: bool,
+    ) -> TyperResult<Option<ir::FunctionId>> {
+        self.check_existing_functions_in_scope(self.current_scope, name, signature, is_definition)
+    }
+
     /// Add a registered function to the active scope
     pub fn add_function_to_current_scope(&mut self, id: ir::FunctionId) -> TyperResult<()> {
-        self.insert_function_in_scope(self.current_scope, id, false)
+        self.insert_function_in_scope(self.current_scope, id)
     }
 
     /// Register a new global variable
@@ -1068,51 +1078,75 @@ impl Context {
         None
     }
 
+    fn check_existing_functions_in_scope(
+        &mut self,
+        scope_index: usize,
+        name: &Located<String>,
+        signature: &ir::FunctionSignature,
+        is_definition: bool,
+    ) -> TyperResult<Option<ir::FunctionId>> {
+        let mut declaration = None;
+
+        // Error if a variable of the same name already exists
+        match self.find_identifier_in_scope(&self.scopes[scope_index], name) {
+            Some(VariableExpression::Local(_, ref ty))
+            | Some(VariableExpression::Global(_, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
+            | Some(VariableExpression::EnumValue(_, ref ty)) => {
+                return Err(TyperError::ValueAlreadyDefined(
+                    name.clone(),
+                    ty.to_error_type(),
+                    ErrorType::Unknown,
+                ));
+            }
+            Some(VariableExpression::Function(fns)) => {
+                // Fail if the overload already exists
+                for existing_id in fns.overloads {
+                    let existing_signature = self
+                        .module
+                        .function_registry
+                        .get_function_signature(existing_id);
+                    if existing_signature.param_types == signature.param_types {
+                        let has_impl = self
+                            .module
+                            .function_registry
+                            .get_function_implementation(existing_id)
+                            .is_some();
+
+                        let is_intrinsic = self
+                            .module
+                            .function_registry
+                            .get_intrinsic_data(existing_id)
+                            .is_some();
+
+                        if is_intrinsic || (is_definition && has_impl) {
+                            return Err(TyperError::ValueAlreadyDefined(
+                                name.clone(),
+                                ErrorType::Unknown,
+                                ErrorType::Unknown,
+                            ));
+                        } else {
+                            assert_eq!(declaration, None);
+                            declaration = Some(existing_id);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        Ok(declaration)
+    }
+
     fn insert_function_in_scope(
         &mut self,
         scope_index: usize,
         id: ir::FunctionId,
-        skip_checks: bool,
     ) -> TyperResult<()> {
         let name_data = self
             .module
             .function_registry
             .get_function_name_definition(id);
-
-        if !skip_checks {
-            let signature = &self.module.function_registry.get_function_signature(id);
-
-            // Error if a variable of the same name already exists
-            match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node) {
-                Some(VariableExpression::Local(_, ref ty))
-                | Some(VariableExpression::Global(_, ref ty))
-                | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
-                | Some(VariableExpression::EnumValue(_, ref ty)) => {
-                    return Err(TyperError::ValueAlreadyDefined(
-                        name_data.name.clone(),
-                        ty.to_error_type(),
-                        ErrorType::Unknown,
-                    ));
-                }
-                Some(VariableExpression::Function(fns)) => {
-                    // Fail if the overload already exists
-                    for existing_id in fns.overloads {
-                        let existing_signature = self
-                            .module
-                            .function_registry
-                            .get_function_signature(existing_id);
-                        if existing_signature.param_types == signature.param_types {
-                            return Err(TyperError::ValueAlreadyDefined(
-                                name_data.name.clone(),
-                                ErrorType::Unknown,
-                                ErrorType::Unknown,
-                            ));
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
 
         // Try to add the function
         match self.scopes[scope_index]

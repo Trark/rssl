@@ -166,7 +166,15 @@ pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<FunctionDefi
         let (input, semantic) = parse_semantic(input)?;
         Ok((input, semantic))
     })(input)?;
-    let (input, body) = statement_block(input)?;
+
+    let (input, body) = match parse_token(Token::Semicolon)(input) {
+        Ok((input, _)) => (input, None),
+        _ => {
+            let (input, body) = statement_block(input)?;
+            (input, Some(body))
+        }
+    };
+
     let def = FunctionDefinition {
         name: func_name,
         returntype: FunctionReturn {
@@ -206,7 +214,7 @@ fn test_template_function() {
                 bind: Default::default(),
                 semantic: None,
             }]),
-            body: Vec::new(),
+            body: Some(Vec::new()),
             attributes: Vec::new(),
         },
     );
@@ -228,7 +236,7 @@ fn test_template_function() {
                 },
             )])),
             params: Vec::new(),
-            body: Vec::new(),
+            body: Some(Vec::new()),
             attributes: Vec::new(),
         },
     );
@@ -243,7 +251,7 @@ fn test_template_function() {
             },
             template_params: TemplateParamList(Vec::new()),
             params: Vec::new(),
-            body: Vec::new(),
+            body: Some(Vec::new()),
             attributes: Vec::new(),
         },
     );
@@ -267,7 +275,7 @@ fn test_template_function() {
                 }),
             ])),
             params: Vec::new(),
-            body: Vec::new(),
+            body: Some(Vec::new()),
             attributes: Vec::new(),
         },
     );

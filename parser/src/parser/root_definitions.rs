@@ -133,7 +133,7 @@ fn test_function() {
             bind: Default::default(),
             semantic: None,
         }],
-        body: Vec::new(),
+        body: Some(Vec::new()),
         attributes: Vec::new(),
     };
     functiondefinition.check(test_func_str, test_func_ast.clone());
@@ -151,7 +151,7 @@ fn test_function() {
                 bind: Default::default(),
                 semantic: None,
             }],
-            body: Vec::from([Statement {
+            body: Some(Vec::from([Statement {
                 kind: StatementKind::If(
                     Expression::BinaryOperation(
                         BinOp::LessThan,
@@ -171,7 +171,7 @@ fn test_function() {
                 ),
                 location: SourceLocation::first().offset(45),
                 attributes: Vec::new(),
-            }]),
+            }])),
             attributes: vec![Attribute {
                 name: "numthreads".to_string().loc(1),
                 arguments: Vec::from([
@@ -234,7 +234,7 @@ fn test_namespace() {
                         },
                         template_params: TemplateParamList(Vec::new()),
                         params: Vec::new(),
-                        body: Vec::new(),
+                        body: Some(Vec::new()),
                         attributes: Vec::new(),
                     })]),
                 ),

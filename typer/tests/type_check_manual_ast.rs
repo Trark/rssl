@@ -62,7 +62,7 @@ fn test_ast_pass() {
                     bind: Default::default(),
                     semantic: None,
                 }],
-                body: vec![],
+                body: Some(Vec::new()),
                 attributes: vec![],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
@@ -75,7 +75,7 @@ fn test_ast_pass() {
                     bind: Default::default(),
                     semantic: None,
                 }],
-                body: vec![],
+                body: Some(Vec::new()),
                 attributes: vec![],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
@@ -89,7 +89,7 @@ fn test_ast_pass() {
                     bind: Default::default(),
                     semantic: None,
                 }],
-                body: vec![
+                body: Some(Vec::from([
                     as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("local_static".to_string()),
                         ast::Type::from("uint")
@@ -104,7 +104,7 @@ fn test_ast_pass() {
                             ))),
                         ),
                     )),
-                ],
+                ])),
                 attributes: vec![],
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
@@ -112,7 +112,7 @@ fn test_ast_pass() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
-                body: vec![
+                body: Some(Vec::from([
                     as_statement(ast::StatementKind::Empty),
                     as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("a".to_string()),
@@ -171,7 +171,7 @@ fn test_ast_pass() {
                         vec![],
                         vec![make_id("testOut")],
                     ))),
-                ],
+                ])),
                 attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
             }),
         ],
@@ -203,14 +203,14 @@ fn test_ast_to_ir() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
-                body: vec![
+                body: Some(Vec::from([
                     as_statement(ast::StatementKind::Expression(make_id("g_myFour").node)),
                     as_statement(ast::StatementKind::Expression(ast::Expression::Call(
                         Box::new(make_id("GroupMemoryBarrierWithGroupSync")),
                         Vec::new(),
                         Vec::new(),
                     ))),
-                ],
+                ])),
                 attributes: vec![ast::Attribute::numthreads(8, 8, 1)],
             }),
         ],

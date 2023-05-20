@@ -363,6 +363,27 @@ struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
 }
 
 #[test]
+fn check_function_declare() {
+    // Trivial declare with no implementation
+    check_types("void f(float x);");
+
+    // Declare a function then defined it
+    check_types("void f(float x); void f(float x) {}");
+
+    // Define a function then declare it again
+    check_types("void f(float x) {} void f(float x);");
+
+    // Declare multiple times before and after the definition
+    check_types(
+        "void f(float x); void f(float x); void f(float x) {} void f(float x); void f(float x);",
+    );
+
+    // Check that we can not declare a function that is the same as an intrinsic
+    // HLSL allows this but we do not
+    check_fail("void mul(float4x4 x, float4 y);");
+}
+
+#[test]
 fn check_function_overload_conflicts() {
     // Check we can have an overloaded function
     check_types("void f(float x) {} void f(uint x) {}");
@@ -880,6 +901,15 @@ fn check_struct_methods() {
     check_types("struct S { float x; bool f() { if (y) { x = x + 1; return false; } return true; } int y; };");
     check_types("struct S { void f(S s) {} };");
     check_types("struct S { float x; bool f(S s) { if (y || s.y) { x = x + 1; s.x = s.x + 1; return false; } return true; } int y; };");
+
+    // Methods can be declared to be defined later out of line - but defining them later is not currently supported
+    check_types("struct S { void f(); };");
+
+    // No duplicate methods
+    check_fail("struct S { void f() {} void f() {} };");
+    check_fail("struct S { void f(); void f(); };");
+    check_fail("struct S { void f() {} void f(); };");
+    check_fail("struct S { void f(); void f() {} };");
 }
 
 #[test]

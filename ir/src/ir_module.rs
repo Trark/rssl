@@ -61,6 +61,7 @@ pub enum RootDefinition {
     Enum(EnumId),
     ConstantBuffer(ConstantBufferId),
     GlobalVariable(GlobalId),
+    FunctionDeclaration(FunctionId),
     Function(FunctionId),
     Namespace(String, Vec<RootDefinition>),
 }
@@ -249,6 +250,7 @@ impl Module {
                 RootDefinition::Struct(_)
                 | RootDefinition::StructTemplate(_)
                 | RootDefinition::Enum(_)
+                | RootDefinition::FunctionDeclaration(_)
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];

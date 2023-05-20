@@ -59,6 +59,7 @@ fn analyse_bindings(
         ir::RootDefinition::Struct(_)
         | ir::RootDefinition::StructTemplate(_)
         | ir::RootDefinition::Enum(_)
+        | ir::RootDefinition::FunctionDeclaration(_)
         | ir::RootDefinition::Function(_) => {}
         ir::RootDefinition::ConstantBuffer(id) => {
             let cb = &context.module.cbuffer_registry[id.0 as usize];
@@ -247,8 +248,11 @@ fn export_root_definition(
             let decl = &module.global_registry[id.0 as usize];
             export_global_variable(decl, output, context)?;
         }
+        ir::RootDefinition::FunctionDeclaration(id) => {
+            export_function(*id, true, output, context)?;
+        }
         ir::RootDefinition::Function(id) => {
-            export_function(*id, output, context)?;
+            export_function(*id, false, output, context)?;
         }
         ir::RootDefinition::Namespace(name, decls) => {
             output.push_str("namespace ");
@@ -373,6 +377,7 @@ fn export_vk_binding_annotation(
 /// Export ir function to HLSL
 fn export_function(
     id: ir::FunctionId,
+    only_declare: bool,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
@@ -411,18 +416,24 @@ fn export_function(
 
     export_semantic_annotation(&sig.return_type.semantic, output)?;
 
-    output.push_str(" {");
-    for statement in &decl.scope_block.0 {
-        export_statement(statement, output, context)?;
+    if only_declare {
+        output.push(';');
+    } else {
+        output.push_str(" {");
+        for statement in &decl.scope_block.0 {
+            export_statement(statement, output, context)?;
+        }
     }
 
     context.pop_scope();
     context.pop_indent();
 
-    if !decl.scope_block.0.is_empty() {
-        context.new_line(output);
+    if !only_declare {
+        if !decl.scope_block.0.is_empty() {
+            context.new_line(output);
+        }
+        output.push('}');
     }
-    output.push('}');
 
     Ok(())
 }
@@ -1746,7 +1757,7 @@ fn export_struct(
     for method in &decl.methods {
         context.new_line(output);
         context.new_line(output);
-        export_function(*method, output, context)?;
+        export_function(*method, false, output, context)?;
     }
 
     context.pop_indent();

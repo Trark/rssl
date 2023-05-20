@@ -43,8 +43,12 @@ pub fn parse_rootdefinition_function(
     fd: &ast::FunctionDefinition,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
-    let ir_fd = parse_function(fd, context)?;
-    Ok(ir::RootDefinition::Function(ir_fd))
+    let (ir_fd, is_declare) = parse_function(fd, context)?;
+    if is_declare {
+        Ok(ir::RootDefinition::FunctionDeclaration(ir_fd))
+    } else {
+        Ok(ir::RootDefinition::Function(ir_fd))
+    }
 }
 
 /// Parse just the signature part of a function
@@ -176,7 +180,7 @@ pub fn parse_function_body(
     let attributes = parse_function_attributes(&fd.attributes, context)?;
 
     // Parse the function
-    let body_ir = parse_statement_list(&fd.body, context)?;
+    let body_ir = parse_statement_list(fd.body.as_ref().unwrap(), context)?;
     let decls = context.pop_scope_with_locals();
 
     let def = ir::FunctionImplementation {
@@ -193,31 +197,48 @@ pub fn parse_function_body(
 fn parse_function(
     fd: &ast::FunctionDefinition,
     context: &mut Context,
-) -> TyperResult<ir::FunctionId> {
+) -> TyperResult<(ir::FunctionId, bool)> {
+    let is_definition = fd.body.is_some();
     let (signature, scope) = parse_function_signature(fd, None, context)?;
 
-    // Register the function signature
-    let id = context.register_function(fd.name.clone(), signature.clone(), scope, fd.clone())?;
-    context.add_function_to_current_scope(id)?;
+    // Combine the function with a previous declaration
+    // Ensure it does not conflict with another definition
+    let id = match context.check_existing_functions(&fd.name, &signature, is_definition)? {
+        Some(id) => {
+            // Take the id from the pre-declaration
+            id
+        }
+        None => {
+            // Register the function signature
+            let id =
+                context.register_function(fd.name.clone(), signature.clone(), scope, fd.clone())?;
 
-    if signature.template_params.0 == 0 {
-        parse_function_body(fd, id, signature, context)?;
-    } else {
-        let attributes = parse_function_attributes(&fd.attributes, context)?;
-        let def = ir::FunctionImplementation {
-            params: Default::default(),
-            scope_block: ir::ScopeBlock(
-                Default::default(),
-                ir::ScopedDeclarations {
-                    variables: Default::default(),
-                },
-            ),
-            attributes,
-        };
-        context.module.function_registry.set_implementation(id, def);
+            context.add_function_to_current_scope(id)?;
+
+            id
+        }
     };
 
-    Ok(id)
+    if is_definition {
+        if signature.template_params.0 == 0 {
+            parse_function_body(fd, id, signature, context)?;
+        } else {
+            let attributes = parse_function_attributes(&fd.attributes, context)?;
+            let def = ir::FunctionImplementation {
+                params: Default::default(),
+                scope_block: ir::ScopeBlock(
+                    Default::default(),
+                    ir::ScopedDeclarations {
+                        variables: Default::default(),
+                    },
+                ),
+                attributes,
+            };
+            context.module.function_registry.set_implementation(id, def);
+        };
+    }
+
+    Ok((id, !is_definition))
 }
 
 fn parse_returntype(
