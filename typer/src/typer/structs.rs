@@ -137,6 +137,15 @@ fn parse_struct_internal(
                         false,
                         context,
                     )?;
+
+                    if member_map.contains_key(&name) || method_map.contains_key(&name) {
+                        return Err(TyperError::ValueAlreadyDefined(
+                            def.name.clone(),
+                            ErrorType::Unknown,
+                            type_id.to_error_type(),
+                        ));
+                    }
+
                     member_map.insert(name.clone(), type_id);
                     members.push(ir::StructMember {
                         name,
@@ -159,6 +168,15 @@ fn parse_struct_internal(
                     scope,
                     ast_func.clone(),
                 )?;
+
+                // Check for members with the same name
+                if member_map.contains_key(&ast_func.name.node) {
+                    return Err(TyperError::ValueAlreadyDefined(
+                        ast_func.name.clone(),
+                        ErrorType::Unknown,
+                        ErrorType::Unknown,
+                    ));
+                }
 
                 // Add the method to the struct function set
                 match method_map.entry(ast_func.name.node.clone()) {

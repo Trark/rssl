@@ -905,11 +905,18 @@ fn check_struct_methods() {
     // Methods can be declared to be defined later out of line - but defining them later is not currently supported
     check_types("struct S { void f(); };");
 
+    // No duplicate members
+    check_fail("struct S { uint x; uint x; };");
+
     // No duplicate methods
     check_fail("struct S { void f() {} void f() {} };");
     check_fail("struct S { void f(); void f(); };");
     check_fail("struct S { void f() {} void f(); };");
     check_fail("struct S { void f(); void f() {} };");
+
+    // No methods and members with the same name
+    check_fail("struct S { void x() {} uint x; };");
+    check_fail("struct S { uint x; void x() {} };");
 }
 
 #[test]
