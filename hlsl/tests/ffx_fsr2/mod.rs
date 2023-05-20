@@ -49,6 +49,14 @@ pub const FILES: &[(&str, &str)] = &[
         "#include \"test_config.h\"\n#include \"ffx_fsr2_depth_clip_pass.hlsl\"",
     ),
     (
+        "lock_pass",
+        "#include \"test_config.h\"\n#include \"ffx_fsr2_lock_pass.hlsl\"",
+    ),
+    (
+        "reconstruct_previous_depth_pass",
+        "#include \"test_config.h\"\n#include \"ffx_fsr2_reconstruct_previous_depth_pass.hlsl\"",
+    ),
+    (
         "tcr_autogen_pass",
         "#include \"test_config.h\"\n#include \"ffx_fsr2_tcr_autogen_pass.hlsl\"",
     ),
@@ -67,6 +75,16 @@ fn compile_autogen_reactive_pass() {
 #[test]
 fn compile_depth_clip_pass() {
     compile_file("depth_clip_pass", FILES);
+}
+
+#[test]
+fn compile_lock_pass() {
+    compile_file("lock_pass", FILES);
+}
+
+#[test]
+fn compile_reconstruct_previous_depth_pass() {
+    compile_file("reconstruct_previous_depth_pass", FILES);
 }
 
 #[test]

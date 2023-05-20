@@ -153,6 +153,7 @@ pub fn parse_function_body(
                         type_id: parsed_param.type_id,
                         storage_class: ir::LocalStorage::Local,
                         precise: parsed_param.precise,
+                        constexpr_value: None,
                     });
 
             // Register the parameter in the scope

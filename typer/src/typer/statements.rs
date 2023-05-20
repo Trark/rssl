@@ -317,6 +317,19 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             context,
         )?;
 
+        // Attempt to resolve the initializer as a constant expression
+        let evaluated_value = (|| {
+            if let Some(ir::Initializer::Expression(expr)) = &var_init {
+                let (_, type_mod) = context.module.type_registry.extract_modifier(type_id);
+                if type_mod.is_const {
+                    if let Ok(value) = evaluate_constexpr(expr, &mut context.module) {
+                        return Some(value);
+                    }
+                }
+            }
+            None
+        })();
+
         // Register the variable in the module
         let var_id = context
             .module
@@ -326,6 +339,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
                 type_id,
                 storage_class,
                 precise,
+                constexpr_value: evaluated_value,
             });
 
         // Register the variable in the scope

@@ -37,6 +37,9 @@ pub struct LocalVariable {
 
     /// If the variable is considered precise
     pub precise: bool,
+
+    /// Compile time evaluated value
+    pub constexpr_value: Option<Constant>,
 }
 
 impl VariableRegistry {

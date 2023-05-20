@@ -7,7 +7,17 @@ pub fn evaluate_constexpr(
 ) -> Result<ir::Constant, ()> {
     Ok(match *expr {
         ir::Expression::Literal(ref v) => v.clone(),
-        ir::Expression::IntrinsicOp(ref op, _, ref args) => evaluate_operator(op, args, module)?,
+        ir::Expression::Variable(id) => {
+            if let Some(value) = &module
+                .variable_registry
+                .get_local_variable(id)
+                .constexpr_value
+            {
+                value.clone()
+            } else {
+                return Err(());
+            }
+        }
         ir::Expression::Global(id) => {
             if let Some(value) = &module.global_registry[id.0 as usize].constexpr_value {
                 value.clone()
@@ -39,6 +49,7 @@ pub fn evaluate_constexpr(
                 _ => return Err(()),
             }
         }
+        ir::Expression::IntrinsicOp(ref op, _, ref args) => evaluate_operator(op, args, module)?,
         _ => return Err(()),
     })
 }

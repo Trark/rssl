@@ -40,6 +40,11 @@ fn check_constexpr_static_const_bool() {
 }
 
 #[test]
+fn check_constexpr_function_local_const_uint() {
+    check_types("void f() { const uint s = 1; float x[s]; }");
+}
+
+#[test]
 fn check_constexpr_cast_integers() {
     // literal untyped int to uint
     check_types("float x[(uint)1];");
