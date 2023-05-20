@@ -1,7 +1,6 @@
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
-use std::collections::HashMap;
 
 fn make_id(name: &str) -> Located<ast::Expression> {
     Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
@@ -302,7 +301,7 @@ fn test_ast_to_ir() {
                             },
                         ]),
                         ir::ScopedDeclarations {
-                            variables: HashMap::new(),
+                            variables: Vec::new(),
                         },
                     ),
                     attributes: vec![ir::FunctionAttribute::numthreads(8, 8, 1)],

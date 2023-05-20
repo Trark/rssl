@@ -6,7 +6,7 @@ use rssl_text::Located;
 pub enum Expression {
     Literal(Constant),
     /// Reference to a variable in a local scope
-    Variable(VariableRef),
+    Variable(VariableId),
     /// Reference to a variable in the struct that owns this expression
     /// TODO: Non-string identifiers
     MemberVariable(String),

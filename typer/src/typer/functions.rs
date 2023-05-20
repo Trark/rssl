@@ -143,7 +143,20 @@ pub fn parse_function_body(
                 );
             }
 
-            let var_id = context.insert_variable(ast_param.name.clone(), parsed_param.type_id)?;
+            // Register the parameter in the module
+            let var_id =
+                context
+                    .module
+                    .variable_registry
+                    .register_local_variable(ir::LocalVariable {
+                        name: ast_param.name.clone(),
+                        type_id: parsed_param.type_id,
+                        storage_class: ir::LocalStorage::Local,
+                        precise: parsed_param.precise,
+                    });
+
+            // Register the parameter in the scope
+            context.insert_variable(ast_param.name.clone(), var_id, parsed_param.type_id)?;
 
             vec.push(ir::FunctionParam {
                 id: var_id,

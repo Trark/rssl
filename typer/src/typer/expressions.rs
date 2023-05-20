@@ -12,7 +12,7 @@ use rssl_text::{Locate, Located, SourceLocation};
 
 /// Result of a variable query
 pub enum VariableExpression {
-    Local(ir::VariableRef, ir::TypeId),
+    Local(ir::VariableId, ir::TypeId),
     Member(String, ir::TypeId),
     Global(ir::GlobalId, ir::TypeId),
     ConstantBufferMember(ir::ConstantBufferId, String, ir::TypeId),
@@ -2020,7 +2020,12 @@ fn get_expression_type(
 ) -> TyperResult<ExpressionType> {
     match *expression {
         ir::Expression::Literal(ref lit) => Ok(get_constant_type(lit, context)),
-        ir::Expression::Variable(var_ref) => context.get_type_of_variable(var_ref),
+        ir::Expression::Variable(id) => Ok(context
+            .module
+            .variable_registry
+            .get_local_variable(id)
+            .type_id
+            .to_lvalue()),
         ir::Expression::MemberVariable(ref name) => {
             let struct_id = context.get_current_owning_struct();
             context.get_type_of_struct_member(struct_id, name)

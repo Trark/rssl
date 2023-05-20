@@ -317,15 +317,23 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             context,
         )?;
 
-        // Register the variable
-        let var_id = context.insert_variable(local_variable.name.clone(), type_id)?;
+        // Register the variable in the module
+        let var_id = context
+            .module
+            .variable_registry
+            .register_local_variable(ir::LocalVariable {
+                name: local_variable.name.clone(),
+                type_id,
+                storage_class,
+                precise,
+            });
+
+        // Register the variable in the scope
+        context.insert_variable(local_variable.name.clone(), var_id, type_id)?;
 
         // Add the variables creation node
         vardefs.push(ir::VarDef {
             id: var_id,
-            type_id,
-            storage_class,
-            precise,
             init: var_init,
         });
     }

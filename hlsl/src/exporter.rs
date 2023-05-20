@@ -487,7 +487,7 @@ fn export_function_param(
 
     output.push(' ');
 
-    output.push_str(context.get_variable_name_direct(param.id)?);
+    output.push_str(context.get_variable_name(param.id)?);
     output.push_str(&array_part);
 
     export_semantic_annotation(&param.semantic, output)?;
@@ -909,15 +909,16 @@ fn export_variable_definition(
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
-    match def.storage_class {
+    let var_def = context.module.variable_registry.get_local_variable(def.id);
+    match var_def.storage_class {
         ir::LocalStorage::Local => {}
         ir::LocalStorage::Static => output.push_str("static "),
     }
-    if def.precise {
+    if var_def.precise {
         output.push_str("precise ");
     }
     let mut array_part = String::new();
-    export_type_for_def(def.type_id, output, &mut array_part, context)?;
+    export_type_for_def(var_def.type_id, output, &mut array_part, context)?;
     export_variable_definition_no_type(def, &array_part, output, context)
 }
 
@@ -929,7 +930,7 @@ fn export_variable_definition_no_type(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     output.push(' ');
-    output.push_str(context.get_variable_name_direct(def.id)?);
+    output.push_str(context.get_variable_name(def.id)?);
     output.push_str(array_part);
 
     export_initializer(&def.init, output, context)
@@ -972,8 +973,9 @@ fn export_for_init(
             // Extract type information from first definition to ensure later definitions match
             let mut head_core_part = String::new();
             let mut head_array_part = String::new();
+            let head_def = context.module.variable_registry.get_local_variable(head.id);
             export_type_for_def(
-                head.type_id,
+                head_def.type_id,
                 &mut head_core_part,
                 &mut head_array_part,
                 context,
@@ -985,8 +987,9 @@ fn export_for_init(
                 // Extract type information from the non-first definition
                 let mut cur_core_part = String::new();
                 let mut cur_array_part = String::new();
+                let var_def = context.module.variable_registry.get_local_variable(def.id);
                 export_type_for_def(
-                    def.type_id,
+                    var_def.type_id,
                     &mut cur_core_part,
                     &mut cur_array_part,
                     context,
@@ -1940,17 +1943,13 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the name of a local variable
-    fn get_variable_name(&self, id_ref: ir::VariableRef) -> Result<&str, ExportError> {
-        let scope = &self.scopes[self.scopes.len() - (id_ref.1 .0 as usize) - 1];
-        match scope.variables.get(&id_ref.0) {
-            Some((name, _)) => Ok(name),
-            None => Err(ExportError::NamelessId),
-        }
-    }
-
-    /// Get the name of a variable declared in the current scope only
-    fn get_variable_name_direct(&self, id: ir::VariableId) -> Result<&str, ExportError> {
-        self.get_variable_name(ir::VariableRef(id, ir::ScopeRef(0)))
+    fn get_variable_name(&self, id: ir::VariableId) -> Result<&str, ExportError> {
+        Ok(&self
+            .module
+            .variable_registry
+            .get_local_variable(id)
+            .name
+            .node)
     }
 
     /// Begin a new line and indent up to the current level of indentation

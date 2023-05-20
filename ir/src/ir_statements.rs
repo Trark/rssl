@@ -1,16 +1,15 @@
 use crate::*;
 use rssl_text::*;
-use std::collections::HashMap;
 
 /// A block of statements with the local definition types and names
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct ScopeBlock(pub Vec<Statement>, pub ScopedDeclarations);
 
-/// Map of declarations in the current scope
+/// Set of active declarations in the current scope
 #[derive(PartialEq, Clone, Default, Debug)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct ScopedDeclarations {
-    pub variables: HashMap<VariableId, (String, TypeId)>,
+    pub variables: Vec<VariableId>,
 }
 
 /// A typed RSSL statement with all metadata
@@ -41,17 +40,8 @@ pub enum StatementKind {
 /// A local variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct VarDef {
-    /// Unique identifier for the local variable within the current scope
+    /// Unique identifier for the local variable
     pub id: VariableId,
-
-    /// Type for the local variable
-    pub type_id: TypeId,
-
-    /// Storage class for the local variable
-    pub storage_class: LocalStorage,
-
-    /// If the variable is considered precise
-    pub precise: bool,
 
     /// Initializer for the local variable
     pub init: Option<Initializer>,

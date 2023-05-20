@@ -29,6 +29,9 @@ pub struct Module {
     /// The root definitions in the module
     pub root_definitions: Vec<RootDefinition>,
 
+    /// Container of all registered local variables in the module
+    pub variable_registry: VariableRegistry,
+
     /// The shader pipelines that can be built
     pub pipelines: Vec<PipelineDefinition>,
 

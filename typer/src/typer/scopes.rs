@@ -237,18 +237,16 @@ impl Context {
             ast::ScopedIdentifierBase::Relative => self.current_scope,
             ast::ScopedIdentifierBase::Absolute => 0,
         };
-        let mut scopes_up = 0;
         loop {
             if let Some(scope_index) = self.walk_into_scopes(scope_index, scopes) {
                 let scope = &self.scopes[scope_index];
 
                 // Try to find a matching variable in the searched scope
-                if let Some(ve) = self.find_identifier_in_scope(scope, leaf_name, scopes_up) {
+                if let Some(ve) = self.find_identifier_in_scope(scope, leaf_name) {
                     return Ok(ve);
                 }
             }
             scope_index = self.scopes[scope_index].parent_scope;
-            scopes_up += 1;
             if scope_index == usize::MAX {
                 break;
             }
@@ -352,18 +350,6 @@ impl Context {
         Some(current)
     }
 
-    /// Find the type of a variable
-    pub fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
-        let mut scope_index = self.current_scope;
-        for _ in 0..(var_ref.1 .0) {
-            scope_index = self.scopes[scope_index].parent_scope;
-            assert_ne!(scope_index, usize::MAX);
-        }
-        self.scopes[scope_index]
-            .variables
-            .get_type_of_variable(var_ref)
-    }
-
     /// Find the type of a global variable
     pub fn get_type_of_global(&self, id: ir::GlobalId) -> TyperResult<ExpressionType> {
         assert!(id.0 < self.module.global_registry.len() as u32);
@@ -445,11 +431,15 @@ impl Context {
     pub fn insert_variable(
         &mut self,
         name: Located<String>,
+        var_id: ir::VariableId,
         type_id: ir::TypeId,
-    ) -> TyperResult<ir::VariableId> {
-        self.scopes[self.current_scope]
-            .variables
-            .insert_variable(name, type_id)
+    ) -> TyperResult<()> {
+        self.scopes[self.current_scope].variables.insert_variable(
+            name,
+            var_id,
+            type_id,
+            &self.module,
+        )
     }
 
     /// Register a function overload
@@ -511,7 +501,7 @@ impl Context {
         let scope = &self.scopes[self.current_scope];
         let data = self.module.global_registry.last().unwrap();
 
-        match self.find_identifier_in_scope(scope, &data.name, 0) {
+        match self.find_identifier_in_scope(scope, &data.name) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
@@ -826,7 +816,7 @@ impl Context {
 
         // Check for existing symbols
         // Enum scope only cares about the values we are declaring in the current enum
-        match self.find_identifier_in_scope(&self.scopes[self.current_scope], &name, 0) {
+        match self.find_identifier_in_scope(&self.scopes[self.current_scope], &name) {
             Some(VariableExpression::EnumValueUntyped(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     name.clone(),
@@ -841,7 +831,7 @@ impl Context {
         };
 
         // The parent scope will have the majority of potential conflicts
-        match self.find_identifier_in_scope(&self.scopes[parent_scope], &name, 0) {
+        match self.find_identifier_in_scope(&self.scopes[parent_scope], &name) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
             | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
@@ -1006,9 +996,8 @@ impl Context {
         &self,
         scope: &ScopeData,
         name: &str,
-        scopes_up: u32,
     ) -> Option<VariableExpression> {
-        if let Some(ve) = scope.variables.find_variable(name, scopes_up) {
+        if let Some(ve) = scope.variables.find_variable(name, &self.module) {
             return Some(ve);
         }
 
@@ -1094,8 +1083,7 @@ impl Context {
             let signature = &self.module.function_registry.get_function_signature(id);
 
             // Error if a variable of the same name already exists
-            match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node, 0)
-            {
+            match self.find_identifier_in_scope(&self.scopes[scope_index], &name_data.name.node) {
                 Some(VariableExpression::Local(_, ref ty))
                 | Some(VariableExpression::Global(_, ref ty))
                 | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
@@ -1355,24 +1343,25 @@ impl Context {
 
 #[derive(PartialEq, Debug, Clone)]
 struct VariableBlock {
-    pub variables: HashMap<String, (ir::TypeId, ir::VariableId)>,
-    pub next_free_variable_id: ir::VariableId,
+    pub variables: HashMap<String, ir::VariableId>,
 }
 
 impl VariableBlock {
     pub fn new() -> VariableBlock {
         VariableBlock {
             variables: HashMap::new(),
-            next_free_variable_id: ir::VariableId(0),
         }
     }
 
     fn insert_variable(
         &mut self,
         name: Located<String>,
+        var_id: ir::VariableId,
         type_id: ir::TypeId,
-    ) -> TyperResult<ir::VariableId> {
-        if let Some((ty, _)) = self.variables.get(&name.node) {
+        module: &ir::Module,
+    ) -> TyperResult<()> {
+        if let Some(id) = self.variables.get(&name.node) {
+            let ty = module.variable_registry.get_local_variable(*id).type_id;
             return Err(TyperError::ValueAlreadyDefined(
                 name,
                 ty.to_error_type(),
@@ -1380,47 +1369,39 @@ impl VariableBlock {
             ));
         };
         match self.variables.entry(name.node.clone()) {
-            Entry::Occupied(occupied) => Err(TyperError::ValueAlreadyDefined(
-                name,
-                occupied.get().0.to_error_type(),
-                type_id.to_error_type(),
-            )),
+            Entry::Occupied(occupied) => {
+                let ty = module
+                    .variable_registry
+                    .get_local_variable(*occupied.get())
+                    .type_id;
+                Err(TyperError::ValueAlreadyDefined(
+                    name,
+                    ty.to_error_type(),
+                    type_id.to_error_type(),
+                ))
+            }
             Entry::Vacant(vacant) => {
-                let id = self.next_free_variable_id;
-                self.next_free_variable_id = ir::VariableId(self.next_free_variable_id.0 + 1);
-                vacant.insert((type_id, id));
-                Ok(id)
+                vacant.insert(var_id);
+                Ok(())
             }
         }
     }
 
-    fn find_variable(&self, name: &str, scopes_up: u32) -> Option<VariableExpression> {
+    fn find_variable(&self, name: &str, module: &ir::Module) -> Option<VariableExpression> {
         match self.variables.get(name) {
-            Some((ty, id)) => {
-                let var = ir::VariableRef(*id, ir::ScopeRef(scopes_up));
-                Some(VariableExpression::Local(var, *ty))
+            Some(id) => {
+                let ty = module.variable_registry.get_local_variable(*id).type_id;
+                Some(VariableExpression::Local(*id, ty))
             }
             None => None,
         }
     }
 
-    fn get_type_of_variable(&self, var_ref: ir::VariableRef) -> TyperResult<ExpressionType> {
-        let ir::VariableRef(ref id, _) = var_ref;
-        for (var_ty, var_id) in self.variables.values() {
-            if id == var_id {
-                return Ok(var_ty.to_lvalue());
-            }
-        }
-        panic!("Invalid local variable id: {var_ref:?}");
-    }
-
-    fn extract_locals(self) -> HashMap<ir::VariableId, (String, ir::TypeId)> {
-        self.variables
-            .iter()
-            .fold(HashMap::new(), |mut map, (name, (ty, id))| {
-                map.insert(*id, (name.clone(), *ty));
-                map
-            })
+    fn extract_locals(self) -> Vec<ir::VariableId> {
+        self.variables.iter().fold(Vec::new(), |mut vec, (_, id)| {
+            vec.push(*id);
+            vec
+        })
     }
 }
 
