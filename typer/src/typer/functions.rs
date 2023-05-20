@@ -86,17 +86,15 @@ pub fn parse_function_signature(
     let param_types = {
         let mut vec = vec![];
         for param in &fd.params {
-            let mut var_type = parse_paramtype(&param.param_type, context)?;
+            let parsed_param = parse_paramtype(param, context)?;
 
-            // If the parameter has type information bound to the name then apply it to the type now
-            var_type.type_id = apply_variable_bind(
-                var_type.type_id,
-                param.name.location,
-                &param.bind,
-                &None,
-                false,
-                context,
-            )?;
+            // const and other modifiers do not affect the signature type
+            let type_id = strip_param_type(parsed_param.type_id, context);
+
+            let var_type = ir::ParamType {
+                type_id,
+                input_modifier: parsed_param.input_modifier,
+            };
 
             vec.push(var_type);
         }
@@ -119,18 +117,42 @@ pub fn parse_function_signature(
 pub fn parse_function_body(
     fd: &ast::FunctionDefinition,
     id: ir::FunctionId,
-    signature: ir::FunctionSignature,
+    #[allow(unused)] signature: ir::FunctionSignature,
     context: &mut Context,
 ) -> TyperResult<()> {
     context.revisit_function(id);
 
     let func_params = {
         let mut vec = Vec::new();
-        for (var_type, ast_param) in signature.param_types.into_iter().zip(&fd.params) {
-            let var_id = context.insert_variable(ast_param.name.clone(), var_type.type_id)?;
+        for ast_param in &fd.params {
+            let parsed_param = parse_paramtype(ast_param, context).unwrap();
+
+            // Signature type should match reparsed type
+            #[cfg(debug_assertions)]
+            {
+                let old_id = signature.param_types[vec.len()].type_id;
+                let new_id = strip_param_type(parsed_param.type_id, context);
+                debug_assert!(
+                    old_id == new_id,
+                    "{} != {}",
+                    context.module.get_type_name_short(old_id),
+                    context.module.get_type_name_short(new_id),
+                );
+                debug_assert!(
+                    signature.param_types[vec.len()].input_modifier == parsed_param.input_modifier
+                );
+            }
+
+            let var_id = context.insert_variable(ast_param.name.clone(), parsed_param.type_id)?;
+
             vec.push(ir::FunctionParam {
                 id: var_id,
-                param_type: var_type,
+                param_type: ir::ParamType {
+                    type_id: parsed_param.type_id,
+                    input_modifier: parsed_param.input_modifier,
+                },
+                interpolation_modifier: parsed_param.interpolation_modifier,
+                precise: parsed_param.precise,
                 semantic: ast_param.semantic.clone(),
             });
         }
@@ -211,8 +233,16 @@ fn parse_returntype(
     })
 }
 
+struct ParsedParam {
+    type_id: ir::TypeId,
+    input_modifier: ir::InputModifier,
+    interpolation_modifier: Option<ir::InterpolationModifier>,
+    precise: bool,
+}
+
 /// Parse a type used for a function parameter
-fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult<ir::ParamType> {
+fn parse_paramtype(param: &ast::FunctionParam, context: &mut Context) -> TyperResult<ParsedParam> {
+    let param_type = &param.param_type;
     let ty = parse_type_for_usage(param_type, TypePosition::Parameter, context)?;
 
     let ty_unmodified = context.module.type_registry.remove_modifier(ty);
@@ -277,12 +307,35 @@ fn parse_paramtype(param_type: &ast::Type, context: &mut Context) -> TyperResult
     // Remove interpolation modifier location
     let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
 
-    Ok(ir::ParamType {
-        type_id: ty,
+    // If the parameter has type information bound to the name then apply it to the type now
+    let type_id = apply_variable_bind(ty, param.name.location, &param.bind, &None, false, context)?;
+
+    Ok(ParsedParam {
+        type_id,
         input_modifier,
         interpolation_modifier,
         precise: precise_result.is_some(),
     })
+}
+
+/// Remove modifiers like const from param type as seen from signature
+fn strip_param_type(id: ir::TypeId, context: &mut Context) -> ir::TypeId {
+    let top_layer = context.module.type_registry.get_type_layer(id);
+
+    match top_layer {
+        ir::TypeLayer::Array(inner_id, len) => {
+            // Strip the inner type
+            let stripped = strip_param_type(inner_id, context);
+            // Recombine the array back on the stripped type
+            context
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Array(stripped, len))
+        }
+        // Modifiers appear after array so we do not need to recurve to remove more modifiers
+        ir::TypeLayer::Modifier(_, inner_id) => inner_id,
+        _ => id,
+    }
 }
 
 /// Process all function attributes

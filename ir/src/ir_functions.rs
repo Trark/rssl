@@ -58,7 +58,17 @@ pub struct FunctionReturn {
 #[allow(clippy::derive_partial_eq_without_eq)]
 pub struct FunctionParam {
     pub id: VariableId,
+
+    /// Type information for the signature
     pub param_type: ParamType,
+
+    /// Optional interpolation modifier for when the parameter is on the entry point
+    pub interpolation_modifier: Option<InterpolationModifier>,
+
+    /// If the parameter is considered precise
+    pub precise: bool,
+
+    /// Optional semantic for when the parameter is on the entry point
     pub semantic: Option<Semantic>,
 }
 
@@ -70,12 +80,6 @@ pub struct ParamType {
 
     /// Input modifier for the parameter
     pub input_modifier: InputModifier,
-
-    /// Optional interpolation modifier for when the parameter is on the entry point
-    pub interpolation_modifier: Option<InterpolationModifier>,
-
-    /// If the parameter is considered precise
-    pub precise: bool,
 }
 
 /// An attribute that is applied to a function
@@ -233,27 +237,13 @@ impl From<TypeId> for ParamType {
         ParamType {
             type_id,
             input_modifier: InputModifier::default(),
-            interpolation_modifier: None,
-            precise: false,
         }
     }
 }
 
 impl std::fmt::Debug for ParamType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let precise_str = if self.precise { " precise" } else { "" };
-        match &self.interpolation_modifier {
-            None => write!(
-                f,
-                "{:?}{} {:?}",
-                self.input_modifier, precise_str, self.type_id
-            ),
-            Some(m) => write!(
-                f,
-                "{:?}{} {:?} {:?}",
-                self.input_modifier, precise_str, m, self.type_id
-            ),
-        }
+        write!(f, "{:?} {:?}", self.input_modifier, self.type_id)
     }
 }
 

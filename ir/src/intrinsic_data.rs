@@ -349,8 +349,6 @@ pub fn add_intrinsics(module: &mut Module) {
                 param_types.push(ParamType {
                     type_id: remap_inner(&param_type_def.0),
                     input_modifier: param_type_def.1,
-                    interpolation_modifier: None,
-                    precise: false,
                 });
             }
 
@@ -735,8 +733,6 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
             param_types.push(ParamType {
                 type_id: remap_inner(&param_type_def.0),
                 input_modifier: param_type_def.1,
-                interpolation_modifier: None,
-                precise: false,
             });
         }
 

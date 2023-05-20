@@ -363,6 +363,30 @@ struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
 }
 
 #[test]
+fn check_function_overload_conflicts() {
+    // Check we can have an overloaded function
+    check_types("void f(float x) {} void f(uint x) {}");
+
+    // Check we can not redefine an overload
+    check_fail("void f(float x) {} void f(float x) {}");
+
+    // out and inout are considered as different overloads
+    check_types("void f(float x) {} void f(out float x) {}");
+    check_types("void f(float x) {} void f(inout float x) {}");
+
+    // Other modifiers do not change the type for overload conflicts
+    check_fail("void f(float x) {} void f(precise float x) {}");
+    check_fail("void f(float x) {} void f(sample float x) {}");
+    check_fail("void f(float x) {} void f(vertices float x) {}");
+
+    // const does not change the signature type
+    check_fail("void f(float x) {} void f(const float x) {}");
+    check_fail("void f(const float x) {} void f(float x) {}");
+    check_fail("void f(float x[1]) {} void f(const float x[1]) {}");
+    check_fail("void f(const float x[1]) {} void f(float x[1]) {}");
+}
+
+#[test]
 fn check_function_param_type_modifiers() {
     // trivial cases
     check_types("void f(float x) {}");
