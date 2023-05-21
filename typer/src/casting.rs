@@ -8,30 +8,22 @@ use rssl_ir::*;
 //
 // Testing the priority of functions when passed arguments of a given type:
 //
-// bool(1)              bool     -> uint/int/float/double                              -> half
-// int(2)               int      -> uint                  -> bool -> float/double      -> half
-// untyped int literal:             uint/int              -> bool -> float/double/half
-// uint(1)              uint     -> int                   -> bool -> float/double      -> half
-// half:                half     -> float/double                  -> bool/int/uint
+// bool                 bool     -> uint/int/half/float/double
+// int                  int      -> uint                  -> bool -> half/float/double
+// untyped int literal:             uint/int              -> bool -> half/float/double
+// uint                 uint     -> int                   -> bool -> half/float/double
+// half:                half     -> float    -> double            -> bool/int/uint
 // float:               float    -> double                        -> bool/int/uint/half
 // double:              double                                    -> bool/int/uint/float/half
 //
-// (1): Including exact literals
-// (2): Including type casted int literals
-//
-// lvalue / rvalue didn't seem to make a difference. These don't seem consistent
-// with C or C++ rules.
+// FXC had a slightly different set of rules with even more exceptions
+// DXC follows closer to C++. The logic here is still based on emulating FXC but with some workarounds removed.
 //
 // Priority:
 // 1) Exact matches fit first (untyped int literal could be either)
 // 2) Promotion
 // 3) Bool if the source is an int
-// 4) Any convertible type, except:
-// 5) Halfs if you're an bool/int/uint, unless it's an untyped literal
-//    (something to do with halfs being smaller than int/uint but not literals???)
-//
-// I was going to try to implement nice logic in here, but I honestly have no
-// idea what rules govern these priorities.
+// 4) Any convertible type
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConversionRank(NumericRank, VectorRank);
@@ -40,9 +32,9 @@ pub struct ConversionRank(NumericRank, VectorRank);
 pub enum NumericRank {
     Exact,
     Promotion,
+    PromotionTwice,
     IntToBool,
     Conversion,
-    HalfIsASecondClassCitizen,
     EnumToNumeric,
 }
 
@@ -113,9 +105,9 @@ impl NumericRank {
         match *self {
             NumericRank::Exact => 0,
             NumericRank::Promotion => 1,
-            NumericRank::IntToBool => 2,
-            NumericRank::Conversion => 3,
-            NumericRank::HalfIsASecondClassCitizen => 4,
+            NumericRank::PromotionTwice => 2,
+            NumericRank::IntToBool => 3,
+            NumericRank::Conversion => 4,
             NumericRank::EnumToNumeric => 5,
         }
     }
@@ -255,8 +247,7 @@ impl ImplicitConversion {
                 let rank = match (source_scalar, dest_scalar) {
                     (Bool, dest) => match dest {
                         Bool => NumericRank::Exact,
-                        Int32 | UInt64 | Float32 | Float64 => NumericRank::Conversion,
-                        Float16 => NumericRank::HalfIsASecondClassCitizen,
+                        Int32 | UInt64 | Float16 | Float32 | Float64 => NumericRank::Conversion,
                         IntLiteral | FloatLiteral => panic!(),
                     },
                     (IntLiteral, dest) => match dest {
@@ -269,16 +260,14 @@ impl ImplicitConversion {
                         Int32 => NumericRank::Exact,
                         UInt64 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float32 | Float64 => NumericRank::Conversion,
-                        Float16 => NumericRank::HalfIsASecondClassCitizen,
+                        Float16 | Float32 | Float64 => NumericRank::Conversion,
                         IntLiteral | FloatLiteral => panic!(),
                     },
                     (UInt64, dest) => match dest {
                         UInt64 => NumericRank::Exact,
                         Int32 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float32 | Float64 => NumericRank::Conversion,
-                        Float16 => NumericRank::HalfIsASecondClassCitizen,
+                        Float16 | Float32 | Float64 => NumericRank::Conversion,
                         IntLiteral | FloatLiteral => panic!(),
                     },
                     (FloatLiteral, dest) => match dest {
@@ -288,7 +277,8 @@ impl ImplicitConversion {
                     },
                     (Float16, dest) => match dest {
                         Float16 => NumericRank::Exact,
-                        Float32 | Float64 => NumericRank::Promotion,
+                        Float32 => NumericRank::Promotion,
+                        Float64 => NumericRank::PromotionTwice,
                         Bool | Int32 | UInt64 => NumericRank::Conversion,
                         IntLiteral | FloatLiteral => panic!(),
                     },

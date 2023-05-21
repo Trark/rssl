@@ -408,6 +408,199 @@ fn check_function_overload_conflicts() {
 }
 
 #[test]
+fn check_function_overload_selection_float_uint() {
+    check_types(
+        "
+    float f(float x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        assert_type<float>(f(0.0));
+        assert_type<uint>(f(0u));
+        assert_type<uint>(f(0));
+    }
+",
+    );
+}
+
+#[test]
+fn check_function_overload_selection_int_to_bool() {
+    // Integers prefer bool casts over float casts
+    check_types(
+        "
+    bool f(bool x) { return x; }
+    float f(float x) { return x; }
+    void main() {
+        assert_type<bool>(f(0));
+    }
+",
+    );
+}
+
+#[test]
+fn check_function_overload_selection_half_float_double() {
+    // Half will cast to float over double
+    check_types(
+        "
+    float f(float x) { return x; }
+    double f(double x) { return x; }
+    void main() {
+        assert_type<float>(f(0.0h));
+    }
+",
+    );
+
+    // Float literals without a type are equally float and double
+    check_fail(
+        "
+    float f(float x) { return x; }
+    double f(double x) { return x; }
+    void main() {
+        f(0.0);
+    }
+",
+    );
+
+    // Float literals without a type are equally half and double
+    check_fail(
+        "
+    half f(half x) { return x; }
+    double f(double x) { return x; }
+    void main() {
+        f(0.0);
+    }
+",
+    );
+
+    // Float literals without a type are equally half and float
+    check_fail(
+        "
+    half f(half x) { return x; }
+    float f(float x) { return x; }
+    void main() {
+        f(0.0);
+    }
+",
+    );
+
+    // Float prefers to cast up to double than down to half
+    check_types(
+        "
+    half f(half x) { return x; }
+    double f(double x) { return x; }
+    void main() {
+        assert_type<double>(f(0.0f));
+    }
+",
+    );
+}
+
+#[test]
+fn check_function_overload_selection_no_half_exception() {
+    // Bools have equal preference for half as uint
+    check_fail(
+        "
+    half f(half x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(false);
+    }
+",
+    );
+
+    // Bools have equal preference for half as float
+    check_fail(
+        "
+    half f(half x) { return x; }
+    float f(float x) { return x; }
+    void main() {
+        f(false);
+    }
+",
+    );
+}
+
+#[test]
+fn check_function_overload_selection_int_uint() {
+    // Exact type picks the exact match
+    check_types(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        assert_type<uint>(f(0u));
+        assert_type<int>(f((int)0));
+    }
+",
+    );
+
+    // Literal int is ambiguous (even after applying unary minus operator)
+    check_fail(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(-1);
+    }
+",
+    );
+
+    // Float literals without a type have equal preference for signed or unsigned int casts
+    check_fail(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(0.0);
+    }
+",
+    );
+
+    // Float has equal preference for signed or unsigned int casts
+    check_fail(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(0.0f);
+    }
+",
+    );
+
+    // Half has equal preference for signed or unsigned int casts
+    check_fail(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(0.0h);
+    }
+",
+    );
+
+    // Double has equal preference for signed or unsigned int casts
+    check_fail(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(0.0L);
+    }
+",
+    );
+
+    // bool has equal preference for signed or unsigned int casts
+    check_fail(
+        "
+    int f(int x) { return x; }
+    uint f(uint x) { return x; }
+    void main() {
+        f(true);
+    }
+",
+    );
+}
+
+#[test]
 fn check_function_param_type_modifiers() {
     // trivial cases
     check_types("void f(float x) {}");
