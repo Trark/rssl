@@ -249,9 +249,9 @@ impl std::fmt::Debug for ParamType {
 
 impl FunctionAttribute {
     pub fn numthreads(x: u64, y: u64, z: u64) -> FunctionAttribute {
-        let x_node = Expression::Literal(Constant::UntypedInt(x as i128));
-        let y_node = Expression::Literal(Constant::UntypedInt(y as i128));
-        let z_node = Expression::Literal(Constant::UntypedInt(z as i128));
+        let x_node = Expression::Literal(Constant::IntLiteral(x as i128));
+        let y_node = Expression::Literal(Constant::IntLiteral(y as i128));
+        let z_node = Expression::Literal(Constant::IntLiteral(z as i128));
         FunctionAttribute::NumThreads(x_node, y_node, z_node)
     }
 }

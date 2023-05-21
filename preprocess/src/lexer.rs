@@ -383,21 +383,20 @@ fn test_digits_octal() {
 
 /// Integer literal type
 enum IntType {
-    UInt,
-    Long,
+    Unsigned32,
+    Unsigned64,
+    Signed64,
 }
 
 /// Parse an integer literal suffix
 fn int_type(input: &[u8]) -> LexResult<IntType> {
-    // Match on the first character
-    let n = match input.first() {
-        Some(b'u') | Some(b'U') => IntType::UInt,
-        Some(b'l') | Some(b'L') => IntType::Long,
+    match input {
+        [b'u' | b'U', b'l' | b'L', rest @ ..] => Ok((rest, IntType::Unsigned64)),
+        [b'l' | b'L', b'u' | b'U', rest @ ..] => Ok((rest, IntType::Unsigned64)),
+        [b'u' | b'U', rest @ ..] => Ok((rest, IntType::Unsigned32)),
+        [b'l' | b'L', rest @ ..] => Ok((rest, IntType::Signed64)),
         _ => return wrong_chars(input),
-    };
-
-    // Success
-    Ok((&input[1..], n))
+    }
 }
 
 /// Parse a decimal literal
@@ -406,8 +405,9 @@ fn literal_decimal_int(input: &[u8]) -> LexResult<Token> {
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
         None => Token::LiteralInt(value),
-        Some(IntType::UInt) => Token::LiteralUInt(value),
-        Some(IntType::Long) => Token::LiteralLong(value),
+        Some(IntType::Unsigned32) => Token::LiteralIntUnsigned32(value),
+        Some(IntType::Unsigned64) => Token::LiteralIntUnsigned64(value),
+        Some(IntType::Signed64) => Token::LiteralIntSigned64(value as i64),
     };
     Ok((input, token))
 }
@@ -418,8 +418,9 @@ fn literal_hex_int(input: &[u8]) -> LexResult<Token> {
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
         None => Token::LiteralInt(value),
-        Some(IntType::UInt) => Token::LiteralUInt(value),
-        Some(IntType::Long) => Token::LiteralLong(value),
+        Some(IntType::Unsigned32) => Token::LiteralIntUnsigned32(value),
+        Some(IntType::Unsigned64) => Token::LiteralIntUnsigned64(value),
+        Some(IntType::Signed64) => Token::LiteralIntSigned64(value as i64),
     };
     Ok((input, token))
 }
@@ -430,8 +431,9 @@ fn literal_octal_int(input: &[u8]) -> LexResult<Token> {
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
         None => Token::LiteralInt(value),
-        Some(IntType::UInt) => Token::LiteralUInt(value),
-        Some(IntType::Long) => Token::LiteralLong(value),
+        Some(IntType::Unsigned32) => Token::LiteralIntUnsigned32(value),
+        Some(IntType::Unsigned64) => Token::LiteralIntUnsigned64(value),
+        Some(IntType::Signed64) => Token::LiteralIntSigned64(value as i64),
     };
     Ok((input, token))
 }
@@ -450,16 +452,27 @@ fn literal_int(input: &[u8]) -> LexResult<Token> {
 #[test]
 fn test_literal_int() {
     let p = literal_int;
-    assert_eq!(p(b"0u"), Ok((&b""[..], Token::LiteralUInt(0))));
+    assert_eq!(p(b"0u"), Ok((&b""[..], Token::LiteralIntUnsigned32(0))));
     assert_eq!(p(b"0 "), Ok((&b" "[..], Token::LiteralInt(0))));
     assert_eq!(p(b"12 "), Ok((&b" "[..], Token::LiteralInt(12))));
-    assert_eq!(p(b"12u"), Ok((&b""[..], Token::LiteralUInt(12))));
-    assert_eq!(p(b"12l"), Ok((&b""[..], Token::LiteralLong(12))));
-    assert_eq!(p(b"12L"), Ok((&b""[..], Token::LiteralLong(12))));
+    assert_eq!(p(b"12u"), Ok((&b""[..], Token::LiteralIntUnsigned32(12))));
+    assert_eq!(p(b"12l"), Ok((&b""[..], Token::LiteralIntSigned64(12))));
+    assert_eq!(p(b"12L"), Ok((&b""[..], Token::LiteralIntSigned64(12))));
+    assert_eq!(p(b"12lu"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12Lu"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12ul"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12uL"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12lU"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12LU"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12Ul"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
+    assert_eq!(p(b"12UL"), Ok((&b""[..], Token::LiteralIntUnsigned64(12))));
     assert_eq!(p(b"0x3 "), Ok((&b" "[..], Token::LiteralInt(3))));
     assert_eq!(p(b"0xA1 "), Ok((&b" "[..], Token::LiteralInt(161))));
-    assert_eq!(p(b"0xA1u"), Ok((&b""[..], Token::LiteralUInt(161))));
-    assert_eq!(p(b"0123u"), Ok((&b""[..], Token::LiteralUInt(83))));
+    assert_eq!(
+        p(b"0xA1u"),
+        Ok((&b""[..], Token::LiteralIntUnsigned32(161)))
+    );
+    assert_eq!(p(b"0123u"), Ok((&b""[..], Token::LiteralIntUnsigned32(83))));
 }
 
 /// Parse a literal string
@@ -692,15 +705,18 @@ fn calculate_float_from_parts(
             value64 *= 10f64;
         }
     } else {
+        let mut m = 1.0;
         for _ in 0..(-exponent) {
-            value64 /= 10f64;
+            m *= 10f64;
         }
+        value64 /= m;
     }
 
-    match float_type.unwrap_or(FloatType::Float) {
-        FloatType::Half => Token::LiteralHalf(value64 as f32),
-        FloatType::Float => Token::LiteralFloat(value64 as f32),
-        FloatType::Double => Token::LiteralDouble(value64),
+    match float_type {
+        None => Token::LiteralFloat(value64),
+        Some(FloatType::Half) => Token::LiteralFloat16(value64 as f32),
+        Some(FloatType::Float) => Token::LiteralFloat32(value64 as f32),
+        Some(FloatType::Double) => Token::LiteralFloat64(value64),
     }
 }
 
@@ -762,12 +778,12 @@ fn literal_float(input: &[u8]) -> LexResult<Token> {
 #[test]
 fn test_literal_float() {
     let p = literal_float;
-    assert_eq!(p(b"0.0f"), Ok((&b""[..], Token::LiteralFloat(0.0))));
-    assert_eq!(p(b"2.7h"), Ok((&b""[..], Token::LiteralHalf(2.7))));
-    assert_eq!(p(b"9.7L"), Ok((&b""[..], Token::LiteralDouble(9.7))));
+    assert_eq!(p(b"0.0f"), Ok((&b""[..], Token::LiteralFloat32(0.0))));
+    assert_eq!(p(b"2.7h"), Ok((&b""[..], Token::LiteralFloat16(2.7))));
+    assert_eq!(p(b"9.7L"), Ok((&b""[..], Token::LiteralFloat64(9.7))));
 
-    assert_eq!(p(b"0.f"), Ok((&b""[..], Token::LiteralFloat(0.0))));
-    assert_eq!(p(b".0f"), Ok((&b""[..], Token::LiteralFloat(0.0))));
+    assert_eq!(p(b"0.f"), Ok((&b""[..], Token::LiteralFloat32(0.0))));
+    assert_eq!(p(b".0f"), Ok((&b""[..], Token::LiteralFloat32(0.0))));
 
     assert_eq!(p(b"0.;"), Ok((&b";"[..], Token::LiteralFloat(0.0))));
     assert_eq!(p(b".0;"), Ok((&b";"[..], Token::LiteralFloat(0.0))));
@@ -1387,14 +1403,22 @@ fn test_token() {
     assert_token!("name", Token::Id(Identifier("name".to_string())));
 
     assert_token!("12 ", Token::LiteralInt(12), 2);
-    assert_token!("12u", Token::LiteralUInt(12));
-    assert_token!("12l", Token::LiteralLong(12));
-    assert_token!("12L", Token::LiteralLong(12));
+    assert_token!("12u", Token::LiteralIntUnsigned32(12));
+    assert_token!("12l", Token::LiteralIntSigned64(12));
+    assert_token!("12L", Token::LiteralIntSigned64(12));
+    assert_token!("12lu", Token::LiteralIntUnsigned64(12));
+    assert_token!("12Lu", Token::LiteralIntUnsigned64(12));
+    assert_token!("12ul", Token::LiteralIntUnsigned64(12));
+    assert_token!("12uL", Token::LiteralIntUnsigned64(12));
+    assert_token!("12lU", Token::LiteralIntUnsigned64(12));
+    assert_token!("12LU", Token::LiteralIntUnsigned64(12));
+    assert_token!("12Ul", Token::LiteralIntUnsigned64(12));
+    assert_token!("12UL", Token::LiteralIntUnsigned64(12));
 
-    assert_token!("1.0f", Token::LiteralFloat(1.0f32));
-    assert_token!("2.0 ", Token::LiteralFloat(2.0f32), 3);
-    assert_token!("2.0L", Token::LiteralDouble(2.0f64));
-    assert_token!("0.5h", Token::LiteralHalf(0.5f32));
+    assert_token!("1.0f", Token::LiteralFloat32(1.0f32));
+    assert_token!("2.0 ", Token::LiteralFloat(2.0f64), 3);
+    assert_token!("2.0L", Token::LiteralFloat64(2.0f64));
+    assert_token!("0.5h", Token::LiteralFloat16(0.5f32));
 
     assert_token_err!(
         "0.0p",
@@ -1847,14 +1871,14 @@ fn test_token_stream() {
         token_stream("-12l"),
         Ok(vec![
             loc(Token::Minus, 0, 1),
-            loc(Token::LiteralLong(12), 1, 4)
+            loc(Token::LiteralIntSigned64(12), 1, 4)
         ])
     );
     assert_eq!(
         token_stream("-12L"),
         Ok(vec![
             loc(Token::Minus, 0, 1),
-            loc(Token::LiteralLong(12), 1, 4)
+            loc(Token::LiteralIntSigned64(12), 1, 4)
         ])
     );
 

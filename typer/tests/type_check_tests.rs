@@ -1836,7 +1836,7 @@ fn check_operator_sizeof() {
     check_fail("void f() { sizeof(0); }");
 
     // using sizeof() to determine an enum value is okay
-    check_types("enum E { A = 0, B = assert_type<uint>(sizeof(0.0)) };");
+    check_types("enum E { A = 0, B = assert_type<uint>(sizeof(0.0f)) };");
 
     // using sizeof() on an enum to init another enum is okoy
     check_types("enum E1 { A = 0 }; enum E2 { B = assert_type<uint>(sizeof(A)) };");

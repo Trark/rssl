@@ -97,7 +97,7 @@ fn test_enum_definition() {
             values: vec![
                 EnumValue {
                     name: "X".to_string().loc(16),
-                    value: Some(Expression::Literal(Literal::UntypedInt(0)).loc(20)),
+                    value: Some(Expression::Literal(Literal::IntUntyped(0)).loc(20)),
                 },
                 EnumValue {
                     name: "Y".to_string().loc(23),
@@ -105,7 +105,7 @@ fn test_enum_definition() {
                 },
                 EnumValue {
                     name: "Z".to_string().loc(26),
-                    value: Some(Expression::Literal(Literal::UntypedInt(3)).loc(30)),
+                    value: Some(Expression::Literal(Literal::IntUntyped(3)).loc(30)),
                 },
             ],
         },

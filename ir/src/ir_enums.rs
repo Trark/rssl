@@ -67,7 +67,7 @@ impl EnumRegistry {
         // Set the type id to an invalid value - which we expect to be filled in almost immediately
         self.type_ids.push(TypeId(u32::MAX));
         self.underlying_type_ids.push(TypeId(u32::MAX));
-        self.underlying_scalars.push(ScalarType::UntypedInt);
+        self.underlying_scalars.push(ScalarType::IntLiteral);
         self.enum_value_id_for_type.push(Vec::new());
 
         id
@@ -152,7 +152,7 @@ impl EnumRegistry {
     pub fn get_underlying_scalar(&self, id: EnumId) -> ScalarType {
         assert_ne!(
             self.underlying_scalars[id.0 as usize],
-            ScalarType::UntypedInt
+            ScalarType::IntLiteral
         );
         self.underlying_scalars[id.0 as usize]
     }

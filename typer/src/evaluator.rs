@@ -39,12 +39,12 @@ pub fn evaluate_constexpr(
 
             match module.type_registry.get_type_layer(unmodified) {
                 ir::TypeLayer::Scalar(scalar) => match scalar.get_size() {
-                    Some(size) => ir::Constant::UInt(size),
+                    Some(size) => ir::Constant::UInt32(size),
                     None => return Err(()),
                 },
                 ir::TypeLayer::Enum(enum_id) => {
                     let scalar = module.enum_registry.get_underlying_scalar(enum_id);
-                    ir::Constant::UInt(scalar.get_size().unwrap())
+                    ir::Constant::UInt32(scalar.get_size().unwrap())
                 }
                 _ => return Err(()),
             }
@@ -76,23 +76,23 @@ fn evaluate_operator(
     }
     let result = match *op {
         ir::IntrinsicOp::PrefixIncrement => match arg_values[0] {
-            ir::Constant::Int(input) => ir::Constant::Int(input + 1),
-            ir::Constant::UInt(input) => ir::Constant::UInt(input + 1),
+            ir::Constant::Int32(input) => ir::Constant::Int32(input + 1),
+            ir::Constant::UInt32(input) => ir::Constant::UInt32(input + 1),
             _ => return Err(()),
         },
         ir::IntrinsicOp::PrefixDecrement => match arg_values[0] {
-            ir::Constant::Int(input) => ir::Constant::Int(input - 1),
-            ir::Constant::UInt(input) => ir::Constant::UInt(input - 1),
+            ir::Constant::Int32(input) => ir::Constant::Int32(input - 1),
+            ir::Constant::UInt32(input) => ir::Constant::UInt32(input - 1),
             _ => return Err(()),
         },
         ir::IntrinsicOp::PostfixIncrement => match arg_values[0] {
-            ir::Constant::Int(input) => ir::Constant::Int(input + 1),
-            ir::Constant::UInt(input) => ir::Constant::UInt(input + 1),
+            ir::Constant::Int32(input) => ir::Constant::Int32(input + 1),
+            ir::Constant::UInt32(input) => ir::Constant::UInt32(input + 1),
             _ => return Err(()),
         },
         ir::IntrinsicOp::PostfixDecrement => match arg_values[0] {
-            ir::Constant::Int(input) => ir::Constant::Int(input - 1),
-            ir::Constant::UInt(input) => ir::Constant::UInt(input - 1),
+            ir::Constant::Int32(input) => ir::Constant::Int32(input - 1),
+            ir::Constant::UInt32(input) => ir::Constant::UInt32(input - 1),
             _ => return Err(()),
         },
         ir::IntrinsicOp::Plus => match arg_values[0] {
@@ -102,11 +102,12 @@ fn evaluate_operator(
             ref value => value.clone(),
         },
         ir::IntrinsicOp::Minus => match arg_values[0] {
-            ir::Constant::Int(input) => ir::Constant::Int(-input),
-            ir::Constant::UntypedInt(input) => ir::Constant::UntypedInt(-input),
-            ir::Constant::Half(input) => ir::Constant::Half(-input),
-            ir::Constant::Float(input) => ir::Constant::Float(-input),
-            ir::Constant::Double(input) => ir::Constant::Double(-input),
+            ir::Constant::Int32(input) => ir::Constant::Int32(-input),
+            ir::Constant::IntLiteral(input) => ir::Constant::IntLiteral(-input),
+            ir::Constant::Float16(input) => ir::Constant::Float16(-input),
+            ir::Constant::FloatLiteral(input) => ir::Constant::FloatLiteral(-input),
+            ir::Constant::Float32(input) => ir::Constant::Float32(-input),
+            ir::Constant::Float64(input) => ir::Constant::Float64(-input),
             // Enum should have been pre-casted to an integer
             ir::Constant::Enum(_, _) => panic!("unexpected enum type in Minus"),
             _ => return Err(()),
@@ -116,50 +117,56 @@ fn evaluate_operator(
             _ => return Err(()),
         },
         ir::IntrinsicOp::BitwiseNot => match arg_values[0] {
-            ir::Constant::UntypedInt(input) => ir::Constant::UntypedInt(!input),
-            ir::Constant::Int(input) => ir::Constant::Int(!input),
-            ir::Constant::UInt(input) => ir::Constant::UInt(!input),
+            ir::Constant::IntLiteral(input) => ir::Constant::IntLiteral(!input),
+            ir::Constant::Int32(input) => ir::Constant::Int32(!input),
+            ir::Constant::UInt32(input) => ir::Constant::UInt32(!input),
             _ => panic!("unexpected type in BitwiseNot"),
         },
         ir::IntrinsicOp::Add => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs + rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs + rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs + rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs + rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs + rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs + rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::Subtract => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs - rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs - rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs - rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs - rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs - rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs - rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::Multiply => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs * rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs * rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs * rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs * rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs * rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs * rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::Divide => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(match lhs.checked_div(*rhs) {
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(match lhs.checked_div(*rhs) {
                     Some(v) => v,
                     None => return Err(()),
                 })
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
-                ir::Constant::Int(match lhs.checked_div(*rhs) {
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => {
+                ir::Constant::Int32(match lhs.checked_div(*rhs) {
                     Some(v) => v,
                     None => return Err(()),
                 })
             }
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
-                ir::Constant::UInt(match lhs.checked_div(*rhs) {
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(match lhs.checked_div(*rhs) {
                     Some(v) => v,
                     None => return Err(()),
                 })
@@ -167,64 +174,74 @@ fn evaluate_operator(
             _ => return Err(()),
         },
         ir::IntrinsicOp::Modulus => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
                 if *rhs == 0 {
                     return Err(());
                 }
-                ir::Constant::UntypedInt(lhs % rhs)
+                ir::Constant::IntLiteral(lhs % rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => {
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => {
                 if *rhs == 0 {
                     return Err(());
                 }
-                ir::Constant::Int(lhs % rhs)
+                ir::Constant::Int32(lhs % rhs)
             }
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => {
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
                 if *rhs == 0 {
                     return Err(());
                 }
-                ir::Constant::UInt(lhs % rhs)
+                ir::Constant::UInt32(lhs % rhs)
             }
             _ => return Err(()),
         },
         ir::IntrinsicOp::LeftShift => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs << rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs << rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs << rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs << rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs << rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs << rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::RightShift => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs >> rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs >> rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs >> rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs >> rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs >> rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs >> rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::BitwiseAnd => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs & rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs & rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs & rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs & rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs & rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs & rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::BitwiseOr => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs | rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs | rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs | rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs | rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs | rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs | rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::BitwiseXor => match (&arg_values[0], &arg_values[1]) {
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
-                ir::Constant::UntypedInt(lhs ^ rhs)
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
+                ir::Constant::IntLiteral(lhs ^ rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Int(lhs ^ rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::UInt(lhs ^ rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Int32(lhs ^ rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::UInt32(lhs ^ rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::BooleanAnd => match (&arg_values[0], &arg_values[1]) {
@@ -237,56 +254,100 @@ fn evaluate_operator(
         },
         ir::IntrinsicOp::LessThan => match (&arg_values[0], &arg_values[1]) {
             (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => ir::Constant::Bool(lhs < rhs),
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
                 ir::Constant::Bool(lhs < rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Bool(lhs < rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::Bool(lhs < rhs),
-            (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => ir::Constant::Bool(lhs < rhs),
-            (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => ir::Constant::Bool(lhs < rhs),
-            (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => ir::Constant::Bool(lhs < rhs),
-            (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => ir::Constant::Bool(lhs < rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Bool(lhs < rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => ir::Constant::Bool(lhs < rhs),
+            (ir::Constant::Int64(lhs), ir::Constant::Int64(rhs)) => ir::Constant::Bool(lhs < rhs),
+            (ir::Constant::UInt64(lhs), ir::Constant::UInt64(rhs)) => ir::Constant::Bool(lhs < rhs),
+            (ir::Constant::FloatLiteral(lhs), ir::Constant::FloatLiteral(rhs)) => {
+                ir::Constant::Bool(lhs < rhs)
+            }
+            (ir::Constant::Float16(lhs), ir::Constant::Float16(rhs)) => {
+                ir::Constant::Bool(lhs < rhs)
+            }
+            (ir::Constant::Float32(lhs), ir::Constant::Float32(rhs)) => {
+                ir::Constant::Bool(lhs < rhs)
+            }
+            (ir::Constant::Float64(lhs), ir::Constant::Float64(rhs)) => {
+                ir::Constant::Bool(lhs < rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::LessEqual => match (&arg_values[0], &arg_values[1]) {
             (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => ir::Constant::Bool(lhs <= rhs),
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
                 ir::Constant::Bool(lhs <= rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Bool(lhs <= rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::Bool(lhs <= rhs),
-            (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => ir::Constant::Bool(lhs <= rhs),
-            (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => ir::Constant::Bool(lhs <= rhs),
-            (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => ir::Constant::Bool(lhs <= rhs),
-            (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => {
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Bool(lhs <= rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::Bool(lhs <= rhs)
+            }
+            (ir::Constant::Int64(lhs), ir::Constant::Int64(rhs)) => ir::Constant::Bool(lhs <= rhs),
+            (ir::Constant::UInt64(lhs), ir::Constant::UInt64(rhs)) => {
+                ir::Constant::Bool(lhs <= rhs)
+            }
+            (ir::Constant::FloatLiteral(lhs), ir::Constant::FloatLiteral(rhs)) => {
+                ir::Constant::Bool(lhs <= rhs)
+            }
+            (ir::Constant::Float16(lhs), ir::Constant::Float16(rhs)) => {
+                ir::Constant::Bool(lhs <= rhs)
+            }
+            (ir::Constant::Float32(lhs), ir::Constant::Float32(rhs)) => {
+                ir::Constant::Bool(lhs <= rhs)
+            }
+            (ir::Constant::Float64(lhs), ir::Constant::Float64(rhs)) => {
                 ir::Constant::Bool(lhs <= rhs)
             }
             _ => return Err(()),
         },
         ir::IntrinsicOp::GreaterThan => match (&arg_values[0], &arg_values[1]) {
             (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => ir::Constant::Bool(lhs > rhs),
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
                 ir::Constant::Bool(lhs > rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Bool(lhs > rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::Bool(lhs > rhs),
-            (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => ir::Constant::Bool(lhs > rhs),
-            (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => ir::Constant::Bool(lhs > rhs),
-            (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => ir::Constant::Bool(lhs > rhs),
-            (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => ir::Constant::Bool(lhs > rhs),
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Bool(lhs > rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => ir::Constant::Bool(lhs > rhs),
+            (ir::Constant::Int64(lhs), ir::Constant::Int64(rhs)) => ir::Constant::Bool(lhs > rhs),
+            (ir::Constant::UInt64(lhs), ir::Constant::UInt64(rhs)) => ir::Constant::Bool(lhs > rhs),
+            (ir::Constant::FloatLiteral(lhs), ir::Constant::FloatLiteral(rhs)) => {
+                ir::Constant::Bool(lhs > rhs)
+            }
+            (ir::Constant::Float16(lhs), ir::Constant::Float16(rhs)) => {
+                ir::Constant::Bool(lhs > rhs)
+            }
+            (ir::Constant::Float32(lhs), ir::Constant::Float32(rhs)) => {
+                ir::Constant::Bool(lhs > rhs)
+            }
+            (ir::Constant::Float64(lhs), ir::Constant::Float64(rhs)) => {
+                ir::Constant::Bool(lhs > rhs)
+            }
             _ => return Err(()),
         },
         ir::IntrinsicOp::GreaterEqual => match (&arg_values[0], &arg_values[1]) {
             (ir::Constant::Bool(lhs), ir::Constant::Bool(rhs)) => ir::Constant::Bool(lhs >= rhs),
-            (ir::Constant::UntypedInt(lhs), ir::Constant::UntypedInt(rhs)) => {
+            (ir::Constant::IntLiteral(lhs), ir::Constant::IntLiteral(rhs)) => {
                 ir::Constant::Bool(lhs >= rhs)
             }
-            (ir::Constant::Int(lhs), ir::Constant::Int(rhs)) => ir::Constant::Bool(lhs >= rhs),
-            (ir::Constant::UInt(lhs), ir::Constant::UInt(rhs)) => ir::Constant::Bool(lhs >= rhs),
-            (ir::Constant::Long(lhs), ir::Constant::Long(rhs)) => ir::Constant::Bool(lhs >= rhs),
-            (ir::Constant::Half(lhs), ir::Constant::Half(rhs)) => ir::Constant::Bool(lhs >= rhs),
-            (ir::Constant::Float(lhs), ir::Constant::Float(rhs)) => ir::Constant::Bool(lhs >= rhs),
-            (ir::Constant::Double(lhs), ir::Constant::Double(rhs)) => {
+            (ir::Constant::Int32(lhs), ir::Constant::Int32(rhs)) => ir::Constant::Bool(lhs >= rhs),
+            (ir::Constant::UInt32(lhs), ir::Constant::UInt32(rhs)) => {
+                ir::Constant::Bool(lhs >= rhs)
+            }
+            (ir::Constant::Int64(lhs), ir::Constant::Int64(rhs)) => ir::Constant::Bool(lhs >= rhs),
+            (ir::Constant::UInt64(lhs), ir::Constant::UInt64(rhs)) => {
+                ir::Constant::Bool(lhs >= rhs)
+            }
+            (ir::Constant::FloatLiteral(lhs), ir::Constant::FloatLiteral(rhs)) => {
+                ir::Constant::Bool(lhs >= rhs)
+            }
+            (ir::Constant::Float16(lhs), ir::Constant::Float16(rhs)) => {
+                ir::Constant::Bool(lhs >= rhs)
+            }
+            (ir::Constant::Float32(lhs), ir::Constant::Float32(rhs)) => {
+                ir::Constant::Bool(lhs >= rhs)
+            }
+            (ir::Constant::Float64(lhs), ir::Constant::Float64(rhs)) => {
                 ir::Constant::Bool(lhs >= rhs)
             }
             _ => return Err(()),
@@ -332,97 +393,103 @@ fn evaluate_cast(
             };
             match inner_value {
                 ir::Constant::Bool(v) => ir::Constant::Bool(v),
-                ir::Constant::UntypedInt(v) => ir::Constant::Bool(v != 0),
-                ir::Constant::Int(v) => ir::Constant::Bool(v != 0),
-                ir::Constant::UInt(v) => ir::Constant::Bool(v != 0),
-                ir::Constant::Half(v) => ir::Constant::Bool(v != 0.0),
-                ir::Constant::Float(v) => ir::Constant::Bool(v != 0.0),
-                ir::Constant::Double(v) => ir::Constant::Bool(v != 0.0),
+                ir::Constant::IntLiteral(v) => ir::Constant::Bool(v != 0),
+                ir::Constant::Int32(v) => ir::Constant::Bool(v != 0),
+                ir::Constant::UInt32(v) => ir::Constant::Bool(v != 0),
+                ir::Constant::FloatLiteral(v) => ir::Constant::Bool(v != 0.0),
+                ir::Constant::Float16(v) => ir::Constant::Bool(v != 0.0),
+                ir::Constant::Float32(v) => ir::Constant::Bool(v != 0.0),
+                ir::Constant::Float64(v) => ir::Constant::Bool(v != 0.0),
                 ir::Constant::Enum(_, _) => unreachable!(),
                 _ => return Err(()),
             }
         }
-        ir::TypeLayer::Scalar(ir::ScalarType::Int) => {
+        ir::TypeLayer::Scalar(ir::ScalarType::Int32) => {
             let inner_value = match inner_value {
                 ir::Constant::Enum(_, inner) => *inner,
                 other => other,
             };
             match inner_value {
-                ir::Constant::Bool(v) => ir::Constant::Int(i32::from(v)),
-                ir::Constant::UntypedInt(v) => ir::Constant::Int(v as i32),
-                ir::Constant::Int(v) => ir::Constant::Int(v),
-                ir::Constant::UInt(v) => ir::Constant::Int(v as i32),
-                ir::Constant::Half(v) => ir::Constant::Int(v as i32),
-                ir::Constant::Float(v) => ir::Constant::Int(v as i32),
-                ir::Constant::Double(v) => ir::Constant::Int(v as i32),
+                ir::Constant::Bool(v) => ir::Constant::Int32(i32::from(v)),
+                ir::Constant::IntLiteral(v) => ir::Constant::Int32(v as i32),
+                ir::Constant::Int32(v) => ir::Constant::Int32(v),
+                ir::Constant::UInt32(v) => ir::Constant::Int32(v as i32),
+                ir::Constant::FloatLiteral(v) => ir::Constant::Int32(v as i32),
+                ir::Constant::Float16(v) => ir::Constant::Int32(v as i32),
+                ir::Constant::Float32(v) => ir::Constant::Int32(v as i32),
+                ir::Constant::Float64(v) => ir::Constant::Int32(v as i32),
                 ir::Constant::Enum(_, _) => unreachable!(),
                 _ => return Err(()),
             }
         }
-        ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
+        ir::TypeLayer::Scalar(ir::ScalarType::UInt64) => {
             let inner_value = match inner_value {
                 ir::Constant::Enum(_, inner) => *inner,
                 other => other,
             };
             match inner_value {
-                ir::Constant::Bool(v) => ir::Constant::UInt(u32::from(v)),
-                ir::Constant::UntypedInt(v) => ir::Constant::UInt(v as u32),
-                ir::Constant::Int(v) => ir::Constant::UInt(v as u32),
-                ir::Constant::UInt(v) => ir::Constant::UInt(v),
-                ir::Constant::Half(v) => ir::Constant::UInt(v as u32),
-                ir::Constant::Float(v) => ir::Constant::UInt(v as u32),
-                ir::Constant::Double(v) => ir::Constant::UInt(v as u32),
+                ir::Constant::Bool(v) => ir::Constant::UInt32(u32::from(v)),
+                ir::Constant::IntLiteral(v) => ir::Constant::UInt32(v as u32),
+                ir::Constant::Int32(v) => ir::Constant::UInt32(v as u32),
+                ir::Constant::UInt32(v) => ir::Constant::UInt32(v),
+                ir::Constant::FloatLiteral(v) => ir::Constant::UInt32(v as u32),
+                ir::Constant::Float16(v) => ir::Constant::UInt32(v as u32),
+                ir::Constant::Float32(v) => ir::Constant::UInt32(v as u32),
+                ir::Constant::Float64(v) => ir::Constant::UInt32(v as u32),
                 ir::Constant::Enum(_, _) => unreachable!(),
                 _ => return Err(()),
             }
         }
-        ir::TypeLayer::Scalar(ir::ScalarType::Half) => {
+        ir::TypeLayer::Scalar(ir::ScalarType::Float16) => {
             let inner_value = match inner_value {
                 ir::Constant::Enum(_, inner) => *inner,
                 other => other,
             };
             match inner_value {
-                ir::Constant::Bool(v) => ir::Constant::Half(if v { 1.0 } else { 0.0 }),
-                ir::Constant::UntypedInt(v) => ir::Constant::Half(v as f32),
-                ir::Constant::Int(v) => ir::Constant::Half(v as f32),
-                ir::Constant::UInt(v) => ir::Constant::Half(v as f32),
-                ir::Constant::Half(v) => ir::Constant::Half(v),
-                ir::Constant::Float(v) => ir::Constant::Half(v),
-                ir::Constant::Double(v) => ir::Constant::Half(v as f32),
+                ir::Constant::Bool(v) => ir::Constant::Float16(if v { 1.0 } else { 0.0 }),
+                ir::Constant::IntLiteral(v) => ir::Constant::Float16(v as f32),
+                ir::Constant::Int32(v) => ir::Constant::Float16(v as f32),
+                ir::Constant::UInt32(v) => ir::Constant::Float16(v as f32),
+                ir::Constant::FloatLiteral(v) => ir::Constant::Float16(v as f32),
+                ir::Constant::Float16(v) => ir::Constant::Float16(v),
+                ir::Constant::Float32(v) => ir::Constant::Float16(v),
+                ir::Constant::Float64(v) => ir::Constant::Float16(v as f32),
                 ir::Constant::Enum(_, _) => unreachable!(),
                 _ => return Err(()),
             }
         }
-        ir::TypeLayer::Scalar(ir::ScalarType::Float) => {
+        ir::TypeLayer::Scalar(ir::ScalarType::Float32) => {
             let inner_value = match inner_value {
                 ir::Constant::Enum(_, inner) => *inner,
                 other => other,
             };
             match inner_value {
-                ir::Constant::Bool(v) => ir::Constant::Float(if v { 1.0 } else { 0.0 }),
-                ir::Constant::UntypedInt(v) => ir::Constant::Float(v as f32),
-                ir::Constant::Int(v) => ir::Constant::Float(v as f32),
-                ir::Constant::UInt(v) => ir::Constant::Float(v as f32),
-                ir::Constant::Half(v) => ir::Constant::Float(v),
-                ir::Constant::Float(v) => ir::Constant::Float(v),
-                ir::Constant::Double(v) => ir::Constant::Float(v as f32),
+                ir::Constant::Bool(v) => ir::Constant::Float32(if v { 1.0 } else { 0.0 }),
+                ir::Constant::IntLiteral(v) => ir::Constant::Float32(v as f32),
+                ir::Constant::Int32(v) => ir::Constant::Float32(v as f32),
+                ir::Constant::UInt32(v) => ir::Constant::Float32(v as f32),
+                ir::Constant::FloatLiteral(v) => ir::Constant::Float32(v as f32),
+                ir::Constant::Float16(v) => ir::Constant::Float32(v),
+                ir::Constant::Float32(v) => ir::Constant::Float32(v),
+                ir::Constant::Float64(v) => ir::Constant::Float32(v as f32),
                 ir::Constant::Enum(_, _) => unreachable!(),
                 _ => return Err(()),
             }
         }
-        ir::TypeLayer::Scalar(ir::ScalarType::Double) => {
+        ir::TypeLayer::Scalar(ir::ScalarType::Float64) => {
             let inner_value = match inner_value {
                 ir::Constant::Enum(_, inner) => *inner,
                 other => other,
             };
             match inner_value {
-                ir::Constant::Bool(v) => ir::Constant::Double(if v { 1.0 } else { 0.0 }),
-                ir::Constant::UntypedInt(v) => ir::Constant::Double(v as f64),
-                ir::Constant::Int(v) => ir::Constant::Double(v as f64),
-                ir::Constant::UInt(v) => ir::Constant::Double(v as f64),
-                ir::Constant::Half(v) => ir::Constant::Double(v as f64),
-                ir::Constant::Float(v) => ir::Constant::Double(v as f64),
-                ir::Constant::Double(v) => ir::Constant::Double(v),
+                ir::Constant::Bool(v) => ir::Constant::Float64(if v { 1.0 } else { 0.0 }),
+                ir::Constant::IntLiteral(v) => ir::Constant::Float64(v as f64),
+                ir::Constant::Int32(v) => ir::Constant::Float64(v as f64),
+                ir::Constant::UInt32(v) => ir::Constant::Float64(v as f64),
+                ir::Constant::FloatLiteral(v) => ir::Constant::Float64(v),
+                ir::Constant::Float16(v) => ir::Constant::Float64(v as f64),
+                ir::Constant::Float32(v) => ir::Constant::Float64(v as f64),
+                ir::Constant::Float64(v) => ir::Constant::Float64(v),
                 ir::Constant::Enum(_, _) => unreachable!(),
                 _ => return Err(()),
             }

@@ -169,7 +169,7 @@ fn parse_leaf(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionP
             Token::False => return Ok((rest, 0)),
             Token::True => return Ok((rest, 1)),
             Token::LiteralInt(v) => return Ok((rest, *v)),
-            Token::LiteralUInt(v) => return Ok((rest, *v)),
+            Token::LiteralIntUnsigned32(v) => return Ok((rest, *v)),
             Token::LeftParen => {
                 let (rest, inner) = parse_p12(rest)?;
                 if let Some((Token::RightParen, rest)) = rest.split_first() {

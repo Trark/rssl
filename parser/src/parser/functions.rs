@@ -143,7 +143,7 @@ fn test_function_param() {
             name: "v".to_string().loc(6),
             param_type: Type::from("float".loc(0)),
             bind: VariableBind(Vec::from([Some(
-                Expression::Literal(Literal::UntypedInt(4)).loc(8),
+                Expression::Literal(Literal::IntUntyped(4)).loc(8),
             )])),
             semantic: None,
         },
@@ -232,7 +232,7 @@ fn test_template_function() {
                 TemplateValueParam {
                     value_type: Type::from("uint".loc(9)),
                     name: "L".to_string().loc(14),
-                    default: Some(Expression::Literal(Literal::UntypedInt(3)).loc(18)),
+                    default: Some(Expression::Literal(Literal::IntUntyped(3)).loc(18)),
                 },
             )])),
             params: Vec::new(),

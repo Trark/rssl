@@ -324,7 +324,7 @@ fn parse_paramtype(param: &ast::FunctionParam, context: &mut Context) -> TyperRe
                 tyl,
                 ir::TypeLayer::Vector(_, 2) | ir::TypeLayer::Vector(_, 3)
             ) && context.module.type_registry.extract_scalar(ty_unmodified)
-                == Some(ir::ScalarType::UInt))
+                == Some(ir::ScalarType::UInt64))
         {
             return Err(TyperError::MeshShaderIndicesRequiresIndexType(
                 param_type.location,

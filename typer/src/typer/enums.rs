@@ -26,9 +26,9 @@ pub fn parse_rootdefinition_enum(
             let unmodified_id = context.module.type_registry.remove_modifier(expr_ir.1 .0);
             match context.module.type_registry.get_type_layer(unmodified_id) {
                 ir::TypeLayer::Scalar(ir::ScalarType::Bool)
-                | ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt)
-                | ir::TypeLayer::Scalar(ir::ScalarType::Int)
-                | ir::TypeLayer::Scalar(ir::ScalarType::UInt) => {
+                | ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral)
+                | ir::TypeLayer::Scalar(ir::ScalarType::Int32)
+                | ir::TypeLayer::Scalar(ir::ScalarType::UInt64) => {
                     // Integer types are allowed
                 }
                 ir::TypeLayer::Enum(id) => {
@@ -56,17 +56,17 @@ pub fn parse_rootdefinition_enum(
         } else {
             match last_value {
                 None => (
-                    ir::Constant::Int(0),
+                    ir::Constant::Int32(0),
                     context
                         .module
                         .type_registry
-                        .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int)),
+                        .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int32)),
                 ),
                 Some(last_value) => {
                     let next_value = match last_value.0 {
-                        ir::Constant::UntypedInt(v) => ir::Constant::UntypedInt(v + 1),
-                        ir::Constant::Int(v) => ir::Constant::Int(v + 1),
-                        ir::Constant::UInt(v) => ir::Constant::UInt(v + 1),
+                        ir::Constant::IntLiteral(v) => ir::Constant::IntLiteral(v + 1),
+                        ir::Constant::Int32(v) => ir::Constant::Int32(v + 1),
+                        ir::Constant::UInt32(v) => ir::Constant::UInt32(v + 1),
                         _ => panic!("Unexpected constant type in enum value"),
                     };
                     (next_value, last_value.1)

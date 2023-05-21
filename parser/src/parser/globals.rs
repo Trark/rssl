@@ -140,7 +140,7 @@ fn test_global_variable() {
                         &[
                             ExpressionOrType::from("int".loc(14)),
                             ExpressionOrType::Expression(
-                                Expression::Literal(Literal::UntypedInt(4)).loc(19),
+                                Expression::Literal(Literal::IntUntyped(4)).loc(19),
                             ),
                         ],
                     ),
@@ -199,7 +199,7 @@ fn test_global_variable() {
                 bind: Default::default(),
                 slot: None,
                 init: Some(Initializer::Expression(
-                    Expression::Literal(Literal::UntypedInt(4)).loc(33),
+                    Expression::Literal(Literal::IntUntyped(4)).loc(33),
                 )),
             }]),
         },
@@ -219,14 +219,14 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "data".to_string().loc(17),
                 bind: VariableBind(Vec::from([Some(
-                    Expression::Literal(Literal::UntypedInt(4)).loc(22),
+                    Expression::Literal(Literal::IntUntyped(4)).loc(22),
                 )])),
                 slot: None,
                 init: Some(Initializer::Aggregate(Vec::from([
-                    Initializer::Expression(Expression::Literal(Literal::UntypedInt(0)).loc(29)),
-                    Initializer::Expression(Expression::Literal(Literal::UntypedInt(1)).loc(32)),
-                    Initializer::Expression(Expression::Literal(Literal::UntypedInt(2)).loc(35)),
-                    Initializer::Expression(Expression::Literal(Literal::UntypedInt(3)).loc(38)),
+                    Initializer::Expression(Expression::Literal(Literal::IntUntyped(0)).loc(29)),
+                    Initializer::Expression(Expression::Literal(Literal::IntUntyped(1)).loc(32)),
+                    Initializer::Expression(Expression::Literal(Literal::IntUntyped(2)).loc(35)),
+                    Initializer::Expression(Expression::Literal(Literal::IntUntyped(3)).loc(38)),
                 ]))),
             }]),
         },
@@ -243,7 +243,7 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "local_data".to_string().loc(19),
                 bind: VariableBind(Vec::from([Some(
-                    Expression::Literal(Literal::UntypedInt(32)).loc(30),
+                    Expression::Literal(Literal::IntUntyped(32)).loc(30),
                 )])),
                 slot: None,
                 init: None,
@@ -265,33 +265,33 @@ fn test_global_variable() {
             defs: Vec::from([GlobalVariableName {
                 name: "data".to_string().loc(17),
                 bind: VariableBind(Vec::from([
-                    Some(Expression::Literal(Literal::UntypedInt(2)).loc(22)),
-                    Some(Expression::Literal(Literal::UntypedInt(3)).loc(25)),
+                    Some(Expression::Literal(Literal::IntUntyped(2)).loc(22)),
+                    Some(Expression::Literal(Literal::IntUntyped(3)).loc(25)),
                 ])),
                 slot: None,
                 init: Some(Initializer::Aggregate(Vec::from([
                     Initializer::Aggregate(Vec::from([
                         Initializer::Expression(
-                            Expression::Literal(Literal::UntypedInt(0)).loc(34),
+                            Expression::Literal(Literal::IntUntyped(0)).loc(34),
                         ),
                         Initializer::Expression(
-                            Expression::Literal(Literal::UntypedInt(1)).loc(37),
-                        ),
-                    ])),
-                    Initializer::Aggregate(Vec::from([
-                        Initializer::Expression(
-                            Expression::Literal(Literal::UntypedInt(2)).loc(44),
-                        ),
-                        Initializer::Expression(
-                            Expression::Literal(Literal::UntypedInt(3)).loc(47),
+                            Expression::Literal(Literal::IntUntyped(1)).loc(37),
                         ),
                     ])),
                     Initializer::Aggregate(Vec::from([
                         Initializer::Expression(
-                            Expression::Literal(Literal::UntypedInt(4)).loc(54),
+                            Expression::Literal(Literal::IntUntyped(2)).loc(44),
                         ),
                         Initializer::Expression(
-                            Expression::Literal(Literal::UntypedInt(5)).loc(57),
+                            Expression::Literal(Literal::IntUntyped(3)).loc(47),
+                        ),
+                    ])),
+                    Initializer::Aggregate(Vec::from([
+                        Initializer::Expression(
+                            Expression::Literal(Literal::IntUntyped(4)).loc(54),
+                        ),
+                        Initializer::Expression(
+                            Expression::Literal(Literal::IntUntyped(5)).loc(57),
                         ),
                     ])),
                 ]))),
@@ -371,15 +371,15 @@ fn test_constant_buffer() {
                         ConstantVariableName {
                             name: "y".to_string().loc(57),
                             bind: VariableBind(Vec::from([Some(
-                                Expression::Literal(Literal::UntypedInt(2)).loc(59),
+                                Expression::Literal(Literal::IntUntyped(2)).loc(59),
                             )])),
                             offset: None,
                         },
                         ConstantVariableName {
                             name: "z".to_string().loc(63),
                             bind: VariableBind(Vec::from([
-                                Some(Expression::Literal(Literal::UntypedInt(3)).loc(65)),
-                                Some(Expression::Literal(Literal::UntypedInt(4)).loc(68)),
+                                Some(Expression::Literal(Literal::IntUntyped(3)).loc(65)),
+                                Some(Expression::Literal(Literal::IntUntyped(4)).loc(68)),
                             ])),
                             offset: None,
                         },

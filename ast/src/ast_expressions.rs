@@ -36,13 +36,14 @@ pub enum Expression {
 #[derive(PartialEq, Debug, Clone)]
 pub enum Literal {
     Bool(bool),
-    UntypedInt(u64),
-    Int(u64),
-    UInt(u64),
-    Long(u64),
-    Half(f32),
-    Float(f32),
-    Double(f64),
+    IntUntyped(u64),
+    IntUnsigned32(u64),
+    IntUnsigned64(u64),
+    IntSigned64(i64),
+    FloatUntyped(f64),
+    Float16(f32),
+    Float32(f32),
+    Float64(f64),
     String(String),
 }
 

@@ -27,12 +27,32 @@ pub enum Token {
     Eof, // Marks the end of a stream
 
     Id(Identifier),
-    LiteralInt(u64), // Int (literals do not have sign, the - is an operator on the literal)
-    LiteralUInt(u64), // Int with explicit unsigned type
-    LiteralLong(u64), // Int with explicit long type
-    LiteralHalf(f32),
-    LiteralFloat(f32),
-    LiteralDouble(f64),
+
+    /// Literal int without an explicit type
+    /// These do not have sign. The - is an operator on the literal
+    LiteralInt(u64),
+
+    /// Literal int with an explicit unsigned type
+    LiteralIntUnsigned32(u64),
+
+    /// Literal int with an explicit uint64_t type
+    LiteralIntUnsigned64(u64),
+
+    /// Literal int with an explicit int64_t type
+    LiteralIntSigned64(i64),
+
+    /// Literal float without an explicit type
+    LiteralFloat(f64),
+
+    /// Literal float with an explicit half type
+    LiteralFloat16(f32),
+
+    /// Literal float with an explicit float type
+    LiteralFloat32(f32),
+
+    /// Literal float with an explicit double type
+    LiteralFloat64(f64),
+
     LiteralString(String),
     True,
     False,

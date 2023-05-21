@@ -135,15 +135,15 @@ fn test_struct() {
                     StructMemberName {
                         name: "a".to_string().loc(23),
                         bind: VariableBind(Vec::from([Some(
-                            Expression::Literal(Literal::UntypedInt(2)).loc(25),
+                            Expression::Literal(Literal::IntUntyped(2)).loc(25),
                         )])),
                         semantic: Default::default(),
                     },
                     StructMemberName {
                         name: "b".to_string().loc(29),
                         bind: VariableBind(Vec::from([
-                            Some(Expression::Literal(Literal::UntypedInt(3)).loc(31)),
-                            Some(Expression::Literal(Literal::UntypedInt(4)).loc(34)),
+                            Some(Expression::Literal(Literal::IntUntyped(3)).loc(31)),
+                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(34)),
                         ])),
                         semantic: Default::default(),
                     },
@@ -217,15 +217,15 @@ fn test_struct() {
                     StructMemberName {
                         name: "a".to_string().loc(23),
                         bind: VariableBind(Vec::from([Some(
-                            Expression::Literal(Literal::UntypedInt(2)).loc(25),
+                            Expression::Literal(Literal::IntUntyped(2)).loc(25),
                         )])),
                         semantic: Some(Semantic::User("USER0".to_string())),
                     },
                     StructMemberName {
                         name: "b".to_string().loc(37),
                         bind: VariableBind(Vec::from([
-                            Some(Expression::Literal(Literal::UntypedInt(3)).loc(39)),
-                            Some(Expression::Literal(Literal::UntypedInt(4)).loc(42)),
+                            Some(Expression::Literal(Literal::IntUntyped(3)).loc(39)),
+                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(42)),
                         ])),
                         semantic: Some(Semantic::User("USER1".to_string())),
                     },

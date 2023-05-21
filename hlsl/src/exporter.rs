@@ -738,12 +738,13 @@ fn export_type_impl(
 fn export_scalar_type(ty: ir::ScalarType) -> Result<&'static str, ExportError> {
     Ok(match ty {
         ir::ScalarType::Bool => "bool",
-        ir::ScalarType::UntypedInt => panic!("Untyped int should not be required on output"),
-        ir::ScalarType::Int => "int",
-        ir::ScalarType::UInt => "uint",
-        ir::ScalarType::Half => "half",
-        ir::ScalarType::Float => "float",
-        ir::ScalarType::Double => "double",
+        ir::ScalarType::IntLiteral => panic!("int literal should not be required on output"),
+        ir::ScalarType::Int32 => "int",
+        ir::ScalarType::UInt64 => "uint",
+        ir::ScalarType::FloatLiteral => panic!("float literal should not be required on output"),
+        ir::ScalarType::Float16 => "half",
+        ir::ScalarType::Float32 => "float",
+        ir::ScalarType::Float64 => "double",
     })
 }
 
@@ -768,20 +769,28 @@ fn export_literal(
     match literal {
         ir::Constant::Bool(true) => output.push_str("true"),
         ir::Constant::Bool(false) => output.push_str("false"),
-        ir::Constant::UntypedInt(v) => write!(output, "{v}").unwrap(),
+        ir::Constant::IntLiteral(v) => write!(output, "{v}").unwrap(),
         // There is no signed integer suffix - but the way we generate code should avoid overload issues with unsigned integers
-        ir::Constant::Int(v) => write!(output, "{v}").unwrap(),
-        ir::Constant::UInt(v) => write!(output, "{v}u").unwrap(),
-        ir::Constant::Long(v) => write!(output, "{v}l").unwrap(),
-        ir::Constant::Half(v) => write!(output, "{v}h").unwrap(),
-        ir::Constant::Float(v) if *v == (*v as i64 as f32) => {
+        ir::Constant::Int32(v) => write!(output, "{v}").unwrap(),
+        ir::Constant::UInt32(v) => write!(output, "{v}u").unwrap(),
+        ir::Constant::Int64(v) => write!(output, "{v}l").unwrap(),
+        ir::Constant::UInt64(v) => write!(output, "{v}ul").unwrap(),
+        ir::Constant::FloatLiteral(v) if *v == (*v as i64 as f64) => {
             write!(output, "{}.0", *v as i64).unwrap()
         }
-        ir::Constant::Float(v) if *v > i64::MAX as f32 || *v < i64::MIN as f32 => {
+        ir::Constant::FloatLiteral(v) if *v > i64::MAX as f64 || *v < i64::MIN as f64 => {
             write!(output, "{v}.0").unwrap()
         }
-        ir::Constant::Float(v) => write!(output, "{v}").unwrap(),
-        ir::Constant::Double(v) => write!(output, "{v}L").unwrap(),
+        ir::Constant::FloatLiteral(v) => write!(output, "{v}").unwrap(),
+        ir::Constant::Float16(v) => write!(output, "{v}h").unwrap(),
+        ir::Constant::Float32(v) if *v == (*v as i64 as f32) => {
+            write!(output, "{}.0f", *v as i64).unwrap()
+        }
+        ir::Constant::Float32(v) if *v > i64::MAX as f32 || *v < i64::MIN as f32 => {
+            write!(output, "{v}.0f").unwrap()
+        }
+        ir::Constant::Float32(v) => write!(output, "{v}f").unwrap(),
+        ir::Constant::Float64(v) => write!(output, "{v}L").unwrap(),
         ir::Constant::String(_) => panic!("literal string not expected in output"),
         ir::Constant::Enum(id, c) => {
             // Try to find an enum value which matches the constant

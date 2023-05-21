@@ -7,12 +7,14 @@ fn expr_literal(input: &[LexToken]) -> ParseResult<Located<Expression>> {
     match input.first() {
         Some(LexToken(tok, ref loc)) => {
             let literal = match *tok {
-                Token::LiteralInt(v) => Literal::UntypedInt(v),
-                Token::LiteralUInt(v) => Literal::UInt(v),
-                Token::LiteralLong(v) => Literal::Long(v),
-                Token::LiteralHalf(v) => Literal::Half(v),
-                Token::LiteralFloat(v) => Literal::Float(v),
-                Token::LiteralDouble(v) => Literal::Double(v),
+                Token::LiteralInt(v) => Literal::IntUntyped(v),
+                Token::LiteralIntUnsigned32(v) => Literal::IntUnsigned32(v),
+                Token::LiteralIntUnsigned64(v) => Literal::IntUnsigned64(v),
+                Token::LiteralIntSigned64(v) => Literal::IntSigned64(v),
+                Token::LiteralFloat(v) => Literal::FloatUntyped(v),
+                Token::LiteralFloat16(v) => Literal::Float16(v),
+                Token::LiteralFloat32(v) => Literal::Float32(v),
+                Token::LiteralFloat64(v) => Literal::Float64(v),
                 Token::LiteralString(ref s) => Literal::String(s.clone()),
                 Token::True => Literal::Bool(true),
                 Token::False => Literal::Bool(false),
@@ -949,7 +951,7 @@ fn test_expression_leafs() {
     let expr = ParserTester::new(parse_expression);
 
     expr.check("a", "a".as_var(0));
-    expr.check("4", Expression::Literal(Literal::UntypedInt(4)).loc(0));
+    expr.check("4", Expression::Literal(Literal::IntUntyped(4)).loc(0));
 }
 
 #[test]

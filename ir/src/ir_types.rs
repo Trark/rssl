@@ -246,12 +246,13 @@ impl Module {
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum ScalarType {
     Bool,
-    UntypedInt,
-    Int,
-    UInt,
-    Half,
-    Float,
-    Double,
+    IntLiteral,
+    Int32,
+    UInt64,
+    FloatLiteral,
+    Float16,
+    Float32,
+    Float64,
 }
 
 /// The dimensions of a scalar, vector or matrix data type
@@ -425,25 +426,31 @@ pub enum Constant {
     Bool(bool),
 
     /// Int literal before it receives a proper int type
-    UntypedInt(i128),
+    IntLiteral(i128),
 
     /// 32-bit signed integer
-    Int(i32),
+    Int32(i32),
 
     /// 32-bit unsigned integer
-    UInt(u32),
+    UInt32(u32),
+
+    /// 64-bit signed integer
+    Int64(i64),
 
     /// 64-bit unsigned integer
-    Long(u64),
+    UInt64(u64),
+
+    /// Float literal before it receives a proper float type
+    FloatLiteral(f64),
 
     /// 16-bit floating point value
-    Half(f32),
+    Float16(f32),
 
     /// 32-bit floating point value
-    Float(f32),
+    Float32(f32),
 
     /// 64-bit floating point value
-    Double(f64),
+    Float64(f64),
 
     /// A string value
     String(String),
@@ -459,16 +466,19 @@ pub enum RestrictedConstant {
     Bool(bool),
 
     /// Int literal before it receives a proper int type
-    UntypedInt(i128),
+    IntLiteral(i128),
 
     /// 32-bit signed integer
-    Int(i32),
+    Int32(i32),
 
     /// 32-bit unsigned integer
-    UInt(u32),
+    UInt32(u32),
+
+    /// 64-bit signed integer
+    Int64(i64),
 
     /// 64-bit unsigned integer
-    Long(u64),
+    UInt64(u64),
 
     /// Enum value - with underlying constant value
     Enum(EnumId, Box<RestrictedConstant>),
@@ -581,12 +591,13 @@ impl ScalarType {
     pub const fn get_size(self) -> Option<u32> {
         match self {
             ScalarType::Bool => Some(4),
-            ScalarType::UntypedInt => None,
-            ScalarType::Int => Some(4),
-            ScalarType::UInt => Some(4),
-            ScalarType::Half => Some(2),
-            ScalarType::Float => Some(4),
-            ScalarType::Double => Some(8),
+            ScalarType::IntLiteral => None,
+            ScalarType::Int32 => Some(4),
+            ScalarType::UInt64 => Some(4),
+            ScalarType::FloatLiteral => None,
+            ScalarType::Float16 => Some(2),
+            ScalarType::Float32 => Some(4),
+            ScalarType::Float64 => Some(8),
         }
     }
 
@@ -594,12 +605,12 @@ impl ScalarType {
     const fn parse_str(input: &[u8]) -> Option<(&[u8], ScalarType)> {
         match input {
             [b'b', b'o', b'o', b'l', rest @ ..] => Some((rest, ScalarType::Bool)),
-            [b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::Int)),
-            [b'u', b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::UInt)),
-            [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Some((rest, ScalarType::UInt)),
-            [b'h', b'a', b'l', b'f', rest @ ..] => Some((rest, ScalarType::Half)),
-            [b'f', b'l', b'o', b'a', b't', rest @ ..] => Some((rest, ScalarType::Float)),
-            [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Some((rest, ScalarType::Double)),
+            [b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::Int32)),
+            [b'u', b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::UInt64)),
+            [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Some((rest, ScalarType::UInt64)),
+            [b'h', b'a', b'l', b'f', rest @ ..] => Some((rest, ScalarType::Float16)),
+            [b'f', b'l', b'o', b'a', b't', rest @ ..] => Some((rest, ScalarType::Float32)),
+            [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Some((rest, ScalarType::Float64)),
             _ => None,
         }
     }
@@ -821,9 +832,11 @@ impl Constant {
     pub fn to_uint64(&self) -> Option<u64> {
         match self {
             Constant::Bool(v) => Some(u64::from(*v)),
-            Constant::UntypedInt(v) if *v <= u64::MAX as i128 => Some(*v as u64),
-            Constant::Int(v) if *v >= 0 => Some(*v as u64),
-            Constant::UInt(v) => Some(*v as u64),
+            Constant::IntLiteral(v) if *v <= u64::MAX as i128 => Some(*v as u64),
+            Constant::Int32(v) if *v >= 0 => Some(*v as u64),
+            Constant::UInt32(v) => Some(*v as u64),
+            Constant::Int64(v) if *v >= 0 => Some(*v as u64),
+            Constant::UInt64(v) => Some(*v),
             _ => None,
         }
     }
@@ -834,10 +847,11 @@ impl RestrictedConstant {
     pub fn unrestrict(self) -> Constant {
         match self {
             RestrictedConstant::Bool(v) => Constant::Bool(v),
-            RestrictedConstant::UntypedInt(v) => Constant::UntypedInt(v),
-            RestrictedConstant::Int(v) => Constant::Int(v),
-            RestrictedConstant::UInt(v) => Constant::UInt(v),
-            RestrictedConstant::Long(v) => Constant::Long(v),
+            RestrictedConstant::IntLiteral(v) => Constant::IntLiteral(v),
+            RestrictedConstant::Int32(v) => Constant::Int32(v),
+            RestrictedConstant::UInt32(v) => Constant::UInt32(v),
+            RestrictedConstant::Int64(v) => Constant::Int64(v),
+            RestrictedConstant::UInt64(v) => Constant::UInt64(v),
             RestrictedConstant::Enum(ty, v) => Constant::Enum(ty, Box::new(v.unrestrict())),
         }
     }
@@ -880,12 +894,13 @@ impl std::fmt::Debug for ScalarType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ScalarType::Bool => write!(f, "bool"),
-            ScalarType::UntypedInt => write!(f, "integer"),
-            ScalarType::Int => write!(f, "int"),
-            ScalarType::UInt => write!(f, "uint"),
-            ScalarType::Half => write!(f, "half"),
-            ScalarType::Float => write!(f, "float"),
-            ScalarType::Double => write!(f, "double"),
+            ScalarType::IntLiteral => write!(f, "literal int"),
+            ScalarType::Int32 => write!(f, "int"),
+            ScalarType::UInt64 => write!(f, "uint"),
+            ScalarType::FloatLiteral => write!(f, "literal float"),
+            ScalarType::Float16 => write!(f, "half"),
+            ScalarType::Float32 => write!(f, "float"),
+            ScalarType::Float64 => write!(f, "double"),
         }
     }
 }
@@ -988,14 +1003,14 @@ fn test_parse_numeric_str() {
     assert_eq!(
         NumericType::from_str("float"),
         Some(NumericType {
-            scalar: ScalarType::Float,
+            scalar: ScalarType::Float32,
             dimension: NumericDimension::Scalar
         })
     );
     assert_eq!(
         NumericType::from_str("uint3"),
         Some(NumericType {
-            scalar: ScalarType::UInt,
+            scalar: ScalarType::UInt64,
             dimension: NumericDimension::Vector(3)
         })
     );

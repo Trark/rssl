@@ -706,19 +706,23 @@ impl Context {
                     min_value = std::cmp::min(min_value, value as i128);
                     max_value = std::cmp::max(max_value, value as i128);
                 }
-                ir::Constant::UntypedInt(value) => {
+                ir::Constant::IntLiteral(value) => {
                     min_value = std::cmp::min(min_value, value);
                     max_value = std::cmp::max(max_value, value);
                 }
-                ir::Constant::Int(value) => {
+                ir::Constant::Int32(value) => {
                     min_value = std::cmp::min(min_value, value as i128);
                     max_value = std::cmp::max(max_value, value as i128);
                 }
-                ir::Constant::UInt(value) => {
+                ir::Constant::UInt32(value) => {
                     min_value = std::cmp::min(min_value, value as i128);
                     max_value = std::cmp::max(max_value, value as i128);
                 }
-                ir::Constant::Long(value) => {
+                ir::Constant::Int64(value) => {
+                    min_value = std::cmp::min(min_value, value as i128);
+                    max_value = std::cmp::max(max_value, value as i128);
+                }
+                ir::Constant::UInt64(value) => {
                     min_value = std::cmp::min(min_value, value as i128);
                     max_value = std::cmp::max(max_value, value as i128);
                 }
@@ -730,9 +734,9 @@ impl Context {
         // We don't try to make bool enums as they are 32-bit types anyway
         // We don't support 64-bit enums
         let scalar_type = if min_value >= i32::MIN as i128 && max_value <= i32::MAX as i128 {
-            ir::ScalarType::Int
+            ir::ScalarType::Int32
         } else if min_value >= u32::MIN as i128 && max_value <= u32::MAX as i128 {
-            ir::ScalarType::UInt
+            ir::ScalarType::UInt64
         } else {
             let location = self
                 .module
@@ -764,16 +768,17 @@ impl Context {
 
             let value = match *constant {
                 ir::Constant::Bool(value) => value as i128,
-                ir::Constant::UntypedInt(value) => value,
-                ir::Constant::Int(value) => value as i128,
-                ir::Constant::UInt(value) => value as i128,
-                ir::Constant::Long(value) => value as i128,
+                ir::Constant::IntLiteral(value) => value,
+                ir::Constant::Int32(value) => value as i128,
+                ir::Constant::UInt32(value) => value as i128,
+                ir::Constant::Int64(value) => value as i128,
+                ir::Constant::UInt64(value) => value as i128,
                 _ => panic!("invalid type inside enum value: {constant:?}"),
             };
 
             let new_constant = match scalar_type {
-                ir::ScalarType::Int => ir::Constant::Int(value as i32),
-                ir::ScalarType::UInt => ir::Constant::UInt(value as u32),
+                ir::ScalarType::Int32 => ir::Constant::Int32(value as i32),
+                ir::ScalarType::UInt64 => ir::Constant::UInt32(value as u32),
                 _ => unreachable!(),
             };
 

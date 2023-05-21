@@ -283,7 +283,7 @@ fn parse_object_type(
             let f = context
                 .module
                 .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float32));
             let f4 = context
                 .module
                 .type_registry
@@ -453,7 +453,7 @@ fn parse_type_modifier(
                 }
                 if !matches!(
                     context.module.type_registry.extract_scalar(applied_type),
-                    Some(ir::ScalarType::Float)
+                    Some(ir::ScalarType::Float32)
                 ) {
                     return Err(TyperError::ModifierRequiresFloatType(
                         modifier.node,
@@ -473,7 +473,7 @@ fn parse_type_modifier(
                 }
                 if !matches!(
                     context.module.type_registry.extract_scalar(applied_type),
-                    Some(ir::ScalarType::Float)
+                    Some(ir::ScalarType::Float32)
                 ) {
                     return Err(TyperError::ModifierRequiresFloatType(
                         modifier.node,
@@ -718,10 +718,11 @@ fn parse_and_evaluate_constant_expression(
 
     let restricted = match constant {
         ir::Constant::Bool(v) => ir::RestrictedConstant::Bool(v),
-        ir::Constant::UntypedInt(v) => ir::RestrictedConstant::UntypedInt(v),
-        ir::Constant::Int(v) => ir::RestrictedConstant::Int(v),
-        ir::Constant::UInt(v) => ir::RestrictedConstant::UInt(v),
-        ir::Constant::Long(v) => ir::RestrictedConstant::Long(v),
+        ir::Constant::IntLiteral(v) => ir::RestrictedConstant::IntLiteral(v),
+        ir::Constant::UInt32(v) => ir::RestrictedConstant::UInt32(v),
+        ir::Constant::Int32(v) => ir::RestrictedConstant::Int32(v),
+        ir::Constant::UInt64(v) => ir::RestrictedConstant::UInt64(v),
+        ir::Constant::Int64(v) => ir::RestrictedConstant::Int64(v),
         // If the constant type can not be used for a template argument then claim it is not a constant expression
         _ => return Err(TyperError::ExpressionIsNotConstantExpression(expr.location)),
     };

@@ -390,7 +390,7 @@ fn test_typedef() {
             name: "u32x4".to_string().loc(13),
             source: Type::from("uint".loc(8)),
             bind: VariableBind(Vec::from([Some(
-                Expression::Literal(Literal::UntypedInt(4)).loc(19),
+                Expression::Literal(Literal::IntUntyped(4)).loc(19),
             )])),
         },
     );

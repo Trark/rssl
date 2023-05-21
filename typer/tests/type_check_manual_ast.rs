@@ -48,7 +48,7 @@ fn test_ast_pass() {
                     bind: Default::default(),
                     slot: None,
                     init: Some(ast::Initializer::Expression(Located::none(
-                        ast::Expression::Literal(ast::Literal::UntypedInt(4)),
+                        ast::Expression::Literal(ast::Literal::IntUntyped(4)),
                     ))),
                 }],
             }),
@@ -100,7 +100,7 @@ fn test_ast_pass() {
                             ast::BinOp::Assignment,
                             Box::new(make_id("x")),
                             Box::new(Located::none(ast::Expression::Literal(
-                                ast::Literal::Float(1.5f32),
+                                ast::Literal::Float32(1.5f32),
                             ))),
                         ),
                     )),
@@ -139,12 +139,12 @@ fn test_ast_pass() {
                             Box::new(Located::none(ast::Expression::ArraySubscript(
                                 Box::new(make_id("g_myOutBuffer")),
                                 Box::new(Located::none(ast::Expression::Literal(
-                                    ast::Literal::Int(0),
+                                    ast::Literal::IntUntyped(0),
                                 ))),
                             ))),
-                            Box::new(Located::none(ast::Expression::Literal(ast::Literal::Int(
-                                4,
-                            )))),
+                            Box::new(Located::none(ast::Expression::Literal(
+                                ast::Literal::IntUntyped(4),
+                            ))),
                         ),
                     )),
                     as_statement(ast::StatementKind::Expression(ast::Expression::Call(
@@ -161,7 +161,7 @@ fn test_ast_pass() {
                         defs: vec![ast::LocalVariableName {
                             name: Located::none("x".to_string()),
                             bind: ast::VariableBind(Vec::from([Some(Located::none(
-                                ast::Expression::Literal(ast::Literal::UntypedInt(3)),
+                                ast::Expression::Literal(ast::Literal::IntUntyped(3)),
                             ))])),
                             init: None,
                         }],
@@ -194,7 +194,7 @@ fn test_ast_to_ir() {
                     bind: Default::default(),
                     slot: None,
                     init: Some(ast::Initializer::Expression(Located::none(
-                        ast::Expression::Literal(ast::Literal::UntypedInt(4)),
+                        ast::Expression::Literal(ast::Literal::IntUntyped(4)),
                     ))),
                 }],
             }),
@@ -240,11 +240,11 @@ fn test_ast_to_ir() {
                 .register_type(ir::TypeLayer::Void);
             let int_id = reference_module
                 .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int32));
             let const_int_id = reference_module.type_registry.make_const(int_id);
             reference_module
                 .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UntypedInt));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral));
 
             assert_eq!(actual.type_registry, reference_module.type_registry);
             assert_eq!(actual.struct_registry, Vec::new());
@@ -329,9 +329,9 @@ fn test_ast_to_ir() {
                     lang_slot: ir::LanguageBinding::default(),
                     api_slot: None,
                     init: Some(ir::Initializer::Expression(ir::Expression::Literal(
-                        ir::Constant::Int(4),
+                        ir::Constant::Int32(4),
                     ))),
-                    constexpr_value: Some(ir::Constant::Int(4)),
+                    constexpr_value: Some(ir::Constant::Int32(4)),
                 }])
             );
 

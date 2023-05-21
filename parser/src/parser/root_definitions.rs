@@ -156,7 +156,7 @@ fn test_function() {
                     Expression::BinaryOperation(
                         BinOp::LessThan,
                         "x".as_bvar(49),
-                        Expression::Literal(Literal::UntypedInt(0)).bloc(53),
+                        Expression::Literal(Literal::IntUntyped(0)).bloc(53),
                     )
                     .loc(49),
                     Box::new(Statement {
@@ -175,9 +175,9 @@ fn test_function() {
             attributes: vec![Attribute {
                 name: "numthreads".to_string().loc(1),
                 arguments: Vec::from([
-                    Expression::Literal(Literal::UntypedInt(16)).loc(12),
-                    Expression::Literal(Literal::UntypedInt(16)).loc(16),
-                    Expression::Literal(Literal::UntypedInt(1)).loc(20),
+                    Expression::Literal(Literal::IntUntyped(16)).loc(12),
+                    Expression::Literal(Literal::IntUntyped(16)).loc(16),
+                    Expression::Literal(Literal::IntUntyped(1)).loc(20),
                 ]),
             }],
         }),

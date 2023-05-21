@@ -112,9 +112,9 @@ impl VarDef {
 
 impl Attribute {
     pub fn numthreads(x: u64, y: u64, z: u64) -> Attribute {
-        let x_node = Located::none(Expression::Literal(Literal::UntypedInt(x)));
-        let y_node = Located::none(Expression::Literal(Literal::UntypedInt(y)));
-        let z_node = Located::none(Expression::Literal(Literal::UntypedInt(z)));
+        let x_node = Located::none(Expression::Literal(Literal::IntUntyped(x)));
+        let y_node = Located::none(Expression::Literal(Literal::IntUntyped(y)));
+        let z_node = Located::none(Expression::Literal(Literal::IntUntyped(z)));
         Attribute {
             name: Located::none("numthreads".to_string()),
             arguments: Vec::from([x_node, y_node, z_node]),

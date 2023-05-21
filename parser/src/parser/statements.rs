@@ -54,7 +54,7 @@ fn test_initializer() {
         LexToken::with_no_loc(Token::LiteralInt(4)),
         semicolon.clone(),
     ];
-    let hst_lit = Located::none(Expression::Literal(Literal::UntypedInt(4)));
+    let hst_lit = Located::none(Expression::Literal(Literal::IntUntyped(4)));
     assert_eq!(
         initializer(&expr_lit),
         Ok((done_toks, Some(Initializer::Expression(hst_lit))))
@@ -63,7 +63,7 @@ fn test_initializer() {
     // Aggregate initialization tests
     // = { [expr], [expr], [expr] }
     fn loc_lit(i: u64) -> Initializer {
-        Initializer::Expression(Located::none(Expression::Literal(Literal::UntypedInt(i))))
+        Initializer::Expression(Located::none(Expression::Literal(Literal::IntUntyped(i))))
     }
 
     // = { 4 };
@@ -305,7 +305,7 @@ fn test_attribute() {
             &[][..],
             Attribute {
                 name: Located::none("unroll".to_string()),
-                arguments: Vec::from([Located::none(Expression::Literal(Literal::UntypedInt(4)))])
+                arguments: Vec::from([Located::none(Expression::Literal(Literal::IntUntyped(4)))])
             }
         ))
     );
@@ -570,15 +570,15 @@ fn test_local_variables() {
                     LocalVariableName {
                         name: "x".to_string().loc(6),
                         bind: VariableBind(Vec::from([Some(
-                            Expression::Literal(Literal::UntypedInt(3)).loc(8),
+                            Expression::Literal(Literal::IntUntyped(3)).loc(8),
                         )])),
                         init: None,
                     },
                     LocalVariableName {
                         name: "y".to_string().loc(12),
                         bind: VariableBind(Vec::from([
-                            Some(Expression::Literal(Literal::UntypedInt(2)).loc(14)),
-                            Some(Expression::Literal(Literal::UntypedInt(4)).loc(17)),
+                            Some(Expression::Literal(Literal::IntUntyped(2)).loc(14)),
+                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(17)),
                         ])),
                         init: None,
                     },
@@ -861,7 +861,7 @@ fn test_for() {
                 InitStatement::Declaration(VarDef::one_with_expr(
                     "i".to_string().loc(10),
                     Type::from("uint".loc(5)),
-                    Expression::Literal(Literal::UntypedInt(0)).loc(14),
+                    Expression::Literal(Literal::IntUntyped(0)).loc(14),
                 )),
                 Some("i".as_var(17)),
                 Some(
@@ -982,7 +982,7 @@ fn test_switch() {
                     kind: StatementKind::Block(Vec::from([
                         Statement {
                             kind: StatementKind::CaseLabel(
-                                Expression::Literal(Literal::UntypedInt(0)).loc(18),
+                                Expression::Literal(Literal::IntUntyped(0)).loc(18),
                                 Box::new(Statement {
                                     kind: StatementKind::Return(None),
                                     location: SourceLocation::first().offset(21),

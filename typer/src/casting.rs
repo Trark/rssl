@@ -232,7 +232,7 @@ impl ImplicitConversion {
             None
         } else if let TypeLayer::Enum(_) = module.type_registry.get_type_layer(source_id) {
             match module.type_registry.extract_scalar(dest_id) {
-                Some(s) if s != ScalarType::UntypedInt => {}
+                Some(s) if s != ScalarType::IntLiteral => {}
                 _ => return Err(()),
             }
             Some(PrimaryCast {
@@ -246,7 +246,7 @@ impl ImplicitConversion {
                 None => return Err(()),
             };
             let dest_scalar = match module.type_registry.extract_scalar(dest_id) {
-                Some(s) if s != ScalarType::UntypedInt => s,
+                Some(s) if s != ScalarType::IntLiteral => s,
                 _ => return Err(()),
             };
             if source_scalar == dest_scalar {
@@ -255,48 +255,53 @@ impl ImplicitConversion {
                 let rank = match (source_scalar, dest_scalar) {
                     (Bool, dest) => match dest {
                         Bool => NumericRank::Exact,
-                        Int | UInt | Float | Double => NumericRank::Conversion,
-                        Half => NumericRank::HalfIsASecondClassCitizen,
-                        UntypedInt => panic!(),
+                        Int32 | UInt64 | Float32 | Float64 => NumericRank::Conversion,
+                        Float16 => NumericRank::HalfIsASecondClassCitizen,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
-                    (UntypedInt, dest) => match dest {
-                        Int | UInt => NumericRank::Promotion,
+                    (IntLiteral, dest) => match dest {
+                        Int32 | UInt64 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float | Double | Half => NumericRank::Conversion,
-                        UntypedInt => panic!(),
+                        Float32 | Float64 | Float16 => NumericRank::Conversion,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
-                    (Int, dest) => match dest {
-                        Int => NumericRank::Exact,
-                        UInt => NumericRank::Promotion,
+                    (Int32, dest) => match dest {
+                        Int32 => NumericRank::Exact,
+                        UInt64 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float | Double => NumericRank::Conversion,
-                        Half => NumericRank::HalfIsASecondClassCitizen,
-                        UntypedInt => panic!(),
+                        Float32 | Float64 => NumericRank::Conversion,
+                        Float16 => NumericRank::HalfIsASecondClassCitizen,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
-                    (UInt, dest) => match dest {
-                        UInt => NumericRank::Exact,
-                        Int => NumericRank::Promotion,
+                    (UInt64, dest) => match dest {
+                        UInt64 => NumericRank::Exact,
+                        Int32 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float | Double => NumericRank::Conversion,
-                        Half => NumericRank::HalfIsASecondClassCitizen,
-                        UntypedInt => panic!(),
+                        Float32 | Float64 => NumericRank::Conversion,
+                        Float16 => NumericRank::HalfIsASecondClassCitizen,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
-                    (Half, dest) => match dest {
-                        Half => NumericRank::Exact,
-                        Float | Double => NumericRank::Promotion,
-                        Bool | Int | UInt => NumericRank::Conversion,
-                        UntypedInt => panic!(),
+                    (FloatLiteral, dest) => match dest {
+                        Float16 | Float32 | Float64 => NumericRank::Promotion,
+                        Bool | Int32 | UInt64 => NumericRank::Conversion,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
-                    (Float, dest) => match dest {
-                        Float => NumericRank::Exact,
-                        Double => NumericRank::Promotion,
-                        Bool | Int | UInt | Half => NumericRank::Conversion,
-                        UntypedInt => panic!(),
+                    (Float16, dest) => match dest {
+                        Float16 => NumericRank::Exact,
+                        Float32 | Float64 => NumericRank::Promotion,
+                        Bool | Int32 | UInt64 => NumericRank::Conversion,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
-                    (Double, dest) => match dest {
-                        Double => NumericRank::Exact,
-                        Bool | Int | UInt | Half | Float => NumericRank::Conversion,
-                        UntypedInt => panic!(),
+                    (Float32, dest) => match dest {
+                        Float32 => NumericRank::Exact,
+                        Float64 => NumericRank::Promotion,
+                        Bool | Int32 | UInt64 | Float16 => NumericRank::Conversion,
+                        IntLiteral | FloatLiteral => panic!(),
+                    },
+                    (Float64, dest) => match dest {
+                        Float64 => NumericRank::Exact,
+                        Bool | Int32 | UInt64 | Float16 | Float32 => NumericRank::Conversion,
+                        IntLiteral | FloatLiteral => panic!(),
                     },
                 };
                 Some(PrimaryCast {
@@ -424,26 +429,52 @@ impl ImplicitConversion {
 
         // If the type was an untyped literal int then instead convert the literal type
         // This simplifies the expressions we generate so we don't have to clean it up later
-        if let Expression::Literal(Constant::UntypedInt(v)) = expr {
+        if let Expression::Literal(Constant::IntLiteral(v)) = expr {
             let target_type_unmodified = module.type_registry.remove_modifier(target_type.0);
             match module.type_registry.get_type_layer(target_type_unmodified) {
                 TypeLayer::Scalar(ScalarType::Bool) => {
                     return Expression::Literal(Constant::Bool(v != 0))
                 }
-                TypeLayer::Scalar(ScalarType::UInt) => {
-                    return Expression::Literal(Constant::UInt(v as u32))
+                TypeLayer::Scalar(ScalarType::UInt64) => {
+                    return Expression::Literal(Constant::UInt32(v as u32))
                 }
-                TypeLayer::Scalar(ScalarType::Int) => {
-                    return Expression::Literal(Constant::Int(v as i32))
+                TypeLayer::Scalar(ScalarType::Int32) => {
+                    return Expression::Literal(Constant::Int32(v as i32))
                 }
-                TypeLayer::Scalar(ScalarType::Half) => {
-                    return Expression::Literal(Constant::Half(v as f32))
+                TypeLayer::Scalar(ScalarType::Float16) => {
+                    return Expression::Literal(Constant::Float16(v as f32))
                 }
-                TypeLayer::Scalar(ScalarType::Float) => {
-                    return Expression::Literal(Constant::Float(v as f32))
+                TypeLayer::Scalar(ScalarType::Float32) => {
+                    return Expression::Literal(Constant::Float32(v as f32))
                 }
-                TypeLayer::Scalar(ScalarType::Double) => {
-                    return Expression::Literal(Constant::Double(v as f64))
+                TypeLayer::Scalar(ScalarType::Float64) => {
+                    return Expression::Literal(Constant::Float64(v as f64))
+                }
+                _ => {}
+            }
+        }
+
+        // And the same for float literals
+        if let Expression::Literal(Constant::FloatLiteral(v)) = expr {
+            let target_type_unmodified = module.type_registry.remove_modifier(target_type.0);
+            match module.type_registry.get_type_layer(target_type_unmodified) {
+                TypeLayer::Scalar(ScalarType::Bool) => {
+                    return Expression::Literal(Constant::Bool(v != 0.0))
+                }
+                TypeLayer::Scalar(ScalarType::UInt64) => {
+                    return Expression::Literal(Constant::UInt32(v as u32))
+                }
+                TypeLayer::Scalar(ScalarType::Int32) => {
+                    return Expression::Literal(Constant::Int32(v as i32))
+                }
+                TypeLayer::Scalar(ScalarType::Float16) => {
+                    return Expression::Literal(Constant::Float16(v as f32))
+                }
+                TypeLayer::Scalar(ScalarType::Float32) => {
+                    return Expression::Literal(Constant::Float32(v as f32))
+                }
+                TypeLayer::Scalar(ScalarType::Float64) => {
+                    return Expression::Literal(Constant::Float64(v))
                 }
                 _ => {}
             }
@@ -462,13 +493,13 @@ fn test_implicitconversion() {
         .register_type(TypeLayer::Scalar(ScalarType::Bool));
     let int_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::Int));
+        .register_type(TypeLayer::Scalar(ScalarType::Int32));
     let int1_ty = module
         .type_registry
         .register_type(TypeLayer::Vector(int_ty, 1));
     let uint_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::UInt));
+        .register_type(TypeLayer::Scalar(ScalarType::UInt64));
     let uint1_ty = module
         .type_registry
         .register_type(TypeLayer::Vector(uint_ty, 1));
@@ -477,7 +508,7 @@ fn test_implicitconversion() {
         .register_type(TypeLayer::Vector(uint_ty, 4));
     let float_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::Float));
+        .register_type(TypeLayer::Scalar(ScalarType::Float32));
     let float4_ty = module
         .type_registry
         .register_type(TypeLayer::Vector(float_ty, 4));
@@ -614,7 +645,7 @@ fn test_get_rank() {
     let mut module = Module::create();
     let uint_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::UInt));
+        .register_type(TypeLayer::Scalar(ScalarType::UInt64));
     let uint1_ty = module
         .type_registry
         .register_type(TypeLayer::Vector(uint_ty, 1));
@@ -653,7 +684,7 @@ fn test_const() {
     let mut module = Module::create();
     let int_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::Int));
+        .register_type(TypeLayer::Scalar(ScalarType::Int32));
     let const_int_ty = module.type_registry.make_const(int_ty);
 
     // Non-const to const rvalue

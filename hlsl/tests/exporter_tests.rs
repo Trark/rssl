@@ -6,15 +6,12 @@ fn check_static_primitive_variables() {
     check_rssl_to_hlsl("int x = 0;", "int x = 0;\n");
     check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
     check_rssl_to_hlsl("static const int x = 1;", "static const int x = 1;\n");
-    check_rssl_to_hlsl(
-        "static const int x = 1.0;",
-        "static const int x = (int)1.0;\n",
-    );
+    check_rssl_to_hlsl("static const int x = 1.0;", "static const int x = 1;\n");
     check_rssl_to_hlsl("extern int x = -1;", "int x = (int)-1;\n");
     check_rssl_to_hlsl("static float x[4];", "static float x[4];\n");
     check_rssl_to_hlsl(
         "static float x[4] = { 0.0, 1.0, 2.0, 3.0 };",
-        "static float x[4] = { 0.0, 1.0, 2.0, 3.0 };\n",
+        "static float x[4] = { 0.0f, 1.0f, 2.0f, 3.0f };\n",
     );
     check_rssl_to_hlsl(
         "static float x[2][3], y[3][4];",
@@ -100,25 +97,25 @@ fn check_primitive_types() {
 
 #[test]
 fn check_float_literal() {
-    check_rssl_to_hlsl("static float x = 0;", "static float x = 0.0;\n");
-    check_rssl_to_hlsl("static float x = 1;", "static float x = 1.0;\n");
-    check_rssl_to_hlsl("static float x = -1.0;", "static float x = -1.0;\n");
-    check_rssl_to_hlsl("static float x = 0.5;", "static float x = 0.5;\n");
+    check_rssl_to_hlsl("static float x = 0;", "static float x = 0.0f;\n");
+    check_rssl_to_hlsl("static float x = 1;", "static float x = 1.0f;\n");
+    check_rssl_to_hlsl("static float x = -1.0f;", "static float x = -1.0f;\n");
+    check_rssl_to_hlsl("static float x = 0.5;", "static float x = 0.5f;\n");
     check_rssl_to_hlsl(
         "static float x = 3.402823466e+38f;",
-        "static float x = 340282350000000000000000000000000000000.0;\n",
+        "static float x = 340282350000000000000000000000000000000.0f;\n",
     );
     check_rssl_to_hlsl(
         "static float x = -3.402823466e+38f;",
-        "static float x = -340282350000000000000000000000000000000.0;\n",
+        "static float x = -340282350000000000000000000000000000000.0f;\n",
     );
     check_rssl_to_hlsl(
         "static float x = 1.175494351e-38f;",
-        "static float x = 0.000000000000000000000000000000000000011754944;\n",
+        "static float x = 0.000000000000000000000000000000000000011754944f;\n",
     );
     check_rssl_to_hlsl(
         "static float x = -1.175494351e-38f;",
-        "static float x = -0.000000000000000000000000000000000000011754944;\n",
+        "static float x = -0.000000000000000000000000000000000000011754944f;\n",
     );
 }
 
@@ -277,7 +274,7 @@ fn check_expressions() {
 }
 ",
         "void f() {
-    float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
+    float4 v0 = float4(1.0f, 2.0f, 3.0f, 4.0f);
     float4 v1 = true ? v0 : (float4)0;
     float4x4 m = float4x4(v0, v0, v1, v1);
     float4 v2 = mul(m, v0);
@@ -401,7 +398,7 @@ fn check_expression_vector_swizzle() {
 }
 ",
         "void f() {
-    float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
+    float4 v0 = float4(1.0f, 2.0f, 3.0f, 4.0f);
     float4 v1 = v0.xyzw;
     float4 v2 = v0.wwww;
 }
@@ -419,7 +416,7 @@ fn check_expression_vector_index() {
 }
 ",
         "void f() {
-    float4 v0 = float4(1.0, 2.0, 3.0, 4.0);
+    float4 v0 = float4(1.0f, 2.0f, 3.0f, 4.0f);
     float v1 = v0[0u];
     float v2 = v0[3u];
 }
@@ -456,9 +453,9 @@ fn check_statement_block() {
     }
 }",
         "void f() {
-    float x = 0.0;
+    float x = 0.0f;
     {
-        float y = 6.0;
+        float y = 6.0f;
         float z = y + x;
     }
 }
@@ -478,12 +475,12 @@ fn check_statement_if() {
     return 2.0;
 }",
         "float f() {
-    float x = 0.0;
+    float x = 0.0f;
     if (x)
     {
-        return 1.0;
+        return 1.0f;
     }
-    return 2.0;
+    return 2.0f;
 }
 ",
     );
@@ -505,16 +502,16 @@ fn check_statement_if_else() {
     return 2.0;
 }",
         "float f() {
-    float x = 0.0;
+    float x = 0.0f;
     if (x)
     {
-        return 1.0;
+        return 1.0f;
     }
     else
     {
-        return 3.0;
+        return 3.0f;
     }
-    return 2.0;
+    return 2.0f;
 }
 ",
     );
@@ -540,23 +537,23 @@ fn check_statement_if_else_if_else() {
     return 2.0;
 }",
         "float f() {
-    float x = 0.0;
+    float x = 0.0f;
     if (x)
     {
-        return 1.0;
+        return 1.0f;
     }
     else
     {
-        if (x > 2.0)
+        if (x > 2.0f)
         {
-            return 4.0;
+            return 4.0f;
         }
         else
         {
-            return 3.0;
+            return 3.0f;
         }
     }
-    return 2.0;
+    return 2.0f;
 }
 ",
     );
