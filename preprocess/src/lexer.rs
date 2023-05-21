@@ -733,11 +733,22 @@ fn literal_float(input: &[u8]) -> LexResult<Token> {
     let (input, float_type) = opt(float_type)(input)?;
 
     // If the suffix has extra unexpected characters then fail
-    if identifier_char(input).is_ok() {
-        return Err(LexErrorContext(
-            pre_suffix_input,
-            LexerErrorReason::FloatInvalidSuffix,
-        ));
+    if let Ok((_, c)) = identifier_char(input) {
+        if c == b'x' {
+            // If we have an integer which ends with .x then this will look like a float with a weird suffix
+            // Exit out so we can reparse as an integer
+            // This only applies to anything that starts with x - scalars don't expect yzw swizzle so this does not apply
+            // Using yzw in the non-first component of swizzle will parse but should fail type checking later
+            return Err(LexErrorContext(
+                base_input,
+                LexerErrorReason::OtherTokenBytes,
+            ));
+        } else {
+            return Err(LexErrorContext(
+                pre_suffix_input,
+                LexerErrorReason::FloatInvalidSuffix,
+            ));
+        }
     }
 
     let exponent = exponent_opt.unwrap_or(Exponent(0));
@@ -1393,6 +1404,11 @@ fn test_token() {
         "0.0abc",
         LexErrorContext(b"abc", LexerErrorReason::FloatInvalidSuffix)
     );
+    assert_token_err!(
+        "1.a",
+        LexErrorContext(b"a", LexerErrorReason::FloatInvalidSuffix)
+    );
+    assert_token!("1.x", Token::LiteralInt(1), 1);
     assert_token_err!(
         "0.0_",
         LexErrorContext(b"_", LexerErrorReason::FloatInvalidSuffix)
