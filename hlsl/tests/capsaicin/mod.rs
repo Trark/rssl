@@ -92,6 +92,11 @@ fn compile_gather_area_lights_vert() {
 }
 
 #[test]
+fn compile_gi10_vert() {
+    compile_file("render_techniques/gi10/gi10.vert", FILES);
+}
+
+#[test]
 fn compile_skybox_frag() {
     compile_file("render_techniques/skybox/skybox.frag", FILES);
 }

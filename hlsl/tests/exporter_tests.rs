@@ -1069,6 +1069,56 @@ void main() {
 }
 
 #[test]
+fn check_enum_switch() {
+    check_rssl_to_hlsl(
+        "enum E
+{
+    A = 0,
+    B = 1,
+};
+
+void main() {
+    E v = A;
+    switch (v)
+    {
+        case A:
+        {
+        }
+        case B:
+        {
+        }
+        case (E)2:
+        {
+        }
+    }
+}
+",
+        "enum E
+{
+    A = 0,
+    B = 1,
+};
+
+void main() {
+    E v = E::A;
+    switch (v)
+    {
+        case E::A:
+        {
+        }
+        case E::B:
+        {
+        }
+        case (E)2:
+        {
+        }
+    }
+}
+",
+    );
+}
+
+#[test]
 fn check_typedef() {
     // Check we can declare and use a typedef - the type will be substituted at site of use.
     check_rssl_to_hlsl("typedef int CustomInt; CustomInt x = 0;", "int x = 0;\n");

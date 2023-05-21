@@ -760,7 +760,11 @@ fn export_type_or_constant(
 }
 
 /// Export ir literal to HLSL
-fn export_literal(literal: &ir::Constant, output: &mut String) -> Result<(), ExportError> {
+fn export_literal(
+    literal: &ir::Constant,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
     match literal {
         ir::Constant::Bool(true) => output.push_str("true"),
         ir::Constant::Bool(false) => output.push_str("false"),
@@ -779,7 +783,33 @@ fn export_literal(literal: &ir::Constant, output: &mut String) -> Result<(), Exp
         ir::Constant::Float(v) => write!(output, "{v}").unwrap(),
         ir::Constant::Double(v) => write!(output, "{v}L").unwrap(),
         ir::Constant::String(_) => panic!("literal string not expected in output"),
-        ir::Constant::Enum(_, _) => panic!("literal enum not expected in output"),
+        ir::Constant::Enum(id, c) => {
+            // Try to find an enum value which matches the constant
+            let mut found_value_id = None;
+            for value_id in context.module.enum_registry.get_values(*id) {
+                if context.module.enum_registry.get_enum_value(*value_id).value == **c {
+                    found_value_id = Some(value_id);
+                    break;
+                }
+            }
+
+            match found_value_id {
+                Some(found_value_id) => {
+                    // Output with the declared name of the enum value
+                    write!(
+                        output,
+                        "{}",
+                        context.get_enum_value_name_full(*found_value_id)?
+                    )
+                    .unwrap();
+                }
+                None => {
+                    // Output as a raw value casted to the enum
+                    write!(output, "({})", context.get_enum_name_full(*id)?).unwrap();
+                    export_literal(c, output, context)?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -904,7 +934,7 @@ fn export_statement(
         }
         ir::StatementKind::CaseLabel(value) => {
             output.push_str("case ");
-            export_literal(value, output)?;
+            export_literal(value, output, context)?;
             output.push(':');
         }
         ir::StatementKind::DefaultLabel => output.push_str("default:"),
@@ -1083,7 +1113,7 @@ fn export_subexpression(
         output.push('(')
     }
     match expr {
-        ir::Expression::Literal(lit) => export_literal(lit, output)?,
+        ir::Expression::Literal(lit) => export_literal(lit, output, context)?,
         ir::Expression::Variable(v) => output.push_str(context.get_variable_name(*v)?),
         ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
@@ -1803,7 +1833,7 @@ fn export_enum(
         context.new_line(output);
         output.push_str(context.get_enum_value_name(*value_id)?);
         output.push_str(" = ");
-        export_literal(&value_data.value, output)?;
+        export_literal(&value_data.value, output, context)?;
         output.push(',');
     }
 
