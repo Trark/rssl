@@ -65,10 +65,6 @@ void test() {
     uint2 asuint_f2 = asuint(float2(0.0, 0.0));
     uint3 asuint_f3 = asuint(float3(0.0, 0.0, 0.0));
     uint4 asuint_f4 = asuint(float4(0.0, 0.0, 0.0, 0.0));
-    float asfloat_i1 = asfloat((int)0);
-    float2 asfloat_i2 = asfloat(int2(0, 0));
-    float3 asfloat_i3 = asfloat(int3(0, 0, 0));
-    float4 asfloat_14 = asfloat(int4(0, 0, 0, 0));
     float asfloat_u1 = asfloat(0u);
     float2 asfloat_u2 = asfloat(uint2(0u, 0u));
     float3 asfloat_u3 = asfloat(uint3(0u, 0u, 0u));

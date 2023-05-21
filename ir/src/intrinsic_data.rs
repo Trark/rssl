@@ -149,10 +149,6 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { uint3 asuint(float3) => AsUInt },
     f! { uint4 asuint(float4) => AsUInt },
 
-    f! { float asfloat(int) => AsFloat },
-    f! { float2 asfloat(int2) => AsFloat },
-    f! { float3 asfloat(int3) => AsFloat },
-    f! { float4 asfloat(int4) => AsFloat },
     f! { float asfloat(uint) => AsFloat },
     f! { float2 asfloat(uint2) => AsFloat },
     f! { float3 asfloat(uint3) => AsFloat },
