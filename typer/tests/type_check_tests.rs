@@ -601,6 +601,24 @@ fn check_function_overload_selection_int_uint() {
 }
 
 #[test]
+fn check_operators_on_literals() {
+    check_types("void f() { true * false / true; }");
+    check_types("void f() { 1 * 1 / 1; }");
+    check_types("void f() { 1 * 1 / 1.0; }");
+    check_types("void f() { 1 * 1.0 / 1; }");
+    check_types("void f() { 1 * 1.0 / 1.0; }");
+    check_types("void f() { 1.0 * 1 / 1; }");
+    check_types("void f() { 1.0 * 1 / 1.0; }");
+    check_types("void f() { 1.0 * 1.0 / 1; }");
+    check_types("void f() { 1.0 * 1.0 / 1.0; }");
+
+    check_types("void f() { true + 0; }");
+    check_types("void f() { true + 0.0; }");
+    check_types("void f() { 0 + true; }");
+    check_types("void f() { 0.0 + true; }");
+}
+
+#[test]
 fn check_function_param_type_modifiers() {
     // trivial cases
     check_types("void f(float x) {}");

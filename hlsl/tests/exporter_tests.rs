@@ -443,6 +443,44 @@ fn check_expression_matrix_index() {
 }
 
 #[test]
+fn check_expression_literal_operators() {
+    check_rssl_to_hlsl(
+        "void f() {
+    true * false / true;
+    1 * 1 / 1;
+    1 * 1 / 1.0;
+    1 * 1.0 / 1;
+    1 * 1.0 / 1.0;
+    1.0 * 1 / 1;
+    1.0 * 1 / 1.0;
+    1.0 * 1.0 / 1;
+    1.0 * 1.0 / 1.0;
+    true + 0;
+    true + 0.0;
+    0 + true;
+    0.0 + true;
+}
+",
+        "void f() {
+    (int)true * (int)false / (int)true;
+    1 * 1 / 1;
+    (1 * 1) / 1.0;
+    1 * 1.0 / 1;
+    1 * 1.0 / 1.0;
+    1.0 * 1 / 1;
+    1.0 * 1 / 1.0;
+    1.0 * 1.0 / 1;
+    1.0 * 1.0 / 1.0;
+    true + 0;
+    true + 0.0;
+    0 + true;
+    0.0 + true;
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_block() {
     check_rssl_to_hlsl(
         "void f() {

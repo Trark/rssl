@@ -238,7 +238,7 @@ impl ImplicitConversion {
                 None => return Err(()),
             };
             let dest_scalar = match module.type_registry.extract_scalar(dest_id) {
-                Some(s) if s != ScalarType::IntLiteral => s,
+                Some(s) => s,
                 _ => return Err(()),
             };
             if source_scalar == dest_scalar {
@@ -246,52 +246,49 @@ impl ImplicitConversion {
             } else {
                 let rank = match (source_scalar, dest_scalar) {
                     (Bool, dest) => match dest {
-                        Bool => NumericRank::Exact,
-                        Int32 | UInt64 | Float16 | Float32 | Float64 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        IntLiteral | Int32 | UInt64 | FloatLiteral | Float16 | Float32
+                        | Float64 => NumericRank::Conversion,
+                        Bool => unreachable!(),
                     },
                     (IntLiteral, dest) => match dest {
                         Int32 | UInt64 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float32 | Float64 | Float16 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        FloatLiteral | Float16 | Float32 | Float64 => NumericRank::Conversion,
+                        IntLiteral => unreachable!(),
                     },
                     (Int32, dest) => match dest {
-                        Int32 => NumericRank::Exact,
-                        UInt64 => NumericRank::Promotion,
+                        IntLiteral | UInt64 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float16 | Float32 | Float64 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        FloatLiteral | Float16 | Float32 | Float64 => NumericRank::Conversion,
+                        Int32 => unreachable!(),
                     },
                     (UInt64, dest) => match dest {
-                        UInt64 => NumericRank::Exact,
-                        Int32 => NumericRank::Promotion,
+                        IntLiteral | Int32 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
-                        Float16 | Float32 | Float64 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        FloatLiteral | Float16 | Float32 | Float64 => NumericRank::Conversion,
+                        UInt64 => unreachable!(),
                     },
                     (FloatLiteral, dest) => match dest {
                         Float16 | Float32 | Float64 => NumericRank::Promotion,
-                        Bool | Int32 | UInt64 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        Bool | IntLiteral | Int32 | UInt64 => NumericRank::Conversion,
+                        FloatLiteral => unreachable!(),
                     },
                     (Float16, dest) => match dest {
-                        Float16 => NumericRank::Exact,
                         Float32 => NumericRank::Promotion,
-                        Float64 => NumericRank::PromotionTwice,
-                        Bool | Int32 | UInt64 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        FloatLiteral | Float64 => NumericRank::PromotionTwice,
+                        Bool | IntLiteral | Int32 | UInt64 => NumericRank::Conversion,
+                        Float16 => unreachable!(),
                     },
                     (Float32, dest) => match dest {
-                        Float32 => NumericRank::Exact,
-                        Float64 => NumericRank::Promotion,
-                        Bool | Int32 | UInt64 | Float16 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        FloatLiteral | Float64 => NumericRank::Promotion,
+                        Bool | IntLiteral | Int32 | UInt64 | Float16 => NumericRank::Conversion,
+                        Float32 => unreachable!(),
                     },
                     (Float64, dest) => match dest {
-                        Float64 => NumericRank::Exact,
-                        Bool | Int32 | UInt64 | Float16 | Float32 => NumericRank::Conversion,
-                        IntLiteral | FloatLiteral => panic!(),
+                        Bool | IntLiteral | Int32 | UInt64 | FloatLiteral | Float16 | Float32 => {
+                            NumericRank::Conversion
+                        }
+                        Float64 => unreachable!(),
                     },
                 };
                 Some(PrimaryCast {

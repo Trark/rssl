@@ -1183,9 +1183,21 @@ fn export_subexpression(
             output.push(')');
         }
         ir::Expression::Cast(type_id, expr) => {
-            output.push('(');
-            export_type(*type_id, output, context)?;
-            output.push(')');
+            // Check if we are casting to a literal type
+            // We can not emits such a cast as the type can not be named
+            // These occur only where they would get implicitly converted so we can drop them
+            let unmod_id = context.module.type_registry.remove_modifier(*type_id);
+            let to_literal = matches!(
+                context.module.type_registry.get_type_layer(unmod_id),
+                ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral)
+                    | ir::TypeLayer::Scalar(ir::ScalarType::FloatLiteral)
+            );
+
+            if !to_literal {
+                output.push('(');
+                export_type(*type_id, output, context)?;
+                output.push(')');
+            }
             export_subexpression(expr, prec, OperatorSide::Right, output, context)?;
         }
         ir::Expression::SizeOf(type_id) => {
