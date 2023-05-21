@@ -765,33 +765,6 @@ fn check_statement_while() {
 }
 
 #[test]
-fn check_statement_do_while() {
-    check_rssl_to_hlsl(
-        "void f() {
-    do
-    {
-        continue;
-        break;
-        discard;
-        return;
-    }
-    while (true);
-}",
-        "void f() {
-    do
-    {
-        continue;
-        break;
-        discard;
-        return;
-    }
-    while (true);
-}
-",
-    );
-}
-
-#[test]
 fn check_statement_while_unroll() {
     check_rssl_to_hlsl(
         "void f() {
@@ -877,6 +850,62 @@ fn check_statement_while_allow_uav_condition() {
     [allow_uav_condition]
     while (true)
     {
+    }
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_do_while() {
+    check_rssl_to_hlsl(
+        "void f() {
+    do
+    {
+        continue;
+        break;
+        discard;
+        return;
+    }
+    while (true);
+}",
+        "void f() {
+    do
+    {
+        continue;
+        break;
+        discard;
+        return;
+    }
+    while (true);
+}
+",
+    );
+}
+
+#[test]
+fn check_statement_switch() {
+    // Formatting for non-scoped cases is non standard - but should function
+    check_rssl_to_hlsl(
+        "void f() {
+    switch (7)
+    {
+        case 0: break;
+        case 7: return;
+        default: { break; }
+    }
+}",
+        "void f() {
+    switch (7)
+    {
+        case 0:
+        break;
+        case 7:
+        return;
+        default:
+        {
+            break;
+        }
     }
 }
 ",

@@ -880,6 +880,17 @@ fn export_statement(
             output.push(')');
             output.push(';');
         }
+        ir::StatementKind::Switch(cond, block) => {
+            enter_scope_block(block, context);
+
+            output.push_str("switch (");
+            export_expression(cond, output, context)?;
+            output.push(')');
+
+            context.new_line(output);
+            export_scope_block(block, output, context)?;
+            context.pop_scope();
+        }
         ir::StatementKind::Break => output.push_str("break;"),
         ir::StatementKind::Continue => output.push_str("continue;"),
         ir::StatementKind::Discard => output.push_str("discard;"),
@@ -891,6 +902,12 @@ fn export_statement(
             }
             output.push(';');
         }
+        ir::StatementKind::CaseLabel(value) => {
+            output.push_str("case ");
+            export_literal(value, output)?;
+            output.push(':');
+        }
+        ir::StatementKind::DefaultLabel => output.push_str("default:"),
     }
     Ok(())
 }

@@ -869,6 +869,8 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "break" => Token::Break,
         "continue" => Token::Continue,
         "discard" => Token::Discard,
+        "case" => Token::Case,
+        "default" => Token::Default,
 
         "struct" => Token::Struct,
         "class" => Token::Struct, // For now treat class and struct as the same
@@ -902,9 +904,6 @@ fn any_word(input: &[u8]) -> LexResult<Token> {
         "template" => Token::Template,
         "typename" => Token::Typename,
         "decltype" => Token::Decltype,
-
-        // Unimplemented keywords
-        "case" | "default" => Token::ReservedWord(id.0),
 
         // Reserved keywords for future use
         "auto" | "catch" | "char" | "const_cast" | "delete" | "dynamic_cast" | "explicit"
@@ -1576,6 +1575,14 @@ fn test_token() {
     assert_token!("discard", Token::Discard);
     assert_token!("discard ", Token::Discard, 7);
     assert_token!("discarda", Token::Id(Identifier("discarda".to_string())));
+
+    assert_token!("case", Token::Case);
+    assert_token!("case ", Token::Case, 4);
+    assert_token!("casea", Token::Id(Identifier("casea".to_string())));
+
+    assert_token!("default", Token::Default);
+    assert_token!("default ", Token::Default, 7);
+    assert_token!("defaulta", Token::Id(Identifier("defaulta".to_string())));
 
     assert_token!("struct", Token::Struct);
     assert_token!("struct ", Token::Struct, 6);

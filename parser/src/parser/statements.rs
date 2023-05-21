@@ -407,9 +407,25 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
             let (input, _) = parse_token(Token::Semicolon)(input)?;
             Ok((input, StatementKind::DoWhile(Box::new(inner), cond)))
         }
-        LexToken(Token::Break, _) => Ok((tail, StatementKind::Break)),
-        LexToken(Token::Continue, _) => Ok((tail, StatementKind::Continue)),
-        LexToken(Token::Discard, _) => Ok((tail, StatementKind::Discard)),
+        LexToken(Token::Switch, _) => {
+            let (input, _) = parse_token(Token::LeftParen)(tail)?;
+            let (input, cond) = parse_expression(input)?;
+            let (input, _) = parse_token(Token::RightParen)(input)?;
+            let (input, inner) = parse_statement(input)?;
+            Ok((input, StatementKind::Switch(cond, Box::new(inner))))
+        }
+        LexToken(Token::Break, _) => {
+            let (input, _) = parse_token(Token::Semicolon)(tail)?;
+            Ok((input, StatementKind::Break))
+        }
+        LexToken(Token::Continue, _) => {
+            let (input, _) = parse_token(Token::Semicolon)(tail)?;
+            Ok((input, StatementKind::Continue))
+        }
+        LexToken(Token::Discard, _) => {
+            let (input, _) = parse_token(Token::Semicolon)(tail)?;
+            Ok((input, StatementKind::Discard))
+        }
         LexToken(Token::Return, _) => match parse_expression(tail) {
             Ok((input, expression_statement)) => {
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
@@ -420,6 +436,17 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
                 Ok((input, StatementKind::Return(None)))
             }
         },
+        LexToken(Token::Case, _) => {
+            let (input, cond) = parse_expression(tail)?;
+            let (input, _) = parse_token(Token::Colon)(input)?;
+            let (input, next) = parse_statement(input)?;
+            Ok((input, StatementKind::CaseLabel(cond, Box::new(next))))
+        }
+        LexToken(Token::Default, _) => {
+            let (input, _) = parse_token(Token::Colon)(tail)?;
+            let (input, next) = parse_statement(input)?;
+            Ok((input, StatementKind::DefaultLabel(Box::new(next))))
+        }
         LexToken(Token::LeftBrace, _) => {
             let (input, s) = statement_block(input)?;
             Ok((input, StatementKind::Block(s)))
@@ -918,6 +945,83 @@ fn test_do_while() {
                     attributes: Vec::new(),
                 }),
                 "a".as_var(12),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
+}
+
+#[test]
+fn test_switch() {
+    use test_support::*;
+    let statement = ParserTester::new(parse_statement);
+
+    statement.check(
+        "switch (a) {}",
+        Statement {
+            kind: StatementKind::Switch(
+                "a".as_var(8),
+                Box::new(Statement {
+                    kind: StatementKind::Block(Vec::new()),
+                    location: SourceLocation::first().offset(11),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
+
+    statement.check(
+        "switch (a) { case 0: return; default: break; }",
+        Statement {
+            kind: StatementKind::Switch(
+                "a".as_var(8),
+                Box::new(Statement {
+                    kind: StatementKind::Block(Vec::from([
+                        Statement {
+                            kind: StatementKind::CaseLabel(
+                                Expression::Literal(Literal::UntypedInt(0)).loc(18),
+                                Box::new(Statement {
+                                    kind: StatementKind::Return(None),
+                                    location: SourceLocation::first().offset(21),
+                                    attributes: Vec::new(),
+                                }),
+                            ),
+                            location: SourceLocation::first().offset(13),
+                            attributes: Vec::new(),
+                        },
+                        Statement {
+                            kind: StatementKind::DefaultLabel(Box::new(Statement {
+                                kind: StatementKind::Break,
+                                location: SourceLocation::first().offset(38),
+                                attributes: Vec::new(),
+                            })),
+                            location: SourceLocation::first().offset(29),
+                            attributes: Vec::new(),
+                        },
+                    ])),
+                    location: SourceLocation::first().offset(11),
+                    attributes: Vec::new(),
+                }),
+            ),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
+
+    // Degenerate switch where inner statement is an empty statement instead of a block
+    statement.check(
+        "switch (a);",
+        Statement {
+            kind: StatementKind::Switch(
+                "a".as_var(8),
+                Box::new(Statement {
+                    kind: StatementKind::Empty,
+                    location: SourceLocation::first().offset(10),
+                    attributes: Vec::new(),
+                }),
             ),
             location: SourceLocation::first(),
             attributes: Vec::new(),

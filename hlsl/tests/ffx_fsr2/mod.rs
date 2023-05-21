@@ -45,6 +45,10 @@ pub const FILES: &[(&str, &str)] = &[
         "#include \"test_config.h\"\n#include \"ffx_fsr2_autogen_reactive_pass.hlsl\"",
     ),
     (
+        "compute_luminance_pyramid_pass",
+        "#include \"test_config.h\"\n#include \"ffx_fsr2_compute_luminance_pyramid_pass.hlsl\"",
+    ),
+    (
         "depth_clip_pass",
         "#include \"test_config.h\"\n#include \"ffx_fsr2_depth_clip_pass.hlsl\"",
     ),
@@ -74,6 +78,11 @@ fn compile_accumulate_pass() {
 #[test]
 fn compile_autogen_reactive_pass() {
     compile_file("autogen_reactive_pass", FILES);
+}
+
+#[test]
+fn compile_compute_luminance_pyramid_pass() {
+    compile_file("compute_luminance_pyramid_pass", FILES);
 }
 
 #[test]

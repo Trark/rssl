@@ -89,6 +89,8 @@ pub enum Token {
     Break,
     Continue,
     Discard,
+    Case,
+    Default,
 
     Struct,
     Enum,

@@ -28,10 +28,13 @@ pub enum StatementKind {
     ),
     While(Located<Expression>, Box<Statement>),
     DoWhile(Box<Statement>, Located<Expression>),
+    Switch(Located<Expression>, Box<Statement>),
     Break,
     Continue,
     Discard,
     Return(Option<Located<Expression>>),
+    CaseLabel(Located<Expression>, Box<Statement>),
+    DefaultLabel(Box<Statement>),
 }
 
 /// An initialiser for a for loop variable

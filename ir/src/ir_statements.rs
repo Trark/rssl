@@ -31,10 +31,13 @@ pub enum StatementKind {
     For(ForInit, Option<Expression>, Option<Expression>, ScopeBlock),
     While(Expression, ScopeBlock),
     DoWhile(ScopeBlock, Expression),
+    Switch(Expression, ScopeBlock),
     Break,
     Continue,
     Discard,
     Return(Option<Expression>),
+    CaseLabel(Constant),
+    DefaultLabel,
 }
 
 /// A local variable definition

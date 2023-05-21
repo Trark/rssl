@@ -152,6 +152,16 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 attributes,
             }]))
         }
+        ast::StatementKind::Switch(ref cond, ref statement) => {
+            context.push_scope();
+            let cond_ir = parse_expr(cond, context)?.0;
+            let scope_block = parse_scopeblock(statement, context)?;
+            Ok(Vec::from([ir::Statement {
+                kind: ir::StatementKind::Switch(cond_ir, scope_block),
+                location: ast.location,
+                attributes,
+            }]))
+        }
         ast::StatementKind::Break => Ok(Vec::from([ir::Statement {
             kind: ir::StatementKind::Break,
             location: ast.location,
@@ -204,6 +214,39 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                     ast.location,
                 ))
             }
+        }
+        ast::StatementKind::CaseLabel(ref cond, ref statement) => {
+            // Process the case expression and evaluate it
+            let value_expr = parse_expr(cond, context)?;
+            let value = match evaluate_constexpr(&value_expr.0, &mut context.module) {
+                Ok(constant) => constant,
+                Err(_) => {
+                    return Err(TyperError::ExpressionIsNotConstantExpression(cond.location));
+                }
+            };
+
+            let mut next = parse_statement(statement, context)?;
+            next.insert(
+                0,
+                ir::Statement {
+                    kind: ir::StatementKind::CaseLabel(value),
+                    location: ast.location,
+                    attributes,
+                },
+            );
+            Ok(next)
+        }
+        ast::StatementKind::DefaultLabel(ref statement) => {
+            let mut next = parse_statement(statement, context)?;
+            next.insert(
+                0,
+                ir::Statement {
+                    kind: ir::StatementKind::DefaultLabel,
+                    location: ast.location,
+                    attributes,
+                },
+            );
+            Ok(next)
         }
     }
 }
