@@ -389,6 +389,10 @@ fn export_function(
         .as_ref()
         .unwrap();
 
+    if sig.template_params.0 > 0 {
+        todo!("Template function: {:?}", context.get_function_name(id)?);
+    }
+
     for attribute in &decl.attributes {
         export_function_attribute(attribute, output, context)?;
     }
