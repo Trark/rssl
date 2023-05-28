@@ -12,6 +12,7 @@ use rssl_text::{Locate, Located, SourceLocation};
 
 /// Result of a variable query
 pub enum VariableExpression {
+    Constant(ir::Constant),
     Local(ir::VariableId, ir::TypeId),
     Member(String, ir::TypeId),
     Global(ir::GlobalId, ir::TypeId),
@@ -72,6 +73,10 @@ fn parse_identifier(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     Ok(match context.find_identifier(id)? {
+        VariableExpression::Constant(c) => {
+            let ty = get_constant_type(&c, context);
+            TypedExpression::Value(ir::Expression::Literal(c), ty)
+        }
         VariableExpression::Local(var, ty) => {
             TypedExpression::Value(ir::Expression::Variable(var), ty.to_lvalue())
         }

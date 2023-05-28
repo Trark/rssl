@@ -70,13 +70,29 @@ pub fn parse_function_signature(
     }
 
     let mut template_param_count = 0;
-    for template_param in &fd.template_params.0 {
+    for (i, template_param) in fd.template_params.0.iter().enumerate() {
         match template_param {
             ast::TemplateParam::Type(ty_param) => {
-                context.insert_template_type(ty_param.name.clone())?;
+                if ty_param.default.is_some() {
+                    todo!("default template arguments not implemented");
+                }
+                let id = ir::TemplateTypeId(i as u32);
+                context.insert_template_type(ty_param.name.clone(), id)?;
             }
-            ast::TemplateParam::Value(_) => {
-                todo!("Non-type template arguments")
+            ast::TemplateParam::Value(ty_param) => {
+                if ty_param.default.is_some() {
+                    todo!("default template arguments not implemented");
+                }
+                // TODO: Ensure allowed type modifiers are as expected
+                let ty = parse_type_for_usage(&ty_param.value_type, TypePosition::Free, context)?;
+                let id = context.module.variable_registry.register_template_value(
+                    ir::TemplateParamValue {
+                        name: ty_param.name.clone(),
+                        type_id: ty,
+                        positional_index: i as u32,
+                    },
+                );
+                context.insert_template_value(ty_param.name.clone(), id)?;
             }
         }
         template_param_count += 1;

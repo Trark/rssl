@@ -925,6 +925,17 @@ fn check_function_templates() {
 }
 
 #[test]
+fn check_function_template_non_type() {
+    // Check that a template value argument can make an array with a size
+    check_types("template<uint L> void f() { float data[L]; } void main() { f<2>(); f<4>(); }");
+
+    // Check we can pass a value argument with a type from a type argument
+    check_types("template<typename T, T L> void f() { T data[L]; } void main() { f<uint, 2>(); f<float, 4>(); }");
+
+    // TODO: Ensure input type is consistent with required type
+}
+
+#[test]
 fn check_function_attributes() {
     check_types("[numthreads(64, 1, 1)] void Main() {}");
     check_fail("[numthreads] void Main() {}");
@@ -1173,6 +1184,28 @@ fn check_struct_method_templates() {
 
     // Check (non-templated) struct template method can access both the template type and the containing struct type
     check_types("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
+
+    // Check a templated method on a templated struct receives the correct types
+    check_types(
+        "template<typename T>
+        struct S
+        {
+            template<typename G>
+            void f()
+            {
+                T t;
+                G g;
+                assert_type<int2>(t);
+                assert_type<float3>(g);
+            }
+        };
+
+        void main()
+        {
+            S<int2> s;
+            s.f<float3>();
+        }",
+    );
 }
 
 #[test]

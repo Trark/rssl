@@ -15,6 +15,7 @@ pub enum TyperError {
     TypeAlreadyDefined(Located<String>, ir::TypeId),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
     TemplateTypeAlreadyDefined(Located<String>, ir::TemplateTypeId),
+    TemplateValueAlreadyDefined(Located<String>, ir::TemplateValueId),
 
     UnknownIdentifier(ast::ScopedIdentifier),
     UnknownType(ErrorType, SourceLocation),
@@ -282,6 +283,23 @@ impl CompileError for TyperExternalError {
                         )
                     },
                     SourceLocation::UNKNOWN,
+                    Severity::Note,
+                )
+            }
+            TyperError::TemplateValueAlreadyDefined(name, previous_id) => {
+                w.write_message(
+                    &|f| write!(f, "redefinition of '{}'", name.node),
+                    name.location,
+                    Severity::Error,
+                )?;
+                w.write_message(
+                    &|f| write!(f, "previous definition is here"),
+                    context
+                        .module
+                        .variable_registry
+                        .get_template_value(*previous_id)
+                        .name
+                        .location,
                     Severity::Note,
                 )
             }

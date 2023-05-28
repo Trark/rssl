@@ -17,10 +17,16 @@ pub struct GlobalId(pub u32);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct VariableId(pub u32);
 
+/// Id to a template value definition
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct TemplateValueId(pub u32);
+
 /// Container of all registered local variables
 #[derive(PartialEq, Clone, Debug)]
 pub struct VariableRegistry {
     local_variables: Vec<LocalVariable>,
+
+    template_values: Vec<TemplateParamValue>,
 }
 
 /// Function local variable state
@@ -42,6 +48,19 @@ pub struct LocalVariable {
     pub constexpr_value: Option<Constant>,
 }
 
+/// Template parameter value state
+#[derive(PartialEq, Debug, Clone)]
+pub struct TemplateParamValue {
+    /// Name for the template parameter
+    pub name: Located<String>,
+
+    /// Type for the template parameter
+    pub type_id: TypeId,
+
+    /// Index into list of template arguments the parameter is contained in
+    pub positional_index: u32,
+}
+
 impl VariableRegistry {
     /// Register a new local variable with the module
     pub fn register_local_variable(&mut self, def: LocalVariable) -> VariableId {
@@ -56,12 +75,27 @@ impl VariableRegistry {
     pub fn get_local_variable(&self, id: VariableId) -> &LocalVariable {
         &self.local_variables[id.0 as usize]
     }
+
+    /// Register a new template value parameter with the module
+    pub fn register_template_value(&mut self, def: TemplateParamValue) -> TemplateValueId {
+        let id = TemplateValueId(self.template_values.len() as u32);
+
+        self.template_values.push(def);
+
+        id
+    }
+
+    /// Get the stored data for a template value parameter from an id
+    pub fn get_template_value(&self, id: TemplateValueId) -> &TemplateParamValue {
+        &self.template_values[id.0 as usize]
+    }
 }
 
 impl Default for VariableRegistry {
     fn default() -> Self {
         VariableRegistry {
             local_variables: Vec::with_capacity(1024),
+            template_values: Vec::with_capacity(1024),
         }
     }
 }

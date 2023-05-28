@@ -62,11 +62,13 @@ struct ScopeData {
 
     function_ids: HashMap<String, Vec<ir::FunctionId>>,
     types: HashMap<String, ir::TypeId>,
+    constants: HashMap<String, ir::Constant>,
     cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
     global_ids: HashMap<String, ir::GlobalId>,
     enum_values: HashMap<String, ir::EnumValueId>,
     untyped_enum_values: HashMap<String, ir::EnumValueId>,
     template_args: HashMap<String, (ir::TemplateTypeId, ir::TypeId)>,
+    template_values: HashMap<String, ir::TemplateValueId>,
     namespaces: HashMap<String, ScopeIndex>,
     enum_scopes: HashMap<String, ScopeIndex>,
 
@@ -86,11 +88,13 @@ impl Context {
                 variables: VariableBlock::new(),
                 function_ids: HashMap::with_capacity(1024),
                 types: HashMap::new(),
+                constants: HashMap::new(),
                 cbuffer_ids: HashMap::new(),
                 global_ids: HashMap::new(),
                 enum_values: HashMap::new(),
                 untyped_enum_values: HashMap::new(),
                 template_args: HashMap::new(),
+                template_values: HashMap::new(),
                 namespaces: HashMap::new(),
                 enum_scopes: HashMap::new(),
                 owning_struct: None,
@@ -135,11 +139,13 @@ impl Context {
             variables: VariableBlock::new(),
             function_ids: HashMap::new(),
             types: HashMap::new(),
+            constants: HashMap::new(),
             cbuffer_ids: HashMap::new(),
             global_ids: HashMap::new(),
             enum_values: HashMap::new(),
             untyped_enum_values: HashMap::new(),
             template_args: HashMap::new(),
+            template_values: HashMap::new(),
             namespaces: HashMap::new(),
             enum_scopes: HashMap::new(),
             owning_struct: None,
@@ -947,23 +953,54 @@ impl Context {
     pub fn insert_template_type(
         &mut self,
         name: Located<String>,
-    ) -> TyperResult<ir::TemplateTypeId> {
-        let current_arg_count = self.scopes[self.current_scope].template_args.len();
+        id: ir::TemplateTypeId,
+    ) -> TyperResult<()> {
+        if let Some(v) = self.scopes[self.current_scope]
+            .template_values
+            .get(&name.node)
+        {
+            return Err(TyperError::TemplateValueAlreadyDefined(name, *v));
+        }
         match self.scopes[self.current_scope]
             .template_args
             .entry(name.to_string())
         {
             Entry::Vacant(id_v) => {
-                let id = ir::TemplateTypeId(current_arg_count as u32);
                 let ty_id = self
                     .module
                     .type_registry
                     .register_type(ir::TypeLayer::TemplateParam(id));
                 id_v.insert((id, ty_id));
-                Ok(id)
+                Ok(())
             }
             Entry::Occupied(id_o) => {
                 Err(TyperError::TemplateTypeAlreadyDefined(name, id_o.get().0))
+            }
+        }
+    }
+
+    /// Register a new template value parameter
+    pub fn insert_template_value(
+        &mut self,
+        name: Located<String>,
+        id: ir::TemplateValueId,
+    ) -> TyperResult<()> {
+        if let Some(v) = self.scopes[self.current_scope]
+            .template_args
+            .get(&name.node)
+        {
+            return Err(TyperError::TemplateTypeAlreadyDefined(name, v.0));
+        }
+        match self.scopes[self.current_scope]
+            .template_values
+            .entry(name.to_string())
+        {
+            Entry::Vacant(id_v) => {
+                id_v.insert(id);
+                Ok(())
+            }
+            Entry::Occupied(id_o) => {
+                Err(TyperError::TemplateValueAlreadyDefined(name, *id_o.get()))
             }
         }
     }
@@ -1078,6 +1115,14 @@ impl Context {
         // Try to find a template type name in the searched scope
         if let Some((_, ty_id)) = scope.template_args.get(name) {
             return Some(VariableExpression::Type(*ty_id));
+        }
+
+        // We do not expect to need to find template values when in value form
+        // These become named constants before parsing internals
+
+        // Try to find a name bound to a constant value
+        if let Some(c) = scope.constants.get(name) {
+            return Some(VariableExpression::Constant(c.clone()));
         }
 
         None
@@ -1217,7 +1262,29 @@ impl Context {
                         .types
                         .insert(template_param_name, *ty);
                 }
-                ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+                ir::TypeOrConstant::Constant(_) => {
+                    todo!("Non-type template argument given to type")
+                }
+            }
+        }
+
+        for (template_param_name, template_param_id) in
+            self.scopes[old_scope_id].template_values.clone()
+        {
+            let index = self
+                .module
+                .variable_registry
+                .get_template_value(template_param_id)
+                .positional_index;
+            match &template_args[index as usize].node {
+                ir::TypeOrConstant::Type(_) => {
+                    todo!("Type template argument given to non-type")
+                }
+                ir::TypeOrConstant::Constant(c) => {
+                    self.scopes[new_scope_id]
+                        .constants
+                        .insert(template_param_name, c.clone().unrestrict());
+                }
             }
         }
 
