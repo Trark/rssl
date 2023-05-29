@@ -76,8 +76,15 @@ pub fn parse_function_signature(
                 if ty_param.default.is_some() {
                     todo!("default template arguments not implemented");
                 }
-                let id = ir::TemplateTypeId(i as u32);
-                context.insert_template_type(ty_param.name.clone(), id)?;
+                let id =
+                    context
+                        .module
+                        .type_registry
+                        .register_template_type(ir::TemplateParamType {
+                            name: ty_param.name.clone(),
+                            positional_index: i as u32,
+                        });
+                context.insert_template_type(id)?;
             }
             ast::TemplateParam::Value(ty_param) => {
                 if ty_param.default.is_some() {
@@ -92,7 +99,7 @@ pub fn parse_function_signature(
                         positional_index: i as u32,
                     },
                 );
-                context.insert_template_value(ty_param.name.clone(), id)?;
+                context.insert_template_value(id)?;
             }
         }
         template_param_count += 1;

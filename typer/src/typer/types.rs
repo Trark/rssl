@@ -691,10 +691,17 @@ pub fn apply_template_type_substitution(
                 .type_registry
                 .combine_modifier(inner_ty, modifier)
         }
-        ir::TypeLayer::TemplateParam(ref p) => match &remap[p.0 as usize].node {
-            ir::TypeOrConstant::Type(ty) => *ty,
-            ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
-        },
+        ir::TypeLayer::TemplateParam(ref p) => {
+            let index = context
+                .module
+                .type_registry
+                .get_template_type(*p)
+                .positional_index;
+            match &remap[index as usize].node {
+                ir::TypeOrConstant::Type(ty) => *ty,
+                ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+            }
+        }
         ir::TypeLayer::Array(tyl, len) => {
             let inner_ty = apply_template_type_substitution(tyl, remap, context);
             let layer = ir::TypeLayer::Array(inner_ty, len);

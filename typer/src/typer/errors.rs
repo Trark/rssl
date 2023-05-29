@@ -275,14 +275,13 @@ impl CompileError for TyperExternalError {
                     Severity::Error,
                 )?;
                 w.write_message(
-                    &|f| {
-                        write!(
-                            f,
-                            "previous definition was with template type with index {}",
-                            previous_id.0
-                        )
-                    },
-                    SourceLocation::UNKNOWN,
+                    &|f| write!(f, "previous definition is here"),
+                    context
+                        .module
+                        .type_registry
+                        .get_template_type(*previous_id)
+                        .name
+                        .location,
                     Severity::Note,
                 )
             }

@@ -122,6 +122,9 @@ impl Module {
             TypeLayer::Modifier(modifier, ty) => {
                 format!("{:?}{}", modifier, self.get_type_name_short(ty))
             }
+            TypeLayer::TemplateParam(id) => {
+                self.type_registry.get_template_type(id).name.node.clone()
+            }
             _ => format!("{tyl:?}"),
         }
     }

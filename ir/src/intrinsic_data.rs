@@ -771,9 +771,17 @@ fn get_type_id(
         TypeDef::Void => module.type_registry.register_type(TypeLayer::Void),
         TypeDef::Numeric(ref num) => module.type_registry.register_numeric_type(*num),
         TypeDef::Object(ref obj) => module.type_registry.register_type(TypeLayer::Object(*obj)),
-        TypeDef::FunctionTemplateArgument => module
-            .type_registry
-            .register_type(TypeLayer::TemplateParam(TemplateTypeId(0))),
+        TypeDef::FunctionTemplateArgument => {
+            let id = module
+                .type_registry
+                .register_template_type(TemplateParamType {
+                    name: Located::none("T".to_string()),
+                    positional_index: 0,
+                });
+            module
+                .type_registry
+                .register_type(TypeLayer::TemplateParam(id))
+        }
         TypeDef::ObjectTemplateArgument => object_template_type.unwrap(),
         TypeDef::MultiArgument => multi_type.unwrap(),
     }
@@ -808,7 +816,13 @@ fn get_max_template_arg(module: &Module, id: TypeId) -> u32 {
         TypeLayer::Array(inner, _) | TypeLayer::Modifier(_, inner) => {
             count = std::cmp::max(count, get_max_template_arg(module, inner))
         }
-        TypeLayer::TemplateParam(template_arg) => count = std::cmp::max(count, template_arg.0 + 1),
+        TypeLayer::TemplateParam(template_arg) => {
+            let index = module
+                .type_registry
+                .get_template_type(template_arg)
+                .positional_index;
+            count = std::cmp::max(count, index + 1)
+        }
     }
     count
 }

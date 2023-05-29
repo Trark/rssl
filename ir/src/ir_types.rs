@@ -10,7 +10,7 @@ pub struct TypeId(pub u32);
 pub struct ObjectId(pub u32);
 
 /// Container of all registered types
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct TypeRegistry {
     /// Direct type information for each type id
     layers: Vec<TypeLayer>,
@@ -20,6 +20,9 @@ pub struct TypeRegistry {
 
     /// Functions for a registered object type
     object_functions: Vec<Vec<FunctionId>>,
+
+    /// Template type argument definitions
+    template_types: Vec<TemplateParamType>,
 }
 
 /// The description of a type represented by a type id.
@@ -37,6 +40,16 @@ pub enum TypeLayer {
     Array(TypeId, Option<u64>),
     TemplateParam(TemplateTypeId),
     Modifier(TypeModifier, TypeId),
+}
+
+/// Template type parameter state
+#[derive(PartialEq, Debug, Clone)]
+pub struct TemplateParamType {
+    /// Name for the template parameter
+    pub name: Located<String>,
+
+    /// Index into list of template arguments the parameter is contained in
+    pub positional_index: u32,
 }
 
 impl TypeRegistry {
@@ -83,6 +96,15 @@ impl TypeRegistry {
                 self.register_type(TypeLayer::Matrix(scalar_id, x, y))
             }
         }
+    }
+
+    /// Register a new template type parameter with the module
+    pub fn register_template_type(&mut self, def: TemplateParamType) -> TemplateTypeId {
+        let id = TemplateTypeId(self.template_types.len() as u32);
+
+        self.template_types.push(def);
+
+        id
     }
 
     /// Get the top type layer for a type id
@@ -198,6 +220,11 @@ impl TypeRegistry {
             TypeLayer::Object(ObjectType::BufferAddress)
                 | TypeLayer::Object(ObjectType::RWBufferAddress)
         )
+    }
+
+    /// Get the stored data for a template type parameter from an id
+    pub fn get_template_type(&self, id: TemplateTypeId) -> &TemplateParamType {
+        &self.template_types[id.0 as usize]
     }
 }
 
@@ -762,6 +789,7 @@ impl Default for TypeRegistry {
             layers: Vec::with_capacity(256),
             object_layouts: Vec::with_capacity(64),
             object_functions: Vec::with_capacity(64),
+            template_types: Vec::with_capacity(256),
         }
     }
 }

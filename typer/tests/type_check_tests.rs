@@ -880,6 +880,9 @@ fn check_function_templates() {
     check_types("template<typename T> void f(T v) {}");
     check_types("template<typename T> T f(T v) { return v; }");
 
+    // Duplicate argument name should fail
+    check_fail("template<typename T, typename T> T f(T v) { return v; }");
+
     // Invoke the template function with explicit template arguments
     check_types("template<typename T> T f(T v) { return v; } void main() { f<float>(0.0); }");
 

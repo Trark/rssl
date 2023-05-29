@@ -950,16 +950,13 @@ impl Context {
     }
 
     /// Register a new template type parameter
-    pub fn insert_template_type(
-        &mut self,
-        name: Located<String>,
-        id: ir::TemplateTypeId,
-    ) -> TyperResult<()> {
+    pub fn insert_template_type(&mut self, id: ir::TemplateTypeId) -> TyperResult<()> {
+        let name = &self.module.type_registry.get_template_type(id).name;
         if let Some(v) = self.scopes[self.current_scope]
             .template_values
             .get(&name.node)
         {
-            return Err(TyperError::TemplateValueAlreadyDefined(name, *v));
+            return Err(TyperError::TemplateValueAlreadyDefined(name.clone(), *v));
         }
         match self.scopes[self.current_scope]
             .template_args
@@ -973,23 +970,21 @@ impl Context {
                 id_v.insert((id, ty_id));
                 Ok(())
             }
-            Entry::Occupied(id_o) => {
-                Err(TyperError::TemplateTypeAlreadyDefined(name, id_o.get().0))
-            }
+            Entry::Occupied(id_o) => Err(TyperError::TemplateTypeAlreadyDefined(
+                name.clone(),
+                id_o.get().0,
+            )),
         }
     }
 
     /// Register a new template value parameter
-    pub fn insert_template_value(
-        &mut self,
-        name: Located<String>,
-        id: ir::TemplateValueId,
-    ) -> TyperResult<()> {
+    pub fn insert_template_value(&mut self, id: ir::TemplateValueId) -> TyperResult<()> {
+        let name = &self.module.variable_registry.get_template_value(id).name;
         if let Some(v) = self.scopes[self.current_scope]
             .template_args
             .get(&name.node)
         {
-            return Err(TyperError::TemplateTypeAlreadyDefined(name, v.0));
+            return Err(TyperError::TemplateTypeAlreadyDefined(name.clone(), v.0));
         }
         match self.scopes[self.current_scope]
             .template_values
@@ -999,9 +994,10 @@ impl Context {
                 id_v.insert(id);
                 Ok(())
             }
-            Entry::Occupied(id_o) => {
-                Err(TyperError::TemplateValueAlreadyDefined(name, *id_o.get()))
-            }
+            Entry::Occupied(id_o) => Err(TyperError::TemplateValueAlreadyDefined(
+                name.clone(),
+                *id_o.get(),
+            )),
         }
     }
 
@@ -1256,7 +1252,12 @@ impl Context {
         for (template_param_name, (template_param_id, _)) in
             self.scopes[old_scope_id].template_args.clone()
         {
-            match &template_args[template_param_id.0 as usize].node {
+            let index = self
+                .module
+                .type_registry
+                .get_template_type(template_param_id)
+                .positional_index;
+            match &template_args[index as usize].node {
                 ir::TypeOrConstant::Type(ty) => {
                     self.scopes[new_scope_id]
                         .types
