@@ -190,6 +190,8 @@ impl Module {
             ConstantBuffer(ty) => format!("ConstantBuffer<{}>", self.get_type_name_short(ty)),
             SamplerState => "SamplerState".to_string(),
             SamplerComparisonState => "SamplerComparisonState".to_string(),
+            RaytracingAccelerationStructure => "RaytracingAccelerationStructure".to_string(),
+            RayQuery(v) => format!("RayQuery<{v}>"),
         }
     }
 

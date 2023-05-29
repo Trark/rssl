@@ -123,6 +123,9 @@ fn analyse_bindings(
                 ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(_)) => {
                     DescriptorType::RwTexture3d
                 }
+                ir::TypeLayer::Object(ir::ObjectType::RaytracingAccelerationStructure) => {
+                    DescriptorType::RaytracingAccelerationStructure
+                }
                 _ => DescriptorType::PushConstants,
             };
 
@@ -713,6 +716,13 @@ fn export_type_impl(
                 }
                 ir::ObjectType::SamplerComparisonState => {
                     output.push_str("SamplerComparisonState");
+                }
+
+                ir::ObjectType::RaytracingAccelerationStructure => {
+                    output.push_str("RaytracingAccelerationStructure");
+                }
+                ir::ObjectType::RayQuery(v) => {
+                    output.push_str(format!("RayQuery<{v}>").as_str());
                 }
             };
         }

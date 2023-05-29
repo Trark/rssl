@@ -313,6 +313,16 @@ fn parse_object_type(
         }
     }
 
+    fn get_uint(args: &[ir::TypeOrConstant]) -> Option<u32> {
+        match args {
+            [ir::TypeOrConstant::Constant(ir::RestrictedConstant::UInt32(v))] => Some(*v),
+            [ir::TypeOrConstant::Constant(ir::RestrictedConstant::IntLiteral(v))] => {
+                Some(*v as u32)
+            }
+            _ => None,
+        }
+    }
+
     // Special object types are all unscoped names
     if name.identifiers.len() != 1 {
         return None;
@@ -374,6 +384,12 @@ fn parse_object_type(
         "SamplerComparisonState" => Some(ir::TypeLayer::Object(
             ir::ObjectType::SamplerComparisonState,
         )),
+        "RaytracingAccelerationStructure" => Some(ir::TypeLayer::Object(
+            ir::ObjectType::RaytracingAccelerationStructure,
+        )),
+        "RayQuery" => Some(ir::TypeLayer::Object(ir::ObjectType::RayQuery(get_uint(
+            template_args,
+        )?))),
         _ => None,
     }
 }

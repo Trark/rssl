@@ -444,6 +444,9 @@ pub enum ObjectType {
 
     SamplerState,
     SamplerComparisonState,
+
+    RaytracingAccelerationStructure,
+    RayQuery(u32),
 }
 
 /// A constant value
@@ -829,7 +832,8 @@ impl ObjectType {
             | ObjectType::Texture2DArray(_)
             | ObjectType::TextureCube(_)
             | ObjectType::TextureCubeArray(_)
-            | ObjectType::Texture3D(_) => RegisterType::T,
+            | ObjectType::Texture3D(_)
+            | ObjectType::RaytracingAccelerationStructure => RegisterType::T,
 
             ObjectType::RWBuffer(_)
             | ObjectType::RWByteAddressBuffer
@@ -848,7 +852,8 @@ impl ObjectType {
             | ObjectType::Texture2DArrayMips(_)
             | ObjectType::Texture2DArrayMipsSlice(_)
             | ObjectType::Texture3DMips(_)
-            | ObjectType::Texture3DMipsSlice(_) => {
+            | ObjectType::Texture3DMipsSlice(_)
+            | ObjectType::RayQuery(_) => {
                 panic!("get_register_type called on non-root object types")
             }
         }
@@ -1022,6 +1027,8 @@ impl std::fmt::Debug for ObjectType {
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{st:?}>"),
             SamplerState => write!(f, "SamplerState"),
             SamplerComparisonState => write!(f, "SamplerComparisonState"),
+            RaytracingAccelerationStructure => write!(f, "RaytracingAccelerationStructure"),
+            RayQuery(ref v) => write!(f, "RayQuery<{v}>"),
         }
     }
 }

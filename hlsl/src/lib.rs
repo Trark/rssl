@@ -96,6 +96,9 @@ pub enum DescriptorType {
 
     /// A read-write storage 3d texture
     RwTexture3d,
+
+    /// An acceleration structure for raytracing
+    RaytracingAccelerationStructure,
 }
 
 /// A definition of a constant buffer that serves other bindings
