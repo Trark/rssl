@@ -235,6 +235,35 @@ fn check_function_param_system_semantics() {
 }
 
 #[test]
+fn check_function_templates() {
+    check_rssl_to_hlsl(
+        "template<typename T, T A>
+T f(T t) { return t + A; }
+
+void main() {
+    uint x = f<uint, 1u>(0u);
+    int y = f<int, -2>((int)0);
+}
+",
+        "template<typename, uint>
+uint f(uint t) {
+    return t + 1u;
+}
+
+template<typename, int>
+int f(int t) {
+    return t + -2;
+}
+
+void main() {
+    uint x = f<uint, 1u>(0u);
+    int y = f<int, -2>((int)0);
+}
+",
+    );
+}
+
+#[test]
 fn check_local_variable_modifiers() {
     check_rssl_to_hlsl(
         "void f() { float x; const float y; precise float z; }",

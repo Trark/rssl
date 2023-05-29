@@ -385,6 +385,43 @@ fn export_function(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     let sig = context.module.function_registry.get_function_signature(id);
+    let is_template = sig.template_params.0 > 0;
+
+    if is_template {
+        let function_count = context.module.function_registry.get_function_count();
+        let mut first = true;
+        for index in 0..function_count {
+            let child_id = ir::FunctionId(index);
+            if let Some(data) = context
+                .module
+                .function_registry
+                .get_template_instantiation_data(child_id)
+            {
+                if !first {
+                    context.new_line(output);
+                    context.new_line(output);
+                }
+                if data.parent_id == id {
+                    export_function_inner(child_id, only_declare, output, context)?;
+                }
+                first = false;
+            }
+        }
+
+        Ok(())
+    } else {
+        export_function_inner(id, only_declare, output, context)
+    }
+}
+
+/// Export ir function to HLSL
+fn export_function_inner(
+    id: ir::FunctionId,
+    only_declare: bool,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    let sig = context.module.function_registry.get_function_signature(id);
     let decl = context
         .module
         .function_registry
@@ -392,12 +429,49 @@ fn export_function(
         .as_ref()
         .unwrap();
 
-    if sig.template_params.0 > 0 {
-        todo!("Template function: {:?}", context.get_function_name(id)?);
-    }
-
     for attribute in &decl.attributes {
         export_function_attribute(attribute, output, context)?;
+    }
+
+    // Emit template parameters around template instantiations
+    // This ensures we also export the full type list at call sites
+    // For the moment we never refer to these parameters in the body
+    // We may need to if we want to use types that must be defined later
+    if sig.template_params.0 > 0 {
+        let instantiation_data = context
+            .module
+            .function_registry
+            .get_template_instantiation_data(id)
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            instantiation_data.template_args.len() as u32,
+            sig.template_params.0
+        );
+
+        output.push_str("template<");
+        for i in 0..sig.template_params.0 {
+            if i != 0 {
+                output.push_str(", ");
+            }
+            let arg = &instantiation_data.template_args[i as usize];
+            match arg {
+                ir::TypeOrConstant::Type(_) => output.push_str("typename"),
+                ir::TypeOrConstant::Constant(c) => match c {
+                    ir::RestrictedConstant::Bool(_) => output.push_str("bool"),
+                    // TODO: Literal types aren't meant to be used for template instantiations but the typer doesn't cast types correctly when resolving templates
+                    ir::RestrictedConstant::IntLiteral(_) => output.push_str("int"),
+                    ir::RestrictedConstant::Int32(_) => output.push_str("int"),
+                    ir::RestrictedConstant::UInt32(_) => output.push_str("uint"),
+                    _ => todo!(
+                        "Type for non-type template parameter is not handled: {:?}",
+                        c
+                    ),
+                },
+            }
+        }
+        output.push('>');
+        context.new_line(output);
     }
 
     export_type(sig.return_type.return_type, output, context)?;
@@ -770,7 +844,7 @@ fn export_type_or_constant(
 ) -> Result<(), ExportError> {
     match tc {
         ir::TypeOrConstant::Type(ty) => export_type(*ty, output, context),
-        ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
+        ir::TypeOrConstant::Constant(c) => export_literal(&c.clone().unrestrict(), output, context),
     }
 }
 
