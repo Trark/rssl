@@ -62,7 +62,7 @@ void CSMAIN(
         uint cluster_index = LoadClusterIndex(cluster_data, i);
         if (writeLocation + i < g_constantData.index_buffer_size)
         {
-            g_indexData.Store<uint>(4 * (writeLocation + i), (dispatchThreadID.x << 8 | cluster_index));
+            g_indexData.Store(4 * (writeLocation + i), (dispatchThreadID.x << 8 | cluster_index));
         }
     }
 }

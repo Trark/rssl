@@ -896,16 +896,24 @@ fn check_function_templates() {
         "template<typename T> T f(T v) { return v; } void main() { f<float>(0.0); f<float>(0.0); }",
     );
 
-    // We currently do not support inferring the template arguments
-    check_fail("template<typename T> T f(T v) { return v; } void main() { f(0.0); }");
+    // Infer the template arguments
+    check_types(
+        "template<typename T> T f(T v) { return v; } void main() { assert_type<float>(f(0.0f)); }",
+    );
+
+    // Infer float from float literal
+    check_types(
+        "template<typename T> T f(T v) { return v; } void main() { assert_type<float>(f(0.0)); }",
+    );
 
     // Check support for using template parameters in template arguments
     check_types("template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }");
 
     // Check that we do not fail type checking due to function contents
     check_types("template<typename T> T f(T v) { return v + 1; }");
-    // TODO: This does not generate a complete ir
-    check_types("template<typename T> T f(T v) { return v + 1; } void main() { f<float>(0.0); }");
+
+    // And instantiate it
+    check_types("template<typename T> T f(T v) { return v + 1; } void main() {  f<float>(0.0); }");
 
     // Check we can declare instances of a template type inside the function body
     check_types("template<typename T> void f() { T t; t + 1; }; void main() { f<float>(); };");
@@ -925,6 +933,15 @@ fn check_function_templates() {
 
     // Check that the template arguments can make an array
     check_types("template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f<float>(a); }");
+
+    // Check that array parameters can infer the required type
+    check_types("template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f(a); }");
+
+    // Redefinitions should fail - different typename
+    check_fail("template<typename T> void f() {} template<typename G> void f() {}");
+
+    // Redefinitions should fail - same typename
+    check_fail("template<typename T> void f() {} template<typename T> void f() {}");
 }
 
 #[test]

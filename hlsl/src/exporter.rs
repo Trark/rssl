@@ -385,7 +385,7 @@ fn export_function(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     let sig = context.module.function_registry.get_function_signature(id);
-    let is_template = sig.template_params.0 > 0;
+    let is_template = !sig.template_params.is_empty();
 
     if is_template {
         let function_count = context.module.function_registry.get_function_count();
@@ -437,7 +437,7 @@ fn export_function_inner(
     // This ensures we also export the full type list at call sites
     // For the moment we never refer to these parameters in the body
     // We may need to if we want to use types that must be defined later
-    if sig.template_params.0 > 0 {
+    if !sig.template_params.is_empty() {
         let instantiation_data = context
             .module
             .function_registry
@@ -445,16 +445,16 @@ fn export_function_inner(
             .as_ref()
             .unwrap();
         assert_eq!(
-            instantiation_data.template_args.len() as u32,
-            sig.template_params.0
+            instantiation_data.template_args.len(),
+            sig.template_params.len()
         );
 
         output.push_str("template<");
-        for i in 0..sig.template_params.0 {
+        for i in 0..sig.template_params.len() {
             if i != 0 {
                 output.push_str(", ");
             }
-            let arg = &instantiation_data.template_args[i as usize];
+            let arg = &instantiation_data.template_args[i];
             match arg {
                 ir::TypeOrConstant::Type(_) => output.push_str("typename"),
                 ir::TypeOrConstant::Constant(c) => match c {

@@ -215,7 +215,7 @@ fn parse_struct_internal(
     // Process all the methods
     let mut methods = Vec::new();
     for (ast_func, id, signature) in methods_to_parse {
-        if signature.template_params.0 == 0 {
+        if signature.template_params.is_empty() {
             if ast_func.body.is_some() {
                 parse_function_body(ast_func, id, signature, context)?;
             }

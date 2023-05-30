@@ -24,7 +24,7 @@ pub struct FunctionNameDefinition {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionSignature {
     pub return_type: FunctionReturn,
-    pub template_params: TemplateParamCount,
+    pub template_params: Vec<TemplateParam>,
     pub param_types: Vec<ParamType>,
 }
 

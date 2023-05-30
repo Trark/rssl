@@ -9,5 +9,5 @@ struct MyStruct
 void test() {
     const MyStruct s1 = g_input.Load<MyStruct>(0);
     const MyStruct s2 = g_output.Load<MyStruct>(0);
-    g_output.Store<MyStruct>(4, s1);
+    g_output.Store(4, s1);
 }

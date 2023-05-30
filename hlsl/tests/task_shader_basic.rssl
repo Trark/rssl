@@ -12,5 +12,5 @@ void TaskShader(uint thread_id : SV_DispatchThreadID)
     // We implement DispatchMesh as a templated function
     // The lack of argument deduction means we have to specify the type
     // The HLSL DispatchMesh intrinsic is not templated and must not have the type argument
-    DispatchMesh<Payload>(4u, 1u, 1u, data);
+    DispatchMesh(4u, 1u, 1u, data);
 }

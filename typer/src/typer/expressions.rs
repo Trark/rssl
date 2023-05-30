@@ -115,26 +115,74 @@ fn find_overload_casts(
     // Resolve template arguments
     // Require user to specify all arguments
     let signature = context.module.function_registry.get_function_signature(id);
-    if signature.template_params.0 != 0 {
-        if signature.template_params.0 as usize != template_args.len() {
-            // Wrong number of template arguments provided
+    if !signature.template_params.is_empty() {
+        if template_args.len() > signature.template_params.len() {
+            // Too many template arguments provided
             return Err(());
         }
 
-        if !template_args.is_empty() {
-            let new_id = if context
-                .module
-                .function_registry
-                .get_intrinsic_data(id)
-                .is_some()
-            {
-                context.build_intrinsic_template(id, template_args)
+        // Gather template arguments and infer unspecified arguments
+        let arg_count = signature.template_params.len();
+        let mut inferred_args = Vec::with_capacity(arg_count);
+        for i in 0..arg_count {
+            let mut arg = if i < template_args.len() {
+                // Argument given explicitly
+                template_args[i].clone()
             } else {
-                context.build_function_template_signature(id, template_args)
+                let signature = context.module.function_registry.get_function_signature(id);
+                let template_type_id = match signature.template_params[i] {
+                    ir::TemplateParam::Type(id) => id,
+                    // No support for inferring value arguments
+                    ir::TemplateParam::Value(_) => return Err(()),
+                };
+
+                // Argument missing - infer from other parameters
+                let mut found_arg = None;
+                for (required_type, source_type) in
+                    signature.param_types.clone().iter().zip(param_types.iter())
+                {
+                    if let Some(ty) = try_infer_template_type(
+                        template_type_id,
+                        required_type.type_id,
+                        source_type.0,
+                        context,
+                    ) {
+                        found_arg = Some(ty);
+                        break;
+                    }
+                }
+
+                match found_arg {
+                    Some(arg) => Located::none(ir::TypeOrConstant::Type(arg)),
+                    None => return Err(()),
+                }
             };
 
-            id = new_id;
+            // Transform template types into simpler form
+            arg.node = match arg.node {
+                ir::TypeOrConstant::Type(ty) => {
+                    ir::TypeOrConstant::Type(normalize_template_type(ty, context))
+                }
+                ir::TypeOrConstant::Constant(c) => ir::TypeOrConstant::Constant(c),
+            };
+
+            inferred_args.push(arg);
         }
+
+        assert!(!inferred_args.is_empty());
+
+        let new_id = if context
+            .module
+            .function_registry
+            .get_intrinsic_data(id)
+            .is_some()
+        {
+            context.build_intrinsic_template(id, &inferred_args)
+        } else {
+            context.build_function_template_signature(id, &inferred_args)
+        };
+
+        id = new_id;
     } else if !template_args.is_empty() {
         // Template args given to non template function
         return Err(());
@@ -154,6 +202,91 @@ fn find_overload_casts(
         }
     }
     Ok((id, overload_casts))
+}
+
+/// Attempt to match a function against a set of argument and return the casts required to invoke it
+fn try_infer_template_type(
+    template_type_id: ir::TemplateTypeId,
+    required_type_id: ir::TypeId,
+    input_type_id: ir::TypeId,
+    context: &mut Context,
+) -> Option<ir::TypeId> {
+    let layer_required = context
+        .module
+        .type_registry
+        .get_type_layer(required_type_id);
+
+    // If we have reached the template type then return the matched type
+    if let ir::TypeLayer::TemplateParam(id) = layer_required {
+        if id == template_type_id {
+            return Some(input_type_id);
+        }
+    }
+
+    // Drill down into the type
+    let layer_input = context.module.type_registry.get_type_layer(input_type_id);
+    match (layer_required, layer_input) {
+        (ir::TypeLayer::Array(id_req, len_req), ir::TypeLayer::Array(id_in, len_in))
+            if len_req == len_in =>
+        {
+            if let Some(ty) = try_infer_template_type(template_type_id, id_req, id_in, context) {
+                return Some(ty);
+            }
+        }
+        _ => {}
+    }
+
+    None
+}
+
+/// Ensure a type is simple enou Remove literal float and literal int from a type
+fn normalize_template_type(type_id: ir::TypeId, context: &mut Context) -> ir::TypeId {
+    let layer = context.module.type_registry.get_type_layer(type_id);
+    match layer {
+        ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral) => {
+            // Int literals turn into int
+            context
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Int32))
+        }
+        ir::TypeLayer::Scalar(ir::ScalarType::FloatLiteral) => {
+            // float literals turn into float
+            context
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float32))
+        }
+        ir::TypeLayer::Vector(id, x) => {
+            // Process inner of vector types
+            let id = normalize_template_type(id, context);
+            context
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Vector(id, x))
+        }
+        ir::TypeLayer::Matrix(id, x, y) => {
+            // Process inner of matrix types
+            let id = normalize_template_type(id, context);
+            context
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Matrix(id, x, y))
+        }
+        ir::TypeLayer::Array(id, len) => {
+            // Process inner of array types
+            let id = normalize_template_type(id, context);
+            context
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Array(id, len))
+        }
+        ir::TypeLayer::Modifier(_, id) => {
+            // Remove any modifiers
+            normalize_template_type(id, context)
+        }
+        _ => type_id,
+    }
 }
 
 /// Attempt to find the best function from a set of overloads that can satisfy a set of arguments

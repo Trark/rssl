@@ -259,7 +259,7 @@ fn test_ast_to_ir() {
                         return_type: void_id,
                         semantic: None,
                     },
-                    template_params: ir::TemplateParamCount(0),
+                    template_params: Vec::new(),
                     param_types: Vec::new(),
                 }
             );

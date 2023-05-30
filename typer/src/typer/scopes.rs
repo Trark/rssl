@@ -459,7 +459,7 @@ impl Context {
         // Find the fully qualified name based on the current scope
         let full_name = self.get_qualified_name(&name);
 
-        let is_template = signature.template_params.0 != 0;
+        let is_template = !signature.template_params.is_empty();
 
         // Register the function with the module
         let id = self

@@ -313,9 +313,12 @@ pub struct EnumId(pub u32);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct TemplateTypeId(pub u32);
 
-/// Number of template arguments to a template
+/// Id to a template type or value argument
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
-pub struct TemplateParamCount(pub u32);
+pub enum TemplateParam {
+    Type(TemplateTypeId),
+    Value(TemplateValueId),
+}
 
 /// Modifiers that can apply to any type
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]

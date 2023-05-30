@@ -69,9 +69,9 @@ pub fn parse_function_signature(
         context.set_owning_struct(id);
     }
 
-    let mut template_param_count = 0;
+    let mut template_params = Vec::with_capacity(fd.template_params.0.len());
     for (i, template_param) in fd.template_params.0.iter().enumerate() {
-        match template_param {
+        let param = match template_param {
             ast::TemplateParam::Type(ty_param) => {
                 if ty_param.default.is_some() {
                     todo!("default template arguments not implemented");
@@ -85,6 +85,7 @@ pub fn parse_function_signature(
                             positional_index: i as u32,
                         });
                 context.insert_template_type(id)?;
+                ir::TemplateParam::Type(id)
             }
             ast::TemplateParam::Value(ty_param) => {
                 if ty_param.default.is_some() {
@@ -100,9 +101,10 @@ pub fn parse_function_signature(
                     },
                 );
                 context.insert_template_value(id)?;
+                ir::TemplateParam::Value(id)
             }
-        }
-        template_param_count += 1;
+        };
+        template_params.push(param);
     }
 
     let return_type = parse_returntype(&fd.returntype, context)?;
@@ -133,7 +135,7 @@ pub fn parse_function_signature(
     Ok((
         ir::FunctionSignature {
             return_type,
-            template_params: ir::TemplateParamCount(template_param_count),
+            template_params,
             param_types,
         },
         scope,
@@ -243,7 +245,7 @@ fn parse_function(
     };
 
     if is_definition {
-        if signature.template_params.0 == 0 {
+        if signature.template_params.is_empty() {
             parse_function_body(fd, id, signature, context)?;
         } else {
             let attributes = parse_function_attributes(&fd.attributes, context)?;

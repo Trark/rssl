@@ -358,9 +358,9 @@ pub fn add_intrinsics(module: &mut Module) {
                 semantic: None,
             };
 
-            // Calculate the number of template arguments to the function
+            // Generate the template parameterse from the main parameters
             let template_params =
-                get_template_param_count(module, return_type.return_type, &param_types);
+                get_template_params(module, return_type.return_type, &param_types);
 
             // Make the signature
             let signature = FunctionSignature {
@@ -742,9 +742,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
             semantic: None,
         };
 
-        // Calculate the number of template arguments to the function
-        let template_params =
-            get_template_param_count(module, return_type.return_type, &param_types);
+        // Generate the template parameterse from the main parameters
+        let template_params = get_template_params(module, return_type.return_type, &param_types);
 
         methods.push(MethodDefinition {
             name: def.function_name.to_string(),
@@ -788,21 +787,38 @@ fn get_type_id(
 }
 
 /// Get the maximum template argument count within the function
-fn get_template_param_count(
+fn get_template_params(
     module: &Module,
     return_type: TypeId,
     param_types: &[ParamType],
-) -> TemplateParamCount {
-    let mut count = get_max_template_arg(module, return_type);
+) -> Vec<TemplateParam> {
+    let mut arg_collection = Vec::new();
+    gather_template_args(module, return_type, &mut arg_collection);
     for param_type in param_types {
-        count = std::cmp::max(count, get_max_template_arg(module, param_type.type_id))
+        gather_template_args(module, param_type.type_id, &mut arg_collection);
     }
-    TemplateParamCount(count)
+
+    arg_collection.dedup();
+
+    let mut args = Vec::with_capacity(arg_collection.len());
+    for i in 0..arg_collection.len() as u32 {
+        for arg in &arg_collection {
+            let index = module
+                .type_registry
+                .get_template_type(*arg)
+                .positional_index;
+            if index == i {
+                args.push(TemplateParam::Type(*arg));
+                break;
+            }
+        }
+    }
+
+    args
 }
 
-/// Get the maximum template argument count within the type
-fn get_max_template_arg(module: &Module, id: TypeId) -> u32 {
-    let mut count = 0;
+/// Get the template arguments referenced in the normal arguments
+fn gather_template_args(module: &Module, id: TypeId, template_params: &mut Vec<TemplateTypeId>) {
     let layer = module.type_registry.get_type_layer(id);
     match layer {
         TypeLayer::Void
@@ -814,15 +830,8 @@ fn get_max_template_arg(module: &Module, id: TypeId) -> u32 {
         | TypeLayer::Enum(_)
         | TypeLayer::Object(_) => {}
         TypeLayer::Array(inner, _) | TypeLayer::Modifier(_, inner) => {
-            count = std::cmp::max(count, get_max_template_arg(module, inner))
+            gather_template_args(module, inner, template_params);
         }
-        TypeLayer::TemplateParam(template_arg) => {
-            let index = module
-                .type_registry
-                .get_template_type(template_arg)
-                .positional_index;
-            count = std::cmp::max(count, index + 1)
-        }
+        TypeLayer::TemplateParam(template_arg) => template_params.push(template_arg),
     }
-    count
 }
