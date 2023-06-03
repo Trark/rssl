@@ -181,6 +181,7 @@ pub fn parse_data_layout(
                         // Type modifiers not supported inside arguments
                         match context.module.type_registry.get_type_layer(type_id) {
                             ir::TypeLayer::Scalar(_) => {}
+                            ir::TypeLayer::TemplateParam(_) => {}
                             _ => return None,
                         }
 
@@ -210,6 +211,7 @@ pub fn parse_data_layout(
                         // Type modifiers not supported inside arguments
                         match context.module.type_registry.get_type_layer(type_id) {
                             ir::TypeLayer::Scalar(_) => {}
+                            ir::TypeLayer::TemplateParam(_) => {}
                             _ => return None,
                         }
 
@@ -717,6 +719,16 @@ pub fn apply_template_type_substitution(
                 ir::TypeOrConstant::Type(ty) => *ty,
                 ir::TypeOrConstant::Constant(_) => todo!("Non-type template arguments"),
             }
+        }
+        ir::TypeLayer::Vector(ty, x) => {
+            let inner_ty = apply_template_type_substitution(ty, remap, context);
+            let layer = ir::TypeLayer::Vector(inner_ty, x);
+            context.module.type_registry.register_type(layer)
+        }
+        ir::TypeLayer::Matrix(ty, x, y) => {
+            let inner_ty = apply_template_type_substitution(ty, remap, context);
+            let layer = ir::TypeLayer::Matrix(inner_ty, x, y);
+            context.module.type_registry.register_type(layer)
         }
         ir::TypeLayer::Array(tyl, len) => {
             let inner_ty = apply_template_type_substitution(tyl, remap, context);

@@ -937,6 +937,18 @@ fn check_function_templates() {
     // Check that array parameters can infer the required type
     check_types("template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f(a); }");
 
+    // Check that the template arguments can make a vector
+    check_types("template<typename T> T f(vector<T, 2> v) { return v[1]; } void main() { float2 a = { 0, 1 }; f<float>(a); }");
+
+    // Check that vector parameters can infer the required type
+    check_types("template<typename T> T f(vector<T, 2> v) { return v[1]; } void main() { float2 a = { 0, 1 }; f(a); }");
+
+    // Check that the template arguments can make a matrix
+    check_types("template<typename T> T f(matrix<T, 2, 2> v) { return v[1][0]; } void main() { float2x2 a; f<float>(a); }");
+
+    // Check that matrix parameters can infer the required type
+    check_types("template<typename T> T f(matrix<T, 2, 2> v) { return v[1][0]; } void main() { float2x2 a; f(a); }");
+
     // Redefinitions should fail - different typename
     check_fail("template<typename T> void f() {} template<typename G> void f() {}");
 

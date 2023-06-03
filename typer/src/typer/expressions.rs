@@ -226,6 +226,20 @@ fn try_infer_template_type(
     // Drill down into the type
     let layer_input = context.module.type_registry.get_type_layer(input_type_id);
     match (layer_required, layer_input) {
+        (ir::TypeLayer::Vector(id_req, x_req), ir::TypeLayer::Vector(id_in, x_in))
+            if x_req == x_in =>
+        {
+            if let Some(ty) = try_infer_template_type(template_type_id, id_req, id_in, context) {
+                return Some(ty);
+            }
+        }
+        (ir::TypeLayer::Matrix(id_req, x_req, y_req), ir::TypeLayer::Matrix(id_in, x_in, y_in))
+            if x_req == x_in && y_req == y_in =>
+        {
+            if let Some(ty) = try_infer_template_type(template_type_id, id_req, id_in, context) {
+                return Some(ty);
+            }
+        }
         (ir::TypeLayer::Array(id_req, len_req), ir::TypeLayer::Array(id_in, len_in))
             if len_req == len_in =>
         {

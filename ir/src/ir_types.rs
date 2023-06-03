@@ -64,12 +64,18 @@ impl TypeRegistry {
 
         match layer {
             TypeLayer::Vector(inner, _) => {
-                if !matches!(self.get_type_layer(inner), TypeLayer::Scalar(_)) {
+                if !matches!(
+                    self.get_type_layer(inner),
+                    TypeLayer::Scalar(_) | TypeLayer::TemplateParam(_)
+                ) {
                     panic!("{:?} inside vector", self.get_type_layer(inner));
                 }
             }
             TypeLayer::Matrix(inner, _, _) => {
-                if !matches!(self.get_type_layer(inner), TypeLayer::Scalar(_)) {
+                if !matches!(
+                    self.get_type_layer(inner),
+                    TypeLayer::Scalar(_) | TypeLayer::TemplateParam(_)
+                ) {
                     panic!("{:?} inside matrix", self.get_type_layer(inner));
                 }
             }
