@@ -48,6 +48,9 @@ pub struct TemplateParamType {
     /// Name for the template parameter
     pub name: Located<String>,
 
+    /// Id of the type that represents this template type
+    pub type_id: TypeId,
+
     /// Index into list of template arguments the parameter is contained in
     pub positional_index: u32,
 }
@@ -105,10 +108,21 @@ impl TypeRegistry {
     }
 
     /// Register a new template type parameter with the module
-    pub fn register_template_type(&mut self, def: TemplateParamType) -> TemplateTypeId {
+    pub fn register_template_type(
+        &mut self,
+        name: Located<String>,
+        positional_index: u32,
+    ) -> TemplateTypeId {
         let id = TemplateTypeId(self.template_types.len() as u32);
 
-        self.template_types.push(def);
+        // Make a type id for the new template type id
+        let type_id = self.register_type(TypeLayer::TemplateParam(id));
+
+        self.template_types.push(TemplateParamType {
+            name,
+            type_id,
+            positional_index,
+        });
 
         id
     }

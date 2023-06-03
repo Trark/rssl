@@ -773,10 +773,7 @@ fn get_type_id(
         TypeDef::FunctionTemplateArgument => {
             let id = module
                 .type_registry
-                .register_template_type(TemplateParamType {
-                    name: Located::none("T".to_string()),
-                    positional_index: 0,
-                });
+                .register_template_type(Located::none("T".to_string()), 0);
             module
                 .type_registry
                 .register_type(TypeLayer::TemplateParam(id))

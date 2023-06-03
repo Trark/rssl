@@ -76,14 +76,10 @@ pub fn parse_function_signature(
                 if ty_param.default.is_some() {
                     todo!("default template arguments not implemented");
                 }
-                let id =
-                    context
-                        .module
-                        .type_registry
-                        .register_template_type(ir::TemplateParamType {
-                            name: ty_param.name.clone(),
-                            positional_index: i as u32,
-                        });
+                let id = context
+                    .module
+                    .type_registry
+                    .register_template_type(ty_param.name.clone(), i as u32);
                 context.insert_template_type(id)?;
                 ir::TemplateParam::Type(id)
             }

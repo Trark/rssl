@@ -60,21 +60,27 @@ struct ScopeData {
 
     variables: VariableBlock,
 
-    function_ids: HashMap<String, Vec<ir::FunctionId>>,
-    types: HashMap<String, ir::TypeId>,
-    constants: HashMap<String, ir::Constant>,
-    cbuffer_ids: HashMap<String, ir::ConstantBufferId>,
-    global_ids: HashMap<String, ir::GlobalId>,
-    enum_values: HashMap<String, ir::EnumValueId>,
-    untyped_enum_values: HashMap<String, ir::EnumValueId>,
-    template_args: HashMap<String, (ir::TemplateTypeId, ir::TypeId)>,
-    template_values: HashMap<String, ir::TemplateValueId>,
-    namespaces: HashMap<String, ScopeIndex>,
-    enum_scopes: HashMap<String, ScopeIndex>,
+    symbols: HashMap<String, Vec<ScopeSymbol>>,
 
     owning_struct: Option<ir::StructId>,
     owning_enum: Option<ir::EnumId>,
     function_return_type: Option<ir::TypeId>,
+}
+
+/// Kind of any symbol that may be queried with a link to the full definition
+#[derive(Debug, Clone)]
+enum ScopeSymbol {
+    Function(ir::FunctionId),
+    Type(ir::TypeId),
+    Constant(ir::Constant),
+    ConstantBuffer(ir::ConstantBufferId),
+    GlobalVariable(ir::GlobalId),
+    EnumValue(ir::EnumValueId),
+    EnumValueUntyped(ir::EnumValueId),
+    TemplateType(ir::TemplateTypeId),
+    TemplateValue(ir::TemplateValueId),
+    Namespace(ScopeIndex),
+    EnumScope(ScopeIndex),
 }
 
 impl Context {
@@ -86,17 +92,7 @@ impl Context {
                 parent_scope: usize::MAX,
                 scope_name: None,
                 variables: VariableBlock::new(),
-                function_ids: HashMap::with_capacity(1024),
-                types: HashMap::new(),
-                constants: HashMap::new(),
-                cbuffer_ids: HashMap::new(),
-                global_ids: HashMap::new(),
-                enum_values: HashMap::new(),
-                untyped_enum_values: HashMap::new(),
-                template_args: HashMap::new(),
-                template_values: HashMap::new(),
-                namespaces: HashMap::new(),
-                enum_scopes: HashMap::new(),
+                symbols: HashMap::with_capacity(1024),
                 owning_struct: None,
                 owning_enum: None,
                 function_return_type: None,
@@ -137,17 +133,7 @@ impl Context {
             parent_scope: parent,
             scope_name: None,
             variables: VariableBlock::new(),
-            function_ids: HashMap::new(),
-            types: HashMap::new(),
-            constants: HashMap::new(),
-            cbuffer_ids: HashMap::new(),
-            global_ids: HashMap::new(),
-            enum_values: HashMap::new(),
-            untyped_enum_values: HashMap::new(),
-            template_args: HashMap::new(),
-            template_values: HashMap::new(),
-            namespaces: HashMap::new(),
-            enum_scopes: HashMap::new(),
+            symbols: HashMap::with_capacity(1024),
             owning_struct: None,
             owning_enum: None,
             function_return_type: None,
@@ -344,12 +330,23 @@ impl Context {
     fn walk_into_scopes(&self, start: ScopeIndex, names: &[Located<String>]) -> Option<ScopeIndex> {
         let mut current = start;
         for scope in names {
-            // Currently only support namespaces and enums - not struct name scopes
-            if let Some(index) = self.scopes[current].namespaces.get(&scope.node) {
-                current = *index;
-            } else if let Some(index) = self.scopes[current].enum_scopes.get(&scope.node) {
-                current = *index;
-            } else {
+            if let Some(symbols) = self.scopes[current].symbols.get(&scope.node) {
+                for symbol in symbols {
+                    // Currently only support namespaces and enums - not struct name scopes
+                    match symbol {
+                        ScopeSymbol::Namespace(index) => {
+                            assert_eq!(current, start);
+                            current = *index
+                        }
+                        ScopeSymbol::EnumScope(index) => {
+                            assert_eq!(current, start);
+                            current = *index
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if current == start {
                 return None;
             }
         }
@@ -530,16 +527,21 @@ impl Context {
             }
             _ => {}
         };
-        match self.scopes[self.current_scope]
-            .global_ids
-            .entry(data.name.node.clone())
-        {
-            Entry::Occupied(_) => unreachable!("global variable inserted multiple times"),
-            Entry::Vacant(vacant) => {
-                vacant.insert(id);
-                Ok(id)
+
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
+            .entry(data.name.to_string())
+            .or_default();
+
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::GlobalVariable(_) = symbol {
+                unreachable!("global variable inserted multiple times");
             }
         }
+
+        existing_symbols.push(ScopeSymbol::GlobalVariable(id));
+
+        Ok(id)
     }
 
     /// Register a new struct type
@@ -571,17 +573,19 @@ impl Context {
         });
         let data = self.module.struct_registry.last().unwrap();
         if is_non_template {
-            match self.scopes[self.current_scope]
-                .types
+            let existing_symbols = self.scopes[self.current_scope]
+                .symbols
                 .entry(data.name.to_string())
-            {
-                Entry::Vacant(v) => {
-                    v.insert(type_id);
-                }
-                Entry::Occupied(o) => {
-                    return Err(*o.get());
+                .or_default();
+
+            // Check for existing symbols
+            for symbol in &*existing_symbols {
+                if let ScopeSymbol::Type(id) = symbol {
+                    return Err(*id);
                 }
             }
+
+            existing_symbols.push(ScopeSymbol::Type(type_id));
         }
         Ok(id)
     }
@@ -626,16 +630,20 @@ impl Context {
                 ast,
             });
         let data = self.module.struct_template_registry.last().unwrap();
-        match self.scopes[self.current_scope]
-            .types
-            .entry(data.name.to_string())
         {
-            Entry::Vacant(v) => {
-                v.insert(type_id);
+            let existing_symbols = self.scopes[self.current_scope]
+                .symbols
+                .entry(data.name.to_string())
+                .or_default();
+
+            // Check for existing symbols
+            for symbol in &*existing_symbols {
+                if let ScopeSymbol::Type(id) = symbol {
+                    return Err(*id);
+                }
             }
-            Entry::Occupied(o) => {
-                return Err(*o.get());
-            }
+
+            existing_symbols.push(ScopeSymbol::Type(type_id));
         }
         Ok(id)
     }
@@ -670,19 +678,22 @@ impl Context {
 
         self.scopes[new_scope].owning_enum = Some(id);
 
-        // Record the enum scope index in the parent scope
-        self.scopes[parent_scope]
-            .enum_scopes
-            .insert(name.clone(), new_scope);
+        // Record the type and enum scope index in the parent scope
+        {
+            let existing_symbols = self.scopes[parent_scope]
+                .symbols
+                .entry(name.to_string())
+                .or_default();
 
-        // Record the type in the parent scope
-        match self.scopes[parent_scope].types.entry(name) {
-            Entry::Vacant(v) => {
-                v.insert(type_id);
+            // Check for existing symbols
+            for symbol in &*existing_symbols {
+                if let ScopeSymbol::Type(id) = symbol {
+                    return Err(*id);
+                }
             }
-            Entry::Occupied(o) => {
-                return Err(*o.get());
-            }
+
+            existing_symbols.push(ScopeSymbol::EnumScope(new_scope));
+            existing_symbols.push(ScopeSymbol::Type(type_id));
         }
 
         Ok(id)
@@ -694,13 +705,26 @@ impl Context {
         let parent_scope = enum_scope.parent_scope;
         let enum_id = enum_scope.owning_enum.unwrap();
 
-        let mut enum_values = std::mem::take(&mut enum_scope.untyped_enum_values);
+        // Steal all symbols from the enum scope
+        let enum_symbols = std::mem::take(&mut enum_scope.symbols);
+
+        // Flatten enum values into an array
+        let mut enum_values = Vec::new();
+        for (name, symbols) in enum_symbols {
+            assert_eq!(symbols.len(), 1);
+            match symbols[0] {
+                ScopeSymbol::EnumValueUntyped(id) => {
+                    enum_values.push((name, id));
+                }
+                _ => unreachable!("non-enum symbol in enum scope"),
+            }
+        }
 
         // Gather value range for enum values
         // Zero is valid for all integer like types - and deduction is meant to assume a single 0 value if there are none
         let mut min_value = 0;
         let mut max_value = 0;
-        for enum_value_id in enum_values.values() {
+        for (_, enum_value_id) in &enum_values {
             let constant = &self
                 .module
                 .enum_registry
@@ -765,7 +789,7 @@ impl Context {
             .set_underlying_type_id(enum_id, underlying_ty, scalar_type);
 
         // Update values to be in the selected underlying type
-        for enum_value_id in enum_values.values() {
+        for (_, enum_value_id) in &enum_values {
             let constant = &self
                 .module
                 .enum_registry
@@ -795,25 +819,30 @@ impl Context {
             );
         }
 
-        // Remove untyped enum values from the parent scope
-        assert_eq!(
-            self.scopes[parent_scope].untyped_enum_values.len(),
-            enum_values.len()
-        );
-        self.scopes[parent_scope].untyped_enum_values.clear();
-
-        // Insert them again as typed values
-        for (enum_name, enum_value_id) in &enum_values {
-            let res = self.scopes[parent_scope]
-                .enum_values
-                .insert(enum_name.clone(), *enum_value_id);
-            assert!(res.is_none());
+        // Promote untyped enum values to typed in parent scope
+        let mut replacements = 0;
+        for (name, _) in &enum_values {
+            let symbols = self.scopes[parent_scope].symbols.get_mut(name).unwrap();
+            assert_eq!(symbols.len(), 1);
+            for symbol in symbols {
+                if let ScopeSymbol::EnumValueUntyped(id) = symbol {
+                    *symbol = ScopeSymbol::EnumValue(*id);
+                    replacements += 1;
+                }
+            }
         }
+        assert_eq!(replacements, enum_values.len());
 
-        // Promote untyped enum values to typed in enum scope
-        let enum_scope = &mut self.scopes[self.current_scope];
-        assert!(enum_scope.enum_values.is_empty());
-        std::mem::swap(&mut enum_scope.enum_values, &mut enum_values);
+        // Insert enum values back into enum scope in typed form
+        for (name, id) in enum_values {
+            if self.scopes[self.current_scope]
+                .symbols
+                .insert(name, Vec::from([ScopeSymbol::EnumValue(id)]))
+                .is_some()
+            {
+                panic!("duplicate symbol when reinserting typed enum values");
+            }
+        }
 
         self.pop_scope();
 
@@ -871,16 +900,38 @@ impl Context {
         };
 
         // Insert the value into the enum scope
-        let res = self.scopes[self.current_scope]
-            .untyped_enum_values
-            .insert(name.node.clone(), id);
-        assert!(res.is_none(), "enum value inserted multiple times");
+        {
+            let existing_symbols = self.scopes[self.current_scope]
+                .symbols
+                .entry(name.node.clone())
+                .or_default();
+
+            for symbol in &*existing_symbols {
+                assert!(
+                    !matches!(symbol, ScopeSymbol::EnumValueUntyped(_)),
+                    "enum value inserted multiple times"
+                );
+            }
+
+            existing_symbols.push(ScopeSymbol::EnumValueUntyped(id));
+        }
 
         // Insert the value into the parent scope
-        let res = self.scopes[parent_scope]
-            .untyped_enum_values
-            .insert(name.node, id);
-        assert!(res.is_none(), "enum value inserted multiple times");
+        {
+            let existing_symbols = self.scopes[parent_scope]
+                .symbols
+                .entry(name.node)
+                .or_default();
+
+            for symbol in &*existing_symbols {
+                assert!(
+                    !matches!(symbol, ScopeSymbol::EnumValueUntyped(_)),
+                    "enum value inserted multiple times"
+                );
+            }
+
+            existing_symbols.push(ScopeSymbol::EnumValueUntyped(id));
+        }
 
         Ok(())
     }
@@ -923,98 +974,123 @@ impl Context {
             members: Vec::new(),
         });
         let data = self.module.cbuffer_registry.last().unwrap();
-        match self.scopes[self.current_scope]
-            .cbuffer_ids
+
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
             .entry(data.name.to_string())
-        {
-            Entry::Vacant(id_v) => {
-                id_v.insert(id);
-                Ok(id)
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::ConstantBuffer(id) = symbol {
+                return Err(*id);
             }
-            Entry::Occupied(id_o) => Err(*id_o.get()),
         }
+
+        existing_symbols.push(ScopeSymbol::ConstantBuffer(id));
+        Ok(id)
     }
 
     /// Register a new typedef
     pub fn register_typedef(&mut self, name: Located<String>, ty: ir::TypeId) -> TyperResult<()> {
-        match self.scopes[self.current_scope]
-            .types
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
             .entry(name.to_string())
-        {
-            Entry::Vacant(v) => {
-                v.insert(ty);
-                Ok(())
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::Type(id) = symbol {
+                return Err(TyperError::TypeAlreadyDefined(name, *id));
             }
-            Entry::Occupied(o) => Err(TyperError::TypeAlreadyDefined(name, *o.get())),
         }
+
+        existing_symbols.push(ScopeSymbol::Type(ty));
+        Ok(())
     }
 
     /// Register a new template type parameter
     pub fn insert_template_type(&mut self, id: ir::TemplateTypeId) -> TyperResult<()> {
         let name = &self.module.type_registry.get_template_type(id).name;
-        if let Some(v) = self.scopes[self.current_scope]
-            .template_values
-            .get(&name.node)
-        {
-            return Err(TyperError::TemplateValueAlreadyDefined(name.clone(), *v));
-        }
-        match self.scopes[self.current_scope]
-            .template_args
+
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
             .entry(name.to_string())
-        {
-            Entry::Vacant(id_v) => {
-                let ty_id = self
-                    .module
-                    .type_registry
-                    .register_type(ir::TypeLayer::TemplateParam(id));
-                id_v.insert((id, ty_id));
-                Ok(())
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            match symbol {
+                ScopeSymbol::TemplateType(id) => {
+                    return Err(TyperError::TemplateTypeAlreadyDefined(name.clone(), *id));
+                }
+                ScopeSymbol::TemplateValue(v) => {
+                    return Err(TyperError::TemplateValueAlreadyDefined(name.clone(), *v));
+                }
+                _ => {}
             }
-            Entry::Occupied(id_o) => Err(TyperError::TemplateTypeAlreadyDefined(
-                name.clone(),
-                id_o.get().0,
-            )),
         }
+
+        existing_symbols.push(ScopeSymbol::TemplateType(id));
+        Ok(())
     }
 
     /// Register a new template value parameter
     pub fn insert_template_value(&mut self, id: ir::TemplateValueId) -> TyperResult<()> {
         let name = &self.module.variable_registry.get_template_value(id).name;
-        if let Some(v) = self.scopes[self.current_scope]
-            .template_args
-            .get(&name.node)
-        {
-            return Err(TyperError::TemplateTypeAlreadyDefined(name.clone(), v.0));
-        }
-        match self.scopes[self.current_scope]
-            .template_values
+
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
             .entry(name.to_string())
-        {
-            Entry::Vacant(id_v) => {
-                id_v.insert(id);
-                Ok(())
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            match symbol {
+                ScopeSymbol::TemplateType(id) => {
+                    return Err(TyperError::TemplateTypeAlreadyDefined(name.clone(), *id));
+                }
+                ScopeSymbol::TemplateValue(v) => {
+                    return Err(TyperError::TemplateValueAlreadyDefined(name.clone(), *v));
+                }
+                _ => {}
             }
-            Entry::Occupied(id_o) => Err(TyperError::TemplateValueAlreadyDefined(
-                name.clone(),
-                *id_o.get(),
-            )),
         }
+
+        existing_symbols.push(ScopeSymbol::TemplateValue(id));
+        Ok(())
     }
 
     /// Start a namespace scope
     pub fn enter_namespace(&mut self, name: &String) {
-        if let Some(index) = self.scopes[self.current_scope].namespaces.get(name) {
-            // If the namespace already exists then reopen it
-            assert_eq!(self.scopes[*index].parent_scope, self.current_scope);
-            self.current_scope = *index;
-        } else {
-            // Make a new scope for the namespace
-            let parent_scope = self.current_scope;
-            let scope_index = self.push_scope_with_name(name);
-            self.scopes[parent_scope]
-                .namespaces
-                .insert(name.clone(), scope_index);
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
+            .entry(name.to_string())
+            .or_default();
+
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::Namespace(index) = symbol {
+                // If the namespace already exists then reopen it
+                let index = *index;
+                assert_eq!(self.scopes[index].parent_scope, self.current_scope);
+                self.current_scope = index;
+                return;
+            }
         }
+
+        // Make a new scope for the namespace
+        let parent_scope = self.current_scope;
+        let scope_index = self.push_scope_with_name(name);
+
+        // Refetch symbols after scope modification
+        let existing_symbols = self.scopes[parent_scope].symbols.get_mut(name).unwrap();
+
+        // There should still be no namespaces in the scope
+        for symbol in &*existing_symbols {
+            assert!(!matches!(symbol, ScopeSymbol::Namespace(_)));
+        }
+
+        existing_symbols.push(ScopeSymbol::Namespace(scope_index));
     }
 
     // Leave the current namespace
@@ -1049,44 +1125,70 @@ impl Context {
             return Some(ve);
         }
 
-        if let Some(ids) = scope.function_ids.get(name) {
-            let mut overloads = Vec::with_capacity(ids.len());
-            for id in ids {
-                overloads.push(*id);
+        let mut overloads = Vec::new();
+
+        if let Some(symbols) = scope.symbols.get(name) {
+            for symbol in symbols {
+                debug_assert!(overloads.is_empty() || matches!(symbol, ScopeSymbol::Function(_)));
+                match symbol {
+                    ScopeSymbol::Function(id) => overloads.push(*id),
+                    ScopeSymbol::ConstantBuffer(_) => {}
+                    ScopeSymbol::GlobalVariable(id) => {
+                        let type_id = self.module.global_registry[id.0 as usize].type_id;
+                        return Some(VariableExpression::Global(*id, type_id));
+                    }
+                    ScopeSymbol::EnumValueUntyped(enum_value_id) => {
+                        let def = self.module.enum_registry.get_enum_value(*enum_value_id);
+                        return Some(VariableExpression::EnumValueUntyped(
+                            def.value.clone(),
+                            def.underlying_type_id,
+                        ));
+                    }
+                    ScopeSymbol::EnumValue(enum_value_id) => {
+                        let def = self.module.enum_registry.get_enum_value(*enum_value_id);
+                        return Some(VariableExpression::EnumValue(*enum_value_id, def.type_id));
+                    }
+                    ScopeSymbol::Type(_) => {}
+                    ScopeSymbol::TemplateType(id) => {
+                        let type_id = self.module.type_registry.get_template_type(*id).type_id;
+                        return Some(VariableExpression::Type(type_id));
+                    }
+                    ScopeSymbol::TemplateValue(_) => {
+                        // We do not expect to need to find template values when in value form
+                        // These become named constants before parsing internals
+                        unreachable!()
+                    }
+                    ScopeSymbol::Constant(c) => {
+                        // Return a name bound to an evaluated constant value
+                        return Some(VariableExpression::Constant(c.clone()));
+                    }
+                    ScopeSymbol::Namespace(_) => {}
+                    ScopeSymbol::EnumScope(_) => {}
+                }
             }
+        }
+
+        if !overloads.is_empty() {
             return Some(VariableExpression::Function(UnresolvedFunction {
                 overloads,
             }));
         }
 
-        for id in scope.cbuffer_ids.values() {
-            for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
-                if member_name == name {
-                    return Some(VariableExpression::ConstantBufferMember(
-                        *id,
-                        name.to_string(),
-                        *ty,
-                    ));
+        // We do not currently store the individual constant buffer members in the symbol map
+        for symbols in scope.symbols.values() {
+            for symbol in symbols {
+                if let ScopeSymbol::ConstantBuffer(id) = symbol {
+                    for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
+                        if member_name == name {
+                            return Some(VariableExpression::ConstantBufferMember(
+                                *id,
+                                name.to_string(),
+                                *ty,
+                            ));
+                        }
+                    }
                 }
             }
-        }
-
-        if let Some(id) = scope.global_ids.get(name) {
-            let type_id = self.module.global_registry[id.0 as usize].type_id;
-            return Some(VariableExpression::Global(*id, type_id));
-        }
-
-        if let Some(enum_value_id) = scope.untyped_enum_values.get(name) {
-            let def = self.module.enum_registry.get_enum_value(*enum_value_id);
-            return Some(VariableExpression::EnumValueUntyped(
-                def.value.clone(),
-                def.underlying_type_id,
-            ));
-        }
-
-        if let Some(enum_value_id) = scope.enum_values.get(name) {
-            let def = self.module.enum_registry.get_enum_value(*enum_value_id);
-            return Some(VariableExpression::EnumValue(*enum_value_id, def.type_id));
         }
 
         // If the scope is for a struct then struct members are possible identifiers
@@ -1103,22 +1205,13 @@ impl Context {
             }
         }
 
-        // Try to find a type name in the searched scope
-        if let Some(ty) = scope.types.get(name) {
-            return Some(VariableExpression::Type(*ty));
-        }
-
-        // Try to find a template type name in the searched scope
-        if let Some((_, ty_id)) = scope.template_args.get(name) {
-            return Some(VariableExpression::Type(*ty_id));
-        }
-
-        // We do not expect to need to find template values when in value form
-        // These become named constants before parsing internals
-
-        // Try to find a name bound to a constant value
-        if let Some(c) = scope.constants.get(name) {
-            return Some(VariableExpression::Constant(c.clone()));
+        // Check for type symbols - these are hidden by non-type symbols so are checked later
+        if let Some(symbols) = scope.symbols.get(name) {
+            for symbol in symbols {
+                if let ScopeSymbol::Type(id) = symbol {
+                    return Some(VariableExpression::Type(*id));
+                }
+            }
         }
 
         None
@@ -1190,6 +1283,9 @@ impl Context {
         Ok(declaration)
     }
 
+    /// Add a function into the symbols for a scope
+    ///
+    /// Duplicate redefinitions should have already been checked
     fn insert_function_in_scope(
         &mut self,
         scope_index: usize,
@@ -1200,18 +1296,18 @@ impl Context {
             .function_registry
             .get_function_name_definition(id);
 
-        // Try to add the function
+        // Add the function
         match self.scopes[scope_index]
-            .function_ids
+            .symbols
             .entry(name_data.name.node.clone())
         {
             Entry::Occupied(mut occupied) => {
                 // Insert a new overload
-                occupied.get_mut().push(id);
+                occupied.get_mut().push(ScopeSymbol::Function(id));
             }
             Entry::Vacant(vacant) => {
                 // Insert a new function with one overload
-                vacant.insert(Vec::from([id]));
+                vacant.insert(Vec::from([ScopeSymbol::Function(id)]));
             }
         };
 
@@ -1248,46 +1344,64 @@ impl Context {
         assert!(self.scopes[old_scope_id].variables.variables.is_empty());
 
         // None of these expected inside the function scope
-        assert!(self.scopes[old_scope_id].function_ids.is_empty());
-        assert!(self.scopes[old_scope_id].types.is_empty());
-        assert!(self.scopes[old_scope_id].cbuffer_ids.is_empty());
-        assert!(self.scopes[old_scope_id].global_ids.is_empty());
-
-        // Insert template parameter names as the provided types
-        // The new scopes template_args is empty as they are real types now
-        for (template_param_name, (template_param_id, _)) in
-            self.scopes[old_scope_id].template_args.clone()
-        {
-            let index = self
-                .module
-                .type_registry
-                .get_template_type(template_param_id)
-                .positional_index;
-            match &template_args[index as usize].node {
-                ir::TypeOrConstant::Type(ty) => {
-                    self.scopes[new_scope_id]
-                        .types
-                        .insert(template_param_name, *ty);
-                }
-                ir::TypeOrConstant::Constant(_) => return None,
+        for symbols in self.scopes[old_scope_id].symbols.values() {
+            for symbol in symbols {
+                assert!(!matches!(symbol, ScopeSymbol::Function(_)));
+                assert!(!matches!(symbol, ScopeSymbol::Type(_)));
+                assert!(!matches!(symbol, ScopeSymbol::ConstantBuffer(_)));
+                assert!(!matches!(symbol, ScopeSymbol::GlobalVariable(_)));
             }
         }
 
-        for (template_param_name, template_param_id) in
-            self.scopes[old_scope_id].template_values.clone()
-        {
-            let index = self
-                .module
-                .variable_registry
-                .get_template_value(template_param_id)
-                .positional_index;
-            match &template_args[index as usize].node {
-                ir::TypeOrConstant::Type(_) => return None,
-                ir::TypeOrConstant::Constant(c) => {
-                    self.scopes[new_scope_id]
-                        .constants
-                        .insert(template_param_name, c.clone().unrestrict());
+        // Gather template parameters to replace with the provided types
+        let mut new_symbols = Vec::new();
+        for (template_param_name, symbols) in &self.scopes[old_scope_id].symbols {
+            for symbol in symbols {
+                match symbol {
+                    ScopeSymbol::TemplateType(template_param_id) => {
+                        let index = self
+                            .module
+                            .type_registry
+                            .get_template_type(*template_param_id)
+                            .positional_index;
+                        match &template_args[index as usize].node {
+                            ir::TypeOrConstant::Type(ty) => {
+                                new_symbols
+                                    .push((template_param_name.clone(), ScopeSymbol::Type(*ty)));
+                            }
+                            ir::TypeOrConstant::Constant(_) => return None,
+                        }
+                    }
+                    ScopeSymbol::TemplateValue(template_param_id) => {
+                        let index = self
+                            .module
+                            .variable_registry
+                            .get_template_value(*template_param_id)
+                            .positional_index;
+                        match &template_args[index as usize].node {
+                            ir::TypeOrConstant::Type(_) => return None,
+                            ir::TypeOrConstant::Constant(c) => {
+                                new_symbols.push((
+                                    template_param_name.clone(),
+                                    ScopeSymbol::Constant(c.clone().unrestrict()),
+                                ));
+                            }
+                        }
+                    }
+                    _ => {}
                 }
+            }
+        }
+
+        // Insert the new symbols we just gathered
+        // The new scope will not have any TemplateType or TemplateValue symbols as they are real types now
+        for (name, symbol) in new_symbols {
+            if self.scopes[new_scope_id]
+                .symbols
+                .insert(name, Vec::from([symbol]))
+                .is_some()
+            {
+                panic!("duplicate name from template arg");
             }
         }
 
