@@ -1152,7 +1152,13 @@ impl Context {
                         .module
                         .function_registry
                         .get_function_signature(existing_id);
-                    if existing_signature.param_types == signature.param_types {
+                    if existing_signature.param_types == signature.param_types
+                        && check_similar_template_params(
+                            &existing_signature.template_params,
+                            &signature.template_params,
+                            &self.module,
+                        )
+                    {
                         let has_impl = self
                             .module
                             .function_registry
@@ -1217,7 +1223,7 @@ impl Context {
         &mut self,
         id: ir::FunctionId,
         template_args: &[Located<ir::TypeOrConstant>],
-    ) -> ir::FunctionId {
+    ) -> Option<ir::FunctionId> {
         let data = &self.function_data[&id];
         let template_args_no_loc = template_args
             .iter()
@@ -1230,7 +1236,7 @@ impl Context {
             .function_registry
             .find_instantiation(id, &template_args_no_loc)
         {
-            return id;
+            return Some(id);
         }
 
         // Setup the scope data based on the template function scope
@@ -1263,9 +1269,7 @@ impl Context {
                         .types
                         .insert(template_param_name, *ty);
                 }
-                ir::TypeOrConstant::Constant(_) => {
-                    todo!("Non-type template argument given to type")
-                }
+                ir::TypeOrConstant::Constant(_) => return None,
             }
         }
 
@@ -1278,9 +1282,7 @@ impl Context {
                 .get_template_value(template_param_id)
                 .positional_index;
             match &template_args[index as usize].node {
-                ir::TypeOrConstant::Type(_) => {
-                    todo!("Type template argument given to non-type")
-                }
+                ir::TypeOrConstant::Type(_) => return None,
                 ir::TypeOrConstant::Constant(c) => {
                     self.scopes[new_scope_id]
                         .constants
@@ -1336,7 +1338,7 @@ impl Context {
             },
         );
 
-        new_id
+        Some(new_id)
     }
 
     /// Construct or build an instantiation of a template function
@@ -1510,6 +1512,36 @@ impl VariableBlock {
             vec
         })
     }
+}
+
+/// Check if an existing set of template parameters are a redefinition of a new set of template parameters
+fn check_similar_template_params(
+    left: &[ir::TemplateParam],
+    right: &[ir::TemplateParam],
+    module: &ir::Module,
+) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+
+    for (lp, rp) in left.iter().zip(right) {
+        match (lp, rp) {
+            // If they are both types then the slots match
+            (ir::TemplateParam::Type(_), ir::TemplateParam::Type(_)) => {}
+            // If they are both values then the slots match if the value type is the same
+            (ir::TemplateParam::Value(lid), ir::TemplateParam::Value(rid)) => {
+                let lv = module.variable_registry.get_template_value(*lid);
+                let rv = module.variable_registry.get_template_value(*rid);
+                if lv.type_id != rv.type_id {
+                    return false;
+                }
+            }
+
+            _ => return false,
+        }
+    }
+
+    true
 }
 
 impl Default for Context {

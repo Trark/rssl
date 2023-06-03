@@ -179,7 +179,10 @@ fn find_overload_casts(
         {
             context.build_intrinsic_template(id, &inferred_args)
         } else {
-            context.build_function_template_signature(id, &inferred_args)
+            match context.build_function_template_signature(id, &inferred_args) {
+                Some(id) => id,
+                None => return Err(()),
+            }
         };
 
         id = new_id;

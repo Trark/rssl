@@ -964,7 +964,29 @@ fn check_function_template_non_type() {
     // Check we can pass a value argument with a type from a type argument
     check_types("template<typename T, T L> void f() { T data[L]; } void main() { f<uint, 2>(); f<float, 4>(); }");
 
-    // TODO: Ensure input type is consistent with required type
+    // Redefinitions should fail - different name
+    check_fail("template<uint X> void f() {} template<uint Y> void f() {}");
+
+    // Different value type os not a redefinition
+    check_types("template<uint X> void f() {} template<int Y> void f() {}");
+
+    // But we don't handle redefinitions where the value parameter is based on another template type
+
+    // Check that passing a type to a non-type parameter fails gracefully
+    check_fail("template<uint L> void f() {} void main() { f<uint>(); }");
+
+    // Check that passing a value to a type parameter fails gracefully
+    check_fail("template<typename T> void f() {} void main() { f<2>(); }");
+
+    // Check we are able to pick the valid parameter type - type first version
+    check_types(
+        "template<typename T> void f() {} template<uint L> void f() {} void main() { f<uint>(); f<0>(); }",
+    );
+
+    // Check we are able to pick the valid parameter type - value first version
+    check_types(
+        "template<uint L> void f() {} template<typename T> void f() {} void main() { f<uint>(); f<0>(); }",
+    );
 }
 
 #[test]
