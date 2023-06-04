@@ -21,7 +21,6 @@ pub struct Context {
     function_data: HashMap<ir::FunctionId, FunctionData>,
     struct_data: Vec<StructData>,
     struct_template_data: Vec<StructTemplateData>,
-    cbuffer_data: Vec<ConstantBufferData>,
 }
 
 pub type ScopeIndex = usize;
@@ -46,11 +45,6 @@ struct StructData {
 struct StructTemplateData {
     scope: ScopeIndex,
     instantiations: HashMap<Vec<ir::TypeOrConstant>, ir::StructId>,
-}
-
-#[derive(Debug, Clone)]
-struct ConstantBufferData {
-    members: HashMap<String, ir::TypeId>,
 }
 
 #[derive(Debug, Clone)]
@@ -101,7 +95,6 @@ impl Context {
             function_data: HashMap::new(),
             struct_data: Vec::new(),
             struct_template_data: Vec::new(),
-            cbuffer_data: Vec::new(),
         };
 
         for i in 0..context.module.function_registry.get_function_count() {
@@ -366,15 +359,17 @@ impl Context {
         id: ir::ConstantBufferId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
-        assert!(id.0 < self.cbuffer_data.len() as u32);
-        match self.cbuffer_data[id.0 as usize].members.get(name) {
-            Some(ty) => Ok(ty.to_lvalue()),
-            None => Err(TyperError::ConstantDoesNotExist(
-                id,
-                name.to_string(),
-                SourceLocation::UNKNOWN,
-            )),
+        for member in &self.module.cbuffer_registry[id.0 as usize].members {
+            if member.name == name {
+                return Ok(member.type_id.to_lvalue());
+            }
         }
+
+        Err(TyperError::ConstantDoesNotExist(
+            id,
+            name.to_string(),
+            SourceLocation::UNKNOWN,
+        ))
     }
 
     /// Find the type of a struct member
@@ -960,12 +955,8 @@ impl Context {
     pub fn insert_cbuffer(
         &mut self,
         name: Located<String>,
-        members: HashMap<String, ir::TypeId>,
     ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
-        let data = ConstantBufferData { members };
-        let id = ir::ConstantBufferId(self.cbuffer_data.len() as u32);
-        assert_eq!(self.cbuffer_data.len(), self.module.cbuffer_registry.len());
-        self.cbuffer_data.push(data);
+        let id = ir::ConstantBufferId(self.module.cbuffer_registry.len() as u32);
         self.module.cbuffer_registry.push(ir::ConstantBuffer {
             id,
             name,
@@ -1178,12 +1169,12 @@ impl Context {
         for symbols in scope.symbols.values() {
             for symbol in symbols {
                 if let ScopeSymbol::ConstantBuffer(id) = symbol {
-                    for (member_name, ty) in &self.cbuffer_data[id.0 as usize].members {
-                        if member_name == name {
+                    for member in &self.module.cbuffer_registry[id.0 as usize].members {
+                        if member.name == name {
                             return Some(VariableExpression::ConstantBufferMember(
                                 *id,
                                 name.to_string(),
-                                *ty,
+                                member.type_id,
                             ));
                         }
                     }

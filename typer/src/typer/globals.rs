@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::errors::*;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_initializer_opt};
@@ -160,8 +158,7 @@ pub fn parse_rootdefinition_constantbuffer(
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
     let cb_name = cb.name.clone();
-    let mut members = vec![];
-    let mut members_map = HashMap::new();
+    let mut members = Vec::new();
     for member in &cb.members {
         let base_type =
             parse_type_for_usage(&member.ty, TypePosition::ConstantBufferMember, context)?;
@@ -189,7 +186,6 @@ pub fn parse_rootdefinition_constantbuffer(
                 false,
                 context,
             )?;
-            members_map.insert(var_name.node.clone(), type_id);
             members.push(ir::ConstantVariable {
                 name: var_name.node,
                 type_id,
@@ -197,7 +193,7 @@ pub fn parse_rootdefinition_constantbuffer(
             });
         }
     }
-    let id = match context.insert_cbuffer(cb_name.clone(), members_map) {
+    let id = match context.insert_cbuffer(cb_name.clone()) {
         Ok(id) => id,
         Err(id) => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name, id)),
     };
