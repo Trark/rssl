@@ -151,6 +151,9 @@ pub enum TyperError {
     /// Reserved name used for a typedef
     IllegalTypedefName(SourceLocation),
 
+    /// Base type must also be a struct
+    IllegalStructBaseType(SourceLocation),
+
     /// A short circuiting operator received a non-scalar expression
     ShortCircuitingVector(SourceLocation),
 
@@ -791,6 +794,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::IllegalTypedefName(loc) => w.write_message(
                 &|f| write!(f, "unexpected identifier for a typedef"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::IllegalStructBaseType(loc) => w.write_message(
+                &|f| write!(f, "base type must name a struct"),
                 *loc,
                 Severity::Error,
             ),

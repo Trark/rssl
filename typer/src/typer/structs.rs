@@ -61,6 +61,19 @@ fn parse_struct_internal(
         Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
     };
 
+    let mut base_structs = Vec::new();
+    for parent in &sd.base_types {
+        // TODO: Evaluate which keywords are allowed here
+        let parent_id = parse_type_for_usage(parent, TypePosition::Free, context)?;
+        if let ir::TypeLayer::Struct(parent_sid) =
+            context.module.type_registry.get_type_layer(parent_id)
+        {
+            base_structs.push(parent_sid);
+        } else {
+            return Err(TyperError::IllegalStructBaseType(parent.location));
+        }
+    }
+
     context.push_scope_with_name(name);
     if !template_args.is_empty() {
         // Inconsistent number of args not gracefully handled
@@ -84,6 +97,26 @@ fn parse_struct_internal(
     let mut methods_to_parse = Vec::new();
     let mut member_map = HashSet::new();
     let mut method_map = HashMap::<_, Vec<_>>::new();
+
+    // Add members from base types
+    for base_struct in base_structs {
+        let base_def = &context.module.struct_registry[base_struct.0 as usize];
+
+        if !base_def.members.is_empty() {
+            for member in &base_def.members {
+                // We do not currently allow derived types to reuse names from parent type
+                member_map.insert(member.name.clone());
+                // Copy member from parent to child
+                // This means the member is owned by the child and not the parent
+                members.push(member.clone());
+            }
+        }
+
+        if !base_def.methods.is_empty() {
+            todo!("Inherited methods are not implemented");
+        }
+    }
+
     for ast_entry in &sd.members {
         match ast_entry {
             ast::StructEntry::Variable(ast_member) => {
