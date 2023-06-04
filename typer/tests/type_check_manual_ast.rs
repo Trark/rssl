@@ -61,6 +61,7 @@ fn test_ast_pass() {
                     param_type: ast::Type::from("uint"),
                     bind: Default::default(),
                     semantic: None,
+                    default_expr: None,
                 }],
                 body: Some(Vec::new()),
                 attributes: vec![],
@@ -74,6 +75,7 @@ fn test_ast_pass() {
                     param_type: ast::Type::from("float"),
                     bind: Default::default(),
                     semantic: None,
+                    default_expr: None,
                 }],
                 body: Some(Vec::new()),
                 attributes: vec![],
@@ -88,6 +90,7 @@ fn test_ast_pass() {
                         .with_modifiers(&[Located::none(ast::TypeModifier::Out)]),
                     bind: Default::default(),
                     semantic: None,
+                    default_expr: None,
                 }],
                 body: Some(Vec::from([
                     as_statement(ast::StatementKind::Var(ast::VarDef::one(

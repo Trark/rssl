@@ -1,3 +1,4 @@
+use crate::ast_expressions::Expression;
 use crate::ast_statements::{Attribute, Statement, VariableBind};
 use crate::ast_types::*;
 use rssl_text::Located;
@@ -27,6 +28,7 @@ pub struct FunctionParam {
     pub param_type: Type,
     pub bind: VariableBind,
     pub semantic: Option<Semantic>,
+    pub default_expr: Option<Expression>,
 }
 
 impl From<Type> for FunctionReturn {

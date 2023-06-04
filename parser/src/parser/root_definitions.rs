@@ -132,6 +132,7 @@ fn test_function() {
             param_type: Type::from("float".loc(11)),
             bind: Default::default(),
             semantic: None,
+            default_expr: None,
         }],
         body: Some(Vec::new()),
         attributes: Vec::new(),
@@ -150,6 +151,7 @@ fn test_function() {
                 param_type: Type::from("float".loc(34)),
                 bind: Default::default(),
                 semantic: None,
+                default_expr: None,
             }],
             body: Some(Vec::from([Statement {
                 kind: StatementKind::If(

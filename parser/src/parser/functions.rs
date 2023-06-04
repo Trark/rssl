@@ -49,11 +49,21 @@ fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
         Err(_) => (input, None),
     };
 
+    // Parse default value if present
+    let (input, default_expr) = match parse_token(Token::Equals)(input) {
+        Ok((input, _)) => match parse_expression_no_seq(input) {
+            Ok((input, expr)) => (input, Some(expr.node)),
+            Err(err) => return Err(err),
+        },
+        Err(_) => (input, None),
+    };
+
     let param = FunctionParam {
         name: param,
         param_type: ty,
         bind: VariableBind(bind),
         semantic,
+        default_expr,
     };
     Ok((input, param))
 }
@@ -70,6 +80,7 @@ fn test_function_param() {
             param_type: Type::from("float".loc(0)),
             bind: Default::default(),
             semantic: None,
+            default_expr: None,
         },
     );
     function_param.check(
@@ -83,6 +94,7 @@ fn test_function_param() {
             },
             bind: Default::default(),
             semantic: None,
+            default_expr: None,
         },
     );
     function_param.check(
@@ -96,6 +108,7 @@ fn test_function_param() {
             },
             bind: Default::default(),
             semantic: None,
+            default_expr: None,
         },
     );
     function_param.check(
@@ -109,6 +122,7 @@ fn test_function_param() {
             },
             bind: Default::default(),
             semantic: None,
+            default_expr: None,
         },
     );
     function_param.check(
@@ -122,6 +136,7 @@ fn test_function_param() {
             },
             bind: Default::default(),
             semantic: Some(Semantic::VertexId),
+            default_expr: None,
         },
     );
     function_param.check(
@@ -135,6 +150,7 @@ fn test_function_param() {
             },
             bind: Default::default(),
             semantic: Some(Semantic::User("TEXCOORD".to_string())),
+            default_expr: None,
         },
     );
     function_param.check(
@@ -146,6 +162,7 @@ fn test_function_param() {
                 Expression::Literal(Literal::IntUntyped(4)).loc(8),
             )])),
             semantic: None,
+            default_expr: None,
         },
     );
 }
@@ -213,6 +230,7 @@ fn test_template_function() {
                 param_type: Type::from("T".loc(28)),
                 bind: Default::default(),
                 semantic: None,
+                default_expr: None,
             }]),
             body: Some(Vec::new()),
             attributes: Vec::new(),
