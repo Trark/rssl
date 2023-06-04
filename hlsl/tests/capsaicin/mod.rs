@@ -92,6 +92,24 @@ fn compile_gather_area_lights_vert() {
 }
 
 #[test]
+fn compile_light_sampler_bounds() {
+    compile_file(
+        "components/light_sampler_bounds/light_sampler_bounds.comp",
+        FILES,
+    );
+}
+
+#[test]
+fn compile_gi10_comp() {
+    compile_file("render_techniques/gi10/gi10.comp", FILES);
+}
+
+#[test]
+fn compile_gi10_frag() {
+    compile_file("render_techniques/gi10/gi10.frag", FILES);
+}
+
+#[test]
 fn compile_gi10_vert() {
     compile_file("render_techniques/gi10/gi10.vert", FILES);
 }
@@ -135,6 +153,14 @@ fn compile_tone_mapping() {
 fn compile_disocclusion_mask() {
     compile_file(
         "render_techniques/visibility_buffer/disocclusion_mask.comp",
+        FILES,
+    );
+}
+
+#[test]
+fn compile_visibility_buffer_frag() {
+    compile_file(
+        "render_techniques/visibility_buffer/visibility_buffer.frag",
         FILES,
     );
 }
