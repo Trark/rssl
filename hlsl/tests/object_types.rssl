@@ -3,8 +3,8 @@ RWBufferAddress g_byteBufferOutput : register(u1);
 Buffer g_texelBuffer : register(t2);
 RWBuffer<uint3> g_texelBufferOutput : register(u3);
 Texture2D g_texture : register(t4);
-RWTexture2D<float2> g_textureOutput : register(u5);
-StructuredBuffer<uint> g_primitiveStructuredBuffer : register(t6);
+RWTexture2D<float2> g_textureOutput : register(space1);
+StructuredBuffer<uint> g_primitiveStructuredBuffer : register(space1);
 RWStructuredBuffer<uint2> g_primitiveStructuredBufferOutput : register(u7);
 
 struct S
