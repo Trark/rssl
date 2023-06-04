@@ -13,7 +13,7 @@ pub enum Expression {
     /// Reference to a variable in a global scope
     Global(GlobalId),
     /// Reference to a variable in a constant buffer global
-    ConstantVariable(ConstantBufferId, String),
+    ConstantVariable(ConstantBufferMemberId),
     /// Reference to an enum value
     EnumValue(EnumValueId),
     TernaryConditional(Box<Expression>, Box<Expression>, Box<Expression>),

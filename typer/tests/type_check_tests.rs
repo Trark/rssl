@@ -1563,6 +1563,22 @@ fn check_cbuffer() {
 
     // But they must be in the 'b' group
     check_fail("cbuffer MyConstants : register(t4) { float c1; uint c2; }");
+
+    // Check for duplicate member names
+    check_fail("cbuffer A { float c1; } cbuffer B { float c1; }");
+    check_fail("float c1; cbuffer B { float c1; }");
+    check_fail("float c1() {} cbuffer B { float c1; }");
+    check_fail("enum A { c1 = 0 }; cbuffer B { float c1; }");
+    check_fail("namespace c1 {} cbuffer B { float c1; }");
+
+    // Check members trigger duplicate names elsewhere
+    check_fail("cbuffer B { float c1; } float c1;");
+    check_fail("cbuffer B { float c1; } float c1() {}");
+    check_fail("cbuffer B { float c1; } enum A { c1 = 0 };");
+
+    // While cbuffer member names are global they do not conflict
+    check_types("namespace N { float c1; } cbuffer B { float c1; }");
+    check_types("cbuffer B { float c1; } namespace N { float c1; }");
 }
 
 #[test]

@@ -16,7 +16,7 @@ pub enum VariableExpression {
     Local(ir::VariableId, ir::TypeId),
     Member(String, ir::TypeId),
     Global(ir::GlobalId, ir::TypeId),
-    ConstantBufferMember(ir::ConstantBufferId, String, ir::TypeId),
+    ConstantBufferMember(ir::ConstantBufferMemberId, ir::TypeId),
     EnumValueUntyped(ir::Constant, ir::TypeId),
     EnumValue(ir::EnumValueId, ir::TypeId),
     Function(UnresolvedFunction),
@@ -86,8 +86,8 @@ fn parse_identifier(
         VariableExpression::Global(id, ty) => {
             TypedExpression::Value(ir::Expression::Global(id), ty.to_lvalue())
         }
-        VariableExpression::ConstantBufferMember(id, name, ty) => {
-            TypedExpression::Value(ir::Expression::ConstantVariable(id, name), ty.to_lvalue())
+        VariableExpression::ConstantBufferMember(id, ty) => {
+            TypedExpression::Value(ir::Expression::ConstantVariable(id), ty.to_lvalue())
         }
         VariableExpression::EnumValueUntyped(c, ty) => {
             TypedExpression::Value(ir::Expression::Literal(c), ty.to_rvalue())
@@ -2191,7 +2191,7 @@ fn get_expression_type(
             context.get_type_of_struct_member(struct_id, name)
         }
         ir::Expression::Global(id) => context.get_type_of_global(id),
-        ir::Expression::ConstantVariable(id, ref name) => context.get_type_of_constant(id, name),
+        ir::Expression::ConstantVariable(id) => Ok(context.get_type_of_constant(id)),
         ir::Expression::EnumValue(id) => Ok(context
             .module
             .enum_registry

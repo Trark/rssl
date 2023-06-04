@@ -56,6 +56,7 @@ enum ScopeSymbol {
     Type(ir::TypeId),
     Constant(ir::Constant),
     ConstantBuffer(ir::ConstantBufferId),
+    ConstantBufferMember(ir::ConstantBufferMemberId),
     GlobalVariable(ir::GlobalId),
     EnumValue(ir::EnumValueId),
     EnumValueUntyped(ir::EnumValueId),
@@ -341,22 +342,10 @@ impl Context {
     }
 
     /// Find the type of a constant buffer member
-    pub fn get_type_of_constant(
-        &self,
-        id: ir::ConstantBufferId,
-        name: &str,
-    ) -> TyperResult<ExpressionType> {
-        for member in &self.module.cbuffer_registry[id.0 as usize].members {
-            if member.name == name {
-                return Ok(member.type_id.to_lvalue());
-            }
-        }
-
-        Err(TyperError::ConstantDoesNotExist(
-            id,
-            name.to_string(),
-            SourceLocation::UNKNOWN,
-        ))
+    pub fn get_type_of_constant(&self, id: ir::ConstantBufferMemberId) -> ExpressionType {
+        let parent_id = id.0;
+        let def = &self.module.cbuffer_registry[parent_id.0 as usize].members[id.1 as usize];
+        def.type_id.to_lvalue()
     }
 
     /// Find the type of a struct member
@@ -510,7 +499,7 @@ impl Context {
         match self.find_identifier_in_scope(scope, &data.name) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, ref ty))
             | Some(VariableExpression::EnumValue(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     data.name.clone(),
@@ -860,7 +849,7 @@ impl Context {
         match self.find_identifier_in_scope(&self.scopes[parent_scope], &name) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, ref ty))
             | Some(VariableExpression::EnumValue(_, ref ty))
             | Some(VariableExpression::Type(ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
@@ -933,19 +922,9 @@ impl Context {
     }
 
     /// Register a new constant buffer
-    pub fn insert_cbuffer(
-        &mut self,
-        name: Located<String>,
-    ) -> Result<ir::ConstantBufferId, ir::ConstantBufferId> {
-        let id = ir::ConstantBufferId(self.module.cbuffer_registry.len() as u32);
-        self.module.cbuffer_registry.push(ir::ConstantBuffer {
-            id,
-            name,
-            lang_binding: ir::LanguageBinding::default(),
-            api_binding: None,
-            members: Vec::new(),
-        });
-        let data = self.module.cbuffer_registry.last().unwrap();
+    pub fn insert_cbuffer(&mut self, id: ir::ConstantBufferId) -> TyperResult<()> {
+        assert!(id.0 < self.module.cbuffer_registry.len() as u32);
+        let data = &self.module.cbuffer_registry[id.0 as usize];
 
         let existing_symbols = self.scopes[self.current_scope]
             .symbols
@@ -955,12 +934,45 @@ impl Context {
         // Check for existing symbols
         for symbol in &*existing_symbols {
             if let ScopeSymbol::ConstantBuffer(id) = symbol {
-                return Err(*id);
+                return Err(TyperError::ConstantBufferAlreadyDefined(
+                    data.name.clone(),
+                    *id,
+                ));
             }
         }
 
         existing_symbols.push(ScopeSymbol::ConstantBuffer(id));
-        Ok(id)
+
+        for (i, member) in data.members.iter().enumerate() {
+            let member_id = ir::ConstantBufferMemberId(id, i as u32);
+
+            let existing_symbols = self.scopes[self.current_scope]
+                .symbols
+                .entry(member.name.node.clone())
+                .or_default();
+
+            // Check for existing symbols
+            for symbol in &*existing_symbols {
+                if matches!(
+                    symbol,
+                    ScopeSymbol::Function(_)
+                        | ScopeSymbol::GlobalVariable(_)
+                        | ScopeSymbol::ConstantBufferMember(_)
+                        | ScopeSymbol::EnumValue(_)
+                        | ScopeSymbol::Namespace(_)
+                ) {
+                    return Err(TyperError::ValueAlreadyDefined(
+                        member.name.clone(),
+                        ErrorType::Unknown,
+                        ErrorType::Unknown,
+                    ));
+                }
+            }
+
+            existing_symbols.push(ScopeSymbol::ConstantBufferMember(member_id));
+        }
+
+        Ok(())
     }
 
     /// Register a new typedef
@@ -1105,6 +1117,15 @@ impl Context {
                 match symbol {
                     ScopeSymbol::Function(id) => overloads.push(*id),
                     ScopeSymbol::ConstantBuffer(_) => {}
+                    ScopeSymbol::ConstantBufferMember(id) => {
+                        let parent_id = id.0;
+                        let parent_def = &self.module.cbuffer_registry[parent_id.0 as usize];
+                        let member_def = &parent_def.members[id.1 as usize];
+                        return Some(VariableExpression::ConstantBufferMember(
+                            *id,
+                            member_def.type_id,
+                        ));
+                    }
                     ScopeSymbol::GlobalVariable(id) => {
                         let type_id = self.module.global_registry[id.0 as usize].type_id;
                         return Some(VariableExpression::Global(*id, type_id));
@@ -1146,23 +1167,6 @@ impl Context {
             }));
         }
 
-        // We do not currently store the individual constant buffer members in the symbol map
-        for symbols in scope.symbols.values() {
-            for symbol in symbols {
-                if let ScopeSymbol::ConstantBuffer(id) = symbol {
-                    for member in &self.module.cbuffer_registry[id.0 as usize].members {
-                        if member.name == name {
-                            return Some(VariableExpression::ConstantBufferMember(
-                                *id,
-                                name.to_string(),
-                                member.type_id,
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
         // If the scope is for a struct then struct members are possible identifiers
         if let Some(id) = scope.owning_struct {
             match self.get_struct_member_expression(id, name) {
@@ -1202,7 +1206,7 @@ impl Context {
         match self.find_identifier_in_scope(&self.scopes[scope_index], name) {
             Some(VariableExpression::Local(_, ref ty))
             | Some(VariableExpression::Global(_, ref ty))
-            | Some(VariableExpression::ConstantBufferMember(_, _, ref ty))
+            | Some(VariableExpression::ConstantBufferMember(_, ref ty))
             | Some(VariableExpression::EnumValue(_, ref ty)) => {
                 return Err(TyperError::ValueAlreadyDefined(
                     name.clone(),
@@ -1320,6 +1324,7 @@ impl Context {
                 assert!(!matches!(symbol, ScopeSymbol::Function(_)));
                 assert!(!matches!(symbol, ScopeSymbol::Type(_)));
                 assert!(!matches!(symbol, ScopeSymbol::ConstantBuffer(_)));
+                assert!(!matches!(symbol, ScopeSymbol::ConstantBufferMember(_)));
                 assert!(!matches!(symbol, ScopeSymbol::GlobalVariable(_)));
             }
         }

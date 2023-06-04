@@ -187,16 +187,22 @@ pub fn parse_rootdefinition_constantbuffer(
                 context,
             )?;
             members.push(ir::ConstantVariable {
-                name: var_name.node,
+                name: var_name,
                 type_id,
                 offset: var_offset,
             });
         }
     }
-    let id = match context.insert_cbuffer(cb_name.clone()) {
-        Ok(id) => id,
-        Err(id) => return Err(TyperError::ConstantBufferAlreadyDefined(cb_name, id)),
-    };
+
+    // Register the constant buffer with the module
+    let id = ir::ConstantBufferId(context.module.cbuffer_registry.len() as u32);
+    context.module.cbuffer_registry.push(ir::ConstantBuffer {
+        name: cb_name,
+        lang_binding: ir::LanguageBinding::default(),
+        api_binding: None,
+        members: Vec::new(),
+    });
+
     let cb_ir = &mut context.module.cbuffer_registry[id.0 as usize];
     cb_ir.lang_binding = match &cb.slot {
         Some(register) => {
@@ -221,6 +227,9 @@ pub fn parse_rootdefinition_constantbuffer(
         None => ir::LanguageBinding::default(),
     };
     cb_ir.members = members;
+
+    // Insert it into the scopes
+    context.insert_cbuffer(id)?;
 
     Ok(ir::RootDefinition::ConstantBuffer(id))
 }

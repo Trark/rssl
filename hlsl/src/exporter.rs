@@ -67,7 +67,7 @@ fn analyse_bindings(
                 assert_eq!(cb.lang_binding.set, api_slot.set);
 
                 let binding = DescriptorBinding {
-                    name: context.get_constant_buffer_name(cb.id)?.to_string(),
+                    name: context.get_constant_buffer_name(*id)?.to_string(),
                     api_binding: api_slot.location,
                     descriptor_type: DescriptorType::ConstantBuffer,
                 };
@@ -244,8 +244,7 @@ fn export_root_definition(
             export_enum(*id, output, context)?;
         }
         ir::RootDefinition::ConstantBuffer(id) => {
-            let cb = &module.cbuffer_registry[id.0 as usize];
-            export_constant_buffer(cb, output, context)?;
+            export_constant_buffer(*id, output, context)?;
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &module.global_registry[id.0 as usize];
@@ -1214,7 +1213,10 @@ fn export_subexpression(
         ir::Expression::Variable(v) => output.push_str(context.get_variable_name(*v)?),
         ir::Expression::MemberVariable(name) => output.push_str(name),
         ir::Expression::Global(v) => output.push_str(context.get_global_name(*v)?),
-        ir::Expression::ConstantVariable(_, name) => output.push_str(name),
+        ir::Expression::ConstantVariable(id) => {
+            let def = &context.module.cbuffer_registry[id.0 .0 as usize].members[id.1 as usize];
+            output.push_str(&def.name)
+        }
         ir::Expression::EnumValue(id) => {
             write!(output, "{}", context.get_enum_value_name_full(*id)?).unwrap()
         }
@@ -1334,7 +1336,7 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
         | ir::Expression::Global(_)
         | ir::Expression::EnumValue(_) => 0,
 
-        ir::Expression::ConstantVariable(_, _) => 1,
+        ir::Expression::ConstantVariable(_) => 1,
         ir::Expression::TernaryConditional(_, _, _) => 16,
         ir::Expression::Sequence(_) => 17,
         ir::Expression::Swizzle(_, _) => 2,
@@ -1955,15 +1957,16 @@ fn export_enum(
 
 /// Export ir constant buffer to HLSL
 fn export_constant_buffer(
-    decl: &ir::ConstantBuffer,
+    id: ir::ConstantBufferId,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    let decl = &context.module.cbuffer_registry[id.0 as usize];
     if context.module.flags.requires_vk_binding {
         export_vk_binding_annotation(&decl.api_binding, output)?;
     }
     output.push_str("cbuffer ");
-    output.push_str(context.get_constant_buffer_name(decl.id)?);
+    output.push_str(context.get_constant_buffer_name(id)?);
     if !context.module.flags.requires_vk_binding {
         export_register_annotation(&decl.api_binding, output)?;
     }

@@ -9,6 +9,10 @@ pub struct FunctionId(pub u32);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct ConstantBufferId(pub u32);
 
+/// Id to constant buffer member
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
+pub struct ConstantBufferMemberId(pub ConstantBufferId, pub u32);
+
 /// Id to a global variable
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct GlobalId(pub u32);

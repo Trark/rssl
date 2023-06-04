@@ -66,9 +66,6 @@ pub enum TyperError {
     ArrayDimensionsMustBeNonZero(SourceLocation),
     ArrayDimensionNotSpecified(SourceLocation),
 
-    /// Failed to find member of a constant buffer
-    ConstantDoesNotExist(ir::ConstantBufferId, String, SourceLocation),
-
     /// Failed to find member of a struct
     StructMemberDoesNotExist(ir::StructId, String, SourceLocation),
 
@@ -553,11 +550,6 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::ArrayDimensionNotSpecified(loc) => w.write_message(
                 &|f| write!(f, "array not given any dimensions"),
-                *loc,
-                Severity::Error,
-            ),
-            TyperError::ConstantDoesNotExist(_, name, loc) => w.write_message(
-                &|f| write!(f, "constant buffer does not contain member '{name}'"),
                 *loc,
                 Severity::Error,
             ),

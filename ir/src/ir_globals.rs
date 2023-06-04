@@ -35,9 +35,6 @@ pub struct GlobalVariable {
 /// A constant buffer definition
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantBuffer {
-    /// Unique identifier for the constant buffer
-    pub id: ConstantBufferId,
-
     /// Short name for the constant buffer
     pub name: Located<String>,
 
@@ -57,7 +54,7 @@ pub struct ConstantBuffer {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ConstantVariable {
     /// Name of the member
-    pub name: String,
+    pub name: Located<String>,
 
     /// Type of the constant buffer member
     pub type_id: TypeId,
