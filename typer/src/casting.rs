@@ -246,46 +246,46 @@ impl ImplicitConversion {
             } else {
                 let rank = match (source_scalar, dest_scalar) {
                     (Bool, dest) => match dest {
-                        IntLiteral | Int32 | UInt64 | FloatLiteral | Float16 | Float32
+                        IntLiteral | Int32 | UInt32 | FloatLiteral | Float16 | Float32
                         | Float64 => NumericRank::Conversion,
                         Bool => unreachable!(),
                     },
                     (IntLiteral, dest) => match dest {
-                        Int32 | UInt64 => NumericRank::Promotion,
+                        Int32 | UInt32 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
                         FloatLiteral | Float16 | Float32 | Float64 => NumericRank::Conversion,
                         IntLiteral => unreachable!(),
                     },
                     (Int32, dest) => match dest {
-                        IntLiteral | UInt64 => NumericRank::Promotion,
+                        IntLiteral | UInt32 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
                         FloatLiteral | Float16 | Float32 | Float64 => NumericRank::Conversion,
                         Int32 => unreachable!(),
                     },
-                    (UInt64, dest) => match dest {
+                    (UInt32, dest) => match dest {
                         IntLiteral | Int32 => NumericRank::Promotion,
                         Bool => NumericRank::IntToBool,
                         FloatLiteral | Float16 | Float32 | Float64 => NumericRank::Conversion,
-                        UInt64 => unreachable!(),
+                        UInt32 => unreachable!(),
                     },
                     (FloatLiteral, dest) => match dest {
                         Float16 | Float32 | Float64 => NumericRank::Promotion,
-                        Bool | IntLiteral | Int32 | UInt64 => NumericRank::Conversion,
+                        Bool | IntLiteral | Int32 | UInt32 => NumericRank::Conversion,
                         FloatLiteral => unreachable!(),
                     },
                     (Float16, dest) => match dest {
                         Float32 => NumericRank::Promotion,
                         FloatLiteral | Float64 => NumericRank::PromotionTwice,
-                        Bool | IntLiteral | Int32 | UInt64 => NumericRank::Conversion,
+                        Bool | IntLiteral | Int32 | UInt32 => NumericRank::Conversion,
                         Float16 => unreachable!(),
                     },
                     (Float32, dest) => match dest {
                         FloatLiteral | Float64 => NumericRank::Promotion,
-                        Bool | IntLiteral | Int32 | UInt64 | Float16 => NumericRank::Conversion,
+                        Bool | IntLiteral | Int32 | UInt32 | Float16 => NumericRank::Conversion,
                         Float32 => unreachable!(),
                     },
                     (Float64, dest) => match dest {
-                        Bool | IntLiteral | Int32 | UInt64 | FloatLiteral | Float16 | Float32 => {
+                        Bool | IntLiteral | Int32 | UInt32 | FloatLiteral | Float16 | Float32 => {
                             NumericRank::Conversion
                         }
                         Float64 => unreachable!(),
@@ -422,7 +422,7 @@ impl ImplicitConversion {
                 TypeLayer::Scalar(ScalarType::Bool) => {
                     return Expression::Literal(Constant::Bool(v != 0))
                 }
-                TypeLayer::Scalar(ScalarType::UInt64) => {
+                TypeLayer::Scalar(ScalarType::UInt32) => {
                     return Expression::Literal(Constant::UInt32(v as u32))
                 }
                 TypeLayer::Scalar(ScalarType::Int32) => {
@@ -448,7 +448,7 @@ impl ImplicitConversion {
                 TypeLayer::Scalar(ScalarType::Bool) => {
                     return Expression::Literal(Constant::Bool(v != 0.0))
                 }
-                TypeLayer::Scalar(ScalarType::UInt64) => {
+                TypeLayer::Scalar(ScalarType::UInt32) => {
                     return Expression::Literal(Constant::UInt32(v as u32))
                 }
                 TypeLayer::Scalar(ScalarType::Int32) => {
@@ -486,7 +486,7 @@ fn test_implicitconversion() {
         .register_type(TypeLayer::Vector(int_ty, 1));
     let uint_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::UInt64));
+        .register_type(TypeLayer::Scalar(ScalarType::UInt32));
     let uint1_ty = module
         .type_registry
         .register_type(TypeLayer::Vector(uint_ty, 1));
@@ -632,7 +632,7 @@ fn test_get_rank() {
     let mut module = Module::create();
     let uint_ty = module
         .type_registry
-        .register_type(TypeLayer::Scalar(ScalarType::UInt64));
+        .register_type(TypeLayer::Scalar(ScalarType::UInt32));
     let uint1_ty = module
         .type_registry
         .register_type(TypeLayer::Vector(uint_ty, 1));

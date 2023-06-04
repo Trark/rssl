@@ -28,7 +28,7 @@ pub fn parse_rootdefinition_enum(
                 ir::TypeLayer::Scalar(ir::ScalarType::Bool)
                 | ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral)
                 | ir::TypeLayer::Scalar(ir::ScalarType::Int32)
-                | ir::TypeLayer::Scalar(ir::ScalarType::UInt64) => {
+                | ir::TypeLayer::Scalar(ir::ScalarType::UInt32) => {
                     // Integer types are allowed
                 }
                 ir::TypeLayer::Enum(id) => {

@@ -827,7 +827,7 @@ fn export_scalar_type(ty: ir::ScalarType) -> Result<&'static str, ExportError> {
         ir::ScalarType::Bool => "bool",
         ir::ScalarType::IntLiteral => panic!("int literal should not be required on output"),
         ir::ScalarType::Int32 => "int",
-        ir::ScalarType::UInt64 => "uint",
+        ir::ScalarType::UInt32 => "uint",
         ir::ScalarType::FloatLiteral => panic!("float literal should not be required on output"),
         ir::ScalarType::Float16 => "half",
         ir::ScalarType::Float32 => "float",

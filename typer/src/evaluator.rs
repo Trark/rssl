@@ -422,7 +422,7 @@ fn evaluate_cast(
                 _ => return Err(()),
             }
         }
-        ir::TypeLayer::Scalar(ir::ScalarType::UInt64) => {
+        ir::TypeLayer::Scalar(ir::ScalarType::UInt32) => {
             let inner_value = match inner_value {
                 ir::Constant::Enum(_, inner) => *inner,
                 other => other,

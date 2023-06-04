@@ -653,7 +653,7 @@ fn parse_expr_unaryop(
                             ir::TypeLayer::Enum(id)
                                 if matches!(
                                     context.module.enum_registry.get_underlying_scalar(id),
-                                    ir::ScalarType::Int32 | ir::ScalarType::UInt64
+                                    ir::ScalarType::Int32 | ir::ScalarType::UInt32
                                 ) =>
                             {
                                 let op_ety =
@@ -717,7 +717,7 @@ fn parse_expr_unaryop(
                             ir::TypeLayer::Enum(id)
                                 if matches!(
                                     context.module.enum_registry.get_underlying_scalar(id),
-                                    ir::ScalarType::Int32 | ir::ScalarType::UInt64
+                                    ir::ScalarType::Int32 | ir::ScalarType::UInt32
                                 ) =>
                             {
                                 let op_ety = context
@@ -758,7 +758,7 @@ fn parse_expr_unaryop(
                         match context.module.type_registry.get_type_layer(input_ty_id) {
                             ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral)
                             | ir::TypeLayer::Scalar(ir::ScalarType::Int32)
-                            | ir::TypeLayer::Scalar(ir::ScalarType::UInt64) => {
+                            | ir::TypeLayer::Scalar(ir::ScalarType::UInt32) => {
                                 // Input is uncasted
                                 // Output has const / lvalue removed
                                 (input_ty_id.to_rvalue(), expr_ty)
@@ -777,7 +777,7 @@ fn parse_expr_unaryop(
                             ir::TypeLayer::Enum(id)
                                 if matches!(
                                     context.module.enum_registry.get_underlying_scalar(id),
-                                    ir::ScalarType::Int32 | ir::ScalarType::UInt64
+                                    ir::ScalarType::Int32 | ir::ScalarType::UInt32
                                 ) =>
                             {
                                 let op_ety =
@@ -831,7 +831,7 @@ fn most_sig_scalar(left: ir::ScalarType, right: ir::ScalarType) -> ir::ScalarTyp
             ScalarType::Bool => Some(0),
             ScalarType::IntLiteral => Some(1),
             ScalarType::Int32 => Some(2),
-            ScalarType::UInt64 => Some(3),
+            ScalarType::UInt32 => Some(3),
             ScalarType::FloatLiteral => Some(4),
             ScalarType::Float16 => Some(5),
             ScalarType::Float32 => Some(6),
@@ -1127,7 +1127,7 @@ fn get_non_vector_conversion_rank(id: ir::TypeId, module: &mut ir::Module) -> Op
             ir::ScalarType::Bool => Some(1),
             ir::ScalarType::IntLiteral => Some(2),
             ir::ScalarType::Int32 => Some(3),
-            ir::ScalarType::UInt64 => Some(4),
+            ir::ScalarType::UInt32 => Some(4),
             ir::ScalarType::FloatLiteral => Some(5),
             ir::ScalarType::Float16 => Some(6),
             ir::ScalarType::Float32 => Some(7),
@@ -1154,7 +1154,7 @@ fn is_integer_or_bool_or_enum(id: ir::TypeId, context: &Context) -> bool {
             ir::ScalarType::Bool
                 | ir::ScalarType::IntLiteral
                 | ir::ScalarType::Int32
-                | ir::ScalarType::UInt64
+                | ir::ScalarType::UInt32
         ),
         // TODO: enum class
         ir::TypeLayer::Enum(_) => true,
@@ -1373,7 +1373,7 @@ fn parse_expr_unchecked(
             let uint_ty = context
                 .module
                 .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt64));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt32));
 
             let index_type = match tyl_nomod {
                 ir::TypeLayer::Array(_, _)
@@ -1788,7 +1788,7 @@ fn parse_expr_unchecked(
             let uint_ty = context
                 .module
                 .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt64));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt32));
             Ok(TypedExpression::Value(
                 ir::Expression::SizeOf(ty),
                 uint_ty.to_rvalue(),
@@ -2160,7 +2160,7 @@ fn get_constant_type(literal: &ir::Constant, context: &mut Context) -> Expressio
         ir::Constant::Bool(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
         ir::Constant::IntLiteral(_) => ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral),
         ir::Constant::Int32(_) => ir::TypeLayer::Scalar(ir::ScalarType::Int32),
-        ir::Constant::UInt32(_) => ir::TypeLayer::Scalar(ir::ScalarType::UInt64),
+        ir::Constant::UInt32(_) => ir::TypeLayer::Scalar(ir::ScalarType::UInt32),
         ir::Constant::Int64(_) => unimplemented!(),
         ir::Constant::UInt64(_) => unimplemented!(),
         ir::Constant::FloatLiteral(_) => ir::TypeLayer::Scalar(ir::ScalarType::FloatLiteral),
@@ -2378,7 +2378,7 @@ fn get_expression_type(
             let uint_ty = context
                 .module
                 .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt64));
+                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt32));
             Ok(uint_ty.to_rvalue())
         }
         ir::Expression::IntrinsicOp(ref intrinsic, ref template_args, ref args) => {

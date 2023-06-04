@@ -295,7 +295,7 @@ pub enum ScalarType {
     Bool,
     IntLiteral,
     Int32,
-    UInt64,
+    UInt32,
     FloatLiteral,
     Float16,
     Float32,
@@ -646,7 +646,7 @@ impl ScalarType {
             ScalarType::Bool => Some(4),
             ScalarType::IntLiteral => None,
             ScalarType::Int32 => Some(4),
-            ScalarType::UInt64 => Some(4),
+            ScalarType::UInt32 => Some(4),
             ScalarType::FloatLiteral => None,
             ScalarType::Float16 => Some(2),
             ScalarType::Float32 => Some(4),
@@ -659,8 +659,8 @@ impl ScalarType {
         match input {
             [b'b', b'o', b'o', b'l', rest @ ..] => Some((rest, ScalarType::Bool)),
             [b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::Int32)),
-            [b'u', b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::UInt64)),
-            [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Some((rest, ScalarType::UInt64)),
+            [b'u', b'i', b'n', b't', rest @ ..] => Some((rest, ScalarType::UInt32)),
+            [b'd', b'w', b'o', b'r', b'd', rest @ ..] => Some((rest, ScalarType::UInt32)),
             [b'h', b'a', b'l', b'f', rest @ ..] => Some((rest, ScalarType::Float16)),
             [b'f', b'l', b'o', b'a', b't', rest @ ..] => Some((rest, ScalarType::Float32)),
             [b'd', b'o', b'u', b'b', b'l', b'e', rest @ ..] => Some((rest, ScalarType::Float64)),
@@ -952,7 +952,7 @@ impl std::fmt::Debug for ScalarType {
             ScalarType::Bool => write!(f, "bool"),
             ScalarType::IntLiteral => write!(f, "literal int"),
             ScalarType::Int32 => write!(f, "int"),
-            ScalarType::UInt64 => write!(f, "uint"),
+            ScalarType::UInt32 => write!(f, "uint"),
             ScalarType::FloatLiteral => write!(f, "literal float"),
             ScalarType::Float16 => write!(f, "half"),
             ScalarType::Float32 => write!(f, "float"),
@@ -1068,7 +1068,7 @@ fn test_parse_numeric_str() {
     assert_eq!(
         NumericType::from_str("uint3"),
         Some(NumericType {
-            scalar: ScalarType::UInt64,
+            scalar: ScalarType::UInt32,
             dimension: NumericDimension::Vector(3)
         })
     );

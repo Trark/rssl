@@ -731,7 +731,7 @@ impl Context {
         let scalar_type = if min_value >= i32::MIN as i128 && max_value <= i32::MAX as i128 {
             ir::ScalarType::Int32
         } else if min_value >= u32::MIN as i128 && max_value <= u32::MAX as i128 {
-            ir::ScalarType::UInt64
+            ir::ScalarType::UInt32
         } else {
             let location = self
                 .module
@@ -773,7 +773,7 @@ impl Context {
 
             let new_constant = match scalar_type {
                 ir::ScalarType::Int32 => ir::Constant::Int32(value as i32),
-                ir::ScalarType::UInt64 => ir::Constant::UInt32(value as u32),
+                ir::ScalarType::UInt32 => ir::Constant::UInt32(value as u32),
                 _ => unreachable!(),
             };
 
