@@ -4,9 +4,6 @@ use rssl_text::Located;
 /// A global variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariable {
-    /// Unique identifier for the global variable
-    pub id: GlobalId,
-
     /// Short name for the variable
     pub name: Located<String>,
 

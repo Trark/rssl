@@ -133,7 +133,7 @@ fn analyse_bindings(
                 assert_eq!(decl.lang_slot.set, api_slot.set);
 
                 let binding = DescriptorBinding {
-                    name: context.get_global_name(decl.id)?.to_string(),
+                    name: context.get_global_name(*id)?.to_string(),
                     api_binding: api_slot.location,
                     descriptor_type,
                 };
@@ -247,8 +247,7 @@ fn export_root_definition(
             export_constant_buffer(*id, output, context)?;
         }
         ir::RootDefinition::GlobalVariable(id) => {
-            let decl = &module.global_registry[id.0 as usize];
-            export_global_variable(decl, output, context)?;
+            export_global_variable(*id, output, context)?;
         }
         ir::RootDefinition::FunctionDeclaration(id) => {
             export_function(*id, true, output, context)?;
@@ -272,10 +271,12 @@ fn export_root_definition(
 
 /// Export ir global variable to HLSL
 fn export_global_variable(
-    decl: &ir::GlobalVariable,
+    id: ir::GlobalId,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    let decl = &context.module.global_registry[id.0 as usize];
+
     let is_extern = decl.storage_class == ir::GlobalStorage::Extern;
     if is_extern && context.module.flags.requires_vk_binding {
         export_vk_binding_annotation(&decl.api_slot, output)?;
@@ -301,7 +302,7 @@ fn export_global_variable(
 
     output.push(' ');
 
-    let name = context.get_global_name(decl.id)?;
+    let name = context.get_global_name(id)?;
     output.push_str(name);
     output.push_str(&array_part);
 

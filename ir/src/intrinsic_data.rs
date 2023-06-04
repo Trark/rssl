@@ -343,9 +343,7 @@ pub fn add_intrinsics(module: &mut Module) {
     // Add builtin enum variants
     {
         fn add_value(module: &mut Module, name: &str, type_id: TypeId, value: Option<Constant>) {
-            let id = GlobalId(module.global_registry.len() as u32);
             module.global_registry.push(GlobalVariable {
-                id,
                 name: Located::none(name.to_string()),
                 full_name: ScopedName::unscoped(name.to_string()),
                 type_id,

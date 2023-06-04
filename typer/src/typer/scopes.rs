@@ -501,7 +501,6 @@ impl Context {
         let full_name = self.get_qualified_name(&name);
         let id = ir::GlobalId(self.module.global_registry.len() as u32);
         self.module.global_registry.push(ir::GlobalVariable {
-            id,
             name,
             full_name,
             type_id,

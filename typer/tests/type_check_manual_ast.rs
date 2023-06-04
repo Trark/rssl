@@ -324,7 +324,6 @@ fn test_ast_to_ir() {
             assert_eq!(
                 actual.global_registry[base_global_id.0 as usize],
                 ir::GlobalVariable {
-                    id: base_global_id,
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
                     type_id: const_int_id,
