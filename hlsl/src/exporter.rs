@@ -797,6 +797,9 @@ fn export_type_impl(
                 ir::ObjectType::RayQuery(v) => {
                     output.push_str(format!("RayQuery<{v}>").as_str());
                 }
+                ir::ObjectType::RayDesc => {
+                    output.push_str("RayDesc");
+                }
             };
         }
         ir::TypeLayer::Array(ty, len) => {

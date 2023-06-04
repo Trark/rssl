@@ -392,6 +392,9 @@ fn parse_object_type(
         "RayQuery" => Some(ir::TypeLayer::Object(ir::ObjectType::RayQuery(get_uint(
             template_args,
         )?))),
+        "RayDesc" if template_args.is_empty() => {
+            Some(ir::TypeLayer::Object(ir::ObjectType::RayDesc))
+        }
         _ => None,
     }
 }

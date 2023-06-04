@@ -192,6 +192,7 @@ impl Module {
             SamplerComparisonState => "SamplerComparisonState".to_string(),
             RaytracingAccelerationStructure => "RaytracingAccelerationStructure".to_string(),
             RayQuery(v) => format!("RayQuery<{v}>"),
+            RayDesc => "RayDesc".to_string(),
         }
     }
 

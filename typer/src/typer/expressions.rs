@@ -1618,6 +1618,29 @@ fn parse_expr_unchecked(
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
+                ir::TypeLayer::Object(ir::ObjectType::RayDesc) => {
+                    let name = match member.try_trivial() {
+                        Some(member) => member,
+                        None => {
+                            return Err(TyperError::MemberDoesNotExist(
+                                composite_ty,
+                                member.clone(),
+                            ))
+                        }
+                    };
+
+                    if matches!(name.node.as_str(), "Origin" | "TMin" | "Direction" | "TMax") {
+                        let composite = Box::new(composite_ir);
+                        let node = ir::Expression::Member(composite, name.node.clone());
+                        let ety = match get_expression_type(&node, context) {
+                            Ok(ety) => ety,
+                            Err(err) => panic!("internal error: type unknown ({err:?}"),
+                        };
+                        Ok(TypedExpression::Value(node, ety))
+                    } else {
+                        Err(TyperError::MemberDoesNotExist(composite_ty, member.clone()))
+                    }
+                }
                 ir::TypeLayer::Object(object_type) => {
                     // We do not currently support checking complex identifier patterns
                     let member = match member.try_trivial() {
@@ -2351,6 +2374,36 @@ fn get_expression_type(
             if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(inner)) = tyl {
                 ty = context.module.type_registry.remove_modifier(inner);
                 tyl = context.module.type_registry.get_type_layer(ty);
+            }
+
+            // RayDesc is not a real struct so custom check each of its members
+            if let ir::TypeLayer::Object(ir::ObjectType::RayDesc) = tyl {
+                return match name.as_str() {
+                    "Origin" | "Direction" => {
+                        let f = context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float32));
+                        let f3 = context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Vector(f, 3));
+                        let ety = ExpressionType(f3, expr_type.1);
+                        Ok(ety)
+                    }
+                    "TMin" | "TMax" => {
+                        let f = context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float32));
+                        let ety = ExpressionType(f, expr_type.1);
+                        Ok(ety)
+                    }
+                    _ => Err(TyperError::MemberDoesNotExist(
+                        expr_type.0,
+                        ast::ScopedIdentifier::trivial(name),
+                    )),
+                };
             }
 
             let id = match tyl {

@@ -470,6 +470,7 @@ pub enum ObjectType {
 
     RaytracingAccelerationStructure,
     RayQuery(u32),
+    RayDesc,
 }
 
 /// A constant value
@@ -876,7 +877,8 @@ impl ObjectType {
             | ObjectType::Texture2DArrayMipsSlice(_)
             | ObjectType::Texture3DMips(_)
             | ObjectType::Texture3DMipsSlice(_)
-            | ObjectType::RayQuery(_) => {
+            | ObjectType::RayQuery(_)
+            | ObjectType::RayDesc => {
                 panic!("get_register_type called on non-root object types")
             }
         }
@@ -1052,6 +1054,7 @@ impl std::fmt::Debug for ObjectType {
             SamplerComparisonState => write!(f, "SamplerComparisonState"),
             RaytracingAccelerationStructure => write!(f, "RaytracingAccelerationStructure"),
             RayQuery(ref v) => write!(f, "RayQuery<{v}>"),
+            RayDesc => write!(f, "RayDesc"),
         }
     }
 }
