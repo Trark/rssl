@@ -79,6 +79,17 @@ macro_rules! param_type {
         )
     };
 
+    (RaytracingAccelerationStructure) => {
+        ParamDef(
+            TypeDef::Object(ObjectType::RaytracingAccelerationStructure),
+            InputModifier::In,
+        )
+    };
+
+    (RayDesc) => {
+        ParamDef(TypeDef::Object(ObjectType::RayDesc), InputModifier::In)
+    };
+
     ($ty:ident) => {
         ParamDef(numeric_from_str(stringify!($ty)), InputModifier::In)
     };
@@ -329,6 +340,66 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
 /// Create a collection of all the intrinsic functions
 pub fn add_intrinsics(module: &mut Module) {
+    // Add builtin enum variants
+    {
+        fn add_value(module: &mut Module, name: &str, type_id: TypeId, value: Option<Constant>) {
+            let id = GlobalId(module.global_registry.len() as u32);
+            module.global_registry.push(GlobalVariable {
+                id,
+                name: Located::none(name.to_string()),
+                full_name: ScopedName::unscoped(name.to_string()),
+                type_id,
+                storage_class: GlobalStorage::Static,
+                lang_slot: LanguageBinding::default(),
+                api_slot: None,
+                init: None,
+                constexpr_value: value,
+            });
+        }
+
+        const RAY_FLAGS_VARIANTS: &[(&str, u32)] = &[
+            ("RAY_FLAG_NONE", 0x00),
+            ("RAY_FLAG_FORCE_OPAQUE", 0x01),
+            ("RAY_FLAG_FORCE_NON_OPAQUE", 0x02),
+            ("RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH", 0x04),
+            ("RAY_FLAG_SKIP_CLOSEST_HIT_SHADER", 0x08),
+            ("RAY_FLAG_CULL_BACK_FACING_TRIANGLES", 0x10),
+            ("RAY_FLAG_CULL_FRONT_FACING_TRIANGLES", 0x20),
+            ("RAY_FLAG_CULL_OPAQUE", 0x40),
+            ("RAY_FLAG_CULL_NON_OPAQUE", 0x80),
+            ("RAY_FLAG_SKIP_TRIANGLES", 0x100),
+            ("RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES", 0x200),
+        ];
+
+        const COMMITTED_STATUS_VARIANTS: &[&str] = &[
+            "COMMITTED_NOTHING",
+            "COMMITTED_TRIANGLE_HIT",
+            "COMMITTED_PROCEDURAL_PRIMITIVE_HIT",
+        ];
+
+        const CANDIDATE_TYPE_VARIANTS: &[&str] = &[
+            "CANDIDATE_NON_OPAQUE_TRIANGLE",
+            "CANDIDATE_PROCEDURAL_PRIMITIVE",
+        ];
+
+        // We copy HLSL behaviour where these have uint type instead of an enum type like the documentation presents them
+        let type_id = module
+            .type_registry
+            .register_type(TypeLayer::Scalar(ScalarType::Int32));
+
+        for (flag, value) in RAY_FLAGS_VARIANTS {
+            add_value(module, flag, type_id, Some(Constant::UInt32(*value)));
+        }
+
+        for flag in COMMITTED_STATUS_VARIANTS {
+            add_value(module, flag, type_id, None);
+        }
+
+        for flag in CANDIDATE_TYPE_VARIANTS {
+            add_value(module, flag, type_id, None);
+        }
+    }
+
     for def in INTRINSICS {
         let multi_types = if def.multi_types.is_empty() {
             &[TypeDef::Void]
@@ -671,9 +742,53 @@ const RWBYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
 ];
 const BUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] =
     &[f! { T Load(uint) => BufferAddressLoad }];
+
 const RWBUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { T Load(uint) => RWBufferAddressLoad },
     f! { void Store(uint, T) => RWBufferAddressStore },
+];
+
+const RAYQUERY_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void TraceRayInline(RaytracingAccelerationStructure, uint, uint, RayDesc) => RayQueryTraceRayInline },
+    f! { bool Proceed() => RayQueryProceed },
+    f! { void Abort() => RayQueryAbort },
+    f! { uint CommittedStatus() => RayQueryCommittedStatus },
+    f! { uint CandidateType() => RayQueryCandidateType },
+    f! { bool CandidateProceduralPrimitiveNonOpaque() => RayQueryCandidateProceduralPrimitiveNonOpaque },
+    f! { void CommitNonOpaqueTriangleHit() => RayQueryCommitNonOpaqueTriangleHit },
+    f! { void CommitProceduralPrimitiveHit(float) => RayQueryCommitProceduralPrimitiveHit },
+    f! { uint RayFlags() => RayQueryRayFlags },
+    f! { float3 WorldRayOrigin() => RayQueryWorldRayOrigin },
+    f! { float3 WorldRayDirection() => RayQueryWorldRayDirection },
+    f! { float RayTMin() => RayQueryRayTMin },
+    f! { float CandidateTriangleRayT() => RayQueryCandidateTriangleRayT },
+    f! { float CommittedRayT() => RayQueryCommittedRayT },
+    f! { uint CandidateInstanceIndex() => RayQueryCandidateInstanceIndex },
+    f! { uint CandidateInstanceID() => RayQueryCandidateInstanceID },
+    f! { uint CandidateInstanceContributionToHitGroupIndex() => RayQueryCandidateInstanceContributionToHitGroupIndex },
+    f! { uint CandidateGeometryIndex() => RayQueryCandidateGeometryIndex },
+    f! { uint CandidatePrimitiveIndex() => RayQueryCandidatePrimitiveIndex },
+    f! { float3 CandidateObjectRayOrigin() => RayQueryCandidateObjectRayOrigin },
+    f! { float3 CandidateObjectRayDirection() => RayQueryCandidateObjectRayDirection },
+    f! { float3x4 CandidateObjectToWorld3x4() => RayQueryCandidateObjectToWorld3x4 },
+    f! { float4x3 CandidateObjectToWorld4x3() => RayQueryCandidateObjectToWorld4x3 },
+    f! { float3x4 CandidateWorldToObject3x4() => RayQueryCandidateWorldToObject3x4 },
+    f! { float4x3 CandidateWorldToObject4x3() => RayQueryCandidateWorldToObject4x3 },
+    f! { uint CommittedInstanceIndex() => RayQueryCommittedInstanceIndex },
+    f! { uint CommittedInstanceID() => RayQueryCommittedInstanceID },
+    f! { uint CommittedInstanceContributionToHitGroupIndex() => RayQueryCommittedInstanceContributionToHitGroupIndex },
+    f! { uint CommittedGeometryIndex() => RayQueryCommittedGeometryIndex },
+    f! { uint CommittedPrimitiveIndex() => RayQueryCommittedPrimitiveIndex },
+    f! { float3 CommittedObjectRayOrigin() => RayQueryCommittedObjectRayOrigin },
+    f! { float3 CommittedObjectRayDirection() => RayQueryCommittedObjectRayDirection },
+    f! { float3x4 CommittedObjectToWorld3x4() => RayQueryCommittedObjectToWorld3x4 },
+    f! { float4x3 CommittedObjectToWorld4x3() => RayQueryCommittedObjectToWorld4x3 },
+    f! { float3x4 CommittedWorldToObject3x4() => RayQueryCommittedWorldToObject3x4 },
+    f! { float4x3 CommittedWorldToObject4x3() => RayQueryCommittedWorldToObject4x3 },
+    f! { float2 CandidateTriangleBarycentrics() => RayQueryCandidateTriangleBarycentrics },
+    f! { bool CandidateTriangleFrontFace() => RayQueryCandidateTriangleFrontFace },
+    f! { float2 CommittedTriangleBarycentrics() => RayQueryCommittedTriangleBarycentrics },
+    f! { bool CommittedTriangleFrontFace() => RayQueryCommittedTriangleFrontFace },
 ];
 
 pub struct MethodDefinition {
@@ -702,6 +817,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         ObjectType::RWByteAddressBuffer => RWBYTEADDRESSBUFFER_INTRINSICS,
         ObjectType::BufferAddress => BUFFERADDRESS_INTRINSICS,
         ObjectType::RWBufferAddress => RWBUFFERADDRESS_INTRINSICS,
+        ObjectType::RayQuery(_) => RAYQUERY_INTRINSICS,
         _ => return Vec::new(),
     };
 

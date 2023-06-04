@@ -226,13 +226,13 @@ fn test_ast_to_ir() {
                 }
             }
 
-            assert_eq!(
-                actual.root_definitions,
-                Vec::from([
-                    ir::RootDefinition::GlobalVariable(ir::GlobalId(0)),
-                    ir::RootDefinition::Function(base_func_id)
-                ])
-            );
+            let mut base_global_id = ir::GlobalId(u32::MAX);
+            for def in &actual.root_definitions {
+                if let ir::RootDefinition::GlobalVariable(id) = def {
+                    base_global_id = *id;
+                    break;
+                }
+            }
 
             let mut reference_module = ir::Module::create();
             let void_id = reference_module
@@ -285,7 +285,7 @@ fn test_ast_to_ir() {
                         Vec::from([
                             ir::Statement {
                                 kind: ir::StatementKind::Expression(ir::Expression::Global(
-                                    ir::GlobalId(0)
+                                    base_global_id
                                 )),
                                 location: SourceLocation::UNKNOWN,
                                 attributes: Vec::new(),
@@ -319,9 +319,9 @@ fn test_ast_to_ir() {
             );
 
             assert_eq!(
-                actual.global_registry,
-                Vec::from([ir::GlobalVariable {
-                    id: ir::GlobalId(0),
+                actual.global_registry[base_global_id.0 as usize],
+                ir::GlobalVariable {
+                    id: base_global_id,
                     name: Located::none("g_myFour".to_string()),
                     full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
                     type_id: const_int_id,
@@ -332,7 +332,7 @@ fn test_ast_to_ir() {
                         ir::Constant::Int32(4),
                     ))),
                     constexpr_value: Some(ir::Constant::Int32(4)),
-                }])
+                }
             );
 
             assert_eq!(actual.cbuffer_registry, Vec::new());

@@ -85,6 +85,25 @@ impl Context {
             struct_template_data: Vec::new(),
         };
 
+        // For each builtin global value
+        for i in 0..context.module.global_registry.len() {
+            let id = ir::GlobalId(i as u32);
+            let def = &context.module.global_registry[id.0 as usize];
+
+            // Insert into global scope
+            if context.scopes[context.current_scope]
+                .symbols
+                .insert(
+                    def.name.to_string(),
+                    Vec::from([ScopeSymbol::GlobalVariable(id)]),
+                )
+                .is_some()
+            {
+                panic!("duplicate builtin");
+            }
+        }
+
+        // For each intrinsic function
         for i in 0..context.module.function_registry.get_function_count() {
             let id = ir::FunctionId(i);
 

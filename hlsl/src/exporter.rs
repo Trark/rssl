@@ -1689,6 +1689,53 @@ fn export_intrinsic_function(
 
         RWTexture3DGetDimensions => Form::Method("GetDimensions"),
         RWTexture3DLoad => Form::Method("Load"),
+
+        RayQueryTraceRayInline => Form::Method("TraceRayInline"),
+        RayQueryProceed => Form::Method("Proceed"),
+        RayQueryAbort => Form::Method("Abort"),
+        RayQueryCommittedStatus => Form::Method("CommittedStatus"),
+        RayQueryCandidateType => Form::Method("CandidateType"),
+        RayQueryCandidateProceduralPrimitiveNonOpaque => {
+            Form::Method("CandidateProceduralPrimitiveNonOpaque")
+        }
+        RayQueryCommitNonOpaqueTriangleHit => Form::Method("CommitNonOpaqueTriangleHit"),
+        RayQueryCommitProceduralPrimitiveHit => Form::Method("CommitProceduralPrimitiveHit"),
+        RayQueryRayFlags => Form::Method("RayFlags"),
+        RayQueryWorldRayOrigin => Form::Method("WorldRayOrigin"),
+        RayQueryWorldRayDirection => Form::Method("WorldRayDirection"),
+        RayQueryRayTMin => Form::Method("RayTMin"),
+        RayQueryCandidateTriangleRayT => Form::Method("CandidateTriangleRayT"),
+        RayQueryCommittedRayT => Form::Method("CommittedRayT"),
+        RayQueryCandidateInstanceIndex => Form::Method("CandidateInstanceIndex"),
+        RayQueryCandidateInstanceID => Form::Method("CandidateInstanceID"),
+        RayQueryCandidateInstanceContributionToHitGroupIndex => {
+            Form::Method("CandidateInstanceContributionToHitGroupIndex")
+        }
+        RayQueryCandidateGeometryIndex => Form::Method("CandidateGeometryIndex"),
+        RayQueryCandidatePrimitiveIndex => Form::Method("CandidatePrimitiveIndex"),
+        RayQueryCandidateObjectRayOrigin => Form::Method("CandidateObjectRayOrigin"),
+        RayQueryCandidateObjectRayDirection => Form::Method("CandidateObjectRayDirection"),
+        RayQueryCandidateObjectToWorld3x4 => Form::Method("CandidateObjectToWorld3x4"),
+        RayQueryCandidateObjectToWorld4x3 => Form::Method("CandidateObjectToWorld4x3"),
+        RayQueryCandidateWorldToObject3x4 => Form::Method("CandidateWorldToObject3x4"),
+        RayQueryCandidateWorldToObject4x3 => Form::Method("CandidateWorldToObject4x3"),
+        RayQueryCommittedInstanceIndex => Form::Method("CommittedInstanceIndex"),
+        RayQueryCommittedInstanceID => Form::Method("CommittedInstanceID"),
+        RayQueryCommittedInstanceContributionToHitGroupIndex => {
+            Form::Method("CommittedInstanceContributionToHitGroupIndex")
+        }
+        RayQueryCommittedGeometryIndex => Form::Method("CommittedGeometryIndex"),
+        RayQueryCommittedPrimitiveIndex => Form::Method("CommittedPrimitiveIndex"),
+        RayQueryCommittedObjectRayOrigin => Form::Method("CommittedObjectRayOrigin"),
+        RayQueryCommittedObjectRayDirection => Form::Method("CommittedObjectRayDirection"),
+        RayQueryCommittedObjectToWorld3x4 => Form::Method("CommittedObjectToWorld3x4"),
+        RayQueryCommittedObjectToWorld4x3 => Form::Method("CommittedObjectToWorld4x3"),
+        RayQueryCommittedWorldToObject3x4 => Form::Method("CommittedWorldToObject3x4"),
+        RayQueryCommittedWorldToObject4x3 => Form::Method("CommittedWorldToObject4x3"),
+        RayQueryCandidateTriangleBarycentrics => Form::Method("CandidateTriangleBarycentrics"),
+        RayQueryCandidateTriangleFrontFace => Form::Method("CandidateTriangleFrontFace"),
+        RayQueryCommittedTriangleBarycentrics => Form::Method("CommittedTriangleBarycentrics"),
+        RayQueryCommittedTriangleFrontFace => Form::Method("CommittedTriangleFrontFace"),
     };
 
     match form {
