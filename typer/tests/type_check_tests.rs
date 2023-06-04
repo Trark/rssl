@@ -355,6 +355,8 @@ struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
                                                               ^
 note: candidate function not viable: float3 mul(in float3x3, in float3)
 note: candidate function not viable: float4 mul(in float4x4, in float4)
+note: candidate function not viable: float3 mul(in float3, in float3x3)
+note: candidate function not viable: float4 mul(in float4, in float4x4)
 type_test.rssl:1:32: note: candidate function not viable: void mul(in S)
 struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
                                ^

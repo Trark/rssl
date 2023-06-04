@@ -191,6 +191,8 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
 
     f! { float3 mul(float3x3, float3) => Mul },
     f! { float4 mul(float4x4, float4) => Mul },
+    f! { float3 mul(float3, float3x3) => Mul },
+    f! { float4 mul(float4, float4x4) => Mul },
 
     f! { float f16tof32(uint) => F16ToF32 },
     f! { float2 f16tof32(uint2) => F16ToF32 },
