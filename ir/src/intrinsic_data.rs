@@ -748,6 +748,11 @@ const RWBUFFERADDRESS_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void Store(uint, T) => RWBufferAddressStore },
 ];
 
+const TRIANGLESTREAM_INTRINSICS: &[IntrinsicDefinition] = &[
+    f! { void Append(D) => TriangleStreamAppend },
+    f! { void RestartStrip() => TriangleStreamRestartStrip },
+];
+
 const RAYQUERY_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void TraceRayInline(RaytracingAccelerationStructure, uint, uint, RayDesc) => RayQueryTraceRayInline },
     f! { bool Proceed() => RayQueryProceed },
@@ -817,6 +822,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         ObjectType::RWByteAddressBuffer => RWBYTEADDRESSBUFFER_INTRINSICS,
         ObjectType::BufferAddress => BUFFERADDRESS_INTRINSICS,
         ObjectType::RWBufferAddress => RWBUFFERADDRESS_INTRINSICS,
+        ObjectType::TriangleStream(_) => TRIANGLESTREAM_INTRINSICS,
         ObjectType::RayQuery(_) => RAYQUERY_INTRINSICS,
         _ => return Vec::new(),
     };
@@ -834,7 +840,8 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         | ObjectType::Texture3D(ty)
         | ObjectType::RWTexture3D(ty)
         | ObjectType::StructuredBuffer(ty)
-        | ObjectType::RWStructuredBuffer(ty) => Some(ty),
+        | ObjectType::RWStructuredBuffer(ty)
+        | ObjectType::TriangleStream(ty) => Some(ty),
         _ => None,
     };
 

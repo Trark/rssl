@@ -534,6 +534,11 @@ fn export_function_attribute(
             export_expression(z, output, context)?;
             output.push_str(")]");
         }
+        ir::FunctionAttribute::MaxVertexCount(count) => {
+            output.push_str("[maxvertexcount(");
+            export_expression(count, output, context)?;
+            output.push_str(")]");
+        }
         ir::FunctionAttribute::WaveSize(size) => {
             output.push_str("[WaveSize(");
             export_expression(size, output, context)?;
@@ -794,6 +799,12 @@ fn export_type_impl(
                 }
                 ir::ObjectType::SamplerComparisonState => {
                     output.push_str("SamplerComparisonState");
+                }
+
+                ir::ObjectType::TriangleStream(ty) => {
+                    output.push_str("TriangleStream<");
+                    export_type(ty, output, context)?;
+                    output.push('>');
                 }
 
                 ir::ObjectType::RaytracingAccelerationStructure => {
@@ -1694,6 +1705,9 @@ fn export_intrinsic_function(
 
         RWTexture3DGetDimensions => Form::Method("GetDimensions"),
         RWTexture3DLoad => Form::Method("Load"),
+
+        TriangleStreamAppend => Form::Method("Append"),
+        TriangleStreamRestartStrip => Form::Method("RestartStrip"),
 
         RayQueryTraceRayInline => Form::Method("TraceRayInline"),
         RayQueryProceed => Form::Method("Proceed"),

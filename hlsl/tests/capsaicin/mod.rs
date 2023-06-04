@@ -87,6 +87,11 @@ fn compile_dump_copy_aov_to_buffer() {
 }
 
 #[test]
+fn compile_gather_area_lights_geom() {
+    compile_file("components/light_sampler/gather_area_lights.geom", FILES);
+}
+
+#[test]
 fn compile_gather_area_lights_vert() {
     compile_file("components/light_sampler/gather_area_lights.vert", FILES);
 }

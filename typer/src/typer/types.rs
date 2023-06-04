@@ -386,6 +386,9 @@ fn parse_object_type(
         "SamplerComparisonState" => Some(ir::TypeLayer::Object(
             ir::ObjectType::SamplerComparisonState,
         )),
+        "TriangleStream" => Some(ir::TypeLayer::Object(ir::ObjectType::TriangleStream(
+            get_structured_type(template_args, context)?,
+        ))),
         "RaytracingAccelerationStructure" => Some(ir::TypeLayer::Object(
             ir::ObjectType::RaytracingAccelerationStructure,
         )),

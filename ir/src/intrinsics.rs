@@ -316,6 +316,10 @@ pub enum Intrinsic {
     RWTexture3DGetDimensions,
     RWTexture3DLoad,
 
+    // TriangleStream methods
+    TriangleStreamAppend,
+    TriangleStreamRestartStrip,
+
     // RayQuery methods
     RayQueryTraceRayInline,
     RayQueryProceed,

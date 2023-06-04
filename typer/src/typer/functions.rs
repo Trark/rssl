@@ -425,6 +425,17 @@ fn parse_function_attribute(
                 ))
             }
         }
+        "maxvertexcount" => {
+            if attribute.arguments.len() == 1 {
+                let count = parse_expr(&attribute.arguments[0], context)?.0;
+                Ok(ir::FunctionAttribute::MaxVertexCount(count))
+            } else {
+                Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
+                    attribute.name.node.clone(),
+                    attribute.name.location,
+                ))
+            }
+        }
         "wavesize" => {
             if attribute.arguments.len() == 1 {
                 let size = parse_expr(&attribute.arguments[0], context)?.0;

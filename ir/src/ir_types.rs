@@ -483,6 +483,8 @@ pub enum ObjectType {
     SamplerState,
     SamplerComparisonState,
 
+    TriangleStream(TypeId),
+
     RaytracingAccelerationStructure,
     RayQuery(u32),
     RayDesc,
@@ -892,6 +894,7 @@ impl ObjectType {
             | ObjectType::Texture2DArrayMipsSlice(_)
             | ObjectType::Texture3DMips(_)
             | ObjectType::Texture3DMipsSlice(_)
+            | ObjectType::TriangleStream(_)
             | ObjectType::RayQuery(_)
             | ObjectType::RayDesc => {
                 panic!("get_register_type called on non-root object types")
@@ -1072,6 +1075,7 @@ impl std::fmt::Debug for ObjectType {
             ConstantBuffer(ref st) => write!(f, "ConstantBuffer<{st:?}>"),
             SamplerState => write!(f, "SamplerState"),
             SamplerComparisonState => write!(f, "SamplerComparisonState"),
+            TriangleStream(ref st) => write!(f, "TriangleStream<{st:?}>"),
             RaytracingAccelerationStructure => write!(f, "RaytracingAccelerationStructure"),
             RayQuery(ref v) => write!(f, "RayQuery<{v}>"),
             RayDesc => write!(f, "RayDesc"),
