@@ -414,6 +414,21 @@ pub enum InterpolationModifier {
 
     Sample,
 
+    /// Geometry shader point primitive type
+    Point,
+
+    /// Geometry shader line primitive type
+    Line,
+
+    /// Geometry shader triangle primitive type
+    Triangle,
+
+    /// Geometry shader lineadj primitive type
+    LineAdj,
+
+    /// Geometry shader triangleadj primitive type
+    TriangleAdj,
+
     /// Mesh shader vertices output type - not exactly an interpolation modifier but appears in the same place
     Vertices,
 
@@ -991,6 +1006,11 @@ impl std::fmt::Debug for InterpolationModifier {
             InterpolationModifier::Centroid => write!(f, "centroid"),
             InterpolationModifier::NoPerspective => write!(f, "noperspective"),
             InterpolationModifier::Sample => write!(f, "sample"),
+            InterpolationModifier::Point => write!(f, "point"),
+            InterpolationModifier::Line => write!(f, "line"),
+            InterpolationModifier::Triangle => write!(f, "triangle"),
+            InterpolationModifier::LineAdj => write!(f, "lineadj"),
+            InterpolationModifier::TriangleAdj => write!(f, "triangleadj"),
             InterpolationModifier::Vertices => write!(f, "vertices"),
             InterpolationModifier::Primitives => write!(f, "primitives"),
             InterpolationModifier::Indices => write!(f, "indices"),
