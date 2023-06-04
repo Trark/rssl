@@ -1575,6 +1575,7 @@ fn check_cbuffer() {
     check_fail("cbuffer B { float c1; } float c1;");
     check_fail("cbuffer B { float c1; } float c1() {}");
     check_fail("cbuffer B { float c1; } enum A { c1 = 0 };");
+    check_fail("cbuffer B { float c1; } namespace c1 {}");
 
     // While cbuffer member names are global they do not conflict
     check_types("namespace N { float c1; } cbuffer B { float c1; }");
@@ -2260,4 +2261,11 @@ fn check_namespaces() {
         StructuredBuffer<N2::S> g_buffer2;
     ",
     );
+
+    // Check we fail to compile a namespace with an existing symbol name
+    check_fail("int N; namespace N {}");
+    check_fail("void N() {} namespace N {}");
+    check_fail("enum P { N = 0 }; namespace N {}");
+    check_fail("struct N {}; namespace N {}");
+    check_fail("enum N {}; namespace N {}");
 }

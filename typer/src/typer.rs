@@ -70,13 +70,13 @@ fn parse_rootdefinition(
             Ok(Vec::from([def]))
         }
         ast::RootDefinition::Namespace(name, contents) => {
-            context.enter_namespace(name);
+            context.enter_namespace(name)?;
             let mut ir_defs = Vec::new();
             for ast_def in contents {
                 ir_defs.extend(parse_rootdefinition(ast_def, context)?);
             }
             context.exit_namespace();
-            let ns = ir::RootDefinition::Namespace(name.clone(), ir_defs);
+            let ns = ir::RootDefinition::Namespace(name.node.clone(), ir_defs);
             Ok(Vec::from([ns]))
         }
         ast::RootDefinition::Pipeline(ref def) => {

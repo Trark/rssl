@@ -1046,19 +1046,33 @@ impl Context {
     }
 
     /// Start a namespace scope
-    pub fn enter_namespace(&mut self, name: &String) {
+    pub fn enter_namespace(&mut self, name: &Located<String>) -> TyperResult<()> {
         let existing_symbols = self.scopes[self.current_scope]
             .symbols
             .entry(name.to_string())
             .or_default();
 
         for symbol in &*existing_symbols {
-            if let ScopeSymbol::Namespace(index) = symbol {
-                // If the namespace already exists then reopen it
-                let index = *index;
-                assert_eq!(self.scopes[index].parent_scope, self.current_scope);
-                self.current_scope = index;
-                return;
+            match symbol {
+                ScopeSymbol::Namespace(index) => {
+                    // If the namespace already exists then reopen it
+                    let index = *index;
+                    assert_eq!(self.scopes[index].parent_scope, self.current_scope);
+                    self.current_scope = index;
+                    return Ok(());
+                }
+                ScopeSymbol::Function(_)
+                | ScopeSymbol::Type(_)
+                | ScopeSymbol::GlobalVariable(_)
+                | ScopeSymbol::ConstantBufferMember(_)
+                | ScopeSymbol::EnumValue(_) => {
+                    return Err(TyperError::ValueAlreadyDefined(
+                        name.clone(),
+                        ErrorType::Unknown,
+                        ErrorType::Unknown,
+                    ));
+                }
+                _ => {}
             }
         }
 
@@ -1067,7 +1081,10 @@ impl Context {
         let scope_index = self.push_scope_with_name(name);
 
         // Refetch symbols after scope modification
-        let existing_symbols = self.scopes[parent_scope].symbols.get_mut(name).unwrap();
+        let existing_symbols = self.scopes[parent_scope]
+            .symbols
+            .get_mut(&name.node)
+            .unwrap();
 
         // There should still be no namespaces in the scope
         for symbol in &*existing_symbols {
@@ -1075,6 +1092,7 @@ impl Context {
         }
 
         existing_symbols.push(ScopeSymbol::Namespace(scope_index));
+        Ok(())
     }
 
     // Leave the current namespace

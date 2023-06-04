@@ -4,6 +4,7 @@ use crate::ast_globals::{ConstantBuffer, GlobalVariable};
 use crate::ast_pipelines::PipelineDefinition;
 use crate::ast_structs::StructDefinition;
 use crate::ast_types::Typedef;
+use rssl_text::Located;
 
 /// Represents a full parsed source file - which is a list of [RootDefinitions][RootDefinition].
 #[derive(PartialEq, Debug, Clone)]
@@ -22,6 +23,6 @@ pub enum RootDefinition {
     ConstantBuffer(ConstantBuffer),
     GlobalVariable(GlobalVariable),
     Function(FunctionDefinition),
-    Namespace(String, Vec<RootDefinition>),
+    Namespace(Located<String>, Vec<RootDefinition>),
     Pipeline(PipelineDefinition),
 }
