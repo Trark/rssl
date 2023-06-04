@@ -1464,10 +1464,7 @@ impl Context {
     }
 
     /// Construct or build an instantiation of a template function
-    pub fn build_function_template_body(
-        &mut self,
-        new_id: ir::FunctionId,
-    ) -> TyperResult<ir::FunctionId> {
+    pub fn build_function_template_body(&mut self, new_id: ir::FunctionId) -> TyperResult<()> {
         if self
             .module
             .function_registry
@@ -1503,7 +1500,7 @@ impl Context {
             self.current_scope = caller_scope_position;
         }
 
-        Ok(new_id)
+        Ok(())
     }
 
     /// Construct or build the header of an intrinsic function

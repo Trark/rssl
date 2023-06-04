@@ -468,13 +468,16 @@ fn write_function(
             return_type,
         ))
     } else {
-        let id = if !template_args.is_empty() {
+        if context
+            .module
+            .function_registry
+            .get_template_instantiation_data(id)
+            .is_some()
+        {
             // Now we have to make the actual instance of that template
             context.build_function_template_body(id)?
-        } else {
-            id
         };
-        // TODO: Call will not need template args if we can encode it all in id
+
         Ok(TypedExpression::Value(
             ir::Expression::Call(id, call_type, param_values),
             return_type,
@@ -522,13 +525,16 @@ fn write_method(
             return_type,
         ))
     } else {
-        let id = if !template_args.is_empty() {
+        if context
+            .module
+            .function_registry
+            .get_template_instantiation_data(id)
+            .is_some()
+        {
             // Now we have to make the actual instance of that template
             context.build_function_template_body(id)?
-        } else {
-            id
         };
-        // TODO: Call will not need template args if we can encode it all in id
+
         Ok(TypedExpression::Value(
             ir::Expression::Call(id, ir::CallType::MethodExternal, param_values),
             return_type,
