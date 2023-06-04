@@ -19,7 +19,6 @@ pub struct Context {
     current_scope: ScopeIndex,
 
     function_to_scope: HashMap<ir::FunctionId, ScopeIndex>,
-    struct_data: Vec<StructData>,
     struct_template_data: Vec<StructTemplateData>,
 }
 
@@ -28,12 +27,6 @@ pub type ScopeIndex = usize;
 pub enum StructMemberValue {
     Variable(ir::TypeId),
     Method(Vec<ir::FunctionId>),
-}
-
-#[derive(Debug, Clone)]
-struct StructData {
-    members: HashMap<String, ir::TypeId>,
-    methods: HashMap<String, Vec<ir::FunctionId>>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +81,6 @@ impl Context {
             }]),
             current_scope: 0,
             function_to_scope: HashMap::new(),
-            struct_data: Vec::new(),
             struct_template_data: Vec::new(),
         };
 
@@ -374,15 +366,18 @@ impl Context {
         id: ir::StructId,
         name: &str,
     ) -> TyperResult<ExpressionType> {
-        assert!(id.0 < self.struct_data.len() as u32);
-        match self.struct_data[id.0 as usize].members.get(name) {
-            Some(ty) => Ok(ty.to_lvalue()),
-            None => Err(TyperError::StructMemberDoesNotExist(
-                id,
-                name.to_string(),
-                SourceLocation::UNKNOWN,
-            )),
+        assert!(id.0 < self.module.struct_registry.len() as u32);
+        for member in &self.module.struct_registry[id.0 as usize].members {
+            if member.name == name {
+                return Ok(member.type_id.to_lvalue());
+            }
         }
+
+        Err(TyperError::StructMemberDoesNotExist(
+            id,
+            name.to_string(),
+            SourceLocation::UNKNOWN,
+        ))
     }
 
     /// Find the type of a struct member
@@ -391,17 +386,25 @@ impl Context {
         id: ir::StructId,
         name: &str,
     ) -> TyperResult<StructMemberValue> {
-        assert!(id.0 < self.struct_data.len() as u32);
-        if let Some(ty) = self.struct_data[id.0 as usize].members.get(name) {
-            assert!(!self.struct_data[id.0 as usize].methods.contains_key(name));
-            return Ok(StructMemberValue::Variable(*ty));
+        assert!(id.0 < self.module.struct_registry.len() as u32);
+
+        let mut overloads = Vec::new();
+
+        for id in &self.module.struct_registry[id.0 as usize].methods {
+            let function_name = self.module.function_registry.get_function_name(*id);
+            if function_name == name {
+                overloads.push(*id);
+            }
         }
 
-        if let Some(methods) = self.struct_data[id.0 as usize].methods.get(name) {
-            let mut overloads = Vec::with_capacity(methods.len());
-            for method_id in methods {
-                overloads.push(*method_id);
+        for member in &self.module.struct_registry[id.0 as usize].members {
+            if member.name == name {
+                assert!(overloads.is_empty());
+                return Ok(StructMemberValue::Variable(member.type_id));
             }
+        }
+
+        if !overloads.is_empty() {
             return Ok(StructMemberValue::Method(overloads));
         }
 
@@ -542,17 +545,11 @@ impl Context {
     ) -> Result<ir::StructId, ir::TypeId> {
         let full_name = self.get_qualified_name(&name);
 
-        let id = ir::StructId(self.struct_data.len() as u32);
-        assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
+        let id = ir::StructId(self.module.struct_registry.len() as u32);
         let type_id = self
             .module
             .type_registry
             .register_type(ir::TypeLayer::Struct(id));
-        let data = StructData {
-            members: HashMap::new(),
-            methods: HashMap::new(),
-        };
-        self.struct_data.push(data);
         self.module.struct_registry.push(ir::StructDefinition {
             id,
             type_id,
@@ -580,20 +577,6 @@ impl Context {
         Ok(id)
     }
 
-    // Finish setting up a struct type
-    pub fn finish_struct(
-        &mut self,
-        id: ir::StructId,
-        members: HashMap<String, ir::TypeId>,
-        methods: HashMap<String, Vec<ir::FunctionId>>,
-    ) {
-        let data = &mut self.struct_data[id.0 as usize];
-        assert!(data.members.is_empty());
-        assert!(data.methods.is_empty());
-        data.members = members;
-        data.methods = methods;
-    }
-
     /// Register a new struct template
     pub fn register_struct_template(
         &mut self,
@@ -601,7 +584,10 @@ impl Context {
         ast: ast::StructDefinition,
     ) -> Result<ir::StructTemplateId, ir::TypeId> {
         let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
-        assert_eq!(self.struct_data.len(), self.module.struct_registry.len());
+        assert_eq!(
+            self.struct_template_data.len(),
+            self.module.struct_template_registry.len()
+        );
         let type_id = self
             .module
             .type_registry

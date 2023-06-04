@@ -11,6 +11,7 @@ use rssl_ir as ir;
 use rssl_text::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Process a struct definition
 pub fn parse_rootdefinition_struct(
@@ -81,9 +82,8 @@ fn parse_struct_internal(
 
     let mut members = Vec::new();
     let mut methods_to_parse = Vec::new();
-    let mut member_map = HashMap::new();
+    let mut member_map = HashSet::new();
     let mut method_map = HashMap::<_, Vec<_>>::new();
-    // TODO: Detect name reuse between member variables and methods
     for ast_entry in &sd.members {
         match ast_entry {
             ast::StructEntry::Variable(ast_member) => {
@@ -138,7 +138,7 @@ fn parse_struct_internal(
                         context,
                     )?;
 
-                    if member_map.contains_key(&name) || method_map.contains_key(&name) {
+                    if member_map.contains(&name) || method_map.contains_key(&name) {
                         return Err(TyperError::ValueAlreadyDefined(
                             def.name.clone(),
                             ErrorType::Unknown,
@@ -146,7 +146,7 @@ fn parse_struct_internal(
                         ));
                     }
 
-                    member_map.insert(name.clone(), type_id);
+                    member_map.insert(name.clone());
                     members.push(ir::StructMember {
                         name,
                         type_id,
@@ -170,7 +170,7 @@ fn parse_struct_internal(
                 )?;
 
                 // Check for members with the same name
-                if member_map.contains_key(&ast_func.name.node) {
+                if member_map.contains(&ast_func.name.node) {
                     return Err(TyperError::ValueAlreadyDefined(
                         ast_func.name.clone(),
                         ErrorType::Unknown,
@@ -209,8 +209,10 @@ fn parse_struct_internal(
         }
     }
 
-    // Store all the symbol names on the registered struct
-    context.finish_struct(id, member_map, method_map);
+    // Store all the symbol names
+    let def = &mut context.module.struct_registry[id.0 as usize];
+    def.members = members;
+    def.methods = methods_to_parse.iter().map(|(_, id, _)| *id).collect();
 
     // Process all the methods
     let mut methods = Vec::new();
@@ -228,10 +230,5 @@ fn parse_struct_internal(
 
     context.pop_scope();
 
-    // TODO: Move earlier than parse when functions are also shuffled to registry
-    // And append instead of replace the definitions
-    let def = &mut context.module.struct_registry[id.0 as usize];
-    def.members = members;
-    def.methods = methods;
     Ok(id)
 }
