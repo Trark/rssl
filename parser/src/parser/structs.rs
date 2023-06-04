@@ -49,6 +49,13 @@ pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefiniti
     let (input, template_params) = parse_template_params(input)?;
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;
+
+    // Parse list of base types if present
+    let (input, base_types) = match parse_token(Token::Colon)(input) {
+        Ok((input, _)) => parse_list_nonempty(parse_token(Token::Comma), parse_type)(input)?,
+        Err(_) => (input, Vec::new()),
+    };
+
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
     let (input, members) = parse_multiple(parse_struct_entry)(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
@@ -56,6 +63,7 @@ pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefiniti
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let sd = StructDefinition {
         name,
+        base_types,
         template_params,
         members,
     };
@@ -71,6 +79,7 @@ fn test_struct() {
         "struct MyStruct {};",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: Vec::new(),
         },
@@ -80,6 +89,7 @@ fn test_struct() {
         "struct MyStruct {;;;};",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: Vec::new(),
         },
@@ -89,6 +99,7 @@ fn test_struct() {
         "struct MyStruct { uint a; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
@@ -105,6 +116,7 @@ fn test_struct() {
         "struct MyStruct { uint a, b; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
@@ -128,6 +140,7 @@ fn test_struct() {
         "struct MyStruct { uint a[2], b[3][4]; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
@@ -153,22 +166,23 @@ fn test_struct() {
     );
 
     structdefinition.check(
-        "struct MyStruct { uint a; void f() {} };",
+        "struct MyStruct : Parent { uint a; void f() {} };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::from([Type::from("Parent".loc(18))]),
             template_params: TemplateParamList(Vec::new()),
             members: vec![
                 StructEntry::Variable(StructMember {
-                    ty: Type::from("uint".loc(18)),
+                    ty: Type::from("uint".loc(27)),
                     defs: vec![StructMemberName {
-                        name: "a".to_string().loc(23),
+                        name: "a".to_string().loc(32),
                         bind: Default::default(),
                         semantic: Default::default(),
                     }],
                 }),
                 StructEntry::Method(FunctionDefinition {
-                    name: "f".to_string().loc(31),
-                    returntype: Type::from("void".loc(26)).into(),
+                    name: "f".to_string().loc(40),
+                    returntype: Type::from("void".loc(35)).into(),
                     template_params: TemplateParamList(Vec::new()),
                     params: Vec::new(),
                     body: Some(Vec::new()),
@@ -182,6 +196,7 @@ fn test_struct() {
         "template<typename T> struct MyStruct { T a, b; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(28),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::from([TemplateParam::Type(
                 TemplateTypeParam {
                     name: "T".to_string().loc(18),
@@ -210,6 +225,7 @@ fn test_struct() {
         "struct MyStruct { uint a[2] : USER0, b[3][4] : USER1; };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
+            base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),

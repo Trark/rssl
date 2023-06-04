@@ -5,6 +5,7 @@ use rssl_text::Located;
 #[derive(PartialEq, Debug, Clone)]
 pub struct StructDefinition {
     pub name: Located<String>,
+    pub base_types: Vec<Type>,
     pub template_params: TemplateParamList,
     pub members: Vec<StructEntry>,
 }

@@ -89,6 +89,7 @@ fn test_struct() {
     let test_struct_str = "struct MyStruct { uint a; float b; };";
     let test_struct_ast = StructDefinition {
         name: "MyStruct".to_string().loc(7),
+        base_types: Vec::new(),
         template_params: TemplateParamList(Vec::new()),
         members: vec![
             StructEntry::Variable(StructMember {
@@ -207,6 +208,7 @@ fn test_namespace() {
             "A".to_string().loc(10),
             Vec::from([RootDefinition::Struct(StructDefinition {
                 name: "S".to_string().loc(21),
+                base_types: Vec::new(),
                 template_params: TemplateParamList(Vec::new()),
                 members: Vec::new(),
             })]),
@@ -222,6 +224,7 @@ fn test_namespace() {
                     "B".to_string().loc(24),
                     Vec::from([RootDefinition::Struct(StructDefinition {
                         name: "S".to_string().loc(35),
+                        base_types: Vec::new(),
                         template_params: TemplateParamList(Vec::new()),
                         members: Vec::new(),
                     })]),
