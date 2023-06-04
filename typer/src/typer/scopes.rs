@@ -18,7 +18,7 @@ pub struct Context {
     scopes: Vec<ScopeData>,
     current_scope: ScopeIndex,
 
-    function_data: HashMap<ir::FunctionId, FunctionData>,
+    function_to_scope: HashMap<ir::FunctionId, ScopeIndex>,
     struct_data: Vec<StructData>,
     struct_template_data: Vec<StructTemplateData>,
 }
@@ -28,11 +28,6 @@ pub type ScopeIndex = usize;
 pub enum StructMemberValue {
     Variable(ir::TypeId),
     Method(Vec<ir::FunctionId>),
-}
-
-#[derive(Debug, Clone)]
-struct FunctionData {
-    scope: ScopeIndex,
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +87,7 @@ impl Context {
                 function_return_type: None,
             }]),
             current_scope: 0,
-            function_data: HashMap::new(),
+            function_to_scope: HashMap::new(),
             struct_data: Vec::new(),
             struct_template_data: Vec::new(),
         };
@@ -180,7 +175,7 @@ impl Context {
     /// Enter a scope again
     /// We must be in the same parent scope as before when calling this function
     pub fn revisit_function(&mut self, id: ir::FunctionId) {
-        self.revisit_scope(self.function_data[&id].scope)
+        self.revisit_scope(self.function_to_scope[&id])
     }
 
     /// Set the current scope to be within the given struct
@@ -465,7 +460,7 @@ impl Context {
         }
 
         // Set function data used by scope management
-        self.function_data.insert(id, FunctionData { scope });
+        self.function_to_scope.insert(id, scope);
 
         Ok(id)
     }
@@ -1311,7 +1306,6 @@ impl Context {
         id: ir::FunctionId,
         template_args: &[Located<ir::TypeOrConstant>],
     ) -> Option<ir::FunctionId> {
-        let data = &self.function_data[&id];
         let template_args_no_loc = template_args
             .iter()
             .map(|t| t.node.clone())
@@ -1327,7 +1321,7 @@ impl Context {
         }
 
         // Setup the scope data based on the template function scope
-        let old_scope_id = data.scope;
+        let old_scope_id = self.function_to_scope[&id];
         let parent_scope_id = self.scopes[old_scope_id].parent_scope;
         let new_scope_id = self.make_scope(parent_scope_id);
 
@@ -1436,12 +1430,7 @@ impl Context {
                 },
             );
 
-        self.function_data.insert(
-            new_id,
-            FunctionData {
-                scope: new_scope_id,
-            },
-        );
+        self.function_to_scope.insert(new_id, new_scope_id);
 
         Some(new_id)
     }
@@ -1451,8 +1440,6 @@ impl Context {
         &mut self,
         new_id: ir::FunctionId,
     ) -> TyperResult<ir::FunctionId> {
-        let template_data = &self.function_data[&new_id];
-
         if self
             .module
             .function_registry
@@ -1467,7 +1454,7 @@ impl Context {
                 .unwrap()
                 .parent_id;
 
-            let parent_scope_id = self.scopes[template_data.scope].parent_scope;
+            let parent_scope_id = self.scopes[self.function_to_scope[&new_id]].parent_scope;
             let signature = self.module.function_registry.get_function_signature(new_id);
 
             // Move active scope back to outside the template function definition
