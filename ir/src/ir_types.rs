@@ -365,9 +365,10 @@ pub struct TypeModifier {
 }
 
 /// Storage type for global variables
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Default)]
 pub enum GlobalStorage {
     // Input from outside the shader (default)
+    #[default]
     Extern,
 
     /// Statically allocated thread-local variable in global scope
@@ -378,9 +379,10 @@ pub enum GlobalStorage {
 }
 
 /// Storage type for local variables
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default)]
 pub enum LocalStorage {
     /// Statically allocated thread-local variable
+    #[default]
     Local,
 
     /// Statically allocated thread-local variable that persists between function calls
@@ -389,9 +391,10 @@ pub enum LocalStorage {
 }
 
 /// Binding type for parameters
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Default)]
 pub enum InputModifier {
     /// Function input
+    #[default]
     In,
 
     /// Function output (must be written)
@@ -841,24 +844,6 @@ impl Default for TypeRegistry {
 impl Default for TypeModifier {
     fn default() -> TypeModifier {
         TypeModifier::new()
-    }
-}
-
-impl Default for GlobalStorage {
-    fn default() -> GlobalStorage {
-        GlobalStorage::Extern
-    }
-}
-
-impl Default for InputModifier {
-    fn default() -> InputModifier {
-        InputModifier::In
-    }
-}
-
-impl Default for LocalStorage {
-    fn default() -> LocalStorage {
-        LocalStorage::Local
     }
 }
 
