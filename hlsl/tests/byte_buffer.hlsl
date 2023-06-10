@@ -17,11 +17,11 @@ void test() {
     const uint3 y3 = g_output.Load3(0u);
     const uint4 y4 = g_output.Load4(0u);
     const MyStruct y5 = g_output.Load<MyStruct>(0u);
-    g_output.Store(0u, (uint)x1);
+    g_output.Store<uint>(0u, (uint)x1);
     g_output.Store2(0u, (uint2)x2);
     g_output.Store3(0u, (uint3)x3);
     g_output.Store4(0u, (uint4)x4);
-    g_output.Store(0u, 0u);
+    g_output.Store<float>(0u, 0.0f);
     g_output.Store2(0u, (uint2)0.0);
     g_output.Store3(0u, (uint3)0.0);
     g_output.Store4(0u, (uint4)0.0);
