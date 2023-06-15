@@ -1013,7 +1013,13 @@ impl Context {
 
     /// Register a new template type parameter
     pub fn insert_template_type(&mut self, id: ir::TemplateTypeId) -> TyperResult<()> {
-        let name = &self.module.type_registry.get_template_type(id).name;
+        let name = self
+            .module
+            .type_registry
+            .get_template_type(id)
+            .name
+            .as_ref()
+            .unwrap();
 
         let existing_symbols = self.scopes[self.current_scope]
             .symbols
@@ -1039,7 +1045,13 @@ impl Context {
 
     /// Register a new template value parameter
     pub fn insert_template_value(&mut self, id: ir::TemplateValueId) -> TyperResult<()> {
-        let name = &self.module.variable_registry.get_template_value(id).name;
+        let name = self
+            .module
+            .variable_registry
+            .get_template_value(id)
+            .name
+            .as_ref()
+            .unwrap();
 
         let existing_symbols = self.scopes[self.current_scope]
             .symbols

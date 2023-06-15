@@ -956,6 +956,10 @@ fn check_function_templates() {
 
     // Redefinitions should fail - same typename
     check_fail("template<typename T> void f() {} template<typename T> void f() {}");
+
+    // The name can be omitted
+    check_types("template<typename> void f() {}");
+    check_types("template<typename, typename> void f() {}");
 }
 
 #[test]
@@ -989,6 +993,10 @@ fn check_function_template_non_type() {
     check_types(
         "template<uint L> void f() {} template<typename T> void f() {} void main() { f<uint>(); f<0>(); }",
     );
+
+    // The name can be omitted
+    check_types("template<uint> void f() {}");
+    check_types("template<uint, uint> void f() {}");
 }
 
 #[test]

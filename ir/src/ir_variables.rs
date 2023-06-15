@@ -56,7 +56,7 @@ pub struct LocalVariable {
 #[derive(PartialEq, Debug, Clone)]
 pub struct TemplateParamValue {
     /// Name for the template parameter
-    pub name: Located<String>,
+    pub name: Option<Located<String>>,
 
     /// Type for the template parameter
     pub type_id: TypeId,

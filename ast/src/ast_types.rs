@@ -144,7 +144,7 @@ pub enum TemplateParam {
 /// Type template parameter
 #[derive(PartialEq, Debug, Clone)]
 pub struct TemplateTypeParam {
-    pub name: Located<String>,
+    pub name: Option<Located<String>>,
     pub default: Option<Type>,
 }
 
@@ -152,7 +152,7 @@ pub struct TemplateTypeParam {
 #[derive(PartialEq, Debug, Clone)]
 pub struct TemplateValueParam {
     pub value_type: Type,
-    pub name: Located<String>,
+    pub name: Option<Located<String>>,
     pub default: Option<Located<Expression>>,
 }
 

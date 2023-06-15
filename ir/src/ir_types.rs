@@ -46,7 +46,7 @@ pub enum TypeLayer {
 #[derive(PartialEq, Debug, Clone)]
 pub struct TemplateParamType {
     /// Name for the template parameter
-    pub name: Located<String>,
+    pub name: Option<Located<String>>,
 
     /// Id of the type that represents this template type
     pub type_id: TypeId,
@@ -110,7 +110,7 @@ impl TypeRegistry {
     /// Register a new template type parameter with the module
     pub fn register_template_type(
         &mut self,
-        name: Located<String>,
+        name: Option<Located<String>>,
         positional_index: u32,
     ) -> TemplateTypeId {
         let id = TemplateTypeId(self.template_types.len() as u32);

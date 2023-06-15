@@ -80,7 +80,9 @@ pub fn parse_function_signature(
                     .module
                     .type_registry
                     .register_template_type(ty_param.name.clone(), i as u32);
-                context.insert_template_type(id)?;
+                if ty_param.name.is_some() {
+                    context.insert_template_type(id)?;
+                }
                 ir::TemplateParam::Type(id)
             }
             ast::TemplateParam::Value(ty_param) => {
@@ -96,7 +98,9 @@ pub fn parse_function_signature(
                         positional_index: i as u32,
                     },
                 );
-                context.insert_template_value(id)?;
+                if ty_param.name.is_some() {
+                    context.insert_template_value(id)?;
+                }
                 ir::TemplateParam::Value(id)
             }
         };

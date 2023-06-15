@@ -199,7 +199,7 @@ fn test_struct() {
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::from([TemplateParam::Type(
                 TemplateTypeParam {
-                    name: "T".to_string().loc(18),
+                    name: Some("T".to_string().loc(18)),
                     default: None,
                 },
             )])),

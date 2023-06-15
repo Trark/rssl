@@ -221,7 +221,7 @@ fn test_template_function() {
             },
             template_params: TemplateParamList(Vec::from([TemplateParam::Type(
                 TemplateTypeParam {
-                    name: "T".to_string().loc(18),
+                    name: Some("T".to_string().loc(18)),
                     default: None,
                 },
             )])),
@@ -249,7 +249,7 @@ fn test_template_function() {
             template_params: TemplateParamList(Vec::from([TemplateParam::Value(
                 TemplateValueParam {
                     value_type: Type::from("uint".loc(9)),
-                    name: "L".to_string().loc(14),
+                    name: Some("L".to_string().loc(14)),
                     default: Some(Expression::Literal(Literal::IntUntyped(3)).loc(18)),
                 },
             )])),
@@ -284,11 +284,11 @@ fn test_template_function() {
             },
             template_params: TemplateParamList(Vec::from([
                 TemplateParam::Type(TemplateTypeParam {
-                    name: "T".to_string().loc(18),
+                    name: Some("T".to_string().loc(18)),
                     default: None,
                 }),
                 TemplateParam::Type(TemplateTypeParam {
-                    name: "G".to_string().loc(30),
+                    name: Some("G".to_string().loc(30)),
                     default: None,
                 }),
             ])),

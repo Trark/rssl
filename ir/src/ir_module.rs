@@ -123,7 +123,11 @@ impl Module {
                 format!("{:?}{}", modifier, self.get_type_name_short(ty))
             }
             TypeLayer::TemplateParam(id) => {
-                self.type_registry.get_template_type(id).name.node.clone()
+                let template_type = self.type_registry.get_template_type(id);
+                match &template_type.name {
+                    Some(name) => name.node.clone(),
+                    None => format!("typename<{}>", template_type.positional_index),
+                }
             }
             _ => format!("{tyl:?}"),
         }

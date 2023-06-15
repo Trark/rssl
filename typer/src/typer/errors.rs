@@ -281,6 +281,8 @@ impl CompileError for TyperExternalError {
                         .type_registry
                         .get_template_type(*previous_id)
                         .name
+                        .as_ref()
+                        .unwrap()
                         .location,
                     Severity::Note,
                 )
@@ -298,6 +300,8 @@ impl CompileError for TyperExternalError {
                         .variable_registry
                         .get_template_value(*previous_id)
                         .name
+                        .as_ref()
+                        .unwrap()
                         .location,
                     Severity::Note,
                 )

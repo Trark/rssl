@@ -83,7 +83,9 @@ fn parse_struct_internal(
         for (template_param, template_arg) in sd.template_params.0.iter().zip(template_args) {
             match (template_param, template_arg) {
                 (ast::TemplateParam::Type(ty_param), ir::TypeOrConstant::Type(ty)) => {
-                    context.register_typedef(ty_param.name.clone(), *ty)?
+                    if let Some(name) = &ty_param.name {
+                        context.register_typedef(name.clone(), *ty)?
+                    }
                 }
                 (ast::TemplateParam::Value(_), ir::TypeOrConstant::Constant(_)) => {
                     todo!("Non-type template arguments")

@@ -304,7 +304,21 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
             }
             [LexToken(Token::Typename, _), rest @ ..] => {
                 // Process a type argument
-                let (input, name) = parse_variable_name(rest)?;
+
+                // Read the name of the argument. This may be missing - if it is there still may be a default.
+                let unnamed = !rest.is_empty()
+                    && matches!(
+                        rest[0].0,
+                        Token::Comma | Token::RightAngleBracket(_) | Token::Equals
+                    );
+                let (input, name) = if unnamed {
+                    (rest, None)
+                } else {
+                    let (input, name) = parse_variable_name(rest)?;
+                    (input, Some(name))
+                };
+
+                // Read the default value. This also may be missing.
                 let (input, default) = match parse_token(Token::Equals)(input) {
                     Ok((input, _)) => match parse_type(input) {
                         Ok((input, expr)) => (input, Some(expr)),
@@ -312,13 +326,27 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
                     },
                     Err(_) => (input, None),
                 };
+
                 args.push(TemplateParam::Type(TemplateTypeParam { name, default }));
                 next = input;
             }
             _ => {
                 // Process a value argument
                 let (input, value_type) = parse_type(next)?;
-                let (input, name) = parse_variable_name(input)?;
+
+                // Read the name of the argument. This may be missing - if it is there still may be a default.
+                let unnamed = !input.is_empty()
+                    && matches!(
+                        input[0].0,
+                        Token::Comma | Token::RightAngleBracket(_) | Token::Equals
+                    );
+                let (input, name) = if unnamed {
+                    (input, None)
+                } else {
+                    let (input, name) = parse_variable_name(input)?;
+                    (input, Some(name))
+                };
+
                 let (input, default) = match parse_token(Token::Equals)(input) {
                     Ok((input, _)) => {
                         // Parse an expression where both , and > will end the expression

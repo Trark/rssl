@@ -894,9 +894,7 @@ fn get_type_id(
         TypeDef::Numeric(ref num) => module.type_registry.register_numeric_type(*num),
         TypeDef::Object(ref obj) => module.type_registry.register_type(TypeLayer::Object(*obj)),
         TypeDef::FunctionTemplateArgument => {
-            let id = module
-                .type_registry
-                .register_template_type(Located::none("T".to_string()), 0);
+            let id = module.type_registry.register_template_type(None, 0);
             module
                 .type_registry
                 .register_type(TypeLayer::TemplateParam(id))
