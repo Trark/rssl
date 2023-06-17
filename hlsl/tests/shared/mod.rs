@@ -41,6 +41,8 @@ pub fn check_rssl_to_hlsl_params(
 ) {
     let (ir, _) = parse_from_str(source_rssl);
 
+    let trivial_bindings = assign_bindings_params.is_none();
+
     let ir = match assign_bindings_params {
         Some(params) => ir.assign_api_bindings(params),
         None => ir,
@@ -56,6 +58,10 @@ pub fn check_rssl_to_hlsl_params(
                 assert_eq!(output_hlsl_line, expected_hlsl_line);
             }
             assert_eq!(output_hlsl, expected_hlsl);
+
+            if trivial_bindings {
+                parse_from_str(&output_hlsl);
+            }
         }
         Err(err) => {
             // TODO: Error printing
