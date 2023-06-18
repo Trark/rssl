@@ -44,6 +44,7 @@ struct ScopeData {
 
     symbols: HashMap<String, Vec<ScopeSymbol>>,
 
+    namespace: Option<ir::NamespaceId>,
     owning_struct: Option<ir::StructId>,
     owning_enum: Option<ir::EnumId>,
     function_return_type: Option<ir::TypeId>,
@@ -76,6 +77,7 @@ impl Context {
                 scope_name: None,
                 variables: VariableBlock::new(),
                 symbols: HashMap::with_capacity(1024),
+                namespace: None,
                 owning_struct: None,
                 owning_enum: None,
                 function_return_type: None,
@@ -134,6 +136,7 @@ impl Context {
             scope_name: None,
             variables: VariableBlock::new(),
             symbols: HashMap::with_capacity(1024),
+            namespace: None,
             owning_struct: None,
             owning_enum: None,
             function_return_type: None,
@@ -455,7 +458,7 @@ impl Context {
         ast: ast::FunctionDefinition,
     ) -> TyperResult<ir::FunctionId> {
         // Find the fully qualified name based on the current scope
-        let full_name = self.get_qualified_name(&name);
+        let namespace = self.get_current_namespace();
 
         let is_template = !signature.template_params.is_empty();
 
@@ -463,7 +466,7 @@ impl Context {
         let id = self
             .module
             .function_registry
-            .register_function(ir::FunctionNameDefinition { name, full_name }, signature);
+            .register_function(ir::FunctionNameDefinition { name, namespace }, signature);
 
         // Save the ast if we will need it for building template functions later
         if is_template {
@@ -498,11 +501,11 @@ impl Context {
         type_id: ir::TypeId,
         storage_class: ir::GlobalStorage,
     ) -> TyperResult<ir::GlobalId> {
-        let full_name = self.get_qualified_name(&name);
+        let namespace = self.get_current_namespace();
         let id = ir::GlobalId(self.module.global_registry.len() as u32);
         self.module.global_registry.push(ir::GlobalVariable {
             name,
-            full_name,
+            namespace,
             type_id,
             storage_class,
             lang_slot: ir::LanguageBinding::default(),
@@ -550,7 +553,7 @@ impl Context {
         name: Located<String>,
         is_non_template: bool,
     ) -> Result<ir::StructId, ir::TypeId> {
-        let full_name = self.get_qualified_name(&name);
+        let namespace = self.get_current_namespace();
 
         let id = ir::StructId(self.module.struct_registry.len() as u32);
         let type_id = self
@@ -561,7 +564,7 @@ impl Context {
             id,
             type_id,
             name,
-            full_name,
+            namespace,
             members: Default::default(),
             methods: Default::default(),
         });
@@ -633,12 +636,12 @@ impl Context {
 
     /// Register a new enum type
     pub fn begin_enum(&mut self, name: Located<String>) -> Result<ir::EnumId, ir::TypeId> {
-        let full_name = self.get_qualified_name(&name);
+        let namespace = self.get_current_namespace();
 
         let id = self
             .module
             .enum_registry
-            .register_enum(ir::EnumDefinition { name, full_name });
+            .register_enum(ir::EnumDefinition { name, namespace });
 
         let type_id = self
             .module
@@ -919,24 +922,9 @@ impl Context {
         Ok(())
     }
 
-    /// Build fully qualified name
-    fn get_qualified_name(&self, name: &str) -> ir::ScopedName {
-        let mut full_name = Vec::from([name.to_string()]);
-        let mut scope_index = self.current_scope;
-        loop {
-            let parent_index = self.scopes[scope_index].parent_scope;
-            if let Some(s) = &self.scopes[scope_index].scope_name {
-                assert_ne!(parent_index, usize::MAX);
-                full_name.insert(0, s.clone());
-            } else {
-                assert_eq!(parent_index, usize::MAX);
-            }
-            scope_index = parent_index;
-            if scope_index == usize::MAX {
-                break;
-            }
-        }
-        ir::ScopedName(full_name)
+    /// Get the namespace we are currently processing
+    pub fn get_current_namespace(&self) -> Option<ir::NamespaceId> {
+        self.scopes[self.current_scope].namespace
     }
 
     /// Register a new constant buffer
@@ -1106,9 +1094,19 @@ impl Context {
             }
         }
 
+        // Register the new namespace with the module
+        let parent_namespace = self.get_current_namespace();
+        let namespace_id = self
+            .module
+            .namespace_registry
+            .register_namespace(name.node.clone(), parent_namespace);
+
         // Make a new scope for the namespace
         let parent_scope = self.current_scope;
         let scope_index = self.push_scope_with_name(name);
+
+        // Save the namespace id onto the new scope
+        self.scopes[scope_index].namespace = Some(namespace_id);
 
         // Refetch symbols after scope modification
         let existing_symbols = self.scopes[parent_scope]

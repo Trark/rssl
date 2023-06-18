@@ -13,8 +13,8 @@ pub struct StructDefinition {
     /// Short name for the struct
     pub name: Located<String>,
 
-    /// Fully qualified name for the struct
-    pub full_name: ScopedName,
+    /// Namespace the struct is declared in - or None if it is not in a namespace
+    pub namespace: Option<NamespaceId>,
 
     /// Data members of the struct
     pub members: Vec<StructMember>,

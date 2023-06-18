@@ -30,8 +30,8 @@ pub struct EnumDefinition {
     /// Short name for the enum
     pub name: Located<String>,
 
-    /// Fully qualified name for the enum
-    pub full_name: ScopedName,
+    /// Namespace the enum is declared in - or None if it is not in a namespace
+    pub namespace: Option<NamespaceId>,
 }
 
 /// Id to an enum value

@@ -7,8 +7,8 @@ pub struct GlobalVariable {
     /// Short name for the variable
     pub name: Located<String>,
 
-    /// Fully qualified name for the varibale
-    pub full_name: ScopedName,
+    /// Namespace the variable is declared in - or None if it is not in a namespace
+    pub namespace: Option<NamespaceId>,
 
     /// Type for the global variable
     pub type_id: TypeId,
@@ -34,6 +34,9 @@ pub struct GlobalVariable {
 pub struct ConstantBuffer {
     /// Short name for the constant buffer
     pub name: Located<String>,
+
+    /// Namespace the constant buffer is declared in - or None if it is not in a namespace
+    pub namespace: Option<NamespaceId>,
 
     /// Binding point from the users perspective
     pub lang_binding: LanguageBinding,

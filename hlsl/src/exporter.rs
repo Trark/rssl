@@ -2107,6 +2107,27 @@ impl<'m> ExportContext<'m> {
         self.indent -= 1;
     }
 
+    /// Build fully qualified name
+    fn build_qualified_name(
+        &self,
+        mut namespace: Option<ir::NamespaceId>,
+        leaf_name: &str,
+    ) -> ir::ScopedName {
+        let mut full_name = Vec::from([leaf_name.to_string()]);
+        while let Some(current) = namespace {
+            full_name.insert(
+                0,
+                self.module
+                    .namespace_registry
+                    .get_namespace_name(current)
+                    .to_string(),
+            );
+
+            namespace = self.module.namespace_registry.get_namespace_parent(current);
+        }
+        ir::ScopedName(full_name)
+    }
+
     /// Get the name of a global variable
     fn get_global_name(&self, id: ir::GlobalId) -> Result<&str, ExportError> {
         match self.module.global_registry.get(id.0 as usize) {
@@ -2121,12 +2142,13 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of a function
-    fn get_function_name_full(&self, id: ir::FunctionId) -> Result<&ir::ScopedName, ExportError> {
-        Ok(&self
+    fn get_function_name_full(&self, id: ir::FunctionId) -> Result<ir::ScopedName, ExportError> {
+        let name = self
             .module
             .function_registry
-            .get_function_name_definition(id)
-            .full_name)
+            .get_function_name_definition(id);
+        let scoped_name = self.build_qualified_name(name.namespace, &name.name);
+        Ok(scoped_name)
     }
 
     /// Get the name of a struct
@@ -2138,11 +2160,10 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of a struct
-    fn get_struct_name_full(&self, id: ir::StructId) -> Result<&ir::ScopedName, ExportError> {
-        match self.module.struct_registry.get(id.0 as usize) {
-            Some(sd) => Ok(&sd.full_name),
-            None => Err(ExportError::NamelessId),
-        }
+    fn get_struct_name_full(&self, id: ir::StructId) -> Result<ir::ScopedName, ExportError> {
+        let sd = &self.module.struct_registry[id.0 as usize];
+        let scoped_name = self.build_qualified_name(sd.namespace, &sd.name);
+        Ok(scoped_name)
     }
 
     /// Get the name of an enum
@@ -2151,8 +2172,10 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of an enum
-    fn get_enum_name_full(&self, id: ir::EnumId) -> Result<&ir::ScopedName, ExportError> {
-        Ok(&self.module.enum_registry.get_enum_definition(id).full_name)
+    fn get_enum_name_full(&self, id: ir::EnumId) -> Result<ir::ScopedName, ExportError> {
+        let ed = &self.module.enum_registry.get_enum_definition(id);
+        let scoped_name = self.build_qualified_name(ed.namespace, &ed.name);
+        Ok(scoped_name)
     }
 
     /// Get the name of an enum value
@@ -2163,8 +2186,7 @@ impl<'m> ExportContext<'m> {
     /// Get the full name of an enum value
     fn get_enum_value_name_full(&self, id: ir::EnumValueId) -> Result<ir::ScopedName, ExportError> {
         let value = self.module.enum_registry.get_enum_value(id);
-        let enum_def = self.module.enum_registry.get_enum_definition(value.enum_id);
-        let mut name = enum_def.full_name.clone();
+        let mut name = self.get_enum_name_full(value.enum_id).unwrap();
         name.0.push(value.name.node.clone());
         Ok(name)
     }

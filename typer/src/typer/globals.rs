@@ -198,6 +198,7 @@ pub fn parse_rootdefinition_constantbuffer(
     let id = ir::ConstantBufferId(context.module.cbuffer_registry.len() as u32);
     context.module.cbuffer_registry.push(ir::ConstantBuffer {
         name: cb_name,
+        namespace: context.get_current_namespace(),
         lang_binding: ir::LanguageBinding::default(),
         api_binding: None,
         members: Vec::new(),

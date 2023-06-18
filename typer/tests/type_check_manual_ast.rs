@@ -317,7 +317,7 @@ fn test_ast_to_ir() {
                     .get_function_name_definition(base_func_id),
                 ir::FunctionNameDefinition {
                     name: Located::none("CSMAIN".to_string()),
-                    full_name: ir::ScopedName(Vec::from(["CSMAIN".to_string()])),
+                    namespace: None,
                 }
             );
 
@@ -325,7 +325,7 @@ fn test_ast_to_ir() {
                 actual.global_registry[base_global_id.0 as usize],
                 ir::GlobalVariable {
                     name: Located::none("g_myFour".to_string()),
-                    full_name: ir::ScopedName(Vec::from(["g_myFour".to_string()])),
+                    namespace: None,
                     type_id: const_int_id,
                     storage_class: ir::GlobalStorage::Static,
                     lang_slot: ir::LanguageBinding::default(),

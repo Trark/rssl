@@ -17,7 +17,7 @@ pub struct FunctionRegistry {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionNameDefinition {
     pub name: Located<String>,
-    pub full_name: ScopedName,
+    pub namespace: Option<NamespaceId>,
 }
 
 /// Describes the signature for a function

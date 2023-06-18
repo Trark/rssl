@@ -32,6 +32,9 @@ pub struct Module {
     /// Container of all registered local variables in the module
     pub variable_registry: VariableRegistry,
 
+    /// Container of all the namespaces
+    pub namespace_registry: NamespaceRegistry,
+
     /// The shader pipelines that can be built
     pub pipelines: Vec<PipelineDefinition>,
 

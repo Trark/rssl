@@ -345,7 +345,7 @@ pub fn add_intrinsics(module: &mut Module) {
         fn add_value(module: &mut Module, name: &str, type_id: TypeId, value: Option<Constant>) {
             module.global_registry.push(GlobalVariable {
                 name: Located::none(name.to_string()),
-                full_name: ScopedName::unscoped(name.to_string()),
+                namespace: None,
                 type_id,
                 storage_class: GlobalStorage::Static,
                 lang_slot: LanguageBinding::default(),
@@ -440,14 +440,11 @@ pub fn add_intrinsics(module: &mut Module) {
                 param_types,
             };
 
-            // All intrinsic functions are in root namespace
-            let full_name = ScopedName::unscoped(def.function_name.to_string());
-
             // Register the intrinsic as a function
             let id = module.function_registry.register_function(
                 FunctionNameDefinition {
                     name: Located::none(def.function_name.to_string()),
-                    full_name,
+                    namespace: None,
                 },
                 signature,
             );

@@ -269,7 +269,7 @@ impl Module {
             let func_id = self.function_registry.register_function(
                 FunctionNameDefinition {
                     name: Located::none(def.name.clone()),
-                    full_name: ScopedName::unscoped(def.name),
+                    namespace: None,
                 },
                 def.signature,
             );
