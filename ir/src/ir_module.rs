@@ -69,10 +69,6 @@ pub enum RootDefinition {
     Namespace(String, Vec<RootDefinition>),
 }
 
-/// A name which may have namespace qualification
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct ScopedName(pub Vec<String>);
-
 /// A definition of a constant buffer that serves other bindings
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct InlineConstantBuffer {
@@ -388,34 +384,11 @@ impl Module {
     }
 }
 
-impl ScopedName {
-    /// Create a scoped name with no scoping
-    pub fn unscoped(name: String) -> Self {
-        ScopedName(Vec::from([name]))
-    }
-}
-
 impl Default for AssignBindingsParams {
     fn default() -> Self {
         AssignBindingsParams {
             require_slot_type: true,
             support_buffer_address: false,
         }
-    }
-}
-
-impl std::fmt::Display for ScopedName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let (last, scopes) = self.0.split_last().unwrap();
-        for scope in scopes {
-            write!(f, "{scope}::")?;
-        }
-        write!(f, "{last}")
-    }
-}
-
-impl std::fmt::Debug for ScopedName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self}")
     }
 }

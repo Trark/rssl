@@ -2112,7 +2112,7 @@ impl<'m> ExportContext<'m> {
         &self,
         mut namespace: Option<ir::NamespaceId>,
         leaf_name: &str,
-    ) -> ir::ScopedName {
+    ) -> ScopedName {
         let mut full_name = Vec::from([leaf_name.to_string()]);
         while let Some(current) = namespace {
             full_name.insert(
@@ -2125,7 +2125,7 @@ impl<'m> ExportContext<'m> {
 
             namespace = self.module.namespace_registry.get_namespace_parent(current);
         }
-        ir::ScopedName(full_name)
+        ScopedName(full_name)
     }
 
     /// Get the name of a global variable
@@ -2142,7 +2142,7 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of a function
-    fn get_function_name_full(&self, id: ir::FunctionId) -> Result<ir::ScopedName, ExportError> {
+    fn get_function_name_full(&self, id: ir::FunctionId) -> Result<ScopedName, ExportError> {
         let name = self
             .module
             .function_registry
@@ -2160,7 +2160,7 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of a struct
-    fn get_struct_name_full(&self, id: ir::StructId) -> Result<ir::ScopedName, ExportError> {
+    fn get_struct_name_full(&self, id: ir::StructId) -> Result<ScopedName, ExportError> {
         let sd = &self.module.struct_registry[id.0 as usize];
         let scoped_name = self.build_qualified_name(sd.namespace, &sd.name);
         Ok(scoped_name)
@@ -2172,7 +2172,7 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of an enum
-    fn get_enum_name_full(&self, id: ir::EnumId) -> Result<ir::ScopedName, ExportError> {
+    fn get_enum_name_full(&self, id: ir::EnumId) -> Result<ScopedName, ExportError> {
         let ed = &self.module.enum_registry.get_enum_definition(id);
         let scoped_name = self.build_qualified_name(ed.namespace, &ed.name);
         Ok(scoped_name)
@@ -2184,7 +2184,7 @@ impl<'m> ExportContext<'m> {
     }
 
     /// Get the full name of an enum value
-    fn get_enum_value_name_full(&self, id: ir::EnumValueId) -> Result<ir::ScopedName, ExportError> {
+    fn get_enum_value_name_full(&self, id: ir::EnumValueId) -> Result<ScopedName, ExportError> {
         let value = self.module.enum_registry.get_enum_value(id);
         let mut name = self.get_enum_name_full(value.enum_id).unwrap();
         name.0.push(value.name.node.clone());
@@ -2247,5 +2247,18 @@ impl<'m> ExportContext<'m> {
         self.pipeline_description.bind_groups[group_index]
             .bindings
             .push(binding);
+    }
+}
+
+/// A name which may have namespace qualification
+struct ScopedName(pub Vec<String>);
+
+impl std::fmt::Display for ScopedName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let (last, scopes) = self.0.split_last().unwrap();
+        for scope in scopes {
+            write!(f, "{scope}::")?;
+        }
+        write!(f, "{last}")
     }
 }
