@@ -14,6 +14,12 @@ StructuredBuffer<N1::S> g_buffer2;
 
 void f() {}
 
+namespace N2 {
+
+void f() {}
+
+} // namespace N2
+
 } // namespace N1
 
 namespace N2 {

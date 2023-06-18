@@ -140,11 +140,6 @@ fn analyse_bindings(
                 context.register_binding(api_slot.set, binding);
             }
         }
-        ir::RootDefinition::Namespace(_, decls) => {
-            for decl in decls {
-                analyse_bindings(decl, context)?;
-            }
-        }
     }
     Ok(())
 }
@@ -200,9 +195,21 @@ fn export_root_definitions(
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
     let mut last_was_variable = false;
+    let mut current_namespace = None;
     for decl in decls {
-        export_root_definition(module, decl, &mut last_was_variable, output, context)?;
+        export_root_definition(
+            module,
+            decl,
+            &mut last_was_variable,
+            &mut current_namespace,
+            output,
+            context,
+        )?;
     }
+
+    // Leave any active namespace from last root definition
+    move_to_namespace(current_namespace, None, output, context)?;
+
     Ok(())
 }
 
@@ -211,9 +218,35 @@ fn export_root_definition(
     module: &ir::Module,
     decl: &ir::RootDefinition,
     last_was_variable: &mut bool,
+    current_namespace: &mut Option<ir::NamespaceId>,
     output: &mut String,
     context: &mut ExportContext,
 ) -> Result<(), ExportError> {
+    let namespace = match decl {
+        ir::RootDefinition::Struct(id) => module.struct_registry[id.0 as usize].namespace,
+        ir::RootDefinition::StructTemplate(_) => {
+            todo!("RootDefinition::StructTemplate")
+        }
+        ir::RootDefinition::Enum(id) => module.enum_registry.get_enum_definition(*id).namespace,
+        ir::RootDefinition::ConstantBuffer(id) => module.cbuffer_registry[id.0 as usize].namespace,
+        ir::RootDefinition::GlobalVariable(id) => module.global_registry[id.0 as usize].namespace,
+        ir::RootDefinition::FunctionDeclaration(id) | ir::RootDefinition::Function(id) => {
+            module
+                .function_registry
+                .get_function_name_definition(*id)
+                .namespace
+        }
+    };
+
+    // Advance open namespace scopes if there is a change
+    if namespace != *current_namespace {
+        move_to_namespace(*current_namespace, namespace, output, context)?;
+        *current_namespace = namespace;
+
+        // If we emitted a namespace change then we no longer want to skip the extra new line between globals
+        *last_was_variable = false;
+    }
+
     // Start a new line
     context.new_line(output);
 
@@ -254,17 +287,75 @@ fn export_root_definition(
         ir::RootDefinition::Function(id) => {
             export_function(*id, false, output, context)?;
         }
-        ir::RootDefinition::Namespace(name, decls) => {
-            output.push_str("namespace ");
-            output.push_str(name);
-            output.push_str(" {");
-            export_root_definitions(module, decls, output, context)?;
-            context.new_line(output);
-            context.new_line(output);
-            output.push_str("} // namespace ");
-            output.push_str(name);
-        }
     }
+
+    Ok(())
+}
+
+/// Export text to move from a source namespace to a destination namespace
+fn move_to_namespace(
+    from: Option<ir::NamespaceId>,
+    to: Option<ir::NamespaceId>,
+    output: &mut String,
+    context: &mut ExportContext,
+) -> Result<(), ExportError> {
+    if from == to {
+        return Ok(());
+    }
+
+    let mut first = false;
+
+    // Leave the current namespace scope and return to the global scope
+    // We do not try to go to the most common namespace yet
+    let mut current_from = from;
+    while let Some(namespace_id) = current_from {
+        if !first {
+            context.new_line(output);
+            context.new_line(output);
+        }
+        first = false;
+        output.push_str("} // namespace ");
+        output.push_str(
+            context
+                .module
+                .namespace_registry
+                .get_namespace_name(namespace_id),
+        );
+
+        current_from = context
+            .module
+            .namespace_registry
+            .get_namespace_parent(namespace_id);
+    }
+
+    let mut to_vec = Vec::new();
+    let mut current_to = to;
+    while let Some(namespace_id) = current_to {
+        to_vec.insert(
+            0,
+            context
+                .module
+                .namespace_registry
+                .get_namespace_name(namespace_id),
+        );
+
+        current_to = context
+            .module
+            .namespace_registry
+            .get_namespace_parent(namespace_id);
+    }
+
+    for name in to_vec {
+        if !first {
+            context.new_line(output);
+            context.new_line(output);
+        }
+        first = false;
+        output.push_str("namespace ");
+        output.push_str(name);
+        output.push_str(" {");
+    }
+
     Ok(())
 }
 

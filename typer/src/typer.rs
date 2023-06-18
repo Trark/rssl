@@ -76,8 +76,7 @@ fn parse_rootdefinition(
                 ir_defs.extend(parse_rootdefinition(ast_def, context)?);
             }
             context.exit_namespace();
-            let ns = ir::RootDefinition::Namespace(name.node.clone(), ir_defs);
-            Ok(Vec::from([ns]))
+            Ok(ir_defs)
         }
         ast::RootDefinition::Pipeline(ref def) => {
             pipelines::parse_pipeline(def, context)?;

@@ -55,8 +55,9 @@ pub struct ModuleFlags {
 
 /// A single top level definition in an RSSL file
 ///
-/// While this is called a "root" definition - it may be nested inside namespaces.
-/// We still maintain namespace scoping and definition ordering as it makes exporting to HLSL easier.
+/// These definitions are used to maintain the source order of root symbols in the module.
+/// These should not affect internal module consistency.
+/// These also may not be the exported order if a different order is required.
 #[derive(PartialEq, Debug, Clone)]
 pub enum RootDefinition {
     Struct(StructId),
@@ -66,7 +67,6 @@ pub enum RootDefinition {
     GlobalVariable(GlobalId),
     FunctionDeclaration(FunctionId),
     Function(FunctionId),
-    Namespace(String, Vec<RootDefinition>),
 }
 
 /// A definition of a constant buffer that serves other bindings
@@ -350,11 +350,6 @@ impl Module {
                                 },
                             });
                         }
-                    }
-                }
-                RootDefinition::Namespace(_, decls) => {
-                    for decl in decls {
-                        process_definition(module, decl, params, used_slots, inline_size);
                     }
                 }
             }

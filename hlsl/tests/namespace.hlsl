@@ -16,6 +16,16 @@ void f() {}
 
 } // namespace N1
 
+namespace N1 {
+
+namespace N2 {
+
+void f() {}
+
+} // namespace N2
+
+} // namespace N1
+
 namespace N2 {
 
 struct S
