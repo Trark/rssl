@@ -1,5 +1,4 @@
 use rssl_ir as ir;
-use rssl_text::Located;
 use std::fmt::Write;
 
 use crate::*;
@@ -1337,8 +1336,8 @@ fn export_subexpression(
                 export_user_call(*id, ct, tys, exprs, output, context)?;
             }
         }
-        ir::Expression::IntrinsicOp(intrinsic, tys, exprs) => {
-            export_intrinsic_op(intrinsic, tys, exprs, prec, output, context)?;
+        ir::Expression::IntrinsicOp(intrinsic, exprs) => {
+            export_intrinsic_op(intrinsic, exprs, prec, output, context)?;
         }
     }
     if requires_paren {
@@ -1366,7 +1365,7 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
         ir::Expression::SizeOf(_) => 3,
         ir::Expression::Member(_, _) => 2,
         ir::Expression::Call(_, _, _) => 2,
-        ir::Expression::IntrinsicOp(intrinsic, _, _) => {
+        ir::Expression::IntrinsicOp(intrinsic, _) => {
             use ir::IntrinsicOp::*;
             match &intrinsic {
                 PrefixIncrement => 3,
@@ -1803,7 +1802,6 @@ fn export_intrinsic_function(
 /// Write out an intrinsic operator expression
 fn export_intrinsic_op(
     intrinsic: &ir::IntrinsicOp,
-    tys: &Vec<Located<ir::TypeOrConstant>>,
     exprs: &Vec<ir::Expression>,
     prec: u32,
     output: &mut String,
@@ -1859,19 +1857,16 @@ fn export_intrinsic_op(
 
     match form {
         Form::Unary(s) => {
-            assert!(tys.is_empty());
             assert_eq!(exprs.len(), 1);
             output.push_str(s);
             export_subexpression(&exprs[0], prec, OperatorSide::Right, output, context)?;
         }
         Form::UnaryPostfix(s) => {
-            assert!(tys.is_empty());
             assert_eq!(exprs.len(), 1);
             export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
             output.push_str(s);
         }
         Form::Binary(s) => {
-            assert!(tys.is_empty());
             assert_eq!(exprs.len(), 2);
             export_subexpression(&exprs[0], prec, OperatorSide::Left, output, context)?;
             output.push(' ');

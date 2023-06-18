@@ -1,8 +1,6 @@
 use super::errors::*;
 use super::scopes::*;
-use super::types::{
-    apply_template_type_substitution, parse_expression_or_type, parse_type, parse_typelayout,
-};
+use super::types::{parse_expression_or_type, parse_type, parse_typelayout};
 use crate::casting::{ConversionPriority, ImplicitConversion};
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
@@ -815,7 +813,7 @@ fn parse_expr_unaryop(
                 }
             };
             Ok(TypedExpression::Value(
-                ir::Expression::IntrinsicOp(intrinsic, Vec::new(), Vec::from([eir])),
+                ir::Expression::IntrinsicOp(intrinsic, Vec::from([eir])),
                 ety,
             ))
         }
@@ -1039,8 +1037,7 @@ fn parse_expr_binop(
             let lhs_target = lhs_cast.get_target_type(&mut context.module);
             let rhs_target = rhs_cast.get_target_type(&mut context.module);
             let output_type = i.get_return_type(&[lhs_target, rhs_target], &mut context.module);
-            let node =
-                ir::Expression::IntrinsicOp(i, Vec::new(), Vec::from([lhs_final, rhs_final]));
+            let node = ir::Expression::IntrinsicOp(i, Vec::from([lhs_final, rhs_final]));
             Ok(TypedExpression::Value(node, output_type))
         }
         ast::BinOp::Assignment
@@ -1086,8 +1083,7 @@ fn parse_expr_binop(
                     };
                     let rhs_type = rhs_cast.get_target_type(&mut context.module);
                     let output_type = i.get_return_type(&[lhs_type, rhs_type], &mut context.module);
-                    let node =
-                        ir::Expression::IntrinsicOp(i, Vec::new(), Vec::from([lhs_ir, rhs_final]));
+                    let node = ir::Expression::IntrinsicOp(i, Vec::from([lhs_ir, rhs_final]));
                     Ok(TypedExpression::Value(node, output_type))
                 }
                 Err(()) => err_bad_type,
@@ -2440,14 +2436,13 @@ fn get_expression_type(
                 .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt32));
             Ok(uint_ty.to_rvalue())
         }
-        ir::Expression::IntrinsicOp(ref intrinsic, ref template_args, ref args) => {
+        ir::Expression::IntrinsicOp(ref intrinsic, ref args) => {
             let mut arg_types = Vec::with_capacity(args.len());
             for arg in args {
                 arg_types.push(get_expression_type(arg, context)?);
             }
             let ety = intrinsic.get_return_type(&arg_types, &mut context.module);
-            let ty_sub = apply_template_type_substitution(ety.0, template_args, context);
-            Ok(ExpressionType(ty_sub, ety.1))
+            Ok(ety)
         }
     }
 }

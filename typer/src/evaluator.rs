@@ -49,7 +49,7 @@ pub fn evaluate_constexpr(
                 _ => return Err(()),
             }
         }
-        ir::Expression::IntrinsicOp(ref op, _, ref args) => evaluate_operator(op, args, module)?,
+        ir::Expression::IntrinsicOp(ref op, ref args) => evaluate_operator(op, args, module)?,
         _ => return Err(()),
     })
 }

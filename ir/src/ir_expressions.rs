@@ -1,5 +1,4 @@
 use crate::*;
-use rssl_text::Located;
 
 /// A typed RSSL expression
 #[derive(PartialEq, Debug, Clone)]
@@ -26,7 +25,7 @@ pub enum Expression {
     Constructor(TypeId, Vec<ConstructorSlot>),
     Cast(TypeId, Box<Expression>),
     SizeOf(TypeId),
-    IntrinsicOp(IntrinsicOp, Vec<Located<TypeOrConstant>>, Vec<Expression>),
+    IntrinsicOp(IntrinsicOp, Vec<Expression>),
 }
 
 /// A single part of a swizzle operation
