@@ -546,7 +546,19 @@ fn export_function_inner(
             }
             let arg = &instantiation_data.template_args[i];
             match arg {
-                ir::TypeOrConstant::Type(_) => output.push_str("typename"),
+                ir::TypeOrConstant::Type(id) => {
+                    output.push_str("typename");
+
+                    // Undefined or incomplete types may fail as we are now no longer a template
+                    // As an unreliable hack keep the template type name with the name of the replaced type
+                    // This ensures when we export the real type name within the instantiation it will get tricked into being the unknown template type
+                    // As we provide the real type at the call site this will get evaluated later
+                    let layer = context.module.type_registry.get_type_layer(*id);
+                    if let ir::TypeLayer::Struct(id) = layer {
+                        output.push(' ');
+                        output.push_str(context.get_struct_name(id).unwrap());
+                    }
+                }
                 ir::TypeOrConstant::Constant(c) => match c {
                     ir::RestrictedConstant::Bool(_) => output.push_str("bool"),
                     // TODO: Literal types aren't meant to be used for template instantiations but the typer doesn't cast types correctly when resolving templates
