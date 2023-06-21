@@ -110,8 +110,31 @@ fn compile_file(entry_file: &str, files: &'static [(&'static str, &'static str)]
     let ir = ir.assign_api_bindings(rssl_ir::AssignBindingsParams::default());
 
     match rssl_hlsl::export_to_hlsl(&ir) {
-        Ok(_) => {
+        Ok(output) => {
             // Success!
+
+            // Preprocess the text
+            let tokens = match rssl_preprocess::preprocess_fragment(
+                &output.source,
+                FileName("generated".to_string()),
+                &mut source_manager,
+            ) {
+                Ok(tokens) => tokens,
+                Err(err) => panic!("{}", err.display(&source_manager)),
+            };
+
+            let tokens = rssl_preprocess::prepare_tokens(&tokens);
+
+            // Run the parser
+            let tree = match rssl_parser::parse(&tokens) {
+                Ok(tree) => tree,
+                Err(err) => panic!("{}", err.display(&source_manager)),
+            };
+
+            // Run the type checker
+            if let Err(err) = rssl_typer::type_check(&tree) {
+                panic!("{}", err.display(&source_manager))
+            }
         }
         Err(err) => {
             // TODO: Error printing
