@@ -20,6 +20,11 @@ impl NamespaceRegistry {
         id
     }
 
+    /// Get the total number of registered namespaces
+    pub fn get_namespace_count(&self) -> u32 {
+        self.names.len() as u32
+    }
+
     /// Get the leaf name for a namespace from an id
     pub fn get_namespace_name(&self, id: NamespaceId) -> &str {
         &self.names[id.0 as usize]

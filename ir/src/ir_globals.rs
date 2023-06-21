@@ -27,6 +27,9 @@ pub struct GlobalVariable {
 
     /// Compile time evaluated value
     pub constexpr_value: Option<Constant>,
+
+    /// If we are a built in intrinsic value
+    pub is_intrinsic: bool,
 }
 
 /// A constant buffer definition

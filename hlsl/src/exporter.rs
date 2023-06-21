@@ -1,6 +1,7 @@
 use rssl_ir as ir;
 use std::fmt::Write;
 
+use crate::namer::*;
 use crate::*;
 
 pub struct ExportedSource {
@@ -582,7 +583,6 @@ fn export_function_inner(
     output.push_str(context.get_function_name(id)?);
 
     // Scope also contains the names of parameters
-    context.push_scope(decl.scope_block.1.clone());
     context.push_indent();
 
     output.push('(');
@@ -608,7 +608,6 @@ fn export_function_inner(
         }
     }
 
-    context.pop_scope();
     context.pop_indent();
 
     if !only_declare {
@@ -1053,38 +1052,28 @@ fn export_statement(
             output.push(';');
         }
         ir::StatementKind::Block(block) => {
-            enter_scope_block(block, context);
             export_scope_block(block, output, context)?;
-            context.pop_scope();
         }
         ir::StatementKind::If(cond, block) => {
-            enter_scope_block(block, context);
             output.push_str("if (");
             export_expression(cond, output, context)?;
             output.push(')');
             context.new_line(output);
             export_scope_block(block, output, context)?;
-            context.pop_scope();
         }
         ir::StatementKind::IfElse(cond, block_true, block_false) => {
-            enter_scope_block(block_true, context);
             output.push_str("if (");
             export_expression(cond, output, context)?;
             output.push(')');
             context.new_line(output);
             export_scope_block(block_true, output, context)?;
-            context.pop_scope();
 
             context.new_line(output);
             output.push_str("else");
             context.new_line(output);
-            enter_scope_block(block_false, context);
             export_scope_block(block_false, output, context)?;
-            context.pop_scope();
         }
         ir::StatementKind::For(init, cond, inc, block) => {
-            enter_scope_block(block, context);
-
             output.push_str("for (");
             export_for_init(init, output, context)?;
             output.push(';');
@@ -1101,26 +1090,20 @@ fn export_statement(
 
             context.new_line(output);
             export_scope_block(block, output, context)?;
-            context.pop_scope();
         }
         ir::StatementKind::While(cond, block) => {
-            enter_scope_block(block, context);
-
             output.push_str("while (");
             export_expression(cond, output, context)?;
             output.push(')');
 
             context.new_line(output);
             export_scope_block(block, output, context)?;
-            context.pop_scope();
         }
         ir::StatementKind::DoWhile(block, cond) => {
             output.push_str("do");
 
-            enter_scope_block(block, context);
             context.new_line(output);
             export_scope_block(block, output, context)?;
-            context.pop_scope();
 
             context.new_line(output);
             output.push_str("while (");
@@ -1129,15 +1112,12 @@ fn export_statement(
             output.push(';');
         }
         ir::StatementKind::Switch(cond, block) => {
-            enter_scope_block(block, context);
-
             output.push_str("switch (");
             export_expression(cond, output, context)?;
             output.push(')');
 
             context.new_line(output);
             export_scope_block(block, output, context)?;
-            context.pop_scope();
         }
         ir::StatementKind::Break => output.push_str("break;"),
         ir::StatementKind::Continue => output.push_str("continue;"),
@@ -1210,11 +1190,6 @@ fn export_variable_definition_no_type(
     output.push_str(array_part);
 
     export_initializer(&def.init, output, context)
-}
-
-/// Add scoped variables from a scope block
-fn enter_scope_block(block: &ir::ScopeBlock, context: &mut ExportContext) {
-    context.push_scope(block.1.clone());
 }
 
 /// Export block of ir statements to HLSL
@@ -2167,7 +2142,7 @@ fn export_constant_buffer(
 /// Contextual state for exporter
 struct ExportContext<'m> {
     module: &'m ir::Module,
-    scopes: Vec<ir::ScopedDeclarations>,
+    name_map: NameMap,
 
     indent: u32,
 
@@ -2177,27 +2152,16 @@ struct ExportContext<'m> {
 impl<'m> ExportContext<'m> {
     /// Start a new exporter state
     fn new(module: &'m ir::Module) -> Self {
-        // TODO: Rename declarations so they are unique
+        let name_map = NameMap::build(module);
+
         ExportContext {
             module,
-            scopes: Vec::new(),
+            name_map,
             indent: 0,
             pipeline_description: PipelineDescription {
                 bind_groups: Vec::new(),
             },
         }
-    }
-
-    /// Push a local scope
-    fn push_scope(&mut self, scope_declarations: ir::ScopedDeclarations) {
-        // TODO: Make names unique
-        self.scopes.push(scope_declarations);
-    }
-
-    /// Remove a scope previously added with push_scope
-    /// Okay to not call this if we hit an error case as we do not expect to recover from errors
-    fn pop_scope(&mut self) {
-        self.scopes.pop();
     }
 
     /// Increase indentation
@@ -2210,75 +2174,39 @@ impl<'m> ExportContext<'m> {
         self.indent -= 1;
     }
 
-    /// Build fully qualified name
-    fn build_qualified_name(
-        &self,
-        mut namespace: Option<ir::NamespaceId>,
-        leaf_name: &str,
-    ) -> ScopedName {
-        let mut full_name = Vec::from([leaf_name.to_string()]);
-        while let Some(current) = namespace {
-            full_name.insert(
-                0,
-                self.module
-                    .namespace_registry
-                    .get_namespace_name(current)
-                    .to_string(),
-            );
-
-            namespace = self.module.namespace_registry.get_namespace_parent(current);
-        }
-        ScopedName(full_name)
-    }
-
     /// Get the name of a global variable
     fn get_global_name(&self, id: ir::GlobalId) -> Result<&str, ExportError> {
-        match self.module.global_registry.get(id.0 as usize) {
-            Some(name) => Ok(name.name.as_str()),
-            None => Err(ExportError::NamelessId),
-        }
+        Ok(self.name_map.get_name_leaf(NameSymbol::GlobalVariable(id)))
     }
 
     /// Get the name of a function
     fn get_function_name(&self, id: ir::FunctionId) -> Result<&str, ExportError> {
-        Ok(self.module.function_registry.get_function_name(id))
+        Ok(self.name_map.get_name_leaf(NameSymbol::Function(id)))
     }
 
     /// Get the full name of a function
     fn get_function_name_full(&self, id: ir::FunctionId) -> Result<ScopedName, ExportError> {
-        let name = self
-            .module
-            .function_registry
-            .get_function_name_definition(id);
-        let scoped_name = self.build_qualified_name(name.namespace, &name.name);
-        Ok(scoped_name)
+        Ok(self.name_map.get_name_qualified(NameSymbol::Function(id)))
     }
 
     /// Get the name of a struct
     fn get_struct_name(&self, id: ir::StructId) -> Result<&str, ExportError> {
-        match self.module.struct_registry.get(id.0 as usize) {
-            Some(sd) => Ok(sd.name.as_str()),
-            None => Err(ExportError::NamelessId),
-        }
+        Ok(self.name_map.get_name_leaf(NameSymbol::Struct(id)))
     }
 
     /// Get the full name of a struct
     fn get_struct_name_full(&self, id: ir::StructId) -> Result<ScopedName, ExportError> {
-        let sd = &self.module.struct_registry[id.0 as usize];
-        let scoped_name = self.build_qualified_name(sd.namespace, &sd.name);
-        Ok(scoped_name)
+        Ok(self.name_map.get_name_qualified(NameSymbol::Struct(id)))
     }
 
     /// Get the name of an enum
     fn get_enum_name(&self, id: ir::EnumId) -> Result<&str, ExportError> {
-        Ok(&self.module.enum_registry.get_enum_definition(id).name)
+        Ok(self.name_map.get_name_leaf(NameSymbol::Enum(id)))
     }
 
     /// Get the full name of an enum
     fn get_enum_name_full(&self, id: ir::EnumId) -> Result<ScopedName, ExportError> {
-        let ed = &self.module.enum_registry.get_enum_definition(id);
-        let scoped_name = self.build_qualified_name(ed.namespace, &ed.name);
-        Ok(scoped_name)
+        Ok(self.name_map.get_name_qualified(NameSymbol::Enum(id)))
     }
 
     /// Get the name of an enum value
@@ -2350,18 +2278,5 @@ impl<'m> ExportContext<'m> {
         self.pipeline_description.bind_groups[group_index]
             .bindings
             .push(binding);
-    }
-}
-
-/// A name which may have namespace qualification
-struct ScopedName(pub Vec<String>);
-
-impl std::fmt::Display for ScopedName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let (last, scopes) = self.0.split_last().unwrap();
-        for scope in scopes {
-            write!(f, "{scope}::")?;
-        }
-        write!(f, "{last}")
     }
 }

@@ -334,6 +334,7 @@ fn test_ast_to_ir() {
                         ir::Constant::Int32(4),
                     ))),
                     constexpr_value: Some(ir::Constant::Int32(4)),
+                    is_intrinsic: false,
                 }
             );
 

@@ -127,6 +127,12 @@ impl EnumRegistry {
         def.underlying_type_id = underlying_type_id;
     }
 
+    /// Get the total number of registered enums
+    #[inline]
+    pub fn get_enum_count(&self) -> u32 {
+        self.definitions.len() as u32
+    }
+
     /// Get the definition from an enum id
     #[inline]
     pub fn get_enum_definition(&self, id: EnumId) -> &EnumDefinition {

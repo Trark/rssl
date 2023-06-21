@@ -352,6 +352,7 @@ pub fn add_intrinsics(module: &mut Module) {
                 api_slot: None,
                 init: None,
                 constexpr_value: value,
+                is_intrinsic: true,
             });
         }
 

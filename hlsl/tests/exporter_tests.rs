@@ -246,18 +246,18 @@ void main() {
 }
 ",
         "template<typename, uint>
-uint f(uint t) {
+uint f_0(uint t) {
     return t + 1u;
 }
 
 template<typename, int>
-int f(int t) {
+int f_1(int t) {
     return t + -2;
 }
 
 void main() {
-    uint x = f<uint, 1u>(0u);
-    int y = f<int, -2>((int)0);
+    uint x = f_0<uint, 1u>(0u);
+    int y = f_1<int, -2>((int)0);
 }
 ",
     );
