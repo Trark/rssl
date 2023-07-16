@@ -1,17 +1,17 @@
-struct InlineDescriptor0
+struct InlineDescriptor1
 {
     [[vk::offset(0)]] uint64_t g_clusterInstanceData;
     [[vk::offset(8)]] uint64_t g_clusterData;
     [[vk::offset(16)]] uint64_t g_primitiveData;
     [[vk::offset(24)]] uint64_t g_indexData;
 };
-[[vk::binding(2)]] ConstantBuffer<InlineDescriptor0> g_inlineDescriptor0;
+[[vk::binding(2, 1)]] ConstantBuffer<InlineDescriptor1> g_inlineDescriptor1;
 
-static const uint64_t g_clusterInstanceData = g_inlineDescriptor0.g_clusterInstanceData;
-static const uint64_t g_clusterData = g_inlineDescriptor0.g_clusterData;
-static const uint64_t g_primitiveData = g_inlineDescriptor0.g_primitiveData;
-static const uint64_t g_indexData = g_inlineDescriptor0.g_indexData;
-[[vk::binding(0)]] RWByteAddressBuffer g_indirectBuffer;
+static const uint64_t g_clusterInstanceData = g_inlineDescriptor1.g_clusterInstanceData;
+static const uint64_t g_clusterData = g_inlineDescriptor1.g_clusterData;
+static const uint64_t g_primitiveData = g_inlineDescriptor1.g_primitiveData;
+static const uint64_t g_indexData = g_inlineDescriptor1.g_indexData;
+[[vk::binding(0, 1)]] RWByteAddressBuffer g_indirectBuffer;
 
 struct ClusterInstanceData
 {
@@ -33,7 +33,7 @@ struct ConstantData
     uint index_buffer_size;
 };
 
-[[vk::binding(1)]] ConstantBuffer<ConstantData> g_constantData;
+[[vk::binding(1, 1)]] ConstantBuffer<ConstantData> g_constantData;
 
 uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint offset = cluster.primitive_base + primitive_index_index;

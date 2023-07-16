@@ -71,8 +71,8 @@ pub struct ConstantVariable {
 pub struct LanguageBinding {
     /// Descriptor set index
     ///
-    /// As the default space is always zero this value is always valid
-    pub set: u32,
+    /// Unspecified set index are mapped based on the shader pipeline metadata
+    pub set: Option<u32>,
 
     /// Binding number into the descriptor set
     ///

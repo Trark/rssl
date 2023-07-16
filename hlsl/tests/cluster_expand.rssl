@@ -70,4 +70,5 @@ void CSMAIN(
 Pipeline ClusterExpand
 {
     ComputeShader = CSMAIN;
+    DefaultBindGroup = 1;
 }

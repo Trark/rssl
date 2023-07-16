@@ -7,6 +7,9 @@ pub struct PipelineDefinition {
     /// Name for the pipeline
     pub name: Located<String>,
 
+    /// Binding group index to use for loose parameters
+    pub default_bind_group_index: u32,
+
     /// Set of shader stages in the pipeline
     pub stages: Vec<PipelineStage>,
 

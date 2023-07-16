@@ -195,6 +195,9 @@ pub enum TyperError {
 
     /// A state value expects a string argument but received a different expression
     PipelinePropertyRequiresStringArgument(SourceLocation),
+
+    /// A state value expects an integer argument but received a different expression
+    PipelinePropertyRequiresIntegerArgument(SourceLocation),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -888,6 +891,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::PipelinePropertyRequiresStringArgument(loc) => w.write_message(
                 &|f| write!(f, "state requires a string argument"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelinePropertyRequiresIntegerArgument(loc) => w.write_message(
+                &|f| write!(f, "state requires an integer argument"),
                 *loc,
                 Severity::Error,
             ),

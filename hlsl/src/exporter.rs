@@ -64,8 +64,6 @@ fn analyse_bindings(
         ir::RootDefinition::ConstantBuffer(id) => {
             let cb = &context.module.cbuffer_registry[id.0 as usize];
             if let Some(api_slot) = cb.api_binding {
-                assert_eq!(cb.lang_binding.set, api_slot.set);
-
                 let binding = DescriptorBinding {
                     name: context.get_constant_buffer_name(*id)?.to_string(),
                     api_binding: api_slot.location,
@@ -130,8 +128,6 @@ fn analyse_bindings(
             };
 
             if let Some(api_slot) = decl.api_slot {
-                assert_eq!(decl.lang_slot.set, api_slot.set);
-
                 let binding = DescriptorBinding {
                     name: context.get_global_name(*id)?.to_string(),
                     api_binding: api_slot.location,
@@ -171,10 +167,18 @@ fn generate_inline_constant_buffers(
         assert_eq!(buffer.size_in_bytes, found_size);
 
         output.push_str("};\n");
+        export_vk_binding_annotation(
+            &Some(ir::ApiBinding {
+                set: buffer.set,
+                location: ApiLocation::Index(buffer.api_location),
+                slot_type: None,
+            }),
+            output,
+        )?;
         write!(
             output,
-            "[[vk::binding({})]] ConstantBuffer<InlineDescriptor{}> g_inlineDescriptor{};",
-            buffer.api_location, buffer.set, buffer.set
+            "ConstantBuffer<InlineDescriptor{}> g_inlineDescriptor{};",
+            buffer.set, buffer.set,
         )
         .unwrap();
 

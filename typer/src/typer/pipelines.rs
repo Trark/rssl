@@ -8,6 +8,7 @@ use rssl_text::Located;
 pub fn parse_pipeline(def: &ast::PipelineDefinition, context: &mut Context) -> TyperResult<()> {
     let mut pipeline = ir::PipelineDefinition {
         name: def.name.clone(),
+        default_bind_group_index: 0,
         stages: Vec::new(),
         graphics_pipeline_state: None,
     };
@@ -127,6 +128,28 @@ pub fn parse_pipeline(def: &ast::PipelineDefinition, context: &mut Context) -> T
                 }
                 assert!(gpo.depth_target_format.is_none());
                 gpo.depth_target_format = Some(extract_string(&property.value)?.to_string());
+            }
+            "DefaultBindGroup" => {
+                let value_expr = super::expressions::parse_expr(&property.value.node, context)?;
+                let value_res =
+                    crate::evaluator::evaluate_constexpr(&value_expr.0, &mut context.module);
+                let value = match value_res {
+                    Ok(value) => value,
+                    _ => {
+                        return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
+                            property.property.location,
+                        ))
+                    }
+                };
+                let value = match value.to_uint64() {
+                    Some(v) if v <= u32::MAX as u64 => v as u32,
+                    _ => {
+                        return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
+                            property.property.location,
+                        ))
+                    }
+                };
+                pipeline.default_bind_group_index = value;
             }
             _ => {
                 return Err(TyperError::PipelinePropertyUnknown(

@@ -43,6 +43,15 @@ pub fn check_rssl_to_hlsl_params(
 
     let trivial_bindings = assign_bindings_params.is_none();
 
+    let ir = match ir.pipelines.len() {
+        0 => ir,
+        1 => {
+            let name = ir.pipelines[0].name.node.clone();
+            ir.select_pipeline(&name).unwrap()
+        }
+        _ => panic!("Multiple pipelines in test file"),
+    };
+
     let ir = match assign_bindings_params {
         Some(params) => ir.assign_api_bindings(params),
         None => ir,

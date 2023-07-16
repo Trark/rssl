@@ -1,8 +1,8 @@
-ByteAddressBuffer g_clusterInstanceData : register(t0);
-ByteAddressBuffer g_clusterData : register(t1);
-ByteAddressBuffer g_primitiveData : register(t2);
-RWByteAddressBuffer g_indexData : register(u3);
-RWByteAddressBuffer g_indirectBuffer : register(u4);
+ByteAddressBuffer g_clusterInstanceData : register(t0, space1);
+ByteAddressBuffer g_clusterData : register(t1, space1);
+ByteAddressBuffer g_primitiveData : register(t2, space1);
+RWByteAddressBuffer g_indexData : register(u3, space1);
+RWByteAddressBuffer g_indirectBuffer : register(u4, space1);
 
 struct ClusterInstanceData
 {
@@ -24,7 +24,7 @@ struct ConstantData
     uint index_buffer_size;
 };
 
-ConstantBuffer<ConstantData> g_constantData : register(b5);
+ConstantBuffer<ConstantData> g_constantData : register(b5, space1);
 
 uint LoadClusterIndex(ClusterData cluster, uint primitive_index_index) {
     uint offset = cluster.primitive_base + primitive_index_index;

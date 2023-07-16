@@ -81,7 +81,7 @@ pub fn parse_rootdefinition_globalvariable(
                     };
 
                     ir::LanguageBinding {
-                        set: register.space.unwrap_or(0),
+                        set: register.space,
                         index,
                     }
                 } else {
@@ -221,7 +221,7 @@ pub fn parse_rootdefinition_constantbuffer(
             };
 
             ir::LanguageBinding {
-                set: register.space.unwrap_or(0),
+                set: register.space,
                 index,
             }
         }

@@ -38,6 +38,9 @@ pub struct Module {
     /// The shader pipelines that can be built
     pub pipelines: Vec<PipelineDefinition>,
 
+    /// The shader pipeline that is set as the entry point
+    pub selected_pipeline: Option<usize>,
+
     /// Flags that change how we build the module
     pub flags: ModuleFlags,
 
@@ -242,6 +245,21 @@ impl Module {
         self.cbuffer_registry[id.0 as usize].name.location
     }
 
+    /// Select which pipeline we will build for
+    pub fn select_pipeline(self, name: &str) -> Option<Self> {
+        let mut selected = None;
+        for (i, pipeline) in self.pipelines.iter().enumerate() {
+            if pipeline.name.node == name {
+                assert_eq!(selected, None);
+                selected = Some(i);
+            }
+        }
+        selected?;
+        let mut output = self.clone();
+        output.selected_pipeline = selected;
+        Some(output)
+    }
+
     /// Assign api binding locations to all global resources
     ///
     /// Api slots are assigned independent of language register assignments
@@ -251,12 +269,18 @@ impl Module {
         self.flags.requires_buffer_address = params.support_buffer_address;
         self.flags.requires_vk_binding = !params.require_slot_type || params.support_buffer_address;
 
+        let default_set = match self.selected_pipeline {
+            Some(index) => self.pipelines[index].default_bind_group_index,
+            None => 0,
+        };
+
         fn process_definition(
             module: &mut Module,
             decl: &RootDefinition,
             params: &AssignBindingsParams,
             used_slots: &mut HashMap<u32, u32>,
             inline_size: &mut HashMap<u32, u32>,
+            default_set: u32,
         ) {
             match decl {
                 RootDefinition::Struct(_)
@@ -266,9 +290,10 @@ impl Module {
                 | RootDefinition::Function(_) => {}
                 RootDefinition::ConstantBuffer(id) => {
                     let cb = &mut module.cbuffer_registry[id.0 as usize];
+                    let set = cb.lang_binding.set.unwrap_or(default_set);
                     assert_eq!(cb.api_binding, None);
                     {
-                        let index = match used_slots.entry(cb.lang_binding.set) {
+                        let index = match used_slots.entry(set) {
                             std::collections::hash_map::Entry::Occupied(mut o) => {
                                 let slot = *o.get();
                                 *o.get_mut() += 1;
@@ -281,7 +306,7 @@ impl Module {
                         };
 
                         cb.api_binding = Some(ApiBinding {
-                            set: cb.lang_binding.set,
+                            set,
                             location: ApiLocation::Index(index),
                             slot_type: if params.require_slot_type {
                                 Some(RegisterType::B)
@@ -293,6 +318,7 @@ impl Module {
                 }
                 RootDefinition::GlobalVariable(id) => {
                     let decl = &mut module.global_registry[id.0 as usize];
+                    let set = decl.lang_slot.set.unwrap_or(default_set);
                     let unmodified_ty_id = module.type_registry.remove_modifier(decl.type_id);
                     let unmodified_tyl = module.type_registry.get_type_layer(unmodified_ty_id);
                     assert_eq!(decl.api_slot, None);
@@ -300,7 +326,7 @@ impl Module {
                         if params.support_buffer_address
                             && module.type_registry.is_buffer_address(decl.type_id)
                         {
-                            let offset = match inline_size.entry(decl.lang_slot.set) {
+                            let offset = match inline_size.entry(set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
                                     *o.get_mut() += 8;
@@ -313,7 +339,7 @@ impl Module {
                             };
 
                             decl.api_slot = Some(ApiBinding {
-                                set: decl.lang_slot.set,
+                                set,
                                 location: ApiLocation::InlineConstant(offset),
                                 slot_type: None,
                             });
@@ -321,7 +347,7 @@ impl Module {
                             assert_eq!(decl.storage_class, GlobalStorage::Extern);
                             decl.storage_class = GlobalStorage::Static;
                         } else {
-                            let index = match used_slots.entry(decl.lang_slot.set) {
+                            let index = match used_slots.entry(set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
                                     *o.get_mut() += 1;
@@ -334,7 +360,7 @@ impl Module {
                             };
 
                             decl.api_slot = Some(ApiBinding {
-                                set: decl.lang_slot.set,
+                                set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
                                     let unmodified_id =
@@ -358,7 +384,14 @@ impl Module {
         let mut used_slots = HashMap::new();
         let mut inline_size = HashMap::new();
         for decl in &self.root_definitions.clone() {
-            process_definition(&mut self, decl, &params, &mut used_slots, &mut inline_size);
+            process_definition(
+                &mut self,
+                decl,
+                &params,
+                &mut used_slots,
+                &mut inline_size,
+                default_set,
+            );
         }
 
         // Make an inline constant buffer to store bindings that can be stored as constants
