@@ -319,8 +319,29 @@ impl Module {
                 RootDefinition::GlobalVariable(id) => {
                     let decl = &mut module.global_registry[id.0 as usize];
                     let set = decl.lang_slot.set.unwrap_or(default_set);
+
+                    // Remove outer layer of modifier
                     let unmodified_ty_id = module.type_registry.remove_modifier(decl.type_id);
+
+                    // Attempt to remove array type - and extract the length
+                    let (unmodified_ty_id, array_len) =
+                        match module.type_registry.get_type_layer(unmodified_ty_id) {
+                            // Arrays with known length
+                            // Unsized arrays are ignored currently
+                            TypeLayer::Array(inner, Some(len)) => {
+                                // Remove inner layer of modifier
+                                let unmodified = module.type_registry.remove_modifier(inner);
+
+                                (unmodified, Some(len))
+                            }
+                            _ => (unmodified_ty_id, None),
+                        };
+
+                    let slot_count = array_len.unwrap_or(1) as u32;
+
+                    // Get info for type layer after extracting outer shells
                     let unmodified_tyl = module.type_registry.get_type_layer(unmodified_ty_id);
+
                     assert_eq!(decl.api_slot, None);
                     if unmodified_tyl.is_object() {
                         if params.support_buffer_address
@@ -329,11 +350,11 @@ impl Module {
                             let offset = match inline_size.entry(set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
-                                    *o.get_mut() += 8;
+                                    *o.get_mut() += 8 * slot_count;
                                     slot
                                 }
                                 std::collections::hash_map::Entry::Vacant(v) => {
-                                    v.insert(8);
+                                    v.insert(8 * slot_count);
                                     0
                                 }
                             };
@@ -350,11 +371,11 @@ impl Module {
                             let index = match used_slots.entry(set) {
                                 std::collections::hash_map::Entry::Occupied(mut o) => {
                                     let slot = *o.get();
-                                    *o.get_mut() += 1;
+                                    *o.get_mut() += slot_count;
                                     slot
                                 }
                                 std::collections::hash_map::Entry::Vacant(v) => {
-                                    v.insert(1);
+                                    v.insert(slot_count);
                                     0
                                 }
                             };
@@ -363,10 +384,7 @@ impl Module {
                                 set,
                                 location: ApiLocation::Index(index),
                                 slot_type: if params.require_slot_type {
-                                    let unmodified_id =
-                                        module.type_registry.remove_modifier(decl.type_id);
-                                    let tyl = module.type_registry.get_type_layer(unmodified_id);
-                                    Some(if let TypeLayer::Object(ot) = tyl {
+                                    Some(if let TypeLayer::Object(ot) = unmodified_tyl {
                                         ot.get_register_type()
                                     } else {
                                         panic!("Non-object type has a global resource binding");
