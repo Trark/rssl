@@ -36,6 +36,9 @@ pub struct DescriptorBinding {
 
     /// Type of resource view the binding takes
     pub descriptor_type: DescriptorType,
+
+    /// Number of descriptors for the binding - or None for an unbounded array
+    pub descriptor_count: Option<u32>,
 }
 
 /// Type of a descriptor

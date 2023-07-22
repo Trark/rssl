@@ -68,6 +68,7 @@ fn analyse_bindings(
                     name: context.get_constant_buffer_name(*id)?.to_string(),
                     api_binding: api_slot.location,
                     descriptor_type: DescriptorType::ConstantBuffer,
+                    descriptor_count: Some(1),
                 };
 
                 context.register_binding(api_slot.set, binding);
@@ -80,13 +81,15 @@ fn analyse_bindings(
             let unmodified_id = context.module.type_registry.remove_modifier(decl.type_id);
 
             // Attempt to remove array type - and extract the length
-            let unmodified_id = if let ir::TypeLayer::Array(inner, _) =
+            let (unmodified_id, descriptor_count) = if let ir::TypeLayer::Array(inner, len) =
                 context.module.type_registry.get_type_layer(unmodified_id)
             {
                 // Remove inner layer of modifier
-                context.module.type_registry.remove_modifier(inner)
+                let unmodified_id = context.module.type_registry.remove_modifier(inner);
+                let len = len.map(|v| v as u32);
+                (unmodified_id, len)
             } else {
-                unmodified_id
+                (unmodified_id, Some(1))
             };
 
             // Get info for type layer after extracting outer shells
@@ -147,6 +150,7 @@ fn analyse_bindings(
                     name: context.get_global_name(*id)?.to_string(),
                     api_binding: api_slot.location,
                     descriptor_type,
+                    descriptor_count,
                 };
 
                 context.register_binding(api_slot.set, binding);
