@@ -75,8 +75,23 @@ fn analyse_bindings(
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &context.module.global_registry[id.0 as usize];
+
+            // Remove outer layer of modifier
             let unmodified_id = context.module.type_registry.remove_modifier(decl.type_id);
+
+            // Attempt to remove array type - and extract the length
+            let unmodified_id = if let ir::TypeLayer::Array(inner, _) =
+                context.module.type_registry.get_type_layer(unmodified_id)
+            {
+                // Remove inner layer of modifier
+                context.module.type_registry.remove_modifier(inner)
+            } else {
+                unmodified_id
+            };
+
+            // Get info for type layer after extracting outer shells
             let type_layer = context.module.type_registry.get_type_layer(unmodified_id);
+
             let descriptor_type = match type_layer {
                 ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(_)) => {
                     DescriptorType::ConstantBuffer
