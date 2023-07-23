@@ -1,4 +1,4 @@
-use crate::ast_statements::{Initializer, VariableBind};
+use crate::ast_statements::{Attribute, Initializer, VariableBind};
 use crate::ast_types::Type;
 use rssl_text::Located;
 
@@ -7,6 +7,7 @@ use rssl_text::Located;
 pub struct GlobalVariable {
     pub global_type: Type,
     pub defs: Vec<GlobalVariableName>,
+    pub attributes: Vec<Attribute>,
 }
 
 /// The name part of a global variable definition - to support multiple definitions in a single line

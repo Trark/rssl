@@ -111,6 +111,12 @@ pub enum TyperError {
     /// Attribute on a statement has an unexpected number of arguments
     StatementAttributeUnexpectedArgumentCount(String, SourceLocation),
 
+    /// Attribute on a global variable has an unknown name
+    GlobalAttributeUnknown(String, SourceLocation),
+
+    /// Attribute on a global variable has an unexpected number of arguments
+    GlobalAttributeUnexpectedArgumentCount(String, SourceLocation),
+
     /// \[unroll\] requires the argument be a constexpr integer
     AttributeUnrollArgumentMustBeIntegerConstant(SourceLocation),
 
@@ -702,6 +708,21 @@ impl CompileError for TyperExternalError {
                     write!(
                         f,
                         "attribute 'unnroll' requires a constant integer argument",
+                    )
+                },
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::GlobalAttributeUnknown(name, loc) => w.write_message(
+                &|f| write!(f, "unknown global variable attribute '{name}'"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::GlobalAttributeUnexpectedArgumentCount(name, loc) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "unexpected number of arguments to global variable attribute '{name}'"
                     )
                 },
                 *loc,

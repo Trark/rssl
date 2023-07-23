@@ -217,15 +217,17 @@ fn test_init_statement() {
 /// Parse an attribute
 pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
+    let (input, opt_second_bracket) = parse_optional(parse_token(Token::LeftSquareBracket))(input)?;
 
-    let (input, name) = locate(match_identifier)(input)?;
+    let (input, name) =
+        parse_list_nonempty(parse_token(Token::ScopeResolution), parse_variable_name)(input)?;
 
     let (input, has_args) = match parse_token(Token::LeftParen)(input) {
         Ok((input, _)) => (input, true),
         Err(_) => (input, false),
     };
 
-    let (input, args) = if has_args {
+    let (input, arguments) = if has_args {
         let mut input = input;
         let mut args = Vec::new();
         if parse_token(Token::RightParen)(input).is_err() {
@@ -251,11 +253,13 @@ pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
     };
 
     let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
-
-    let attr = Attribute {
-        name: Located::new(name.node.0.clone(), name.location),
-        arguments: args,
+    let input = if opt_second_bracket.is_some() {
+        parse_token(Token::RightSquareBracket)(input)?.0
+    } else {
+        input
     };
+
+    let attr = Attribute { name, arguments };
 
     Ok((input, attr))
 }
@@ -271,7 +275,7 @@ fn test_attribute() {
         Ok((
             &[][..],
             Attribute {
-                name: Located::none("fastopt".to_string()),
+                name: Vec::from([Located::none("fastopt".to_string())]),
                 arguments: Vec::new()
             }
         ))
@@ -286,7 +290,7 @@ fn test_attribute() {
         Ok((
             &[][..],
             Attribute {
-                name: Located::none("unroll".to_string()),
+                name: Vec::from([Located::none("unroll".to_string())]),
                 arguments: Vec::new()
             }
         ))
@@ -304,7 +308,7 @@ fn test_attribute() {
         Ok((
             &[][..],
             Attribute {
-                name: Located::none("unroll".to_string()),
+                name: Vec::from([Located::none("unroll".to_string())]),
                 arguments: Vec::from([Located::none(Expression::Literal(Literal::IntUntyped(4)))])
             }
         ))
@@ -322,7 +326,7 @@ fn test_attribute() {
         Ok((
             &[][..],
             Attribute {
-                name: Located::none("outputtopology".to_string()),
+                name: Vec::from([Located::none("outputtopology".to_string())]),
                 arguments: Vec::from([Located::none(Expression::Literal(Literal::String(
                     "triangle".to_string()
                 )))])

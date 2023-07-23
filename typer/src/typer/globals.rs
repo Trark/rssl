@@ -1,4 +1,5 @@
 use super::errors::*;
+use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::{apply_variable_bind, parse_initializer_opt};
 use super::types::{is_illegal_variable_name, parse_type_for_usage, TypePosition};
@@ -12,6 +13,8 @@ pub fn parse_rootdefinition_globalvariable(
     context: &mut Context,
 ) -> TyperResult<Vec<ir::RootDefinition>> {
     let (base_id, storage_class) = parse_globaltype(&gv.global_type, context)?;
+
+    let attribute_result = parse_attributes_for_global(&gv.attributes, context)?;
 
     let mut defs = vec![];
     for global_variable in &gv.defs {
@@ -93,6 +96,17 @@ pub fn parse_rootdefinition_globalvariable(
             }
             None => ir::LanguageBinding::default(),
         };
+
+        // Override binding index with value from attribute
+        if let Some(binding_index) = attribute_result.binding_index_override {
+            gv_ir.lang_slot.index = Some(binding_index);
+        }
+
+        // Override binding group with value from attribute
+        if let Some(binding_group) = attribute_result.binding_group_override {
+            gv_ir.lang_slot.set = Some(binding_group);
+        }
+
         gv_ir.init = var_init;
 
         gv_ir.constexpr_value = evaluated_value;
@@ -233,4 +247,116 @@ pub fn parse_rootdefinition_constantbuffer(
     context.insert_cbuffer(id)?;
 
     Ok(ir::RootDefinition::ConstantBuffer(id))
+}
+
+/// Set of data accumulated from processing all attributes
+struct GlobalAttributeResult {
+    binding_index_override: Option<u32>,
+    binding_group_override: Option<u32>,
+}
+
+/// Process all attributes for a global variable
+fn parse_attributes_for_global(
+    attributes: &[ast::Attribute],
+    context: &mut Context,
+) -> TyperResult<GlobalAttributeResult> {
+    let mut result = GlobalAttributeResult {
+        binding_index_override: None,
+        binding_group_override: None,
+    };
+
+    for attribute in attributes {
+        match attribute.name.as_slice() {
+            [namespace, leaf] => {
+                match namespace.node.as_str() {
+                    "rssl" => {
+                        // RSSL specific attributes
+                        match leaf.as_str() {
+                            "bind_group" => {
+                                if attribute.arguments.len() == 1 {
+                                    let group_index =
+                                        parse_expr_as_u32(&attribute.arguments[0], context)?;
+                                    result.binding_group_override = Some(group_index);
+                                } else {
+                                    return Err(
+                                        TyperError::GlobalAttributeUnexpectedArgumentCount(
+                                            leaf.node.clone(),
+                                            leaf.location,
+                                        ),
+                                    );
+                                }
+                            }
+                            _ => {
+                                return Err(TyperError::GlobalAttributeUnknown(
+                                    leaf.node.clone(),
+                                    leaf.location,
+                                ))
+                            }
+                        }
+                    }
+                    "vk" => {
+                        // Attributes from HLSL SPIR-V mappings
+                        match leaf.as_str() {
+                            "binding" => {
+                                if attribute.arguments.len() == 1 {
+                                    let binding_index =
+                                        parse_expr_as_u32(&attribute.arguments[0], context)?;
+                                    result.binding_index_override = Some(binding_index);
+                                } else if attribute.arguments.len() == 2 {
+                                    let binding_index =
+                                        parse_expr_as_u32(&attribute.arguments[0], context)?;
+                                    let group_index =
+                                        parse_expr_as_u32(&attribute.arguments[1], context)?;
+                                    result.binding_index_override = Some(binding_index);
+                                    result.binding_group_override = Some(group_index);
+                                } else {
+                                    return Err(
+                                        TyperError::GlobalAttributeUnexpectedArgumentCount(
+                                            leaf.node.clone(),
+                                            leaf.location,
+                                        ),
+                                    );
+                                }
+                            }
+                            _ => {
+                                return Err(TyperError::GlobalAttributeUnknown(
+                                    leaf.node.clone(),
+                                    leaf.location,
+                                ))
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(TyperError::GlobalAttributeUnknown(
+                            namespace.node.clone(),
+                            namespace.location,
+                        ))
+                    }
+                }
+            }
+            [first, ..] => {
+                return Err(TyperError::GlobalAttributeUnknown(
+                    first.node.clone(),
+                    first.location,
+                ))
+            }
+            _ => panic!("Attribute with no name"),
+        }
+    }
+
+    Ok(result)
+}
+
+/// Type check and constant evaluate an ast expression to get a u32
+fn parse_expr_as_u32(expr: &Located<ast::Expression>, context: &mut Context) -> TyperResult<u32> {
+    let expr_ir = parse_expr(expr, context)?.0;
+    let evaluated = match evaluate_constexpr(&expr_ir, &mut context.module) {
+        Ok(value) => value,
+        Err(_) => return Err(TyperError::ExpressionIsNotConstantExpression(expr.location)),
+    };
+    let value = match evaluated.to_uint64() {
+        Some(v) if v <= u32::MAX as u64 => v as u32,
+        _ => return Err(TyperError::ExpressionIsNotConstantExpression(expr.location)),
+    };
+    Ok(value)
 }

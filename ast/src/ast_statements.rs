@@ -77,7 +77,7 @@ pub enum Initializer {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Attribute {
     /// Name of the attribute
-    pub name: Located<String>,
+    pub name: Vec<Located<String>>,
 
     /// Arguments for the attribute
     pub arguments: Vec<Located<Expression>>,
@@ -116,7 +116,7 @@ impl Attribute {
         let y_node = Located::none(Expression::Literal(Literal::IntUntyped(y)));
         let z_node = Located::none(Expression::Literal(Literal::IntUntyped(z)));
         Attribute {
-            name: Located::none("numthreads".to_string()),
+            name: Vec::from([Located::none("numthreads".to_string())]),
             arguments: Vec::from([x_node, y_node, z_node]),
         }
     }

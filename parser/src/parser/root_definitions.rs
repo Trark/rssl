@@ -176,7 +176,7 @@ fn test_function() {
                 attributes: Vec::new(),
             }])),
             attributes: vec![Attribute {
-                name: "numthreads".to_string().loc(1),
+                name: Vec::from(["numthreads".to_string().loc(1)]),
                 arguments: Vec::from([
                     Expression::Literal(Literal::IntUntyped(16)).loc(12),
                     Expression::Literal(Literal::IntUntyped(16)).loc(16),

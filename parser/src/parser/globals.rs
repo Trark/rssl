@@ -1,3 +1,4 @@
+use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a single named constant in a constant buffer definition
@@ -72,6 +73,7 @@ fn parse_global_variable_name(input: &[LexToken]) -> ParseResult<GlobalVariableN
 
 /// Parse a global variable definition
 pub fn parse_global_variable(input: &[LexToken]) -> ParseResult<GlobalVariable> {
+    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, typename) = parse_type(input)?;
     let (input, defs) =
         parse_list_nonempty(parse_token(Token::Comma), parse_global_variable_name)(input)?;
@@ -79,6 +81,7 @@ pub fn parse_global_variable(input: &[LexToken]) -> ParseResult<GlobalVariable> 
     let var = GlobalVariable {
         global_type: typename,
         defs,
+        attributes,
     };
     Ok((input, var))
 }
@@ -104,6 +107,7 @@ fn test_global_variable() {
                 }),
                 init: None,
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -126,6 +130,7 @@ fn test_global_variable() {
                 }),
                 init: None,
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -158,6 +163,7 @@ fn test_global_variable() {
                 }),
                 init: None,
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -180,6 +186,7 @@ fn test_global_variable() {
                 }),
                 init: None,
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -202,6 +209,7 @@ fn test_global_variable() {
                     Expression::Literal(Literal::IntUntyped(4)).loc(33),
                 )),
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -229,6 +237,7 @@ fn test_global_variable() {
                     Initializer::Expression(Expression::Literal(Literal::IntUntyped(3)).loc(38)),
                 ]))),
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -248,6 +257,7 @@ fn test_global_variable() {
                 slot: None,
                 init: None,
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -296,6 +306,7 @@ fn test_global_variable() {
                     ])),
                 ]))),
             }]),
+            attributes: Vec::new(),
         },
     );
 
@@ -315,6 +326,7 @@ fn test_global_variable() {
                 )),
                 slot: None,
             }]),
+            attributes: Vec::new(),
         },
     );
 }

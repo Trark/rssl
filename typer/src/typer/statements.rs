@@ -268,7 +268,19 @@ fn parse_statement_attribute(
     attribute: &ast::Attribute,
     context: &mut Context,
 ) -> TyperResult<ir::StatementAttribute> {
-    let lower_name = attribute.name.to_lowercase();
+    // We do not support any namespaced names
+    let attribute_name = match attribute.name.as_slice() {
+        [name] => name.clone(),
+        [first, ..] => {
+            return Err(TyperError::StatementAttributeUnknown(
+                first.node.clone(),
+                first.location,
+            ))
+        }
+        _ => panic!("Attribute with no name"),
+    };
+
+    let lower_name = attribute_name.to_lowercase();
 
     // First map all the attributes with no arguments
     let trivial_opt = match lower_name.as_str() {
@@ -285,8 +297,8 @@ fn parse_statement_attribute(
             Ok(trivial)
         } else {
             Err(TyperError::StatementAttributeUnexpectedArgumentCount(
-                attribute.name.node.clone(),
-                attribute.name.location,
+                attribute_name.node,
+                attribute_name.location,
             ))
         }
     } else {
@@ -300,7 +312,7 @@ fn parse_statement_attribute(
                         Ok(constant) => constant,
                         Err(_) => {
                             return Err(TyperError::AttributeUnrollArgumentMustBeIntegerConstant(
-                                attribute.name.location,
+                                attribute_name.location,
                             ))
                         }
                     };
@@ -308,21 +320,21 @@ fn parse_statement_attribute(
                         Some(value) => value,
                         None => {
                             return Err(TyperError::AttributeUnrollArgumentMustBeIntegerConstant(
-                                attribute.name.location,
+                                attribute_name.location,
                             ))
                         }
                     };
                     Ok(ir::StatementAttribute::Unroll(Some(value)))
                 } else {
                     Err(TyperError::StatementAttributeUnexpectedArgumentCount(
-                        attribute.name.node.clone(),
-                        attribute.name.location,
+                        attribute_name.node,
+                        attribute_name.location,
                     ))
                 }
             }
             _ => Err(TyperError::StatementAttributeUnknown(
-                attribute.name.node.clone(),
-                attribute.name.location,
+                attribute_name.node,
+                attribute_name.location,
             )),
         }
     }

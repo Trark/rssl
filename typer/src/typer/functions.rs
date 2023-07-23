@@ -415,7 +415,19 @@ fn parse_function_attribute(
     attribute: &ast::Attribute,
     context: &mut Context,
 ) -> TyperResult<ir::FunctionAttribute> {
-    match attribute.name.to_lowercase().as_str() {
+    // We do not support any namespaced names
+    let attribute_name = match attribute.name.as_slice() {
+        [name] => name.clone(),
+        [first, ..] => {
+            return Err(TyperError::FunctionAttributeUnknown(
+                first.node.clone(),
+                first.location,
+            ))
+        }
+        _ => panic!("Attribute with no name"),
+    };
+
+    match attribute_name.to_lowercase().as_str() {
         "numthreads" => {
             if attribute.arguments.len() == 3 {
                 let x = parse_expr(&attribute.arguments[0], context)?.0;
@@ -424,8 +436,8 @@ fn parse_function_attribute(
                 Ok(ir::FunctionAttribute::NumThreads(x, y, z))
             } else {
                 Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
-                    attribute.name.node.clone(),
-                    attribute.name.location,
+                    attribute_name.node,
+                    attribute_name.location,
                 ))
             }
         }
@@ -435,8 +447,8 @@ fn parse_function_attribute(
                 Ok(ir::FunctionAttribute::MaxVertexCount(count))
             } else {
                 Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
-                    attribute.name.node.clone(),
-                    attribute.name.location,
+                    attribute_name.node,
+                    attribute_name.location,
                 ))
             }
         }
@@ -446,8 +458,8 @@ fn parse_function_attribute(
                 Ok(ir::FunctionAttribute::WaveSize(size))
             } else {
                 Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
-                    attribute.name.node.clone(),
-                    attribute.name.location,
+                    attribute_name.node,
+                    attribute_name.location,
                 ))
             }
         }
@@ -458,20 +470,20 @@ fn parse_function_attribute(
                         Ok(ir::FunctionAttribute::OutputTopology(s.clone()))
                     }
                     _ => Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
-                        attribute.name.node.clone(),
-                        attribute.name.location,
+                        attribute_name.node,
+                        attribute_name.location,
                     )),
                 }
             } else {
                 Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
-                    attribute.name.node.clone(),
-                    attribute.name.location,
+                    attribute_name.node,
+                    attribute_name.location,
                 ))
             }
         }
         _ => Err(TyperError::FunctionAttributeUnknown(
-            attribute.name.node.clone(),
-            attribute.name.location,
+            attribute_name.node,
+            attribute_name.location,
         )),
     }
 }

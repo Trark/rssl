@@ -37,6 +37,7 @@ fn test_ast_pass() {
                     }),
                     init: None,
                 }],
+                attributes: Vec::new(),
             }),
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
                 global_type: ast::Type::from("int").with_modifiers(&[
@@ -51,6 +52,7 @@ fn test_ast_pass() {
                         ast::Expression::Literal(ast::Literal::IntUntyped(4)),
                     ))),
                 }],
+                attributes: Vec::new(),
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("myFunc".to_string()),
@@ -200,6 +202,7 @@ fn test_ast_to_ir() {
                         ast::Expression::Literal(ast::Literal::IntUntyped(4)),
                     ))),
                 }],
+                attributes: Vec::new(),
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
                 name: Located::none("CSMAIN".to_string()),
