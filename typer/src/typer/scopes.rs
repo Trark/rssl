@@ -513,6 +513,7 @@ impl Context {
             init: None,
             constexpr_value: None,
             is_intrinsic: false,
+            is_bindless: false,
         });
 
         let scope = &self.scopes[self.current_scope];

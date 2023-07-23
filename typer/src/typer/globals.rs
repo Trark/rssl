@@ -111,6 +111,8 @@ pub fn parse_rootdefinition_globalvariable(
 
         gv_ir.constexpr_value = evaluated_value;
 
+        gv_ir.is_bindless = attribute_result.is_bindless;
+
         defs.push(ir::RootDefinition::GlobalVariable(var_id));
     }
 
@@ -253,6 +255,7 @@ pub fn parse_rootdefinition_constantbuffer(
 struct GlobalAttributeResult {
     binding_index_override: Option<u32>,
     binding_group_override: Option<u32>,
+    is_bindless: bool,
 }
 
 /// Process all attributes for a global variable
@@ -263,6 +266,7 @@ fn parse_attributes_for_global(
     let mut result = GlobalAttributeResult {
         binding_index_override: None,
         binding_group_override: None,
+        is_bindless: false,
     };
 
     for attribute in attributes {
@@ -277,6 +281,18 @@ fn parse_attributes_for_global(
                                     let group_index =
                                         parse_expr_as_u32(&attribute.arguments[0], context)?;
                                     result.binding_group_override = Some(group_index);
+                                } else {
+                                    return Err(
+                                        TyperError::GlobalAttributeUnexpectedArgumentCount(
+                                            leaf.node.clone(),
+                                            leaf.location,
+                                        ),
+                                    );
+                                }
+                            }
+                            "bindless" => {
+                                if attribute.arguments.is_empty() {
+                                    result.is_bindless = true;
                                 } else {
                                     return Err(
                                         TyperError::GlobalAttributeUnexpectedArgumentCount(

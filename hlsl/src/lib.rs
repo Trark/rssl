@@ -39,6 +39,9 @@ pub struct DescriptorBinding {
 
     /// Number of descriptors for the binding - or None for an unbounded array
     pub descriptor_count: Option<u32>,
+
+    /// If the descriptor is intended for bindless usage
+    pub is_bindless: bool,
 }
 
 /// Type of a descriptor

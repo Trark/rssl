@@ -30,6 +30,9 @@ pub struct GlobalVariable {
 
     /// If we are a built in intrinsic value
     pub is_intrinsic: bool,
+
+    /// If we are intended to be used with bindless
+    pub is_bindless: bool,
 }
 
 /// A constant buffer definition
