@@ -395,7 +395,7 @@ impl Context {
     pub fn get_struct_member_expression(
         &self,
         id: ir::StructId,
-        name: &str,
+        name: &Located<String>,
     ) -> TyperResult<StructMemberValue> {
         assert!(id.0 < self.module.struct_registry.len() as u32);
 
@@ -403,13 +403,13 @@ impl Context {
 
         for id in &self.module.struct_registry[id.0 as usize].methods {
             let function_name = self.module.function_registry.get_function_name(*id);
-            if function_name == name {
+            if function_name == name.node {
                 overloads.push(*id);
             }
         }
 
         for member in &self.module.struct_registry[id.0 as usize].members {
-            if member.name == name {
+            if member.name == name.node {
                 assert!(overloads.is_empty());
                 return Ok(StructMemberValue::Variable(member.type_id));
             }
@@ -422,7 +422,7 @@ impl Context {
         Err(TyperError::StructMemberDoesNotExist(
             id,
             name.to_string(),
-            SourceLocation::UNKNOWN,
+            name.location,
         ))
     }
 
@@ -1151,15 +1151,15 @@ impl Context {
     fn find_identifier_in_scope(
         &self,
         scope: &ScopeData,
-        name: &str,
+        name: &Located<String>,
     ) -> Option<VariableExpression> {
-        if let Some(ve) = scope.variables.find_variable(name, &self.module) {
+        if let Some(ve) = scope.variables.find_variable(&name.node, &self.module) {
             return Some(ve);
         }
 
         let mut overloads = Vec::new();
 
-        if let Some(symbols) = scope.symbols.get(name) {
+        if let Some(symbols) = scope.symbols.get(&name.node) {
             for symbol in symbols {
                 debug_assert!(overloads.is_empty() || matches!(symbol, ScopeSymbol::Function(_)));
                 match symbol {
@@ -1230,7 +1230,7 @@ impl Context {
         }
 
         // Check for type symbols - these are hidden by non-type symbols so are checked later
-        if let Some(symbols) = scope.symbols.get(name) {
+        if let Some(symbols) = scope.symbols.get(&name.node) {
             for symbol in symbols {
                 if let ScopeSymbol::Type(id) = symbol {
                     return Some(VariableExpression::Type(*id));

@@ -1471,7 +1471,7 @@ fn parse_expr_unchecked(
             match composite_tyl_nomod {
                 ir::TypeLayer::Struct(id) => {
                     assert!(!member.identifiers.is_empty());
-                    let member_name = &member.identifiers.last().unwrap().node;
+                    let member_name = member.identifiers.last().unwrap();
 
                     // Ensure the path is for the correct type
                     // We have no inheritance / data hiding here so this is purely validation - it will always link back to the provided struct
@@ -1511,7 +1511,8 @@ fn parse_expr_unchecked(
                     match context.get_struct_member_expression(id, member_name) {
                         Ok(StructMemberValue::Variable(ty)) => {
                             let composite = Box::new(composite_ir);
-                            let member = ir::Expression::Member(composite, member_name.clone());
+                            let member =
+                                ir::Expression::Member(composite, member_name.node.clone());
                             Ok(TypedExpression::Value(member, ty.to_lvalue()))
                         }
                         Ok(StructMemberValue::Method(overloads)) => {
