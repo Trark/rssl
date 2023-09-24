@@ -517,8 +517,7 @@ fn apply_single_macro(
             let end = tokens.len() - remaining.len();
 
             // Substitute macros inside macro arguments
-            let args = args.into_iter().fold(Ok(vec![]), |vec, arg| {
-                let mut vec = vec?;
+            let args = args.into_iter().try_fold(Vec::new(), |mut vec, arg| {
                 let subbed_text = apply_macros(arg, macro_defs, false, source_manager)?;
                 vec.push(subbed_text);
                 Ok(vec)
