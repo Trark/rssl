@@ -640,7 +640,7 @@ fn sign(input: &[u8]) -> LexResult<Sign> {
 }
 
 /// Exponent value
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 struct Exponent(i64);
 
 /// Parse an exponent in a float literal
@@ -673,13 +673,8 @@ fn test_exponent() {
     assert_eq!(p(b"."), wrong_chars(b"."));
 }
 
-/// Build a float literal token from each part of literal
-fn calculate_float_from_parts(
-    left: DigitSequence,
-    right: DigitSequence,
-    exponent: i64,
-    float_type: Option<FloatType>,
-) -> Token {
+/// Build a high precision float from each part of literal
+fn calculate_float64_from_parts(left: DigitSequence, right: DigitSequence, exponent: i64) -> f64 {
     let mut left_combined = 0f64;
     for digit in left {
         left_combined *= 10f64;
@@ -712,12 +707,7 @@ fn calculate_float_from_parts(
         value64 /= m;
     }
 
-    match float_type {
-        None => Token::LiteralFloat(value64),
-        Some(FloatType::Half) => Token::LiteralFloat16(value64 as f32),
-        Some(FloatType::Float) => Token::LiteralFloat32(value64 as f32),
-        Some(FloatType::Double) => Token::LiteralFloat64(value64),
-    }
+    value64
 }
 
 /// Parse a float literal
@@ -745,8 +735,42 @@ fn literal_float(input: &[u8]) -> LexResult<Token> {
         return other_token_chars(base_input);
     }
 
+    // Calculate the value of the float before we apply modifiers on the end
+    let exponent = exponent_opt.unwrap_or(Exponent(0));
+    let Fraction(left, right) = fraction;
+    let Exponent(exp) = exponent;
+    let value64 = calculate_float64_from_parts(left, right, exp);
+
     let pre_suffix_input = input;
+
+    // Check for #INF
+    // This applies before the float type
+    // This is not allowed for values with exponents
+    // This is not allowed for values that are zero
+    // Negative infinity is not a token as it is a negation operator on a positive infinity
+    let (input, value64) = match input {
+        [b'#', b'I', b'N', b'F', rest @ ..] => {
+            if value64 != 0.0 && exponent_opt.is_none() {
+                assert!(value64 > 0.0);
+                (rest, f64::INFINITY)
+            } else {
+                return Err(LexErrorContext(
+                    pre_suffix_input,
+                    LexerErrorReason::FloatInvalidSuffix,
+                ));
+            }
+        }
+        _ => (input, value64),
+    };
+
     let (input, float_type) = opt(float_type)(input)?;
+
+    let token = match float_type {
+        None => Token::LiteralFloat(value64),
+        Some(FloatType::Half) => Token::LiteralFloat16(value64 as f32),
+        Some(FloatType::Float) => Token::LiteralFloat32(value64 as f32),
+        Some(FloatType::Double) => Token::LiteralFloat64(value64),
+    };
 
     // If the suffix has extra unexpected characters then fail
     if let Ok((_, c)) = identifier_char(input) {
@@ -767,11 +791,6 @@ fn literal_float(input: &[u8]) -> LexResult<Token> {
         }
     }
 
-    let exponent = exponent_opt.unwrap_or(Exponent(0));
-    let Fraction(left, right) = fraction;
-    let Exponent(exp) = exponent;
-    let token = calculate_float_from_parts(left, right, exp, float_type);
-
     Ok((input, token))
 }
 
@@ -791,6 +810,7 @@ fn test_literal_float() {
     assert_eq!(p(b".0"), Ok((&b""[..], Token::LiteralFloat(0.0))));
 
     assert_eq!(p(b"7E-7"), Ok((&b""[..], Token::LiteralFloat(7e-7))));
+    assert_eq!(p(b"1e11"), Ok((&b""[..], Token::LiteralFloat(1e+11))));
     assert_eq!(p(b"1e+11"), Ok((&b""[..], Token::LiteralFloat(1e+11))));
     assert_eq!(
         p(b"4.863e+11"),
@@ -799,6 +819,31 @@ fn test_literal_float() {
 
     assert!(p(b"0").is_err());
     assert!(p(b".").is_err());
+
+    assert_eq!(
+        p(b"1.#INF"),
+        Ok((&b""[..], Token::LiteralFloat(f64::INFINITY)))
+    );
+    assert_eq!(
+        p(b"1.0#INF"),
+        Ok((&b""[..], Token::LiteralFloat(f64::INFINITY)))
+    );
+    assert_eq!(
+        p(b"1.#INFf"),
+        Ok((&b""[..], Token::LiteralFloat32(f32::INFINITY)))
+    );
+    assert_eq!(
+        p(b"1.#INFl"),
+        Ok((&b""[..], Token::LiteralFloat64(f64::INFINITY)))
+    );
+    assert_eq!(
+        p(b"1.#INFh"),
+        Ok((&b""[..], Token::LiteralFloat16(f32::INFINITY)))
+    );
+    assert!(p(b"0.#INF").is_err());
+    assert!(p(b"0.0#INF").is_err());
+    assert!(p(b"1e2#INF").is_err());
+    assert!(p(b"1.0e2#INF").is_err());
 
     // Unknown suffix are lex failures
     assert_eq!(

@@ -1008,6 +1008,10 @@ fn export_literal(
         ir::Constant::UInt32(v) => write!(output, "{v}u").unwrap(),
         ir::Constant::Int64(v) => write!(output, "{v}l").unwrap(),
         ir::Constant::UInt64(v) => write!(output, "{v}ul").unwrap(),
+        ir::Constant::FloatLiteral(v) if *v == f64::INFINITY => write!(output, "1.#INF").unwrap(),
+        ir::Constant::FloatLiteral(v) if *v == f64::NEG_INFINITY => {
+            write!(output, "-1.#INF").unwrap()
+        }
         ir::Constant::FloatLiteral(v) if *v == (*v as i64 as f64) => {
             write!(output, "{}.0", *v as i64).unwrap()
         }
@@ -1015,7 +1019,11 @@ fn export_literal(
             write!(output, "{v}.0").unwrap()
         }
         ir::Constant::FloatLiteral(v) => write!(output, "{v}").unwrap(),
+        ir::Constant::Float16(v) if *v == f32::INFINITY => write!(output, "1.#INFh").unwrap(),
+        ir::Constant::Float16(v) if *v == f32::NEG_INFINITY => write!(output, "-1.#INFh").unwrap(),
         ir::Constant::Float16(v) => write!(output, "{v}h").unwrap(),
+        ir::Constant::Float32(v) if *v == f32::INFINITY => write!(output, "1.#INFf").unwrap(),
+        ir::Constant::Float32(v) if *v == f32::NEG_INFINITY => write!(output, "-1.#INFf").unwrap(),
         ir::Constant::Float32(v) if *v == (*v as i64 as f32) => {
             write!(output, "{}.0f", *v as i64).unwrap()
         }
@@ -1023,6 +1031,8 @@ fn export_literal(
             write!(output, "{v}.0f").unwrap()
         }
         ir::Constant::Float32(v) => write!(output, "{v}f").unwrap(),
+        ir::Constant::Float64(v) if *v == f64::INFINITY => write!(output, "1.#INFL").unwrap(),
+        ir::Constant::Float64(v) if *v == f64::NEG_INFINITY => write!(output, "-1.#INFL").unwrap(),
         ir::Constant::Float64(v) => write!(output, "{v}L").unwrap(),
         ir::Constant::String(_) => panic!("literal string not expected in output"),
         ir::Constant::Enum(id, c) => {
