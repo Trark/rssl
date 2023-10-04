@@ -618,6 +618,9 @@ fn parse_expr_unaryop(
                     _ => Ok(()),
                 }
             }
+
+            let mut is_trivial = false;
+
             let (intrinsic, eir, ety) = match *op {
                 ast::UnaryOp::PrefixIncrement => {
                     enforce_increment_type(expr_ty, op, base_location, context)?;
@@ -690,6 +693,9 @@ fn parse_expr_unaryop(
                         ast::UnaryOp::Minus => ir::IntrinsicOp::Minus,
                         _ => unreachable!(),
                     };
+
+                    is_trivial = ir_op == ir::IntrinsicOp::Minus
+                        && matches!(expr_ir, ir::Expression::Literal(_));
 
                     (ir_op, expr_ir, op_output_ety)
                 }
@@ -812,10 +818,19 @@ fn parse_expr_unaryop(
                     (ir::IntrinsicOp::BitwiseNot, expr_ir, op_output_ety)
                 }
             };
-            Ok(TypedExpression::Value(
-                ir::Expression::IntrinsicOp(intrinsic, Vec::from([eir])),
-                ety,
-            ))
+
+            let mut expr_with_op = ir::Expression::IntrinsicOp(intrinsic, Vec::from([eir]));
+
+            // Collapse some simple operations - so for example negated literals become literals with negative values
+            // We do not do this in the general case as we do not need to simplify the tree as much as possible
+            // But removing certain patterns can make the tree feel more natural
+            if is_trivial {
+                if let Ok(value) = evaluate_constexpr(&expr_with_op, &mut context.module) {
+                    expr_with_op = ir::Expression::Literal(value);
+                }
+            }
+
+            Ok(TypedExpression::Value(expr_with_op, ety))
         }
         _ => Err(TyperError::UnaryOperationWrongTypes(
             op.clone(),

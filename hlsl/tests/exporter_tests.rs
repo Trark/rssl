@@ -7,7 +7,7 @@ fn check_static_primitive_variables() {
     check_rssl_to_hlsl("static int x = 1;", "static int x = 1;\n");
     check_rssl_to_hlsl("static const int x = 1;", "static const int x = 1;\n");
     check_rssl_to_hlsl("static const int x = 1.0;", "static const int x = 1;\n");
-    check_rssl_to_hlsl("extern int x = -1;", "int x = (int)-1;\n");
+    check_rssl_to_hlsl("extern int x = -1;", "int x = -1;\n");
     check_rssl_to_hlsl("static float x[4];", "static float x[4];\n");
     check_rssl_to_hlsl(
         "static float x[4] = { 0.0, 1.0, 2.0, 3.0 };",
@@ -118,19 +118,17 @@ fn check_float_literal() {
         "static float x = -0.000000000000000000000000000000000000011754944f;\n",
     );
     check_rssl_to_hlsl("static float x = 1.#INF;", "static float x = 1.#INFf;\n");
-    check_rssl_to_hlsl(
-        "static float x = -1.#INF;",
-        "static float x = (float)-1.#INF;\n",
-    );
+    check_rssl_to_hlsl("static float x = -1.#INF;", "static float x = -1.#INFf;\n");
     check_rssl_to_hlsl("static half x = 1.#INF;", "static half x = 1.#INFh;\n");
-    check_rssl_to_hlsl(
-        "static half x = -1.#INF;",
-        "static half x = (half)-1.#INF;\n",
-    );
+    check_rssl_to_hlsl("static half x = -1.#INF;", "static half x = -1.#INFh;\n");
     check_rssl_to_hlsl("static double x = 1.#INF;", "static double x = 1.#INFL;\n");
     check_rssl_to_hlsl(
         "static double x = -1.#INF;",
-        "static double x = (double)-1.#INF;\n",
+        "static double x = -1.#INFL;\n",
+    );
+    check_rssl_to_hlsl(
+        "static float x = -1.#INF - 1.#INF;",
+        "static float x = (float)(-1.#INF - 1.#INF);\n",
     );
 }
 
