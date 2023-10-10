@@ -1,0 +1,16 @@
+[[rssl::bindless]]
+[[rssl::bind_group(1)]]
+Texture2D<float4> g_bindlessTexture2d[1024];
+
+SamplerState g_linearSampler;
+
+[numthreads(8, 8, 1)]
+void CSMAIN() {
+    Texture2D tex = g_bindlessTexture2d[0u];
+}
+
+Pipeline Main
+{
+    ComputeShader = CSMAIN;
+    DefaultBindGroup = 2;
+}
