@@ -267,6 +267,7 @@ fn test_ast_to_ir() {
                     },
                     template_params: Vec::new(),
                     param_types: Vec::new(),
+                    non_default_params: 0,
                 }
             );
 

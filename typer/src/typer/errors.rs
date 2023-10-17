@@ -169,6 +169,9 @@ pub enum TyperError {
     /// Enumeration values are restricted in which types they can take
     EnumValueMustBeInteger(SourceLocation),
 
+    /// Function has a parameter which must have a default argument
+    DefaultArgumentMissing(SourceLocation),
+
     /// assert_type had invalid format
     AssertTypeInvalid(SourceLocation),
 
@@ -842,6 +845,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::EnumValueMustBeInteger(loc) => w.write_message(
                 &|f| write!(f, "enum value must be an integer type"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::DefaultArgumentMissing(loc) => w.write_message(
+                &|f| write!(f, "missing default argument"),
                 *loc,
                 Severity::Error,
             ),

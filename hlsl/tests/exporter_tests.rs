@@ -248,6 +248,11 @@ fn check_function_param_system_semantics() {
 }
 
 #[test]
+fn check_function_param_default_value() {
+    check_rssl_to_hlsl("void f(float x = 1.5f) {}", "void f(float x = 1.5f) {}\n");
+}
+
+#[test]
 fn check_function_templates() {
     check_rssl_to_hlsl(
         "template<typename T, T A>

@@ -26,6 +26,7 @@ pub struct FunctionSignature {
     pub return_type: FunctionReturn,
     pub template_params: Vec<TemplateParam>,
     pub param_types: Vec<ParamType>,
+    pub non_default_params: usize,
 }
 
 /// A definition for a function in RSSL
@@ -70,6 +71,9 @@ pub struct FunctionParam {
 
     /// Optional semantic for when the parameter is on the entry point
     pub semantic: Option<Semantic>,
+
+    /// Optional expression for the default value for the argument
+    pub default_expr: Option<Expression>,
 }
 
 /// The type of any parameter declaration

@@ -603,6 +603,28 @@ fn check_function_overload_selection_int_uint() {
 }
 
 #[test]
+fn check_function_default_argument() {
+    // Check we can declare functions with default arguments
+    check_types("float f(float x, float y = 1.5f) { return x; }");
+    check_types("float f(float x = 1.5f) { return x; }");
+
+    // Check we can call function with default arguments either with or without the default value
+    check_types(
+        "
+    float f(float x, float y = 1.5f) { return x; }
+    void main() {
+        assert_type<float>(f(0.0f, 1.0f));
+        assert_type<float>(f(0.0f));
+    }
+",
+    );
+
+    // Default arguments must all come at the end
+    check_fail("float f(float x, float y = 1.5f, float z) { return x; }");
+    check_fail("float f(float x = 1.5f, float y) { return x; }");
+}
+
+#[test]
 fn check_operators_on_literals() {
     check_types("void f() { true * false / true; }");
     check_types("void f() { 1 * 1 / 1; }");

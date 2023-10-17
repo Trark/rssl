@@ -435,11 +435,15 @@ pub fn add_intrinsics(module: &mut Module) {
             let template_params =
                 get_template_params(module, return_type.return_type, &param_types);
 
+            // No intrinsics have default parameters currently
+            let non_default_params = param_types.len();
+
             // Make the signature
             let signature = FunctionSignature {
                 return_type,
                 template_params,
                 param_types,
+                non_default_params,
             };
 
             // Register the intrinsic as a function
@@ -867,6 +871,9 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
         // Generate the template parameterse from the main parameters
         let template_params = get_template_params(module, return_type.return_type, &param_types);
 
+        // No intrinsics have default parameters currently
+        let non_default_params = param_types.len();
+
         methods.push(MethodDefinition {
             name: def.function_name.to_string(),
             intrinsic: def.intrinsic.clone(),
@@ -874,6 +881,7 @@ pub fn get_methods(module: &mut Module, object: ObjectType) -> Vec<MethodDefinit
                 return_type,
                 template_params,
                 param_types,
+                non_default_params,
             },
         });
     }

@@ -105,6 +105,11 @@ fn compile_light_sampler_bounds() {
 }
 
 #[test]
+fn compile_atmosphere() {
+    compile_file("render_techniques/atmosphere/atmosphere.comp", FILES);
+}
+
+#[test]
 fn compile_gi10_comp() {
     compile_file("render_techniques/gi10/gi10.comp", FILES);
 }

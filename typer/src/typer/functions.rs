@@ -112,8 +112,11 @@ pub fn parse_function_signature(
     // We save the return type of the current function for return statement parsing
     context.set_function_return_type(return_type.return_type);
 
+    // Track the number of parameters without a default value
+    let mut non_default_params = 0;
+
     let param_types = {
-        let mut vec = vec![];
+        let mut vec = Vec::new();
         for param in &fd.params {
             let parsed_param = parse_paramtype(param, context)?;
 
@@ -124,6 +127,14 @@ pub fn parse_function_signature(
                 type_id,
                 input_modifier: parsed_param.input_modifier,
             };
+
+            if param.default_expr.is_none() {
+                // Check if a non-default argument is encountered after a default value
+                if non_default_params != vec.len() {
+                    return Err(TyperError::DefaultArgumentMissing(param.name.location));
+                }
+                non_default_params += 1;
+            }
 
             vec.push(var_type);
         }
@@ -137,6 +148,7 @@ pub fn parse_function_signature(
             return_type,
             template_params,
             param_types,
+            non_default_params,
         },
         scope,
     ))
@@ -197,6 +209,7 @@ pub fn parse_function_body(
                 interpolation_modifier: parsed_param.interpolation_modifier,
                 precise: parsed_param.precise,
                 semantic: ast_param.semantic.clone(),
+                default_expr: parsed_param.default_expr,
             });
         }
         vec
@@ -298,6 +311,7 @@ struct ParsedParam {
     input_modifier: ir::InputModifier,
     interpolation_modifier: Option<ir::InterpolationModifier>,
     precise: bool,
+    default_expr: Option<ir::Expression>,
 }
 
 /// Parse a type used for a function parameter
@@ -370,11 +384,23 @@ fn parse_paramtype(param: &ast::FunctionParam, context: &mut Context) -> TyperRe
     // If the parameter has type information bound to the name then apply it to the type now
     let type_id = apply_variable_bind(ty, param.name.location, &param.bind, &None, false, context)?;
 
+    // Parse the default expression
+    // TODO: Validate function declaration / definitions specify the default values in the right place
+    let default_expr = match &param.default_expr {
+        Some(expr) => {
+            // TODO: We do not currently handle the conversion to the parameter type
+            let ir_expr = parse_expr(expr, context)?.0;
+            Some(ir_expr)
+        }
+        None => None,
+    };
+
     Ok(ParsedParam {
         type_id,
         input_modifier,
         interpolation_modifier,
         precise: precise_result.is_some(),
+        default_expr,
     })
 }
 

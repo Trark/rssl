@@ -715,6 +715,11 @@ fn export_function_param(
 
     export_semantic_annotation(&param.semantic, output)?;
 
+    if let Some(default_expr) = &param.default_expr {
+        output.push_str(" = ");
+        export_expression(default_expr, output, context)?;
+    }
+
     Ok(())
 }
 

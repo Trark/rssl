@@ -319,7 +319,9 @@ fn find_function_type(
             .module
             .function_registry
             .get_function_signature(*overload);
-        if param_types.len() == signature.param_types.len() {
+        if param_types.len() <= signature.param_types.len()
+            && param_types.len() >= signature.non_default_params
+        {
             if let Ok((new_id, param_casts)) =
                 find_overload_casts(*overload, template_args, param_types, context)
             {
