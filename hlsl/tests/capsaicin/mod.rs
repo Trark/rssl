@@ -125,6 +125,11 @@ fn compile_gi10_vert() {
 }
 
 #[test]
+fn compile_reference_pt() {
+    compile_file("render_techniques/path_tracer/reference_pt.comp", FILES);
+}
+
+#[test]
 fn compile_skybox_frag() {
     compile_file("render_techniques/skybox/skybox.frag", FILES);
 }
