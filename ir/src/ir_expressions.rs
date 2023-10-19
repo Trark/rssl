@@ -19,6 +19,7 @@ pub enum Expression {
     /// Chain of expressions
     Sequence(Vec<Expression>),
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
+    MatrixSwizzle(Box<Expression>, Vec<MatrixSwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
     Member(Box<Expression>, String),
     Call(FunctionId, CallType, Vec<Expression>),
@@ -28,7 +29,7 @@ pub enum Expression {
     IntrinsicOp(IntrinsicOp, Vec<Expression>),
 }
 
-/// A single part of a swizzle operation
+/// A single part of a vector or scalar swizzle operation
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum SwizzleSlot {
     X, // x or r
@@ -36,6 +37,19 @@ pub enum SwizzleSlot {
     Z, // z or b
     W, // w or a
 }
+
+/// A component in a single dimension of a matrix
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum ComponentIndex {
+    First,
+    Second,
+    Third,
+    Forth,
+}
+
+/// A single part of a matrix swizzle operation
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct MatrixSwizzleSlot(pub ComponentIndex, pub ComponentIndex);
 
 /// Element passed to a numeric constructor
 /// Constructors can take variable numbers of arguments depending on dimensions

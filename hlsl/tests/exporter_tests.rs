@@ -454,6 +454,26 @@ fn check_expression_vector_swizzle() {
 }
 
 #[test]
+fn check_expression_matrix_swizzle() {
+    check_rssl_to_hlsl(
+        "void f() {
+    float4x4 m;
+    float v1 = m._m00;
+    float v2 = m._11;
+    float4 v3 = m._m00_m00_m00_m00;
+}
+",
+        "void f() {
+    float4x4 m;
+    float v1 = m._m00;
+    float v2 = m._m00;
+    float4 v3 = m._m00_m00_m00_m00;
+}
+",
+    );
+}
+
+#[test]
 fn check_expression_vector_index() {
     check_rssl_to_hlsl(
         "void f() {

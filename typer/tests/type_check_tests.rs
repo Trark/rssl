@@ -1818,6 +1818,19 @@ fn check_swizzle() {
 }
 
 #[test]
+fn check_matrix_swizzle() {
+    check_types("void main() { float4x4 t; t._m00; t._m01; t._m02; t._m03; t._m10; t._m11; t._m12; t._m13; t._m20; t._m21; t._m22; t._m23; t._m30; t._m31; t._m32; t._m33; }");
+    check_types("void main() { float4x4 t; t._11; t._12; t._13; t._14; t._21; t._22; t._23; t._24; t._31; t._32; t._33; t._34; t._41; t._42; t._43; t._44; }");
+    check_types("void main() { float4x4 t; t._m00_m01; t._m00_m01_m02; t._m00_m01_m02_m03; }");
+    check_fail("void main() { float4x4 t; t._m00_m01_m02_m03_m10; }");
+    check_fail("void main() { float3x3 t; t._m00_m01_m02_m03; }");
+    check_fail("void main() { float3x3 t; t._m00_12; }");
+    check_fail("void main() { float3x3 t; t._11_m01; }");
+    check_types("void sub(out float4 v) {} void main() { float4x4 t; sub(t._m00_m01_m02_m03); }");
+    check_fail("void sub(out float4 v) {} void main() { float4x4 t; sub(t._m00_m01_m00_m03); }");
+}
+
+#[test]
 fn check_operator_prefix_increment() {
     check_types("void g(out int x) {} void f() { int x = 0u; g(++x); }");
     check_fail("void f() { const int x = 0u; ++x; }");

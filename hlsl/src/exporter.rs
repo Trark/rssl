@@ -1391,6 +1391,21 @@ fn export_subexpression(
                 }
             }
         }
+        ir::Expression::MatrixSwizzle(expr_object, swizzle) => {
+            export_subexpression(expr_object, prec, OperatorSide::Left, output, context)?;
+            output.push('.');
+            for channel in swizzle {
+                output.push_str("_m");
+                for dim in [channel.0, channel.1] {
+                    match dim {
+                        ir::ComponentIndex::First => output.push('0'),
+                        ir::ComponentIndex::Second => output.push('1'),
+                        ir::ComponentIndex::Third => output.push('2'),
+                        ir::ComponentIndex::Forth => output.push('3'),
+                    }
+                }
+            }
+        }
         ir::Expression::ArraySubscript(expr_object, expr_index) => {
             export_subexpression(expr_object, prec, OperatorSide::Left, output, context)?;
             output.push('[');
@@ -1477,6 +1492,7 @@ fn get_expression_precedence(expr: &ir::Expression) -> u32 {
         ir::Expression::TernaryConditional(_, _, _) => 16,
         ir::Expression::Sequence(_) => 17,
         ir::Expression::Swizzle(_, _) => 2,
+        ir::Expression::MatrixSwizzle(_, _) => 2,
         ir::Expression::ArraySubscript(_, _) => 2,
         ir::Expression::Constructor(_, _) => 2,
         ir::Expression::Cast(_, _) => 3,

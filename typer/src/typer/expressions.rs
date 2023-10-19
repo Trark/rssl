@@ -1362,6 +1362,103 @@ fn get_swizzle_vt(swizzle: &Vec<ir::SwizzleSlot>, mut vt: ir::ValueType) -> ir::
     vt
 }
 
+/// Reduce value type of a matrix swizzle if it uses the same slot multiple times
+fn get_matrix_swizzle_vt(
+    swizzle: &Vec<ir::MatrixSwizzleSlot>,
+    mut vt: ir::ValueType,
+) -> ir::ValueType {
+    for i in 0..swizzle.len() {
+        for j in 0..i {
+            if swizzle[i] == swizzle[j] {
+                vt = ir::ValueType::Rvalue;
+            }
+        }
+    }
+    vt
+}
+
+/// Parse a set of matrix components
+fn read_matrix_subscript(
+    type_id: ir::TypeId,
+    x: u32,
+    y: u32,
+    member: &Located<String>,
+) -> TyperResult<Vec<ir::MatrixSwizzleSlot>> {
+    let mut swizzle_slots = Vec::new();
+
+    let make_err = || {
+        Err(TyperError::InvalidSwizzle(
+            type_id,
+            member.node.clone(),
+            member.get_location(),
+        ))
+    };
+
+    let mut seen_without_m = false;
+    let mut seen_with_m = false;
+
+    let mut state = None;
+    for c in member.chars() {
+        match state {
+            None => match c {
+                '_' => state = Some((false, None)),
+                _ => return make_err(),
+            },
+            Some((false, None)) if c == 'm' => {
+                state = Some((true, None));
+            }
+            Some((is_m, first_value)) => {
+                let l = if first_value.is_none() { x } else { y };
+                let component = if is_m {
+                    match c {
+                        '0' if l >= 1 => ir::ComponentIndex::First,
+                        '1' if l >= 2 => ir::ComponentIndex::Second,
+                        '2' if l >= 3 => ir::ComponentIndex::Third,
+                        '3' if l >= 4 => ir::ComponentIndex::Forth,
+                        _ => return make_err(),
+                    }
+                } else {
+                    match c {
+                        '1' if l >= 1 => ir::ComponentIndex::First,
+                        '2' if l >= 2 => ir::ComponentIndex::Second,
+                        '3' if l >= 3 => ir::ComponentIndex::Third,
+                        '4' if l >= 4 => ir::ComponentIndex::Forth,
+                        _ => return make_err(),
+                    }
+                };
+                match first_value {
+                    None => {
+                        state = Some((is_m, Some(component)));
+                    }
+                    Some(first_component) => {
+                        // Ensure _ vs _m usage is the same for all slots
+                        if is_m {
+                            if seen_without_m {
+                                return make_err();
+                            }
+                            seen_with_m = true;
+                        } else {
+                            if seen_with_m {
+                                return make_err();
+                            }
+                            seen_without_m = true;
+                        }
+
+                        swizzle_slots.push(ir::MatrixSwizzleSlot(first_component, component));
+                        state = None;
+                    }
+                }
+            }
+        }
+    }
+
+    if state.is_some() || swizzle_slots.is_empty() || swizzle_slots.len() > 4 {
+        return make_err();
+    }
+
+    Ok(swizzle_slots)
+}
+
 fn parse_expr_unchecked(
     ast: &ast::Expression,
     context: &mut Context,
@@ -1636,6 +1733,38 @@ fn parse_expr_unchecked(
                         .combine_modifier(ty_unmod, composite_mod);
                     let ety = ExpressionType(ty, vt);
                     let node = ir::Expression::Swizzle(Box::new(composite_ir), swizzle_slots);
+                    Ok(TypedExpression::Value(node, ety))
+                }
+                ir::TypeLayer::Matrix(scalar, x, y) => {
+                    let member = match member.try_trivial() {
+                        Some(member) => member,
+                        None => {
+                            return Err(TyperError::MemberDoesNotExist(
+                                composite_ty,
+                                member.clone(),
+                            ))
+                        }
+                    };
+
+                    let swizzle_slots = read_matrix_subscript(composite_ty, x, y, member)?;
+                    let vt = get_matrix_swizzle_vt(&swizzle_slots, vt);
+                    let ty_unmod = if swizzle_slots.len() == 1 {
+                        scalar
+                    } else {
+                        context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Vector(
+                                scalar,
+                                swizzle_slots.len() as u32,
+                            ))
+                    };
+                    let ty = context
+                        .module
+                        .type_registry
+                        .combine_modifier(ty_unmod, composite_mod);
+                    let ety = ExpressionType(ty, vt);
+                    let node = ir::Expression::MatrixSwizzle(Box::new(composite_ir), swizzle_slots);
                     Ok(TypedExpression::Value(node, ety))
                 }
                 ir::TypeLayer::Object(ir::ObjectType::RayDesc) => {
@@ -2298,6 +2427,32 @@ fn get_expression_type(
                 }
             };
             let ty = context.module.type_registry.combine_modifier(ty, vec_mod);
+            Ok(ExpressionType(ty, vt))
+        }
+        ir::Expression::MatrixSwizzle(ref mat, ref swizzle) => {
+            let ExpressionType(mat_ty, mat_vt) = get_expression_type(mat, context)?;
+            let (mat_ty_nomod, mat_mod) = context.module.type_registry.extract_modifier(mat_ty);
+            let mat_tyl_nomod = context.module.type_registry.get_type_layer(mat_ty_nomod);
+            let vt = get_matrix_swizzle_vt(swizzle, mat_vt);
+            let ty = match mat_tyl_nomod {
+                ir::TypeLayer::Matrix(scalar, _, _) => {
+                    if swizzle.len() == 1 {
+                        scalar
+                    } else {
+                        context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Vector(scalar, swizzle.len() as u32))
+                    }
+                }
+                _ => {
+                    return Err(TyperError::InvalidTypeForSwizzle(
+                        mat_ty_nomod,
+                        SourceLocation::UNKNOWN,
+                    ))
+                }
+            };
+            let ty = context.module.type_registry.combine_modifier(ty, mat_mod);
             Ok(ExpressionType(ty, vt))
         }
         ir::Expression::ArraySubscript(ref array, _) => {
