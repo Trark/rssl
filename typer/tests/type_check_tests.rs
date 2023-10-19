@@ -1962,6 +1962,10 @@ fn check_operator_multiply() {
     check_types("void f() { float x; float2 y; assert_type<float2>(x * y); }");
     // vector truncation on y
     check_types("void f() { float2 x; float3 y; assert_type<float2>(x * y); }");
+    // matrix expansion on x
+    check_types("void f() { float x; float2x2 y; assert_type<float2x2>(x * y); }");
+    // matrix expansion on y
+    check_types("void f() { float2x2 x; float y; assert_type<float2x2>(x * y); }");
 }
 
 #[test]

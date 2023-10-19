@@ -210,6 +210,11 @@ impl ImplicitConversion {
             // Destination is matrix
             TypeLayer::Matrix(_, x2, y2) => {
                 match (&source_l, dest.1 == Lvalue) {
+                    // Scalar to matrix (mirror)
+                    (TypeLayer::Scalar(_), false) => Some(DimensionCast(
+                        NumericDimension::Scalar,
+                        NumericDimension::Matrix(*x2, *y2),
+                    )),
                     // Matrix same dimension
                     (TypeLayer::Matrix(_, x1, y1), false) if x1 == x2 && y1 == y2 => None,
                     // Vector <-> Matrix casts not implemented

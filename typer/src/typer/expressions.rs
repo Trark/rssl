@@ -987,7 +987,8 @@ fn parse_expr_binop(
             };
 
             // Most operators apply component-wise - we select the dimensions required after vector expansion / truncation
-            // TODO: Multiply needs special handling to do matrix multiplies with different dimensions on each side
+            // This will expand scalars to a vector / matrix and then do the operation on that
+            // TODO: It would be more natural to support native scalar vs vector/matrix operations without the cast
             let dim = match select_vector_rank(lhs_tyl, rhs_tyl) {
                 Ok(res) => res,
                 Err(_) => {
@@ -1196,6 +1197,8 @@ fn select_vector_rank(
         (ir::NumericDimension::Vector(1), ir::NumericDimension::Vector(_)) => right_dim,
         (ir::NumericDimension::Vector(x1), ir::NumericDimension::Vector(x2)) if x1 < x2 => left_dim,
         (ir::NumericDimension::Vector(_), ir::NumericDimension::Vector(_)) => right_dim,
+        (ir::NumericDimension::Scalar, ir::NumericDimension::Matrix(_, _)) => right_dim,
+        (ir::NumericDimension::Matrix(_, _), ir::NumericDimension::Scalar) => left_dim,
         (ir::NumericDimension::Matrix(x1, y1), ir::NumericDimension::Matrix(x2, y2))
             if x1 == x2 && y1 == y2 =>
         {
