@@ -1692,6 +1692,7 @@ fn export_intrinsic_function(
         SmoothStep => Form::Invoke("smoothstep"),
 
         Transpose => Form::Invoke("transpose"),
+        Determinant => Form::Invoke("determinant"),
 
         DDX => Form::Invoke("ddx"),
         DDXCoarse => Form::Invoke("ddx_coarse"),

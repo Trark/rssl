@@ -138,6 +138,7 @@ pub enum Intrinsic {
     SmoothStep,
 
     Transpose,
+    Determinant,
 
     // Derivatives
     DDX,

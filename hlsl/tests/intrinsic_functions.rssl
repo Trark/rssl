@@ -284,6 +284,10 @@ void test() {
     float2x2 transpose_f2x2 = transpose(float2x2(0.0f, 0.0f, 0.0f, 0.0f));
     float3x3 transpose_f3x3 = transpose(float3x3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
     float4x4 transpose_f4x4 = transpose(float4x4(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    float determinant_f1x1 = determinant(float1x1(0.0f));
+    float determinant_f2x2 = determinant(float2x2(0.0f, 0.0f, 0.0f, 0.0f));
+    float determinant_f3x3 = determinant(float3x3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    float determinant_f4x4 = determinant(float4x4(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
     float ddx_f1 = ddx(0.0f);
     float2 ddx_f2 = ddx(float2(0.0f, 0.0f));
     float3 ddx_f3 = ddx(float3(0.0f, 0.0f, 0.0f));
