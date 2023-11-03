@@ -42,6 +42,7 @@ fn test_constant_variable() {
 
 /// Parse a constant buffer definition
 pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<ConstantBuffer> {
+    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, slot) = parse_register(input)?;
@@ -52,6 +53,7 @@ pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<ConstantBuffer> 
         name,
         slot,
         members,
+        attributes,
     };
     Ok((input, cb))
 }
@@ -349,57 +351,73 @@ fn test_constant_buffer() {
                     offset: None,
                 }]),
             }]),
+            attributes: Vec::new(),
         },
     );
 
-    cbuffer.check(
-        "cbuffer globals : register(b12) { float4x4 wvp; float x, y[2], z[3][4]; }",
-        ConstantBuffer {
-            name: "globals".to_string().loc(8),
-            slot: Some(Register {
-                slot: Some(RegisterSlot {
-                    slot_type: RegisterType::B,
-                    index: 12,
-                }),
-                space: None,
-            }),
-            members: Vec::from([
-                ConstantVariable {
-                    ty: Type::from("float4x4".loc(34)),
-                    defs: vec![ConstantVariableName {
-                        name: "wvp".to_string().loc(43),
+    {
+        let input = "[[vk::binding(1, 2)]] cbuffer globals : register(b12) { float4x4 wvp; float x, y[2], z[3][4]; }";
+
+        let members = Vec::from([
+            ConstantVariable {
+                ty: Type::from("float4x4".loc(56)),
+                defs: vec![ConstantVariableName {
+                    name: "wvp".to_string().loc(65),
+                    bind: Default::default(),
+                    offset: None,
+                }],
+            },
+            ConstantVariable {
+                ty: Type::from("float".loc(70)),
+                defs: Vec::from([
+                    ConstantVariableName {
+                        name: "x".to_string().loc(76),
                         bind: Default::default(),
                         offset: None,
-                    }],
-                },
-                ConstantVariable {
-                    ty: Type::from("float".loc(48)),
-                    defs: Vec::from([
-                        ConstantVariableName {
-                            name: "x".to_string().loc(54),
-                            bind: Default::default(),
-                            offset: None,
-                        },
-                        ConstantVariableName {
-                            name: "y".to_string().loc(57),
-                            bind: VariableBind(Vec::from([Some(
-                                Expression::Literal(Literal::IntUntyped(2)).loc(59),
-                            )])),
-                            offset: None,
-                        },
-                        ConstantVariableName {
-                            name: "z".to_string().loc(63),
-                            bind: VariableBind(Vec::from([
-                                Some(Expression::Literal(Literal::IntUntyped(3)).loc(65)),
-                                Some(Expression::Literal(Literal::IntUntyped(4)).loc(68)),
-                            ])),
-                            offset: None,
-                        },
-                    ]),
-                },
+                    },
+                    ConstantVariableName {
+                        name: "y".to_string().loc(79),
+                        bind: VariableBind(Vec::from([Some(
+                            Expression::Literal(Literal::IntUntyped(2)).loc(81),
+                        )])),
+                        offset: None,
+                    },
+                    ConstantVariableName {
+                        name: "z".to_string().loc(85),
+                        bind: VariableBind(Vec::from([
+                            Some(Expression::Literal(Literal::IntUntyped(3)).loc(87)),
+                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(90)),
+                        ])),
+                        offset: None,
+                    },
+                ]),
+            },
+        ]);
+
+        let attributes = Vec::from([Attribute {
+            name: Vec::from(["vk".to_string().loc(2), "binding".to_string().loc(6)]),
+            arguments: Vec::from([
+                Expression::Literal(Literal::IntUntyped(1)).loc(14),
+                Expression::Literal(Literal::IntUntyped(2)).loc(17),
             ]),
-        },
-    );
+        }]);
+
+        cbuffer.check(
+            input,
+            ConstantBuffer {
+                name: "globals".to_string().loc(30),
+                slot: Some(Register {
+                    slot: Some(RegisterSlot {
+                        slot_type: RegisterType::B,
+                        index: 12,
+                    }),
+                    space: None,
+                }),
+                members,
+                attributes,
+            },
+        );
+    }
 }
 
 /// Parse a register slot for a resource

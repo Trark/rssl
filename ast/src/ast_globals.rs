@@ -54,6 +54,7 @@ pub struct ConstantBuffer {
     pub name: Located<String>,
     pub slot: Option<Register>,
     pub members: Vec<ConstantVariable>,
+    pub attributes: Vec<Attribute>,
 }
 
 /// A variable definition inside a constant buffer
