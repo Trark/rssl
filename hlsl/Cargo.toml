@@ -9,6 +9,7 @@ doctest = false
 [dependencies]
 rssl-text = { path = "../text" }
 rssl-ir = { path = "../ir" }
+rssl-ast = { path = "../ast" }
 
 [dev-dependencies]
 rssl-preprocess = { path = "../preprocess" }

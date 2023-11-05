@@ -5,8 +5,8 @@ struct InlineDescriptor1
     [[vk::offset(16)]] uint64_t g_primitiveData;
     [[vk::offset(24)]] uint64_t g_indexData;
 };
-[[vk::binding(2, 1)]] ConstantBuffer<InlineDescriptor1> g_inlineDescriptor1;
 
+[[vk::binding(2, 1)]] ConstantBuffer<InlineDescriptor1> g_inlineDescriptor1;
 static const uint64_t g_clusterInstanceData = g_inlineDescriptor1.g_clusterInstanceData;
 static const uint64_t g_clusterData = g_inlineDescriptor1.g_clusterData;
 static const uint64_t g_primitiveData = g_inlineDescriptor1.g_primitiveData;

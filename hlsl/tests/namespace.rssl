@@ -18,6 +18,13 @@ namespace N2 {
 
 void f() {}
 
+namespace N3 {
+
+void f(int x) {}
+void f(float x) {}
+
+} // namespace N3
+
 } // namespace N2
 
 } // namespace N1

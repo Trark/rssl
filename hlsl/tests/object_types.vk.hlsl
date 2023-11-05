@@ -3,8 +3,8 @@ struct InlineDescriptor0
     [[vk::offset(0)]] uint64_t g_byteBuffer;
     [[vk::offset(8)]] uint64_t g_byteBufferOutput;
 };
-[[vk::binding(11)]] ConstantBuffer<InlineDescriptor0> g_inlineDescriptor0;
 
+[[vk::binding(11)]] ConstantBuffer<InlineDescriptor0> g_inlineDescriptor0;
 static const uint64_t g_byteBuffer = g_inlineDescriptor0.g_byteBuffer;
 static const uint64_t g_byteBufferOutput = g_inlineDescriptor0.g_byteBufferOutput;
 [[vk::binding(0)]] Buffer<float4> g_texelBuffer;

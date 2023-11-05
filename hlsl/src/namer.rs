@@ -184,7 +184,7 @@ impl NameMap {
                         .insert(*symbol, NameString { namespace, name })
                         .is_some()
                     {
-                        panic!("dupliate name for {:?}", symbol)
+                        panic!("duplicate name for {:?}", symbol)
                     }
                 }
             }

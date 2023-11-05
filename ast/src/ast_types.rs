@@ -231,6 +231,11 @@ impl TypeModifierSet {
         self.modifiers.extend(other.modifiers);
         self
     }
+
+    /// Add a modifier to the end of the set
+    pub fn append(&mut self, modifier: Located<TypeModifier>) {
+        self.modifiers.push(modifier);
+    }
 }
 
 impl Default for TypeModifierSet {

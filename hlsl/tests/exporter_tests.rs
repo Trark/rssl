@@ -531,7 +531,7 @@ fn check_expression_literal_operators() {
         "void f() {
     (int)true * (int)false / (int)true;
     1 * 1 / 1;
-    (1 * 1) / 1.0;
+    1 * 1 / 1.0;
     1 * 1.0 / 1;
     1 * 1.0 / 1.0;
     1.0 * 1 / 1;
