@@ -99,6 +99,7 @@ fn test_struct() {
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
+                attributes: Vec::new(),
             }),
             StructEntry::Variable(StructMember {
                 ty: Type::from("float".loc(26)),
@@ -107,6 +108,7 @@ fn test_struct() {
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
+                attributes: Vec::new(),
             }),
         ],
     };

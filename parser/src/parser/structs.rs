@@ -1,4 +1,5 @@
 use super::functions::{parse_function_definition, parse_semantic};
+use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a struct member name in an entry
@@ -25,11 +26,16 @@ fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName>
 
 /// Parse a struct member variable - with potentially multiple members per line
 fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
+    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, typename) = parse_type(input)?;
     let (input, defs) =
         parse_list_nonempty(parse_token(Token::Comma), parse_struct_member_name)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
-    let sm = StructMember { ty: typename, defs };
+    let sm = StructMember {
+        ty: typename,
+        defs,
+        attributes,
+    };
     Ok((input, sm))
 }
 
@@ -108,6 +114,7 @@ fn test_struct() {
                     bind: Default::default(),
                     semantic: Default::default(),
                 }],
+                attributes: Vec::new(),
             })],
         },
     );
@@ -132,6 +139,7 @@ fn test_struct() {
                         semantic: Default::default(),
                     },
                 ],
+                attributes: Vec::new(),
             })],
         },
     );
@@ -161,28 +169,33 @@ fn test_struct() {
                         semantic: Default::default(),
                     },
                 ],
+                attributes: Vec::new(),
             })],
         },
     );
 
     structdefinition.check(
-        "struct MyStruct : Parent { uint a; void f() {} };",
+        "struct MyStruct : Parent { [[vk::offset(8)]] uint a; void f() {} };",
         StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::from([Type::from("Parent".loc(18))]),
             template_params: TemplateParamList(Vec::new()),
             members: vec![
                 StructEntry::Variable(StructMember {
-                    ty: Type::from("uint".loc(27)),
+                    ty: Type::from("uint".loc(45)),
                     defs: vec![StructMemberName {
-                        name: "a".to_string().loc(32),
+                        name: "a".to_string().loc(50),
                         bind: Default::default(),
                         semantic: Default::default(),
                     }],
+                    attributes: Vec::from([Attribute {
+                        name: Vec::from(["vk".to_string().loc(29), "offset".to_string().loc(33)]),
+                        arguments: Vec::from([Expression::Literal(Literal::IntUntyped(8)).loc(40)]),
+                    }]),
                 }),
                 StructEntry::Method(FunctionDefinition {
-                    name: "f".to_string().loc(40),
-                    returntype: Type::from("void".loc(35)).into(),
+                    name: "f".to_string().loc(58),
+                    returntype: Type::from("void".loc(53)).into(),
                     template_params: TemplateParamList(Vec::new()),
                     params: Vec::new(),
                     body: Some(Vec::new()),
@@ -217,6 +230,7 @@ fn test_struct() {
                         semantic: Default::default(),
                     },
                 ],
+                attributes: Vec::new(),
             })],
         },
     );
@@ -246,6 +260,7 @@ fn test_struct() {
                         semantic: Some(Semantic::User("USER1".to_string())),
                     },
                 ],
+                attributes: Vec::new(),
             })],
         },
     );

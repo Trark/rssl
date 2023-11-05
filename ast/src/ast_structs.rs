@@ -22,6 +22,7 @@ pub enum StructEntry {
 pub struct StructMember {
     pub ty: Type,
     pub defs: Vec<StructMemberName>,
+    pub attributes: Vec<Attribute>,
 }
 
 /// The name part of a [StructMember] - to support multiple named variables declared on the same line
