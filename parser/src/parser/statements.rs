@@ -259,7 +259,11 @@ pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
         input
     };
 
-    let attr = Attribute { name, arguments };
+    let attr = Attribute {
+        name,
+        arguments,
+        two_square_brackets: opt_second_bracket.is_some(),
+    };
 
     Ok((input, attr))
 }
@@ -276,7 +280,8 @@ fn test_attribute() {
             &[][..],
             Attribute {
                 name: Vec::from([Located::none("fastopt".to_string())]),
-                arguments: Vec::new()
+                arguments: Vec::new(),
+                two_square_brackets: false,
             }
         ))
     );
@@ -291,7 +296,8 @@ fn test_attribute() {
             &[][..],
             Attribute {
                 name: Vec::from([Located::none("unroll".to_string())]),
-                arguments: Vec::new()
+                arguments: Vec::new(),
+                two_square_brackets: false,
             }
         ))
     );
@@ -309,7 +315,8 @@ fn test_attribute() {
             &[][..],
             Attribute {
                 name: Vec::from([Located::none("unroll".to_string())]),
-                arguments: Vec::from([Located::none(Expression::Literal(Literal::IntUntyped(4)))])
+                arguments: Vec::from([Located::none(Expression::Literal(Literal::IntUntyped(4)))]),
+                two_square_brackets: false,
             }
         ))
     );
@@ -329,7 +336,8 @@ fn test_attribute() {
                 name: Vec::from([Located::none("outputtopology".to_string())]),
                 arguments: Vec::from([Located::none(Expression::Literal(Literal::String(
                     "triangle".to_string()
-                )))])
+                )))]),
+                two_square_brackets: false,
             }
         ))
     );

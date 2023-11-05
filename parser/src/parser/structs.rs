@@ -191,6 +191,7 @@ fn test_struct() {
                     attributes: Vec::from([Attribute {
                         name: Vec::from(["vk".to_string().loc(29), "offset".to_string().loc(33)]),
                         arguments: Vec::from([Expression::Literal(Literal::IntUntyped(8)).loc(40)]),
+                        two_square_brackets: true,
                     }]),
                 }),
                 StructEntry::Method(FunctionDefinition {

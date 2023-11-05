@@ -400,6 +400,7 @@ fn test_constant_buffer() {
                 Expression::Literal(Literal::IntUntyped(1)).loc(14),
                 Expression::Literal(Literal::IntUntyped(2)).loc(17),
             ]),
+            two_square_brackets: true,
         }]);
 
         cbuffer.check(

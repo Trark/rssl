@@ -184,6 +184,7 @@ fn test_function() {
                     Expression::Literal(Literal::IntUntyped(16)).loc(16),
                     Expression::Literal(Literal::IntUntyped(1)).loc(20),
                 ]),
+                two_square_brackets: false,
             }],
         }),
     );

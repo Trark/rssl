@@ -81,6 +81,9 @@ pub struct Attribute {
 
     /// Arguments for the attribute
     pub arguments: Vec<Located<Expression>>,
+
+    // If the attribute was declared with two brackets or one
+    pub two_square_brackets: bool,
 }
 
 impl VarDef {
@@ -118,6 +121,7 @@ impl Attribute {
         Attribute {
             name: Vec::from([Located::none("numthreads".to_string())]),
             arguments: Vec::from([x_node, y_node, z_node]),
+            two_square_brackets: false,
         }
     }
 }
