@@ -9,7 +9,7 @@ pub enum FormatError {
 }
 
 /// Format ast module as text
-pub fn format_module(module: &ast::Module) -> Result<String, FormatError> {
+pub fn format(module: &ast::Module) -> Result<String, FormatError> {
     let mut context = FormatContext::new();
     let mut output_string = String::new();
 

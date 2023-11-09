@@ -2,7 +2,6 @@
 //!
 //! This library contains the logic to convert typed RSSL into HLSL source
 
-mod ast_format;
 mod ast_generate;
 mod namer;
 
@@ -19,7 +18,7 @@ pub fn export_to_hlsl(module: &rssl_ir::Module) -> Result<ExportedSource, Export
     };
 
     // Output HLSL source by formatting the RSSL ast
-    let source = match ast_format::format_module(&generate_output.ast_module) {
+    let source = match rssl_formatter::format(&generate_output.ast_module) {
         Ok(output) => output,
         Err(err) => return Err(ExportError::FormatError(err)),
     };
@@ -39,7 +38,7 @@ pub struct ExportedSource {
 #[derive(Debug)]
 pub enum ExportError {
     GenerateError(ast_generate::GenerateError),
-    FormatError(ast_format::FormatError),
+    FormatError(rssl_formatter::FormatError),
 }
 
 pub use rssl_ir::ApiLocation;

@@ -10,6 +10,7 @@ doctest = false
 rssl-text = { path = "../text" }
 rssl-ir = { path = "../ir" }
 rssl-ast = { path = "../ast" }
+rssl-formatter = { path = "../formatter" }
 
 [dev-dependencies]
 rssl-preprocess = { path = "../preprocess" }
