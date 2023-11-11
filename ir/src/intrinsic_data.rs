@@ -201,6 +201,8 @@ const INTRINSICS: &[IntrinsicDefinition] = &[
     f! { float dot(M, M) => Dot | float1, float2, float3, float4 },
 
     f! { float3 mul(float3x3, float3) => Mul },
+    f! { float3 mul(float3x4, float4) => Mul },
+    f! { float4 mul(float4x3, float3) => Mul },
     f! { float4 mul(float4x4, float4) => Mul },
     f! { float3 mul(float3, float3x3) => Mul },
     f! { float4 mul(float4, float4x4) => Mul },

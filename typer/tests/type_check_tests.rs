@@ -349,16 +349,13 @@ void f(int4 x) {} void f(int3 x) {} void main() { f(int2(0, 0)); }
     // Ensure the failure message for overloads with both user functions and intrinsics functions
     // Tests the printed names for functions, intrinsics, and structs displays the correct name
     check_fail_message(
-        "struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }",
-        "type_test.rssl:1:63: error: no matching function for call to mul(A)
-struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
-                                                              ^
-note: candidate function not viable: float3 mul(in float3x3, in float3)
-note: candidate function not viable: float4 mul(in float4x4, in float4)
-note: candidate function not viable: float3 mul(in float3, in float3x3)
-note: candidate function not viable: float4 mul(in float4, in float4x4)
-type_test.rssl:1:32: note: candidate function not viable: void mul(in S)
-struct S {}; struct A {}; void mul(S s) {} void main() { A a; mul(a); }
+        "struct S {}; struct A {}; void cross(S s) {} void main() { A a; cross(a); }",
+        "type_test.rssl:1:65: error: no matching function for call to cross(A)
+struct S {}; struct A {}; void cross(S s) {} void main() { A a; cross(a); }
+                                                                ^
+note: candidate function not viable: float3 cross(in float3, in float3)
+type_test.rssl:1:32: note: candidate function not viable: void cross(in S)
+struct S {}; struct A {}; void cross(S s) {} void main() { A a; cross(a); }
                                ^
 ",
     );

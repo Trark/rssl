@@ -316,15 +316,15 @@ fn check_expressions() {
         "void f() {
     float4 v0 = float4(1, 2, 3, 4);
     float4 v1 = true ? v0 : 0;
-    float4x4 m = float4x4(v0, v0, v1, v1);
-    float4 v2 = mul(m, v0);
+    float4x3 m = float4x3(v0, v0, v1);
+    float4 v2 = mul(m, v0.xyz);
 }
 ",
         "void f() {
     float4 v0 = float4(1.0f, 2.0f, 3.0f, 4.0f);
     float4 v1 = true ? v0 : (float4)0;
-    float4x4 m = float4x4(v0, v0, v1, v1);
-    float4 v2 = mul(m, v0);
+    float4x3 m = float4x3(v0, v0, v1);
+    float4 v2 = mul(m, v0.xyz);
 }
 ",
     );
