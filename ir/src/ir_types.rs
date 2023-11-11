@@ -209,6 +209,20 @@ impl TypeRegistry {
         self.get_type_layer(non_vector_id)
     }
 
+    /// Get the id after removing array modifiers
+    pub fn get_non_array_id(&self, id: TypeId) -> TypeId {
+        match self.layers[id.0 as usize] {
+            TypeLayer::Array(inner, _) => self.get_non_array_id(inner),
+            _ => id,
+        }
+    }
+
+    /// Get the layer after removing array modifiers
+    pub fn get_non_array_layer(&self, id: TypeId) -> TypeLayer {
+        let non_array_id = self.get_non_array_id(id);
+        self.get_type_layer(non_array_id)
+    }
+
     /// Replaces the scalar type inside a numeric type with the given scalar type
     pub fn transform_scalar(&mut self, id: TypeId, to_scalar: ScalarType) -> TypeId {
         let (base_id, modifer) = self.extract_modifier(id);
@@ -240,6 +254,11 @@ impl TypeRegistry {
             TypeLayer::Object(ObjectType::BufferAddress)
                 | TypeLayer::Object(ObjectType::RWBufferAddress)
         )
+    }
+
+    /// Returns `true` if the type is const
+    pub fn is_const(&self, id: TypeId) -> bool {
+        matches!(self.get_non_array_layer(id), TypeLayer::Modifier(m, _) if m.is_const)
     }
 
     /// Get the stored data for a template type parameter from an id
