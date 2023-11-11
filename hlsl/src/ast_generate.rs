@@ -947,7 +947,7 @@ fn generate_type_impl(
                 .map(Located::none);
 
             output_bind = inner_bind;
-            output_bind.0.push(current_bind);
+            output_bind.0.insert(0, current_bind);
 
             base
         }

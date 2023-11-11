@@ -470,7 +470,7 @@ pub fn apply_variable_bind(
     allow_unbounded: bool,
     context: &mut Context,
 ) -> TyperResult<ir::TypeId> {
-    for dim in &bind.0 {
+    for dim in bind.0.iter().rev() {
         let constant_dim = match *dim {
             Some(ref dim_expr) => {
                 let expr_ir = parse_expr(dim_expr, context)?.0;

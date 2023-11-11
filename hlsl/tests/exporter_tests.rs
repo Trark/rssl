@@ -18,8 +18,8 @@ fn check_static_primitive_variables() {
         "static float x[2][3];\nstatic float y[3][4];\n",
     );
     check_rssl_to_hlsl(
-        "static const int data[2][3] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };",
-        "static const int data[2][3] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };\n",
+        "static const int data[3][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };",
+        "static const int data[3][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 } };\n",
     );
 }
 
@@ -722,13 +722,13 @@ fn check_statement_for() {
 
     check_rssl_to_hlsl(
         "void f() {
-    for (int x[2] = { 1, 5 }, y[3][2] = { { 2, 3, 4 }, { 5, 6, 7 } }; true; true)
+    for (int x[2] = { 1, 5 }, y[2][3] = { { 2, 3, 4 }, { 5, 6, 7 } }; true; true)
     {
         break;
     }
 }",
         "void f() {
-    for (int x[2] = { 1, 5 }, y[3][2] = { { 2, 3, 4 }, { 5, 6, 7 } }; true; true)
+    for (int x[2] = { 1, 5 }, y[2][3] = { { 2, 3, 4 }, { 5, 6, 7 } }; true; true)
     {
         break;
     }
