@@ -25,7 +25,7 @@ pub struct Context {
 pub type ScopeIndex = usize;
 
 pub enum StructMemberValue {
-    Variable(ir::TypeId),
+    Variable(ir::TypeId, ir::StructId, u32),
     Method(Vec<ir::FunctionId>),
 }
 
@@ -408,10 +408,18 @@ impl Context {
             }
         }
 
-        for member in &self.module.struct_registry[id.0 as usize].members {
+        for (index, member) in self.module.struct_registry[id.0 as usize]
+            .members
+            .iter()
+            .enumerate()
+        {
             if member.name == name.node {
                 assert!(overloads.is_empty());
-                return Ok(StructMemberValue::Variable(member.type_id));
+                return Ok(StructMemberValue::Variable(
+                    member.type_id,
+                    id,
+                    index as u32,
+                ));
             }
         }
 
@@ -1218,8 +1226,8 @@ impl Context {
         // If the scope is for a struct then struct members are possible identifiers
         if let Some(id) = scope.owning_struct {
             match self.get_struct_member_expression(id, name) {
-                Ok(StructMemberValue::Variable(ty)) => {
-                    return Some(VariableExpression::Member(name.to_string(), ty));
+                Ok(StructMemberValue::Variable(ty, id, member_index)) => {
+                    return Some(VariableExpression::Member(id, member_index, ty));
                 }
                 Ok(StructMemberValue::Method(overloads)) => {
                     // Resolve as a function as the method type / value are implicit

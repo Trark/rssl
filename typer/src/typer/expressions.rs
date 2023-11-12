@@ -12,7 +12,7 @@ use rssl_text::{Locate, Located, SourceLocation};
 pub enum VariableExpression {
     Constant(ir::Constant),
     Local(ir::VariableId, ir::TypeId),
-    Member(String, ir::TypeId),
+    Member(ir::StructId, u32, ir::TypeId),
     Global(ir::GlobalId, ir::TypeId),
     ConstantBufferMember(ir::ConstantBufferMemberId, ir::TypeId),
     EnumValueUntyped(ir::Constant, ir::TypeId),
@@ -78,9 +78,10 @@ fn parse_identifier(
         VariableExpression::Local(var, ty) => {
             TypedExpression::Value(ir::Expression::Variable(var), ty.to_lvalue())
         }
-        VariableExpression::Member(name, ty) => {
-            TypedExpression::Value(ir::Expression::MemberVariable(name), ty.to_lvalue())
-        }
+        VariableExpression::Member(id, member_index, ty) => TypedExpression::Value(
+            ir::Expression::MemberVariable(id, member_index),
+            ty.to_lvalue(),
+        ),
         VariableExpression::Global(id, ty) => {
             TypedExpression::Value(ir::Expression::Global(id), ty.to_lvalue())
         }
@@ -1626,10 +1627,9 @@ fn parse_expr_unchecked(
                     };
 
                     match context.get_struct_member_expression(id, member_name) {
-                        Ok(StructMemberValue::Variable(ty)) => {
+                        Ok(StructMemberValue::Variable(ty, id, member_index)) => {
                             let composite = Box::new(composite_ir);
-                            let member =
-                                ir::Expression::Member(composite, member_name.node.clone());
+                            let member = ir::Expression::StructMember(composite, id, member_index);
                             Ok(TypedExpression::Value(member, ty.to_lvalue()))
                         }
                         Ok(StructMemberValue::Method(overloads)) => {
@@ -1783,7 +1783,7 @@ fn parse_expr_unchecked(
 
                     if matches!(name.node.as_str(), "Origin" | "TMin" | "Direction" | "TMax") {
                         let composite = Box::new(composite_ir);
-                        let node = ir::Expression::Member(composite, name.node.clone());
+                        let node = ir::Expression::ObjectMember(composite, name.node.clone());
                         let ety = match get_expression_type(&node, context) {
                             Ok(ety) => ety,
                             Err(err) => panic!("internal error: type unknown ({err:?}"),
@@ -1809,7 +1809,8 @@ fn parse_expr_unchecked(
                     if let ir::ObjectType::Texture2D(ty) = object_type {
                         if member.node == "mips" {
                             let composite = Box::new(composite_ir);
-                            let member = ir::Expression::Member(composite, member.node.clone());
+                            let member =
+                                ir::Expression::ObjectMember(composite, member.node.clone());
                             let mips_oty = ir::ObjectType::Texture2DMips(ty);
                             let mips_tyl = ir::TypeLayer::Object(mips_oty);
                             let mips_ty = context.module.type_registry.register_type(mips_tyl);
@@ -1821,7 +1822,8 @@ fn parse_expr_unchecked(
                     if let ir::ObjectType::Texture2DArray(ty) = object_type {
                         if member.node == "mips" {
                             let composite = Box::new(composite_ir);
-                            let member = ir::Expression::Member(composite, member.node.clone());
+                            let member =
+                                ir::Expression::ObjectMember(composite, member.node.clone());
                             let mips_oty = ir::ObjectType::Texture2DArrayMips(ty);
                             let mips_tyl = ir::TypeLayer::Object(mips_oty);
                             let mips_ty = context.module.type_registry.register_type(mips_tyl);
@@ -1832,7 +1834,8 @@ fn parse_expr_unchecked(
                     if let ir::ObjectType::Texture3D(ty) = object_type {
                         if member.node == "mips" {
                             let composite = Box::new(composite_ir);
-                            let member = ir::Expression::Member(composite, member.node.clone());
+                            let member =
+                                ir::Expression::ObjectMember(composite, member.node.clone());
                             let mips_oty = ir::ObjectType::Texture3DMips(ty);
                             let mips_tyl = ir::TypeLayer::Object(mips_oty);
                             let mips_ty = context.module.type_registry.register_type(mips_tyl);
@@ -2361,9 +2364,13 @@ fn get_expression_type(
             .get_local_variable(id)
             .type_id
             .to_lvalue()),
-        ir::Expression::MemberVariable(ref name) => {
-            let struct_id = context.get_current_owning_struct();
-            context.get_type_of_struct_member(struct_id, name)
+        ir::Expression::MemberVariable(id, member_index) => {
+            assert!(id.0 < context.module.struct_registry.len() as u32);
+            let def = &context.module.struct_registry[id.0 as usize];
+            assert!(member_index < def.members.len() as u32);
+
+            let member_type = def.members[member_index as usize].type_id;
+            Ok(member_type.to_lvalue())
         }
         ir::Expression::Global(id) => context.get_type_of_global(id),
         ir::Expression::ConstantVariable(id) => Ok(context.get_type_of_constant(id)),
@@ -2512,7 +2519,17 @@ fn get_expression_type(
             };
             Ok(ty.to_lvalue())
         }
-        ir::Expression::Member(ref expr, ref name) => {
+        ir::Expression::StructMember(ref expr, id, member_index) => {
+            let expr_type = get_expression_type(expr, context)?;
+
+            assert!(id.0 < context.module.struct_registry.len() as u32);
+            let def = &context.module.struct_registry[id.0 as usize];
+            assert!(member_index < def.members.len() as u32);
+
+            let member_type = def.members[member_index as usize].type_id;
+            Ok(ExpressionType(member_type, expr_type.1))
+        }
+        ir::Expression::ObjectMember(ref expr, ref name) => {
             let expr_type = get_expression_type(expr, context)?;
 
             let mut ty = context.module.type_registry.remove_modifier(expr_type.0);
@@ -2584,17 +2601,11 @@ fn get_expression_type(
                 };
             }
 
-            let id = match tyl {
-                ir::TypeLayer::Struct(id) => id,
-                _ => {
-                    return Err(TyperError::MemberNodeMustBeUsedOnStruct(
-                        ty,
-                        name.clone(),
-                        SourceLocation::UNKNOWN,
-                    ))
-                }
-            };
-            context.get_type_of_struct_member(id, name)
+            Err(TyperError::MemberNodeMustBeUsedOnStruct(
+                ty,
+                name.clone(),
+                SourceLocation::UNKNOWN,
+            ))
         }
         ir::Expression::Call(id, _, _) => Ok(context
             .module

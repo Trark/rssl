@@ -1412,8 +1412,10 @@ fn generate_expression(
         ir::Expression::Variable(v) => ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
             context.get_variable_name(*v)?,
         )),
-        ir::Expression::MemberVariable(name) => {
-            ast::Expression::Identifier(ast::ScopedIdentifier::trivial(name))
+        ir::Expression::MemberVariable(id, member_index) => {
+            let member_def =
+                &context.module.struct_registry[id.0 as usize].members[*member_index as usize];
+            ast::Expression::Identifier(ast::ScopedIdentifier::trivial(&member_def.name))
         }
         ir::Expression::Global(v) => ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
             context.get_global_name(*v)?,
@@ -1526,7 +1528,14 @@ fn generate_expression(
             let ty = generate_type(*type_id, context)?;
             ast::Expression::SizeOf(Box::new(ast::ExpressionOrType::Type(ty)))
         }
-        ir::Expression::Member(expr, name) => {
+        ir::Expression::StructMember(expr, id, member_index) => {
+            let member_def =
+                &context.module.struct_registry[id.0 as usize].members[*member_index as usize];
+            let object = generate_expression(expr, context)?;
+            let object = Box::new(Located::none(object));
+            ast::Expression::Member(object, ast::ScopedIdentifier::trivial(&member_def.name))
+        }
+        ir::Expression::ObjectMember(expr, name) => {
             let object = generate_expression(expr, context)?;
             let object = Box::new(Located::none(object));
             ast::Expression::Member(object, ast::ScopedIdentifier::trivial(name))

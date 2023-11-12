@@ -7,8 +7,7 @@ pub enum Expression {
     /// Reference to a variable in a local scope
     Variable(VariableId),
     /// Reference to a variable in the struct that owns this expression
-    /// TODO: Non-string identifiers
-    MemberVariable(String),
+    MemberVariable(StructId, u32),
     /// Reference to a variable in a global scope
     Global(GlobalId),
     /// Reference to a variable in a constant buffer global
@@ -21,7 +20,11 @@ pub enum Expression {
     Swizzle(Box<Expression>, Vec<SwizzleSlot>),
     MatrixSwizzle(Box<Expression>, Vec<MatrixSwizzleSlot>),
     ArraySubscript(Box<Expression>, Box<Expression>),
-    Member(Box<Expression>, String),
+    /// Member expression to access a data member of a struct
+    StructMember(Box<Expression>, StructId, u32),
+    /// Member expression to access a data member of an intrinsic type
+    /// TODO: Non-string identifiers
+    ObjectMember(Box<Expression>, String),
     Call(FunctionId, CallType, Vec<Expression>),
     Constructor(TypeId, Vec<ConstructorSlot>),
     Cast(TypeId, Box<Expression>),
