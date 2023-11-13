@@ -72,7 +72,7 @@ fn parse_identifier(
 ) -> TyperResult<TypedExpression> {
     Ok(match context.find_identifier(id)? {
         VariableExpression::Constant(c) => {
-            let ty = c.get_type(&mut context.module);
+            let ty = c.get_type(&context.module);
             TypedExpression::Value(ir::Expression::Literal(c), ty)
         }
         VariableExpression::Local(var, ty) => {
@@ -572,7 +572,7 @@ fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TyperResult<Typed
         }
     };
 
-    let ty = constant.get_type(&mut context.module);
+    let ty = constant.get_type(&context.module);
 
     Ok(TypedExpression::Value(
         ir::Expression::Literal(constant),
@@ -1055,7 +1055,7 @@ fn parse_expr_binop(
             };
             let lhs_target = lhs_cast.get_target_type(&mut context.module);
             let rhs_target = rhs_cast.get_target_type(&mut context.module);
-            let output_type = i.get_return_type(&[lhs_target, rhs_target], &mut context.module);
+            let output_type = i.get_return_type(&[lhs_target, rhs_target], &context.module);
             let node = ir::Expression::IntrinsicOp(i, Vec::from([lhs_final, rhs_final]));
             Ok(TypedExpression::Value(node, output_type))
         }
@@ -1101,7 +1101,7 @@ fn parse_expr_binop(
                         _ => unreachable!(),
                     };
                     let rhs_type = rhs_cast.get_target_type(&mut context.module);
-                    let output_type = i.get_return_type(&[lhs_type, rhs_type], &mut context.module);
+                    let output_type = i.get_return_type(&[lhs_type, rhs_type], &context.module);
                     let node = ir::Expression::IntrinsicOp(i, Vec::from([lhs_ir, rhs_final]));
                     Ok(TypedExpression::Value(node, output_type))
                 }
@@ -2310,7 +2310,7 @@ fn get_expression_type(
     expression: &ir::Expression,
     context: &mut Context,
 ) -> TyperResult<ExpressionType> {
-    match expression.get_type(&mut context.module) {
+    match expression.get_type(&context.module) {
         Ok(ty) => Ok(ty),
         Err(_) => Err(TyperError::InternalError(SourceLocation::UNKNOWN)),
     }

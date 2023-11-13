@@ -1,5 +1,6 @@
 use crate::*;
 use rssl_text::Located;
+use std::cell::RefCell;
 
 /// Id to a type definition
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -13,7 +14,7 @@ pub struct ObjectId(pub u32);
 #[derive(PartialEq, Clone, Debug)]
 pub struct TypeRegistry {
     /// Direct type information for each type id
-    layers: Vec<TypeLayer>,
+    layers: RefCell<Vec<TypeLayer>>,
 
     /// Layout information for a registered object type
     object_layouts: Vec<ObjectType>,
@@ -57,9 +58,9 @@ pub struct TemplateParamType {
 
 impl TypeRegistry {
     /// Get or create the type id from a type layer
-    pub fn register_type(&mut self, layer: TypeLayer) -> TypeId {
+    pub fn register_type(&self, layer: TypeLayer) -> TypeId {
         // Search for an existing registration of the type
-        for (i, existing) in self.layers.iter().enumerate() {
+        for (i, existing) in self.layers.borrow().iter().enumerate() {
             if layer == *existing {
                 return TypeId(i as u32);
             }
@@ -90,13 +91,14 @@ impl TypeRegistry {
         }
 
         // Make a new entry
-        let id = TypeId(self.layers.len() as u32);
-        self.layers.push(layer);
+        let mut layers = self.layers.borrow_mut();
+        let id = TypeId(layers.len() as u32);
+        layers.push(layer);
         id
     }
 
     /// Get or create the type id from a numeric type
-    pub fn register_numeric_type(&mut self, numeric: NumericType) -> TypeId {
+    pub fn register_numeric_type(&self, numeric: NumericType) -> TypeId {
         let scalar_id = self.register_type(TypeLayer::Scalar(numeric.scalar));
         match numeric.dimension {
             NumericDimension::Scalar => scalar_id,
@@ -128,8 +130,9 @@ impl TypeRegistry {
     }
 
     /// Get the top type layer for a type id
+    #[inline]
     pub fn get_type_layer(&self, id: TypeId) -> TypeLayer {
-        self.layers[id.0 as usize]
+        self.layers.borrow()[id.0 as usize]
     }
 
     /// Get the object type layout for an object id
@@ -144,7 +147,7 @@ impl TypeRegistry {
 
     /// Get the base type and type modifier from a type
     pub fn extract_modifier(&self, id: TypeId) -> (TypeId, TypeModifier) {
-        match self.layers[id.0 as usize] {
+        match self.get_type_layer(id) {
             TypeLayer::Modifier(modifier, inner) => (inner, modifier),
             _ => (id, TypeModifier::default()),
         }
@@ -158,9 +161,9 @@ impl TypeRegistry {
     /// Add a modifier onto a type
     ///
     /// This expects there to not already be a modifier on the type
-    pub fn combine_modifier(&mut self, id: TypeId, modifier: TypeModifier) -> TypeId {
+    pub fn combine_modifier(&self, id: TypeId, modifier: TypeModifier) -> TypeId {
         assert!(!matches!(
-            self.layers[id.0 as usize],
+            self.get_type_layer(id),
             TypeLayer::Modifier(_, _)
         ));
         if modifier == TypeModifier::default() {
@@ -171,7 +174,7 @@ impl TypeRegistry {
     }
 
     /// Add the const modifier to a type
-    pub fn make_const(&mut self, id: TypeId) -> TypeId {
+    pub fn make_const(&self, id: TypeId) -> TypeId {
         let (base, mut modifier) = self.extract_modifier(id);
         if modifier.is_const {
             id
@@ -183,7 +186,7 @@ impl TypeRegistry {
 
     /// Get the scalar type from a numeric type
     pub fn extract_scalar(&self, id: TypeId) -> Option<ScalarType> {
-        match self.layers[id.0 as usize] {
+        match self.get_type_layer(id) {
             TypeLayer::Scalar(scalar) => Some(scalar),
             TypeLayer::Vector(inner, _) => self.extract_scalar(inner),
             TypeLayer::Matrix(inner, _, _) => self.extract_scalar(inner),
@@ -196,7 +199,7 @@ impl TypeRegistry {
 
     /// Get the id after removing vector / matrix modifiers
     pub fn get_non_vector_id(&self, id: TypeId) -> TypeId {
-        match self.layers[id.0 as usize] {
+        match self.get_type_layer(id) {
             TypeLayer::Vector(inner, _) => self.get_non_vector_id(inner),
             TypeLayer::Matrix(inner, _, _) => self.get_non_vector_id(inner),
             _ => id,
@@ -211,7 +214,7 @@ impl TypeRegistry {
 
     /// Get the id after removing array modifiers
     pub fn get_non_array_id(&self, id: TypeId) -> TypeId {
-        match self.layers[id.0 as usize] {
+        match self.get_type_layer(id) {
             TypeLayer::Array(inner, _) => self.get_non_array_id(inner),
             _ => id,
         }
@@ -224,7 +227,7 @@ impl TypeRegistry {
     }
 
     /// Replaces the scalar type inside a numeric type with the given scalar type
-    pub fn transform_scalar(&mut self, id: TypeId, to_scalar: ScalarType) -> TypeId {
+    pub fn transform_scalar(&self, id: TypeId, to_scalar: ScalarType) -> TypeId {
         let (base_id, modifer) = self.extract_modifier(id);
         let scalar_id = self.register_type(TypeLayer::Scalar(to_scalar));
         let new_id = match self.get_type_layer(base_id) {
@@ -852,7 +855,7 @@ impl TypeModifier {
 impl Default for TypeRegistry {
     fn default() -> Self {
         TypeRegistry {
-            layers: Vec::with_capacity(256),
+            layers: RefCell::new(Vec::with_capacity(256)),
             object_layouts: Vec::with_capacity(64),
             object_functions: Vec::with_capacity(64),
             template_types: Vec::with_capacity(256),
@@ -922,7 +925,7 @@ impl Constant {
     }
 
     /// Find the type of a constant
-    pub fn get_type(&self, module: &mut Module) -> ExpressionType {
+    pub fn get_type(&self, module: &Module) -> ExpressionType {
         let tyl = match self {
             Constant::Bool(_) => TypeLayer::Scalar(ScalarType::Bool),
             Constant::IntLiteral(_) => TypeLayer::Scalar(ScalarType::IntLiteral),

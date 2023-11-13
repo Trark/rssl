@@ -368,7 +368,7 @@ impl IntrinsicOp {
     pub fn get_return_type(
         &self,
         param_types: &[ExpressionType],
-        module: &mut Module,
+        module: &Module,
     ) -> ExpressionType {
         use IntrinsicOp::*;
         match *self {

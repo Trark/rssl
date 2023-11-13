@@ -87,7 +87,7 @@ pub enum EvaluateTypeError {
 
 impl Expression {
     /// Find the type of an expression
-    pub fn get_type(&self, module: &mut Module) -> Result<ExpressionType, EvaluateTypeError> {
+    pub fn get_type(&self, module: &Module) -> Result<ExpressionType, EvaluateTypeError> {
         match *self {
             Expression::Literal(ref lit) => Ok(lit.get_type(module)),
             Expression::Variable(id) => Ok(module

@@ -240,7 +240,7 @@ fn test_ast_to_ir() {
                 }
             }
 
-            let mut reference_module = ir::Module::create();
+            let reference_module = ir::Module::create();
             let void_id = reference_module
                 .type_registry
                 .register_type(ir::TypeLayer::Void);
