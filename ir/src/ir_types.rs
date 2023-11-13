@@ -920,6 +920,25 @@ impl Constant {
             _ => None,
         }
     }
+
+    /// Find the type of a constant
+    pub fn get_type(&self, module: &mut Module) -> ExpressionType {
+        let tyl = match self {
+            Constant::Bool(_) => TypeLayer::Scalar(ScalarType::Bool),
+            Constant::IntLiteral(_) => TypeLayer::Scalar(ScalarType::IntLiteral),
+            Constant::Int32(_) => TypeLayer::Scalar(ScalarType::Int32),
+            Constant::UInt32(_) => TypeLayer::Scalar(ScalarType::UInt32),
+            Constant::Int64(_) => unimplemented!(),
+            Constant::UInt64(_) => unimplemented!(),
+            Constant::FloatLiteral(_) => TypeLayer::Scalar(ScalarType::FloatLiteral),
+            Constant::Float16(_) => TypeLayer::Scalar(ScalarType::Float16),
+            Constant::Float32(_) => TypeLayer::Scalar(ScalarType::Float32),
+            Constant::Float64(_) => TypeLayer::Scalar(ScalarType::Float64),
+            Constant::String(_) => panic!("strings not supported"),
+            Constant::Enum(_, _) => panic!("enum not expected"),
+        };
+        module.type_registry.register_type(tyl).to_rvalue()
+    }
 }
 
 impl RestrictedConstant {

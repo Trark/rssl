@@ -11,6 +11,9 @@ pub type TyperResult<T> = Result<T, TyperError>;
 /// An error that occurred when trying to type check the input RSSL
 #[derive(PartialEq, Debug, Clone)]
 pub enum TyperError {
+    /// An internal error occured in the type checker
+    InternalError(SourceLocation),
+
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
     TypeAlreadyDefined(Located<String>, ir::TypeId),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
@@ -247,6 +250,9 @@ impl CompileError for TyperExternalError {
     fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
         let context = &self.1;
         match &self.0 {
+            TyperError::InternalError(loc) => {
+                w.write_message(&|f| write!(f, "internal error"), *loc, Severity::Error)
+            }
             TyperError::ValueAlreadyDefined(name, _, _) => w.write_message(
                 &|f| write!(f, "redefinition of '{}'", name.node),
                 name.location,

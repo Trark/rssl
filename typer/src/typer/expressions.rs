@@ -72,7 +72,7 @@ fn parse_identifier(
 ) -> TyperResult<TypedExpression> {
     Ok(match context.find_identifier(id)? {
         VariableExpression::Constant(c) => {
-            let ty = get_constant_type(&c, context);
+            let ty = c.get_type(&mut context.module);
             TypedExpression::Value(ir::Expression::Literal(c), ty)
         }
         VariableExpression::Local(var, ty) => {
@@ -572,7 +572,7 @@ fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TyperResult<Typed
         }
     };
 
-    let ty = get_constant_type(&constant, context);
+    let ty = constant.get_type(&mut context.module);
 
     Ok(TypedExpression::Value(
         ir::Expression::Literal(constant),
@@ -1354,33 +1354,6 @@ fn parse_expr_ternary(
     Ok(TypedExpression::Value(node, final_type))
 }
 
-/// Reduce value type of a swizzle if it uses the same slot multiple times
-fn get_swizzle_vt(swizzle: &Vec<ir::SwizzleSlot>, mut vt: ir::ValueType) -> ir::ValueType {
-    for i in 0..swizzle.len() {
-        for j in 0..i {
-            if swizzle[i] == swizzle[j] {
-                vt = ir::ValueType::Rvalue;
-            }
-        }
-    }
-    vt
-}
-
-/// Reduce value type of a matrix swizzle if it uses the same slot multiple times
-fn get_matrix_swizzle_vt(
-    swizzle: &Vec<ir::MatrixSwizzleSlot>,
-    mut vt: ir::ValueType,
-) -> ir::ValueType {
-    for i in 0..swizzle.len() {
-        for j in 0..i {
-            if swizzle[i] == swizzle[j] {
-                vt = ir::ValueType::Rvalue;
-            }
-        }
-    }
-    vt
-}
-
 /// Parse a set of matrix components
 fn read_matrix_subscript(
     type_id: ir::TypeId,
@@ -1666,7 +1639,7 @@ fn parse_expr_unchecked(
                             }
                         });
                     }
-                    let vt = get_swizzle_vt(&swizzle_slots, vt);
+                    let vt = ir::get_swizzle_value_type(&swizzle_slots, vt);
                     let ty_unmod = if swizzle_slots.len() == 1 {
                         composite_ty_nomod
                     } else {
@@ -1713,7 +1686,7 @@ fn parse_expr_unchecked(
                             }
                         });
                     }
-                    let vt = get_swizzle_vt(&swizzle_slots, vt);
+                    let vt = ir::get_swizzle_value_type(&swizzle_slots, vt);
                     // Lets say single element swizzles go to scalars
                     // Technically they might be going to 1 element vectors
                     // that then get downcasted
@@ -1750,7 +1723,7 @@ fn parse_expr_unchecked(
                     };
 
                     let swizzle_slots = read_matrix_subscript(composite_ty, x, y, member)?;
-                    let vt = get_matrix_swizzle_vt(&swizzle_slots, vt);
+                    let vt = ir::get_matrix_swizzle_value_type(&swizzle_slots, vt);
                     let ty_unmod = if swizzle_slots.len() == 1 {
                         scalar
                     } else {
@@ -2332,304 +2305,13 @@ pub fn parse_expr(
     Ok((expr_ir, expr_ety))
 }
 
-/// Find the type of a constant
-fn get_constant_type(literal: &ir::Constant, context: &mut Context) -> ExpressionType {
-    let tyl = match *literal {
-        ir::Constant::Bool(_) => ir::TypeLayer::Scalar(ir::ScalarType::Bool),
-        ir::Constant::IntLiteral(_) => ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral),
-        ir::Constant::Int32(_) => ir::TypeLayer::Scalar(ir::ScalarType::Int32),
-        ir::Constant::UInt32(_) => ir::TypeLayer::Scalar(ir::ScalarType::UInt32),
-        ir::Constant::Int64(_) => unimplemented!(),
-        ir::Constant::UInt64(_) => unimplemented!(),
-        ir::Constant::FloatLiteral(_) => ir::TypeLayer::Scalar(ir::ScalarType::FloatLiteral),
-        ir::Constant::Float16(_) => ir::TypeLayer::Scalar(ir::ScalarType::Float16),
-        ir::Constant::Float32(_) => ir::TypeLayer::Scalar(ir::ScalarType::Float32),
-        ir::Constant::Float64(_) => ir::TypeLayer::Scalar(ir::ScalarType::Float64),
-        ir::Constant::String(_) => panic!("strings not supported"),
-        ir::Constant::Enum(_, _) => panic!("enum not expected"),
-    };
-    context.module.type_registry.register_type(tyl).to_rvalue()
-}
-
 /// Find the type of an expression
 fn get_expression_type(
     expression: &ir::Expression,
     context: &mut Context,
 ) -> TyperResult<ExpressionType> {
-    match *expression {
-        ir::Expression::Literal(ref lit) => Ok(get_constant_type(lit, context)),
-        ir::Expression::Variable(id) => Ok(context
-            .module
-            .variable_registry
-            .get_local_variable(id)
-            .type_id
-            .to_lvalue()),
-        ir::Expression::MemberVariable(id, member_index) => {
-            assert!(id.0 < context.module.struct_registry.len() as u32);
-            let def = &context.module.struct_registry[id.0 as usize];
-            assert!(member_index < def.members.len() as u32);
-
-            let member_type = def.members[member_index as usize].type_id;
-            Ok(member_type.to_lvalue())
-        }
-        ir::Expression::Global(id) => context.get_type_of_global(id),
-        ir::Expression::ConstantVariable(id) => Ok(context.get_type_of_constant(id)),
-        ir::Expression::EnumValue(id) => Ok(context
-            .module
-            .enum_registry
-            .get_enum_value(id)
-            .type_id
-            .to_rvalue()),
-        ir::Expression::TernaryConditional(_, ref expr_left, ref expr_right) => {
-            // Ensure the layouts of each side are the same
-            // Value types + modifiers can be different
-            {
-                let ty_left_mod = get_expression_type(expr_left, context)?.0;
-                let ty_right_mod = get_expression_type(expr_right, context)?.0;
-                let ty_left = context.module.type_registry.remove_modifier(ty_left_mod);
-                let ty_right = context.module.type_registry.remove_modifier(ty_right_mod);
-                assert_eq!(ty_left, ty_right,);
-            }
-            let ety = get_expression_type(expr_left, context)?;
-            Ok(ety.0.to_rvalue())
-        }
-        ir::Expression::Sequence(ref chain) => {
-            let last = chain
-                .last()
-                .expect("Sequence must have at least one expression");
-            let ety = get_expression_type(last, context)?;
-            Ok(ety)
-        }
-        ir::Expression::Swizzle(ref vec, ref swizzle) => {
-            let ExpressionType(vec_ty, vec_vt) = get_expression_type(vec, context)?;
-            let (vec_ty_nomod, vec_mod) = context.module.type_registry.extract_modifier(vec_ty);
-            let vec_tyl_nomod = context.module.type_registry.get_type_layer(vec_ty_nomod);
-            let vt = get_swizzle_vt(swizzle, vec_vt);
-            let ty = match vec_tyl_nomod {
-                ir::TypeLayer::Scalar(_) => {
-                    if swizzle.len() == 1 {
-                        vec_ty_nomod
-                    } else {
-                        context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Vector(
-                                vec_ty_nomod,
-                                swizzle.len() as u32,
-                            ))
-                    }
-                }
-                ir::TypeLayer::Vector(scalar, _) => {
-                    if swizzle.len() == 1 {
-                        scalar
-                    } else {
-                        context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Vector(scalar, swizzle.len() as u32))
-                    }
-                }
-                _ => {
-                    return Err(TyperError::InvalidTypeForSwizzle(
-                        vec_ty_nomod,
-                        SourceLocation::UNKNOWN,
-                    ))
-                }
-            };
-            let ty = context.module.type_registry.combine_modifier(ty, vec_mod);
-            Ok(ExpressionType(ty, vt))
-        }
-        ir::Expression::MatrixSwizzle(ref mat, ref swizzle) => {
-            let ExpressionType(mat_ty, mat_vt) = get_expression_type(mat, context)?;
-            let (mat_ty_nomod, mat_mod) = context.module.type_registry.extract_modifier(mat_ty);
-            let mat_tyl_nomod = context.module.type_registry.get_type_layer(mat_ty_nomod);
-            let vt = get_matrix_swizzle_vt(swizzle, mat_vt);
-            let ty = match mat_tyl_nomod {
-                ir::TypeLayer::Matrix(scalar, _, _) => {
-                    if swizzle.len() == 1 {
-                        scalar
-                    } else {
-                        context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Vector(scalar, swizzle.len() as u32))
-                    }
-                }
-                _ => {
-                    return Err(TyperError::InvalidTypeForSwizzle(
-                        mat_ty_nomod,
-                        SourceLocation::UNKNOWN,
-                    ))
-                }
-            };
-            let ty = context.module.type_registry.combine_modifier(ty, mat_mod);
-            Ok(ExpressionType(ty, vt))
-        }
-        ir::Expression::ArraySubscript(ref array, _) => {
-            let array_ty = get_expression_type(array, context)?;
-            // Todo: Modifiers on object type template parameters
-            let (array_ty_nomod, modifer) =
-                context.module.type_registry.extract_modifier(array_ty.0);
-            let array_tyl_nomod = context.module.type_registry.get_type_layer(array_ty_nomod);
-            let ty = match array_tyl_nomod {
-                ir::TypeLayer::Array(element, _) => element,
-                ir::TypeLayer::Vector(st, _) => {
-                    context.module.type_registry.combine_modifier(st, modifer)
-                }
-                ir::TypeLayer::Matrix(st, _, y) => {
-                    let ty = context
-                        .module
-                        .type_registry
-                        .register_type(ir::TypeLayer::Vector(st, y));
-                    context.module.type_registry.combine_modifier(ty, modifer)
-                }
-                ir::TypeLayer::Object(ir::ObjectType::Buffer(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture2D(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture2DArray(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture2DArrayMipsSlice(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture3D(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::Texture3DMipsSlice(ty)) => {
-                    context.module.type_registry.make_const(ty)
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWBuffer(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::RWTexture2DArray(ty))
-                | ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(ty)) => ty,
-                ir::TypeLayer::Object(ir::ObjectType::Texture2DMips(ty)) => {
-                    let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture2DMipsSlice(ty));
-                    context.module.type_registry.register_type(tyl)
-                }
-                ir::TypeLayer::Object(ir::ObjectType::Texture2DArrayMips(ty)) => {
-                    let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture2DArrayMipsSlice(ty));
-                    context.module.type_registry.register_type(tyl)
-                }
-                ir::TypeLayer::Object(ir::ObjectType::Texture3DMips(ty)) => {
-                    let tyl = ir::TypeLayer::Object(ir::ObjectType::Texture3DMipsSlice(ty));
-                    context.module.type_registry.register_type(tyl)
-                }
-                _ => {
-                    return Err(TyperError::ArrayIndexMustBeUsedOnArrayType(
-                        array_ty_nomod,
-                        SourceLocation::UNKNOWN,
-                    ))
-                }
-            };
-            Ok(ty.to_lvalue())
-        }
-        ir::Expression::StructMember(ref expr, id, member_index) => {
-            let expr_type = get_expression_type(expr, context)?;
-
-            assert!(id.0 < context.module.struct_registry.len() as u32);
-            let def = &context.module.struct_registry[id.0 as usize];
-            assert!(member_index < def.members.len() as u32);
-
-            let member_type = def.members[member_index as usize].type_id;
-            Ok(ExpressionType(member_type, expr_type.1))
-        }
-        ir::Expression::ObjectMember(ref expr, ref name) => {
-            let expr_type = get_expression_type(expr, context)?;
-
-            let mut ty = context.module.type_registry.remove_modifier(expr_type.0);
-            let mut tyl = context.module.type_registry.get_type_layer(ty);
-
-            // Handle mips member of Texture2D
-            if let ir::TypeLayer::Object(ir::ObjectType::Texture2D(inner)) = tyl {
-                if name == "mips" {
-                    let mips_oty = ir::ObjectType::Texture2DMips(inner);
-                    let mips_tyl = ir::TypeLayer::Object(mips_oty);
-                    let mips_ty = context.module.type_registry.register_type(mips_tyl);
-                    return Ok(mips_ty.to_lvalue());
-                }
-            }
-
-            // Handle mips member of Texture2DArray
-            if let ir::TypeLayer::Object(ir::ObjectType::Texture2DArray(inner)) = tyl {
-                if name == "mips" {
-                    let mips_oty = ir::ObjectType::Texture2DArrayMips(inner);
-                    let mips_tyl = ir::TypeLayer::Object(mips_oty);
-                    let mips_ty = context.module.type_registry.register_type(mips_tyl);
-                    return Ok(mips_ty.to_lvalue());
-                }
-            }
-
-            // Handle mips member of Texture3D
-            if let ir::TypeLayer::Object(ir::ObjectType::Texture3D(inner)) = tyl {
-                if name == "mips" {
-                    let mips_oty = ir::ObjectType::Texture3DMips(inner);
-                    let mips_tyl = ir::TypeLayer::Object(mips_oty);
-                    let mips_ty = context.module.type_registry.register_type(mips_tyl);
-                    return Ok(mips_ty.to_lvalue());
-                }
-            }
-
-            // If it is a constant buffer then auto unwrap the inner type
-            if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(inner)) = tyl {
-                ty = context.module.type_registry.remove_modifier(inner);
-                tyl = context.module.type_registry.get_type_layer(ty);
-            }
-
-            // RayDesc is not a real struct so custom check each of its members
-            if let ir::TypeLayer::Object(ir::ObjectType::RayDesc) = tyl {
-                return match name.as_str() {
-                    "Origin" | "Direction" => {
-                        let f = context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float32));
-                        let f3 = context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Vector(f, 3));
-                        let ety = ExpressionType(f3, expr_type.1);
-                        Ok(ety)
-                    }
-                    "TMin" | "TMax" => {
-                        let f = context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Scalar(ir::ScalarType::Float32));
-                        let ety = ExpressionType(f, expr_type.1);
-                        Ok(ety)
-                    }
-                    _ => Err(TyperError::MemberDoesNotExist(
-                        expr_type.0,
-                        ast::ScopedIdentifier::trivial(name),
-                    )),
-                };
-            }
-
-            Err(TyperError::MemberNodeMustBeUsedOnStruct(
-                ty,
-                name.clone(),
-                SourceLocation::UNKNOWN,
-            ))
-        }
-        ir::Expression::Call(id, _, _) => Ok(context
-            .module
-            .function_registry
-            .get_function_signature(id)
-            .return_type
-            .return_type
-            .to_rvalue()),
-        ir::Expression::Constructor(ty, _) => Ok(ty.to_rvalue()),
-        ir::Expression::Cast(ty, _) => Ok(ty.to_rvalue()),
-        ir::Expression::SizeOf(_) => {
-            let uint_ty = context
-                .module
-                .type_registry
-                .register_type(ir::TypeLayer::Scalar(ir::ScalarType::UInt32));
-            Ok(uint_ty.to_rvalue())
-        }
-        ir::Expression::IntrinsicOp(ref intrinsic, ref args) => {
-            let mut arg_types = Vec::with_capacity(args.len());
-            for arg in args {
-                arg_types.push(get_expression_type(arg, context)?);
-            }
-            let ety = intrinsic.get_return_type(&arg_types, &mut context.module);
-            Ok(ety)
-        }
+    match expression.get_type(&mut context.module) {
+        Ok(ty) => Ok(ty),
+        Err(_) => Err(TyperError::InternalError(SourceLocation::UNKNOWN)),
     }
 }
