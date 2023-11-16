@@ -19,10 +19,13 @@ pub enum Declarator {
     /// Unqualified id or qualified id
     Identifier(ScopedIdentifier, Vec<Attribute>),
 
-    /// Pointer declarator
+    /// * declarator
     Pointer(PointerDeclarator),
 
-    /// Array declarator
+    /// & declarator
+    Reference(ReferenceDeclarator),
+
+    /// [] declarator
     Array(ArrayDeclarator),
 }
 
@@ -30,6 +33,12 @@ pub enum Declarator {
 pub struct PointerDeclarator {
     pub attributes: Vec<Attribute>,
     pub qualifiers: TypeModifierSet,
+    pub inner: Box<Declarator>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ReferenceDeclarator {
+    pub attributes: Vec<Attribute>,
     pub inner: Box<Declarator>,
 }
 

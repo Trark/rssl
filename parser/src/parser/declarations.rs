@@ -38,6 +38,17 @@ pub fn parse_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
         return Ok((input, decl));
     };
 
+    if let Ok((input, _)) = parse_token(Token::Ampersand)(input) {
+        let (input, attributes) = parse_multiple(parse_attribute)(input)?;
+        let (input, inner) = parse_declarator(input)?;
+
+        let decl = Declarator::Reference(ReferenceDeclarator {
+            attributes,
+            inner: Box::new(inner),
+        });
+        return Ok((input, decl));
+    };
+
     let (input, identifier) = parse_variable_name(input)?;
     let (input, identifier_attributes) = parse_multiple(parse_attribute_double_only)(input)?;
 

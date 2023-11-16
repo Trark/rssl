@@ -457,6 +457,11 @@ fn format_declarator(
             format_type_modifiers(qualifiers, output)?;
             format_declarator(inner, output, context)?;
         }
+        ast::Declarator::Reference(ast::ReferenceDeclarator { attributes, inner }) => {
+            output.push('&');
+            format_attributes(attributes, false, output, context)?;
+            format_declarator(inner, output, context)?;
+        }
         ast::Declarator::Array(ast::ArrayDeclarator {
             inner,
             array_size,

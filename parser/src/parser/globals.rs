@@ -363,6 +363,32 @@ fn test_global_variable() {
             attributes: Vec::new(),
         },
     );
+
+    globalvariable.check(
+        "float const*& x;",
+        GlobalVariable {
+            global_type: Type::from("float".loc(0)).with_modifiers(&[TypeModifier::Const.loc(6)]),
+            defs: Vec::from([InitDeclarator {
+                declarator: Declarator::Pointer(PointerDeclarator {
+                    attributes: Vec::new(),
+                    qualifiers: Default::default(),
+                    inner: Box::new(Declarator::Reference(ReferenceDeclarator {
+                        attributes: Vec::new(),
+                        inner: Box::new(Declarator::Identifier(
+                            ScopedIdentifier {
+                                base: ScopedIdentifierBase::Relative,
+                                identifiers: Vec::from(["x".to_string().loc(14)]),
+                            },
+                            Vec::new(),
+                        )),
+                    })),
+                }),
+                location_annotations: Vec::new(),
+                init: None,
+            }]),
+            attributes: Vec::new(),
+        },
+    );
 }
 
 #[test]

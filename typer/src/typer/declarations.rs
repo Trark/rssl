@@ -26,6 +26,11 @@ pub fn parse_declarator(
                 declarators.push(declarator);
                 (declarators, scoped_name)
             }
+            ast::Declarator::Reference(ast::ReferenceDeclarator { inner, .. }) => {
+                let (mut declarators, scoped_name) = visit_declarator(inner);
+                declarators.push(declarator);
+                (declarators, scoped_name)
+            }
             ast::Declarator::Array(ast::ArrayDeclarator { inner, .. }) => {
                 let (mut declarators, scoped_name) = visit_declarator(inner);
                 declarators.push(declarator);
@@ -47,6 +52,7 @@ pub fn parse_declarator(
         match declarator {
             ast::Declarator::Empty | ast::Declarator::Identifier(_, _) => unreachable!(),
             ast::Declarator::Pointer(_) => return Err(TyperError::PointersNotSupported(loc)),
+            ast::Declarator::Reference(_) => return Err(TyperError::PointersNotSupported(loc)),
             ast::Declarator::Array(ast::ArrayDeclarator { array_size, .. }) => {
                 let constant_dim = match *array_size {
                     Some(ref dim_expr) => {
