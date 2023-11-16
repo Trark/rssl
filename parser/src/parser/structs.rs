@@ -1,35 +1,12 @@
-use super::functions::{parse_function_definition, parse_semantic};
+use super::functions::parse_function_definition;
 use super::statements::parse_attribute;
 use super::*;
-
-/// Parse a struct member name in an entry
-fn parse_struct_member_name(input: &[LexToken]) -> ParseResult<StructMemberName> {
-    let (input, name) = parse_variable_name(input)?;
-    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
-
-    // Parse semantic if present
-    let (input, semantic) = match parse_token(Token::Colon)(input) {
-        Ok((input, _)) => match parse_semantic(input) {
-            Ok((input, semantic)) => (input, Some(semantic)),
-            Err(err) => return Err(err),
-        },
-        Err(_) => (input, None),
-    };
-
-    let member_name = StructMemberName {
-        name,
-        bind: VariableBind(bind),
-        semantic,
-    };
-    Ok((input, member_name))
-}
 
 /// Parse a struct member variable - with potentially multiple members per line
 fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
     let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, typename) = parse_type(input)?;
-    let (input, defs) =
-        parse_list_nonempty(parse_token(Token::Comma), parse_struct_member_name)(input)?;
+    let (input, defs) = parse_init_declarators(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let sm = StructMember {
         ty: typename,
@@ -109,11 +86,11 @@ fn test_struct() {
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
-                defs: vec![StructMemberName {
-                    name: "a".to_string().loc(23),
-                    bind: Default::default(),
-                    semantic: Default::default(),
-                }],
+                defs: Vec::from([InitDeclarator {
+                    declarator: "a".loc(23).into(),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
                 attributes: Vec::new(),
             })],
         },
@@ -127,18 +104,18 @@ fn test_struct() {
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
-                defs: vec![
-                    StructMemberName {
-                        name: "a".to_string().loc(23),
-                        bind: Default::default(),
-                        semantic: Default::default(),
+                defs: Vec::from([
+                    InitDeclarator {
+                        declarator: "a".loc(23).into(),
+                        location_annotations: Vec::new(),
+                        init: None,
                     },
-                    StructMemberName {
-                        name: "b".to_string().loc(26),
-                        bind: Default::default(),
-                        semantic: Default::default(),
+                    InitDeclarator {
+                        declarator: "b".loc(26).into(),
+                        location_annotations: Vec::new(),
+                        init: None,
                     },
-                ],
+                ]),
                 attributes: Vec::new(),
             })],
         },
@@ -152,23 +129,32 @@ fn test_struct() {
             template_params: TemplateParamList(Vec::new()),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
-                defs: vec![
-                    StructMemberName {
-                        name: "a".to_string().loc(23),
-                        bind: VariableBind(Vec::from([Some(
-                            Expression::Literal(Literal::IntUntyped(2)).loc(25),
-                        )])),
-                        semantic: Default::default(),
+                defs: Vec::from([
+                    InitDeclarator {
+                        declarator: Declarator::Array(ArrayDeclarator {
+                            inner: Box::new("a".loc(23).into()),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).loc(25)),
+                            attributes: Vec::new(),
+                        }),
+                        location_annotations: Vec::new(),
+                        init: None,
                     },
-                    StructMemberName {
-                        name: "b".to_string().loc(29),
-                        bind: VariableBind(Vec::from([
-                            Some(Expression::Literal(Literal::IntUntyped(3)).loc(31)),
-                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(34)),
-                        ])),
-                        semantic: Default::default(),
+                    InitDeclarator {
+                        declarator: Declarator::Array(ArrayDeclarator {
+                            inner: Box::new(Declarator::Array(ArrayDeclarator {
+                                inner: Box::new("b".loc(29).into()),
+                                array_size: Some(
+                                    Expression::Literal(Literal::IntUntyped(3)).loc(31),
+                                ),
+                                attributes: Vec::new(),
+                            })),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(34)),
+                            attributes: Vec::new(),
+                        }),
+                        location_annotations: Vec::new(),
+                        init: None,
                     },
-                ],
+                ]),
                 attributes: Vec::new(),
             })],
         },
@@ -183,11 +169,11 @@ fn test_struct() {
             members: vec![
                 StructEntry::Variable(StructMember {
                     ty: Type::from("uint".loc(45)),
-                    defs: vec![StructMemberName {
-                        name: "a".to_string().loc(50),
-                        bind: Default::default(),
-                        semantic: Default::default(),
-                    }],
+                    defs: Vec::from([InitDeclarator {
+                        declarator: "a".loc(50).into(),
+                        location_annotations: Vec::new(),
+                        init: None,
+                    }]),
                     attributes: Vec::from([Attribute {
                         name: Vec::from(["vk".to_string().loc(29), "offset".to_string().loc(33)]),
                         arguments: Vec::from([Expression::Literal(Literal::IntUntyped(8)).loc(40)]),
@@ -219,18 +205,18 @@ fn test_struct() {
             )])),
             members: vec![StructEntry::Variable(StructMember {
                 ty: Type::from("T".loc(39)),
-                defs: vec![
-                    StructMemberName {
-                        name: "a".to_string().loc(41),
-                        bind: Default::default(),
-                        semantic: Default::default(),
+                defs: Vec::from([
+                    InitDeclarator {
+                        declarator: "a".loc(41).into(),
+                        location_annotations: Vec::new(),
+                        init: None,
                     },
-                    StructMemberName {
-                        name: "b".to_string().loc(44),
-                        bind: Default::default(),
-                        semantic: Default::default(),
+                    InitDeclarator {
+                        declarator: "b".loc(44).into(),
+                        location_annotations: Vec::new(),
+                        init: None,
                     },
-                ],
+                ]),
                 attributes: Vec::new(),
             })],
         },
@@ -242,27 +228,40 @@ fn test_struct() {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
-            members: vec![StructEntry::Variable(StructMember {
+            members: Vec::from([StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
-                defs: vec![
-                    StructMemberName {
-                        name: "a".to_string().loc(23),
-                        bind: VariableBind(Vec::from([Some(
-                            Expression::Literal(Literal::IntUntyped(2)).loc(25),
-                        )])),
-                        semantic: Some(Semantic::User("USER0".to_string())),
+                defs: Vec::from([
+                    InitDeclarator {
+                        declarator: Declarator::Array(ArrayDeclarator {
+                            inner: Box::new("a".loc(23).into()),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).loc(25)),
+                            attributes: Vec::new(),
+                        }),
+                        location_annotations: Vec::from([LocationAnnotation::Semantic(
+                            Semantic::User("USER0".to_string()),
+                        )]),
+                        init: None,
                     },
-                    StructMemberName {
-                        name: "b".to_string().loc(37),
-                        bind: VariableBind(Vec::from([
-                            Some(Expression::Literal(Literal::IntUntyped(3)).loc(39)),
-                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(42)),
-                        ])),
-                        semantic: Some(Semantic::User("USER1".to_string())),
+                    InitDeclarator {
+                        declarator: Declarator::Array(ArrayDeclarator {
+                            inner: Box::new(Declarator::Array(ArrayDeclarator {
+                                inner: Box::new("b".loc(37).into()),
+                                array_size: Some(
+                                    Expression::Literal(Literal::IntUntyped(3)).loc(39),
+                                ),
+                                attributes: Vec::new(),
+                            })),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(42)),
+                            attributes: Vec::new(),
+                        }),
+                        location_annotations: Vec::from([LocationAnnotation::Semantic(
+                            Semantic::User("USER1".to_string()),
+                        )]),
+                        init: None,
                     },
-                ],
+                ]),
                 attributes: Vec::new(),
-            })],
+            })]),
         },
     );
 }

@@ -7,6 +7,7 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
 
+use super::declarations::parse_declarator;
 use super::expressions::parse_expr;
 use super::types::{is_illegal_variable_name, parse_precise, parse_type_for_usage, TypePosition};
 
@@ -347,30 +348,29 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
     // Build multiple output VarDefs for each variable inside the source VarDef
     let mut vardefs = vec![];
     for local_variable in &ast.defs {
-        // Deny restricted non-keyword names
-        if is_illegal_variable_name(&local_variable.name) {
-            return Err(TyperError::IllegalVariableName(
-                local_variable.name.get_location(),
-            ));
-        }
-
-        // Apply variable bound type modifications
-        let type_id = apply_variable_bind(
+        // Modify the type and fetch the name from the declarator
+        let (type_id, scoped_name) = parse_declarator(
+            &local_variable.declarator,
             base_id,
-            local_variable.name.location,
-            &local_variable.bind,
-            &local_variable.init,
+            local_variable.init.as_ref(),
             false,
             context,
         )?;
 
+        // Ensure the name is unqualified
+        let name = match scoped_name.try_trivial() {
+            Some(name) => name,
+            _ => return Err(TyperError::IllegalVariableName(scoped_name.get_location())),
+        };
+
+        // Deny restricted non-keyword names
+        if is_illegal_variable_name(name) {
+            return Err(TyperError::IllegalVariableName(name.get_location()));
+        }
+
         // Parse the initializer
-        let var_init = parse_initializer_opt(
-            &local_variable.init,
-            type_id,
-            local_variable.name.get_location(),
-            context,
-        )?;
+        let var_init =
+            parse_initializer_opt(&local_variable.init, type_id, name.get_location(), context)?;
 
         // Attempt to resolve the initializer as a constant expression
         let evaluated_value = (|| {
@@ -385,12 +385,27 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             None
         })();
 
+        // Deny location annotations
+        if let Some(location_annotation) = local_variable.location_annotations.first() {
+            match location_annotation {
+                ast::LocationAnnotation::Register(_) => {
+                    return Err(TyperError::UnexpectedRegisterAnnotation(name.location));
+                }
+                ast::LocationAnnotation::PackOffset(_) => {
+                    return Err(TyperError::UnexpectedPackOffset(name.location));
+                }
+                ast::LocationAnnotation::Semantic(_) => {
+                    return Err(TyperError::UnexpectedSemantic(name.location));
+                }
+            }
+        }
+
         // Register the variable in the module
         let var_id = context
             .module
             .variable_registry
             .register_local_variable(ir::LocalVariable {
-                name: local_variable.name.clone(),
+                name: name.clone(),
                 type_id,
                 storage_class,
                 precise,
@@ -398,7 +413,7 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
             });
 
         // Register the variable in the scope
-        context.insert_variable(local_variable.name.clone(), var_id, type_id)?;
+        context.insert_variable(name.clone(), var_id, type_id)?;
 
         // Add the variables creation node
         vardefs.push(ir::VarDef {
@@ -459,59 +474,6 @@ fn parse_localtype(
     }
 
     Ok((ty, local_storage, precise_result.is_some()))
-}
-
-/// Apply part of type applied to variable name onto the type itself
-pub fn apply_variable_bind(
-    mut ty: ir::TypeId,
-    loc: SourceLocation,
-    bind: &ast::VariableBind,
-    init: &Option<ast::Initializer>,
-    allow_unbounded: bool,
-    context: &mut Context,
-) -> TyperResult<ir::TypeId> {
-    for dim in bind.0.iter().rev() {
-        let constant_dim = match *dim {
-            Some(ref dim_expr) => {
-                let expr_ir = parse_expr(dim_expr, context)?.0;
-                let value = match evaluate_constexpr(&expr_ir, &mut context.module) {
-                    Ok(ir::Constant::Enum(_, val)) => val.to_uint64(),
-                    Ok(val) => val.to_uint64(),
-                    Err(()) => None,
-                };
-                match value {
-                    Some(0) => {
-                        return Err(TyperError::ArrayDimensionsMustBeNonZero(
-                            dim_expr.get_location(),
-                        ))
-                    }
-                    Some(val) => Some(val),
-                    None => {
-                        let p = (**dim_expr).clone();
-                        return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
-                            p,
-                            dim_expr.get_location(),
-                        ));
-                    }
-                }
-            }
-            None => match *init {
-                Some(ast::Initializer::Aggregate(ref exprs)) if exprs.is_empty() => {
-                    return Err(TyperError::ArrayDimensionsMustBeNonZero(loc))
-                }
-                Some(ast::Initializer::Aggregate(ref exprs)) => Some(exprs.len() as u64),
-                _ if allow_unbounded => None,
-                _ => return Err(TyperError::ArrayDimensionNotSpecified(loc)),
-            },
-        };
-
-        ty = context
-            .module
-            .type_registry
-            .register_type(ir::TypeLayer::Array(ty, constant_dim));
-    }
-
-    Ok(ty)
 }
 
 /// Process an optional variable initialisation expression

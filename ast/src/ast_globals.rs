@@ -1,22 +1,19 @@
-use crate::ast_statements::{Attribute, Initializer, VariableBind};
+use crate::ast_statements::Attribute;
 use crate::ast_types::Type;
+use crate::{InitDeclarator, LocationAnnotation};
 use rssl_text::Located;
 
 /// A global variable definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct GlobalVariable {
+    /// The base type
     pub global_type: Type,
-    pub defs: Vec<GlobalVariableName>,
-    pub attributes: Vec<Attribute>,
-}
 
-/// The name part of a global variable definition - to support multiple definitions in a single line
-#[derive(PartialEq, Debug, Clone)]
-pub struct GlobalVariableName {
-    pub name: Located<String>,
-    pub bind: VariableBind,
-    pub slot: Option<Register>,
-    pub init: Option<Initializer>,
+    /// List of declarators defining a variable each
+    pub defs: Vec<InitDeclarator>,
+
+    /// Attributes that appear before the type
+    pub attributes: Vec<Attribute>,
 }
 
 /// The resource binding annotation for a global parameter
@@ -52,7 +49,7 @@ pub enum RegisterType {
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstantBuffer {
     pub name: Located<String>,
-    pub slot: Option<Register>,
+    pub location_annotations: Vec<LocationAnnotation>,
     pub members: Vec<ConstantVariable>,
     pub attributes: Vec<Attribute>,
 }
@@ -63,15 +60,7 @@ pub struct ConstantBuffer {
 #[derive(PartialEq, Debug, Clone)]
 pub struct ConstantVariable {
     pub ty: Type,
-    pub defs: Vec<ConstantVariableName>,
-}
-
-/// The name part of a constant buffer variable definition - to support multiple definitions in a single line
-#[derive(PartialEq, Debug, Clone)]
-pub struct ConstantVariableName {
-    pub name: Located<String>,
-    pub bind: VariableBind,
-    pub offset: Option<PackOffset>,
+    pub defs: Vec<InitDeclarator>,
 }
 
 /// Offset information for a packoffset construct

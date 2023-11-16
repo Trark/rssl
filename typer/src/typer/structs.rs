@@ -1,7 +1,7 @@
+use super::declarations::parse_declarator;
 use super::errors::*;
 use super::functions::{parse_function_body, parse_function_signature};
 use super::scopes::*;
-use super::statements::apply_variable_bind;
 use super::types::{
     is_illegal_type_name, is_illegal_variable_name, parse_interpolation_modifier, parse_precise,
     parse_type_for_usage, TypePosition,
@@ -158,34 +158,69 @@ fn parse_struct_internal(
                 let precise_result = parse_precise(&ast_member.ty.modifiers)?;
 
                 for def in &ast_member.defs {
-                    // Deny restricted non-keyword names
-                    if is_illegal_variable_name(&def.name) {
-                        return Err(TyperError::IllegalVariableName(def.name.get_location()));
-                    }
-
-                    let name = def.name.node.clone();
-                    let type_id = apply_variable_bind(
+                    // Modify the type and fetch the name from the declarator
+                    let (type_id, scoped_name) = parse_declarator(
+                        &def.declarator,
                         base_type,
-                        def.name.location,
-                        &def.bind,
-                        &None,
+                        def.init.as_ref(),
                         false,
                         context,
                     )?;
 
-                    if member_map.contains(&name) || method_map.contains_key(&name) {
+                    // Ensure the name is unqualified
+                    let name = match scoped_name.try_trivial() {
+                        Some(name) => name,
+                        _ => {
+                            return Err(TyperError::IllegalVariableName(scoped_name.get_location()))
+                        }
+                    };
+
+                    // Deny restricted non-keyword names
+                    if is_illegal_variable_name(name) {
+                        return Err(TyperError::IllegalVariableName(name.get_location()));
+                    }
+
+                    let mut semantic = None;
+                    for location_annotation in &def.location_annotations {
+                        match location_annotation {
+                            ast::LocationAnnotation::Register(_) => {
+                                return Err(TyperError::UnexpectedRegisterAnnotation(
+                                    name.location,
+                                ));
+                            }
+                            ast::LocationAnnotation::PackOffset(_) => {
+                                return Err(TyperError::UnexpectedPackOffset(name.location));
+                            }
+                            ast::LocationAnnotation::Semantic(s) => {
+                                if semantic.is_some() {
+                                    return Err(TyperError::UnexpectedSemantic(name.location));
+                                }
+                                semantic = Some(s.clone());
+                            }
+                        }
+                    }
+
+                    if def.init.is_some() {
+                        return Err(TyperError::StructMemberUnsupportedDefaultValue(
+                            name.location,
+                        ));
+                    }
+
+                    let unloc_name = name.node.clone();
+
+                    if member_map.contains(&unloc_name) || method_map.contains_key(&unloc_name) {
                         return Err(TyperError::ValueAlreadyDefined(
-                            def.name.clone(),
+                            name.clone(),
                             ErrorType::Unknown,
                             type_id.to_error_type(),
                         ));
                     }
 
-                    member_map.insert(name.clone());
+                    member_map.insert(unloc_name.clone());
                     members.push(ir::StructMember {
-                        name,
+                        name: unloc_name,
                         type_id,
-                        semantic: def.semantic.clone(),
+                        semantic,
                         interpolation_modifier,
                         precise: precise_result.is_some(),
                     });

@@ -1,11 +1,11 @@
+use super::declarations::parse_declarator;
 use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
-use super::statements::apply_variable_bind;
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_text::{Located, SourceLocation};
+use rssl_text::{Locate, Located, SourceLocation};
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum TypePosition {
@@ -778,20 +778,25 @@ fn parse_and_evaluate_constant_expression(
 
 /// Process a typedef
 pub fn parse_rootdefinition_typedef(td: &ast::Typedef, context: &mut Context) -> TyperResult<()> {
-    // Deny restricted non-keyword names
-    if is_illegal_variable_name(&td.name) {
-        return Err(TyperError::IllegalTypedefName(td.name.location));
-    }
-
     // Parse the base type
     let base_type = parse_type(&td.source, context)?;
 
-    // Apply the array modifier
-    let type_id =
-        apply_variable_bind(base_type, td.name.location, &td.bind, &None, false, context)?;
+    // If the parameter has type information bound to the name then apply it to the type now
+    let (type_id, scoped_name) = parse_declarator(&td.declarator, base_type, None, false, context)?;
+
+    // Ensure the name is unqualified
+    let name = match scoped_name.try_trivial() {
+        Some(name) => name.clone(),
+        _ => return Err(TyperError::IllegalTypedefName(scoped_name.get_location())),
+    };
+
+    // Deny restricted non-keyword names
+    if is_illegal_variable_name(&name) {
+        return Err(TyperError::IllegalTypedefName(name.location));
+    }
 
     // Register the typedef
-    context.register_typedef(td.name.clone(), type_id)?;
+    context.register_typedef(name, type_id)?;
 
     // We do not emit any global definitions as typedefs do not declare anything new
 

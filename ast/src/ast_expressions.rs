@@ -144,6 +144,14 @@ impl ScopedIdentifier {
         }
     }
 
+    /// Make a name from a single part and with location information
+    pub fn unqualified(name: Located<String>) -> Self {
+        ScopedIdentifier {
+            base: ScopedIdentifierBase::Relative,
+            identifiers: Vec::from([name]),
+        }
+    }
+
     /// Get the identifier if it is a single name without additional qualificatioon
     pub fn try_trivial(&self) -> Option<&Located<String>> {
         if self.base == ScopedIdentifierBase::Relative && self.identifiers.len() == 1 {

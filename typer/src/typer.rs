@@ -1,6 +1,7 @@
 use rssl_ast as ast;
 use rssl_ir as ir;
 
+mod declarations;
 mod enums;
 mod errors;
 mod expressions;

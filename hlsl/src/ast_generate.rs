@@ -188,10 +188,10 @@ fn generate_inline_constant_buffers(
                 assert!(offset + 8 <= buffer.size_in_bytes);
                 members.push(ast::StructEntry::Variable(ast::StructMember {
                     ty: ast::Type::trivial("uint64_t"),
-                    defs: Vec::from([ast::StructMemberName {
-                        name: Located::none(binding.name.clone()),
-                        bind: Default::default(),
-                        semantic: None,
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: Located::none(binding.name.as_str()).into(),
+                        location_annotations: Vec::new(),
+                        init: None,
                     }]),
                     attributes: Vec::from([ast::Attribute {
                         name: Vec::from([
@@ -232,10 +232,12 @@ fn generate_inline_constant_buffers(
                 Located::none("ConstantBuffer"),
                 &[struct_name_identifier],
             ),
-            defs: Vec::from([ast::GlobalVariableName {
-                name: Located::none(format!("g_inlineDescriptor{}", buffer.set)),
-                bind: Default::default(),
-                slot: None,
+            defs: Vec::from([ast::InitDeclarator {
+                declarator: ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial(&format!("g_inlineDescriptor{}", buffer.set)),
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
                 init: None,
             }]),
             attributes: match binding_attribute {
@@ -402,11 +404,12 @@ fn generate_global_variable(
         ir::GlobalStorage::GroupShared => Some(ast::TypeModifier::GroupShared),
     };
 
-    let (type_base, bind) = generate_type_impl(decl.type_id, suppress_const_volatile, context)?;
+    let name = Located::none(context.get_global_name(id)?.to_string());
+
+    let (type_base, declarator) =
+        generate_type_and_declarator(decl.type_id, &name, suppress_const_volatile, context)?;
 
     let global_type = prepend_modifiers(type_base, &[storage_modifier]);
-
-    let name = Located::none(context.get_global_name(id)?.to_string());
 
     let slot = if is_extern && !context.module.flags.requires_vk_binding {
         generate_register_annotation(&decl.api_slot)?
@@ -432,14 +435,21 @@ fn generate_global_variable(
         generate_initializer(&decl.init, context)?
     };
 
+    let location_annotations = if let Some(register) = slot {
+        Vec::from([ast::LocationAnnotation::Register(register)])
+    } else {
+        Vec::new()
+    };
+
+    let init_declarator = ast::InitDeclarator {
+        declarator,
+        location_annotations,
+        init,
+    };
+
     let gv = ast::GlobalVariable {
         global_type,
-        defs: Vec::from([ast::GlobalVariableName {
-            name,
-            bind,
-            slot,
-            init,
-        }]),
+        defs: Vec::from([init_declarator]),
         attributes,
     };
 
@@ -645,7 +655,11 @@ fn generate_function_inner(
         params.push(generate_function_param(param, context)?);
     }
 
-    let semantic = generate_semantic_annotation(&sig.return_type.semantic)?;
+    let location_annotations = if let Some(semantic) = &sig.return_type.semantic {
+        Vec::from([ast::LocationAnnotation::Semantic(semantic.clone())])
+    } else {
+        Vec::new()
+    };
 
     let body = if only_declare {
         None
@@ -661,7 +675,7 @@ fn generate_function_inner(
         name,
         returntype: ast::FunctionReturn {
             return_type,
-            semantic,
+            location_annotations,
         },
         template_params: ast::TemplateParamList(template_params),
         params,
@@ -738,16 +752,20 @@ fn generate_function_param(
 
     let interpolation_modifier = generate_interpolation_modifier(&param.interpolation_modifier)?;
 
-    let (base_type, bind) = generate_type_for_def(param.param_type.type_id, context)?;
+    let name = context.get_variable_name(param.id)?.to_string();
+    let (base_type, declarator) =
+        generate_type_and_declarator(param.param_type.type_id, &name, false, context)?;
 
     let param_type = prepend_modifiers(
         base_type,
         &[input_modifier, precise_modifier, interpolation_modifier],
     );
 
-    let name = Located::none(context.get_variable_name(param.id)?.to_string());
-
-    let semantic = generate_semantic_annotation(&param.semantic)?;
+    let location_annotations = if let Some(semantic) = &param.semantic {
+        Vec::from([ast::LocationAnnotation::Semantic(semantic.clone())])
+    } else {
+        Vec::new()
+    };
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
         Some(generate_expression(default_expr, context)?)
@@ -756,10 +774,9 @@ fn generate_function_param(
     };
 
     Ok(ast::FunctionParam {
-        name,
         param_type,
-        bind,
-        semantic,
+        declarator,
+        location_annotations,
         default_expr,
     })
 }
@@ -790,53 +807,51 @@ fn generate_interpolation_modifier(
     }
 }
 
-/// Generate HLSL semantic
-fn generate_semantic_annotation(
-    semantic: &Option<ir::Semantic>,
-) -> Result<Option<ast::Semantic>, GenerateError> {
-    if semantic.is_some() {
-        Ok(semantic.clone())
-    } else {
-        Ok(None)
-    }
-}
-
 /// Generate HLSL type name
 fn generate_type(
     ty: ir::TypeId,
     context: &mut GenerateContext,
 ) -> Result<ast::Type, GenerateError> {
-    let (base, bind) = generate_type_for_def(ty, context)?;
-    if !bind.0.is_empty() {
+    let base_declarator = ast::Declarator::Empty;
+    let (base, declarator) = generate_type_impl(ty, base_declarator, false, context)?;
+    if declarator != ast::Declarator::Empty {
         return Err(GenerateError::ComplexTypeBind);
     }
     Ok(base)
 }
 
-/// Generate HLSL type name in two parts - the main type and an array modifiers
-fn generate_type_for_def(
+/// Generate base type and declarator from a type for a declaration
+fn generate_type_and_declarator(
     ty: ir::TypeId,
+    name: &str,
+    suppress_const_volatile: bool,
     context: &mut GenerateContext,
-) -> Result<(ast::Type, ast::VariableBind), GenerateError> {
-    generate_type_impl(ty, false, context)
+) -> Result<(ast::Type, ast::Declarator), GenerateError> {
+    let base_declarator =
+        ast::Declarator::Identifier(ast::ScopedIdentifier::trivial(name), Vec::new());
+
+    let (base, declarator) =
+        generate_type_impl(ty, base_declarator, suppress_const_volatile, context)?;
+
+    Ok((base, declarator))
 }
 
 /// Internal type generation
 fn generate_type_impl(
     ty: ir::TypeId,
+    mut declarator: ast::Declarator,
     suppress_const_volatile: bool,
     context: &mut GenerateContext,
-) -> Result<(ast::Type, ast::VariableBind), GenerateError> {
+) -> Result<(ast::Type, ast::Declarator), GenerateError> {
     let tyl = context.module.type_registry.get_type_layer(ty);
-    let mut output_bind = Default::default();
     let base = match tyl {
         ir::TypeLayer::Void => ast::Type::trivial("void"),
         ir::TypeLayer::Scalar(st) => generate_scalar_type(st)?,
         ir::TypeLayer::Vector(st, x) => {
             // Allowed types in a vector should construct valid vector type names
             // This will break down for vector of enums
-            let (mut base, bind) = generate_type_impl(st, false, context)?;
-            assert!(bind == Default::default());
+            let (mut base, inner_declarator) = generate_type_impl(st, declarator, false, context)?;
+            declarator = inner_declarator;
             assert!(base.layout.0.identifiers.len() == 1);
             base.layout.0.identifiers[0].node += &format!("{x}");
             base
@@ -844,8 +859,8 @@ fn generate_type_impl(
         ir::TypeLayer::Matrix(st, x, y) => {
             // Allowed types in a matrix should construct valid matrix type names
             // This will break down for vector of enums
-            let (mut base, bind) = generate_type_impl(st, false, context)?;
-            assert!(bind == Default::default());
+            let (mut base, inner_declarator) = generate_type_impl(st, declarator, false, context)?;
+            declarator = inner_declarator;
             assert!(base.layout.0.identifiers.len() == 1);
             base.layout.0.identifiers[0].node += &format!("{x}x{y}");
             base
@@ -939,15 +954,20 @@ fn generate_type_impl(
             }
         }
         ir::TypeLayer::Array(ty, len) => {
-            let (base, inner_bind) = generate_type_impl(ty, suppress_const_volatile, context)?;
-
-            let current_bind = len
+            let array_size = len
                 .map(ast::Literal::IntUntyped)
                 .map(ast::Expression::Literal)
                 .map(Located::none);
 
-            output_bind = inner_bind;
-            output_bind.0.insert(0, current_bind);
+            declarator = ast::Declarator::Array(ast::ArrayDeclarator {
+                inner: Box::new(declarator),
+                array_size,
+                attributes: Vec::new(),
+            });
+
+            let (base, inner_declarator) =
+                generate_type_impl(ty, declarator, suppress_const_volatile, context)?;
+            declarator = inner_declarator;
 
             base
         }
@@ -957,11 +977,11 @@ fn generate_type_impl(
                 modifier.volatile = false;
             }
 
-            let (mut base, inner_bind) = generate_type_impl(ty, false, context)?;
+            let (mut base, inner_declarator) = generate_type_impl(ty, declarator, false, context)?;
 
             // Array layers can be inside modifiers - when we export the modifier ends up with the type
             // The language does not distinguish between a "const array T" vs an "array const T"
-            output_bind = inner_bind;
+            declarator = inner_declarator;
 
             let mut modifiers = Vec::new();
             if modifier.row_major {
@@ -994,7 +1014,7 @@ fn generate_type_impl(
         _ => todo!("Type layout not implemented: {:?}", tyl),
     };
 
-    Ok((base, output_bind))
+    Ok((base, declarator))
 }
 
 /// Generate HLSL type for a scalar type
@@ -1312,21 +1332,22 @@ fn generate_variable_definition(
         None
     };
 
-    let (base, bind) = generate_type_for_def(var_def.type_id, context)?;
+    let name = context.get_variable_name(def.id)?.to_string();
+    let (base, declarator) = generate_type_and_declarator(var_def.type_id, &name, false, context)?;
 
     let local_type = prepend_modifiers(base, &[storage_modifier, precise_modifier]);
 
     let init = generate_initializer(&def.init, context)?;
-    let name = context.get_variable_name(def.id)?;
-    let entry = ast::LocalVariableName {
-        name: Located::none(name.to_string()),
-        bind,
+
+    let init_declarator = ast::InitDeclarator {
+        declarator,
+        location_annotations: Vec::new(),
         init,
     };
 
     let def = ast::VarDef {
         local_type,
-        defs: Vec::from([entry]),
+        defs: Vec::from([init_declarator]),
     };
 
     Ok(def)
@@ -2113,20 +2134,27 @@ fn generate_struct(
         let interpolation_modifier =
             generate_interpolation_modifier(&member.interpolation_modifier)?;
 
-        let (base, bind) = generate_type_impl(member.type_id, true, context)?;
-
-        let semantic = generate_semantic_annotation(&member.semantic)?;
+        let (base, declarator) =
+            generate_type_and_declarator(member.type_id, &member.name, true, context)?;
 
         // Combine type with modifiers
         let ty = prepend_modifiers(base, &[precise_modifier, interpolation_modifier]);
 
+        let location_annotations = if let Some(semantic) = &member.semantic {
+            Vec::from([ast::LocationAnnotation::Semantic(semantic.clone())])
+        } else {
+            Vec::new()
+        };
+
+        let init_declarator = ast::InitDeclarator {
+            declarator,
+            location_annotations,
+            init: None,
+        };
+
         members.push(ast::StructEntry::Variable(ast::StructMember {
             ty,
-            defs: Vec::from([ast::StructMemberName {
-                name: Located::none(member.name.clone()),
-                bind,
-                semantic,
-            }]),
+            defs: Vec::from([init_declarator]),
             attributes: Vec::new(),
         }));
     }
@@ -2189,22 +2217,38 @@ fn generate_constant_buffer(
     let name = context.get_constant_buffer_name(id)?;
     let name = Located::none(name.to_string());
 
-    let slot = if !context.module.flags.requires_vk_binding {
+    let register = if !context.module.flags.requires_vk_binding {
         generate_register_annotation(&decl.api_binding)?
     } else {
         None
     };
 
+    let location_annotations = if let Some(register) = register {
+        Vec::from([ast::LocationAnnotation::Register(register)])
+    } else {
+        Vec::new()
+    };
+
     let mut members = Vec::new();
     for member in &decl.members {
-        let (base, bind) = generate_type_for_def(member.type_id, context)?;
+        let (base, declarator) =
+            generate_type_and_declarator(member.type_id, &member.name, false, context)?;
+
+        let location_annotations = if let Some(packoffset) = &member.offset {
+            Vec::from([ast::LocationAnnotation::PackOffset(packoffset.clone())])
+        } else {
+            Vec::new()
+        };
+
+        let init_declarator = ast::InitDeclarator {
+            declarator,
+            location_annotations,
+            init: None,
+        };
+
         members.push(ast::ConstantVariable {
             ty: base,
-            defs: Vec::from([ast::ConstantVariableName {
-                name: member.name.clone(),
-                bind,
-                offset: member.offset.clone(),
-            }]),
+            defs: Vec::from([init_declarator]),
         });
     }
 
@@ -2215,7 +2259,7 @@ fn generate_constant_buffer(
 
     let def = ast::ConstantBuffer {
         name,
-        slot,
+        location_annotations,
         members,
         attributes,
     };

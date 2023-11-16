@@ -21,14 +21,6 @@ pub enum StructEntry {
 #[derive(PartialEq, Debug, Clone)]
 pub struct StructMember {
     pub ty: Type,
-    pub defs: Vec<StructMemberName>,
+    pub defs: Vec<InitDeclarator>,
     pub attributes: Vec<Attribute>,
-}
-
-/// The name part of a [StructMember] - to support multiple named variables declared on the same line
-#[derive(PartialEq, Debug, Clone)]
-pub struct StructMemberName {
-    pub name: Located<String>,
-    pub bind: VariableBind,
-    pub semantic: Option<Semantic>,
 }

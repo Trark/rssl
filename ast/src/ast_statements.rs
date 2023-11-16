@@ -1,3 +1,4 @@
+use crate::ast_declarations::{Declarator, InitDeclarator};
 use crate::ast_expressions::Expression;
 use crate::ast_types::Type;
 use crate::*;
@@ -49,20 +50,8 @@ pub enum InitStatement {
 #[derive(PartialEq, Debug, Clone)]
 pub struct VarDef {
     pub local_type: Type,
-    pub defs: Vec<LocalVariableName>,
+    pub defs: Vec<InitDeclarator>,
 }
-
-/// The name part of a local variable definition - to support multiple definitions in a single line
-#[derive(PartialEq, Debug, Clone)]
-pub struct LocalVariableName {
-    pub name: Located<String>,
-    pub bind: VariableBind,
-    pub init: Option<Initializer>,
-}
-
-/// The type declaration that is attached to the name instead of the type
-#[derive(PartialEq, Debug, Clone, Default)]
-pub struct VariableBind(pub Vec<Option<Located<Expression>>>);
 
 /// The node for representing the initial value of a variable
 #[derive(PartialEq, Debug, Clone)]
@@ -90,13 +79,14 @@ impl VarDef {
     pub fn one(name: Located<String>, local_type: Type) -> VarDef {
         VarDef {
             local_type,
-            defs: vec![LocalVariableName {
-                name,
-                bind: Default::default(),
+            defs: Vec::from([InitDeclarator {
+                declarator: Declarator::Identifier(ScopedIdentifier::unqualified(name), Vec::new()),
+                location_annotations: Vec::new(),
                 init: None,
-            }],
+            }]),
         }
     }
+
     pub fn one_with_expr(
         name: Located<String>,
         local_type: Type,
@@ -104,11 +94,11 @@ impl VarDef {
     ) -> VarDef {
         VarDef {
             local_type,
-            defs: vec![LocalVariableName {
-                name,
-                bind: Default::default(),
+            defs: Vec::from([InitDeclarator {
+                declarator: Declarator::Identifier(ScopedIdentifier::unqualified(name), Vec::new()),
+                location_annotations: Vec::new(),
                 init: Some(Initializer::Expression(expr)),
-            }],
+            }]),
         }
     }
 }

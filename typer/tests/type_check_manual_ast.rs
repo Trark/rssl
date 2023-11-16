@@ -25,18 +25,22 @@ fn test_ast_pass() {
                     Located::none("RWBuffer"),
                     &[ast::ExpressionOrType::Type(ast::Type::from("float4"))],
                 )),
-                defs: vec![ast::GlobalVariableName {
-                    name: Located::none("g_myOutBuffer".to_string()),
-                    bind: Default::default(),
-                    slot: Some(ast::Register {
-                        slot: Some(ast::RegisterSlot {
-                            slot_type: ast::RegisterType::U,
-                            index: 0,
-                        }),
-                        space: None,
-                    }),
+                defs: Vec::from([ast::InitDeclarator {
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial("g_myOutBuffer"),
+                        Vec::new(),
+                    ),
+                    location_annotations: Vec::from([ast::LocationAnnotation::Register(
+                        ast::Register {
+                            slot: Some(ast::RegisterSlot {
+                                slot_type: ast::RegisterType::U,
+                                index: 0,
+                            }),
+                            space: None,
+                        },
+                    )]),
                     init: None,
-                }],
+                }]),
                 attributes: Vec::new(),
             }),
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
@@ -44,14 +48,16 @@ fn test_ast_pass() {
                     Located::none(ast::TypeModifier::Static),
                     Located::none(ast::TypeModifier::Const),
                 ]),
-                defs: vec![ast::GlobalVariableName {
-                    name: Located::none("g_myFour".to_string()),
-                    bind: Default::default(),
-                    slot: None,
+                defs: Vec::from([ast::InitDeclarator {
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial("g_myFour"),
+                        Vec::new(),
+                    ),
+                    location_annotations: Vec::new(),
                     init: Some(ast::Initializer::Expression(Located::none(
                         ast::Expression::Literal(ast::Literal::IntUntyped(4)),
                     ))),
-                }],
+                }]),
                 attributes: Vec::new(),
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {
@@ -59,10 +65,12 @@ fn test_ast_pass() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![ast::FunctionParam {
-                    name: Located::none("x".to_string()),
                     param_type: ast::Type::from("uint"),
-                    bind: Default::default(),
-                    semantic: None,
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial("x"),
+                        Vec::new(),
+                    ),
+                    location_annotations: Vec::new(),
                     default_expr: None,
                 }],
                 body: Some(Vec::new()),
@@ -73,10 +81,12 @@ fn test_ast_pass() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![ast::FunctionParam {
-                    name: Located::none("x".to_string()),
                     param_type: ast::Type::from("float"),
-                    bind: Default::default(),
-                    semantic: None,
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial("x"),
+                        Vec::new(),
+                    ),
+                    location_annotations: Vec::new(),
                     default_expr: None,
                 }],
                 body: Some(Vec::new()),
@@ -87,11 +97,13 @@ fn test_ast_pass() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![ast::FunctionParam {
-                    name: Located::none("x".to_string()),
                     param_type: ast::Type::from("float")
                         .with_modifiers(&[Located::none(ast::TypeModifier::Out)]),
-                    bind: Default::default(),
-                    semantic: None,
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial("x"),
+                        Vec::new(),
+                    ),
+                    location_annotations: Vec::new(),
                     default_expr: None,
                 }],
                 body: Some(Vec::from([
@@ -163,13 +175,20 @@ fn test_ast_pass() {
                     ))),
                     as_statement(ast::StatementKind::Var(ast::VarDef {
                         local_type: ast::Type::from_layout(ast::TypeLayout::from("float")),
-                        defs: vec![ast::LocalVariableName {
-                            name: Located::none("x".to_string()),
-                            bind: ast::VariableBind(Vec::from([Some(Located::none(
-                                ast::Expression::Literal(ast::Literal::IntUntyped(3)),
-                            ))])),
+                        defs: Vec::from([ast::InitDeclarator {
+                            declarator: ast::Declarator::Array(ast::ArrayDeclarator {
+                                inner: Box::new(ast::Declarator::Identifier(
+                                    ast::ScopedIdentifier::trivial("x"),
+                                    Vec::new(),
+                                )),
+                                array_size: Some(Located::none(ast::Expression::Literal(
+                                    ast::Literal::IntUntyped(3),
+                                ))),
+                                attributes: Vec::new(),
+                            }),
+                            location_annotations: Vec::new(),
                             init: None,
-                        }],
+                        }]),
                     })),
                     as_statement(ast::StatementKind::Expression(ast::Expression::Call(
                         Box::new(make_id("outFunc")),
@@ -194,14 +213,16 @@ fn test_ast_to_ir() {
                     Located::none(ast::TypeModifier::Static),
                     Located::none(ast::TypeModifier::Const),
                 ]),
-                defs: vec![ast::GlobalVariableName {
-                    name: Located::none("g_myFour".to_string()),
-                    bind: Default::default(),
-                    slot: None,
+                defs: Vec::from([ast::InitDeclarator {
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial("g_myFour"),
+                        Vec::new(),
+                    ),
+                    location_annotations: Vec::new(),
                     init: Some(ast::Initializer::Expression(Located::none(
                         ast::Expression::Literal(ast::Literal::IntUntyped(4)),
                     ))),
-                }],
+                }]),
                 attributes: Vec::new(),
             }),
             ast::RootDefinition::Function(ast::FunctionDefinition {

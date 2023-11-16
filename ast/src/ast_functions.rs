@@ -1,5 +1,6 @@
+use crate::ast_declarations::{Declarator, LocationAnnotation};
 use crate::ast_expressions::Expression;
-use crate::ast_statements::{Attribute, Statement, VariableBind};
+use crate::ast_statements::{Attribute, Statement};
 use crate::ast_types::*;
 use rssl_text::Located;
 
@@ -18,16 +19,15 @@ pub struct FunctionDefinition {
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionReturn {
     pub return_type: Type,
-    pub semantic: Option<Semantic>,
+    pub location_annotations: Vec<LocationAnnotation>,
 }
 
 /// A function parameter definition
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionParam {
-    pub name: Located<String>,
     pub param_type: Type,
-    pub bind: VariableBind,
-    pub semantic: Option<Semantic>,
+    pub declarator: Declarator,
+    pub location_annotations: Vec<LocationAnnotation>,
     pub default_expr: Option<Expression>,
 }
 
@@ -35,7 +35,7 @@ impl From<Type> for FunctionReturn {
     fn from(ty: Type) -> FunctionReturn {
         FunctionReturn {
             return_type: ty,
-            semantic: None,
+            location_annotations: Vec::new(),
         }
     }
 }

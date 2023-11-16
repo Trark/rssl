@@ -1,4 +1,4 @@
-use crate::ast_statements::VariableBind;
+use crate::ast_declarations::Declarator;
 use crate::Expression;
 use crate::ExpressionOrType;
 use crate::ScopedIdentifier;
@@ -157,17 +157,16 @@ pub struct TemplateValueParam {
 }
 
 /// A typedef definition
+///
+/// Currently these are unique nodes but the syntax is meant to support these as a modifier on normal declarations
 #[derive(PartialEq, Debug, Clone)]
 pub struct Typedef {
-    /// The name of the typedef symbol
-    pub name: Located<String>,
-
     /// The type information for the typedef
     pub source: Type,
 
-    /// Type part assigned to the name
+    /// Name and type part assigned to the name
     /// We do not support multiple declarations on the same line with typedef
-    pub bind: VariableBind,
+    pub declarator: Declarator,
 }
 
 impl Type {

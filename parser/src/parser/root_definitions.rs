@@ -94,20 +94,20 @@ fn test_struct() {
         members: vec![
             StructEntry::Variable(StructMember {
                 ty: Type::from("uint".loc(18)),
-                defs: vec![StructMemberName {
-                    name: "a".to_string().loc(23),
-                    bind: Default::default(),
-                    semantic: Default::default(),
-                }],
+                defs: Vec::from([InitDeclarator {
+                    declarator: "a".loc(23).into(),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
                 attributes: Vec::new(),
             }),
             StructEntry::Variable(StructMember {
                 ty: Type::from("float".loc(26)),
-                defs: vec![StructMemberName {
-                    name: "b".to_string().loc(32),
-                    bind: Default::default(),
-                    semantic: Default::default(),
-                }],
+                defs: Vec::from([InitDeclarator {
+                    declarator: "b".loc(32).into(),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
                 attributes: Vec::new(),
             }),
         ],
@@ -127,14 +127,19 @@ fn test_function() {
         name: "func".to_string().loc(6),
         returntype: FunctionReturn {
             return_type: Type::from("float".loc(0)),
-            semantic: Some(Semantic::Depth),
+            location_annotations: Vec::from([LocationAnnotation::Semantic(Semantic::Depth)]),
         },
         template_params: TemplateParamList(Vec::new()),
         params: vec![FunctionParam {
-            name: "x".to_string().loc(17),
             param_type: Type::from("float".loc(11)),
-            bind: Default::default(),
-            semantic: None,
+            declarator: Declarator::Identifier(
+                ScopedIdentifier {
+                    base: ScopedIdentifierBase::Relative,
+                    identifiers: Vec::from(["x".to_string().loc(17)]),
+                },
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
             default_expr: None,
         }],
         body: Some(Vec::new()),
@@ -150,10 +155,15 @@ fn test_function() {
             returntype: Type::from("void".loc(24)).into(),
             template_params: TemplateParamList(Vec::new()),
             params: vec![FunctionParam {
-                name: "x".to_string().loc(40),
                 param_type: Type::from("float".loc(34)),
-                bind: Default::default(),
-                semantic: None,
+                declarator: Declarator::Identifier(
+                    ScopedIdentifier {
+                        base: ScopedIdentifierBase::Relative,
+                        identifiers: Vec::from(["x".to_string().loc(40)]),
+                    },
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
                 default_expr: None,
             }],
             body: Some(Vec::from([Statement {
@@ -238,7 +248,7 @@ fn test_namespace() {
                         name: "f".to_string().loc(62),
                         returntype: FunctionReturn {
                             return_type: Type::from("void".loc(57)),
-                            semantic: None,
+                            location_annotations: Vec::new(),
                         },
                         template_params: TemplateParamList(Vec::new()),
                         params: Vec::new(),

@@ -1,3 +1,4 @@
+use super::declarations::parse_declarator;
 use super::*;
 
 /// Parse a type layout
@@ -110,7 +111,7 @@ fn parse_type_modifiers_before<'t>(
 }
 
 /// Parse a set of type modifiers after the type name
-fn parse_type_modifiers_after<'t>(
+pub fn parse_type_modifiers_after<'t>(
     mut input: &'t [LexToken],
     modifiers: &mut TypeModifierSet,
 ) -> &'t [LexToken] {
@@ -387,13 +388,11 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
 pub fn parse_typedef(input: &[LexToken]) -> ParseResult<Typedef> {
     let (input, _) = parse_token(Token::Typedef)(input)?;
     let (input, ty) = parse_type(input)?;
-    let (input, id) = locate(match_identifier)(input)?;
-    let (input, bind) = parse_multiple(parse_arraydim)(input)?;
+    let (input, declarator) = parse_declarator(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let td = Typedef {
-        name: Located::new(id.node.0.clone(), id.location),
         source: ty,
-        bind: VariableBind(bind),
+        declarator,
     };
     Ok((input, td))
 }
@@ -406,20 +405,20 @@ fn test_typedef() {
     typedef.check(
         "typedef uint u32;",
         Typedef {
-            name: "u32".to_string().loc(13),
             source: Type::from("uint".loc(8)),
-            bind: Default::default(),
+            declarator: Declarator::from("u32".loc(13)),
         },
     );
 
     typedef.check(
         "typedef uint u32x4[4];",
         Typedef {
-            name: "u32x4".to_string().loc(13),
             source: Type::from("uint".loc(8)),
-            bind: VariableBind(Vec::from([Some(
-                Expression::Literal(Literal::IntUntyped(4)).loc(19),
-            )])),
+            declarator: Declarator::Array(ArrayDeclarator {
+                inner: Box::new(Declarator::from("u32x4".loc(13))),
+                array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(19)),
+                attributes: Vec::new(),
+            }),
         },
     );
 }

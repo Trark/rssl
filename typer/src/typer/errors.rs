@@ -69,6 +69,9 @@ pub enum TyperError {
     ArrayDimensionsMustBeNonZero(SourceLocation),
     ArrayDimensionNotSpecified(SourceLocation),
 
+    /// Pointers are not valid in the language
+    PointersNotSupported(SourceLocation),
+
     /// Failed to find member of a struct
     StructMemberDoesNotExist(ir::StructId, String, SourceLocation),
 
@@ -101,6 +104,15 @@ pub enum TyperError {
 
     /// Register annotation not allowed on type
     InvalidRegisterAnnotation(ir::TypeId, SourceLocation),
+
+    /// register() not allowed in this position
+    UnexpectedRegisterAnnotation(SourceLocation),
+
+    /// packoffset() not allowed in this position
+    UnexpectedPackOffset(SourceLocation),
+
+    /// Semantic not allowed in this position
+    UnexpectedSemantic(SourceLocation),
 
     /// Attribute on a function has an unknown name
     FunctionAttributeUnknown(String, SourceLocation),
@@ -162,6 +174,9 @@ pub enum TyperError {
 
     /// Base type must also be a struct
     IllegalStructBaseType(SourceLocation),
+
+    /// Struct members do not support default values
+    StructMemberUnsupportedDefaultValue(SourceLocation),
 
     /// A short circuiting operator received a non-scalar expression
     ShortCircuitingVector(SourceLocation),
@@ -395,6 +410,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::ArraySubscriptIndexNotInteger(loc) => w.write_message(
                 &|f| write!(f, "array subscripts must be integers"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PointersNotSupported(loc) => w.write_message(
+                &|f| write!(f, "pointers are not supported"),
                 *loc,
                 Severity::Error,
             ),
@@ -682,6 +702,21 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
+            TyperError::UnexpectedRegisterAnnotation(loc) => w.write_message(
+                &|f| write!(f, "register() is not allowed here"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::UnexpectedPackOffset(loc) => w.write_message(
+                &|f| write!(f, "packoffset() is not allowed here"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::UnexpectedSemantic(loc) => w.write_message(
+                &|f| write!(f, "semantic is not allowed here"),
+                *loc,
+                Severity::Error,
+            ),
             TyperError::FunctionAttributeUnknown(name, loc) => w.write_message(
                 &|f| write!(f, "unknown function attribute '{name}'"),
                 *loc,
@@ -836,6 +871,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::IllegalStructBaseType(loc) => w.write_message(
                 &|f| write!(f, "base type must name a struct"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StructMemberUnsupportedDefaultValue(loc) => w.write_message(
+                &|f| write!(f, "struct members do not support default values"),
                 *loc,
                 Severity::Error,
             ),

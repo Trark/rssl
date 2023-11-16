@@ -245,6 +245,24 @@ fn check_aggregate_initializers_primitives() {
 
     // Fail if there are too few elements - we do not support initializing the unspecified members
     check_fail("static float2 g_vec = { 1.0 };");
+
+    // Check multidimensional local arrays where the sizes differ
+    check_types(
+        "void f() { float g_myArray[][2] = { { 1.0, 2.0 }, { 3.0, 3.0 }, { 4.0, 4.0 } }; }",
+    );
+
+    // Check multidimensional local arrays where the sizes match
+    check_types("void f() { float g_myArray[][2] = { { 1.0, 2.0 }, { 3.0, 3.0 } }; }");
+
+    // Only the first array can be inferred - sizes differ
+    check_fail("void f() { float g_myArray[][] = { { 1.0, 2.0 }, { 3.0, 3.0 }, { 4.0, 4.0 } }; }");
+    // Even if we give it the other dimension
+    check_fail("void f() { float g_myArray[3][] = { { 1.0, 2.0 }, { 3.0, 3.0 }, { 4.0, 4.0 } }; }");
+
+    // Only the first array can be inferred - sizes match
+    check_fail("void f() { float g_myArray[][] = { { 1.0, 2.0 }, { 3.0, 3.0 } }; }");
+    // Even if we give it the other dimension
+    check_fail("void f() { float g_myArray[2][] = { { 1.0, 2.0 }, { 3.0, 3.0 } }; }");
 }
 
 #[test]

@@ -1,14 +1,15 @@
+use super::declarations::parse_declarator;
 use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
-use super::statements::{apply_variable_bind, parse_statement_list};
+use super::statements::parse_statement_list;
 use super::types::{
     apply_template_type_substitution, is_illegal_variable_name, parse_input_modifier,
     parse_interpolation_modifier, parse_precise, parse_type_for_usage, TypePosition,
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
-use rssl_text::Located;
+use rssl_text::{Locate, Located};
 
 /// Trait for applying template arguments onto another type
 pub trait ApplyTemplates {
@@ -131,7 +132,9 @@ pub fn parse_function_signature(
             if param.default_expr.is_none() {
                 // Check if a non-default argument is encountered after a default value
                 if non_default_params != vec.len() {
-                    return Err(TyperError::DefaultArgumentMissing(param.name.location));
+                    return Err(TyperError::DefaultArgumentMissing(
+                        parsed_param.name.location,
+                    ));
                 }
                 non_default_params += 1;
             }
@@ -190,7 +193,7 @@ pub fn parse_function_body(
                     .module
                     .variable_registry
                     .register_local_variable(ir::LocalVariable {
-                        name: ast_param.name.clone(),
+                        name: parsed_param.name.clone(),
                         type_id: parsed_param.type_id,
                         storage_class: ir::LocalStorage::Local,
                         precise: parsed_param.precise,
@@ -198,7 +201,7 @@ pub fn parse_function_body(
                     });
 
             // Register the parameter in the scope
-            context.insert_variable(ast_param.name.clone(), var_id, parsed_param.type_id)?;
+            context.insert_variable(parsed_param.name, var_id, parsed_param.type_id)?;
 
             vec.push(ir::FunctionParam {
                 id: var_id,
@@ -208,7 +211,7 @@ pub fn parse_function_body(
                 },
                 interpolation_modifier: parsed_param.interpolation_modifier,
                 precise: parsed_param.precise,
-                semantic: ast_param.semantic.clone(),
+                semantic: parsed_param.semantic,
                 default_expr: parsed_param.default_expr,
             });
         }
@@ -300,17 +303,38 @@ fn parse_returntype(
         }
     }
 
+    let mut semantic = None;
+    let error_location = return_type.return_type.location;
+    for location_annotation in &return_type.location_annotations {
+        match location_annotation {
+            ast::LocationAnnotation::Register(_) => {
+                return Err(TyperError::UnexpectedRegisterAnnotation(error_location));
+            }
+            ast::LocationAnnotation::PackOffset(_) => {
+                return Err(TyperError::UnexpectedPackOffset(error_location));
+            }
+            ast::LocationAnnotation::Semantic(s) => {
+                if semantic.is_some() {
+                    return Err(TyperError::UnexpectedSemantic(error_location));
+                }
+                semantic = Some(s.clone());
+            }
+        }
+    }
+
     Ok(ir::FunctionReturn {
         return_type: ty,
-        semantic: return_type.semantic.clone(),
+        semantic,
     })
 }
 
 struct ParsedParam {
+    name: Located<String>,
     type_id: ir::TypeId,
     input_modifier: ir::InputModifier,
     interpolation_modifier: Option<ir::InterpolationModifier>,
     precise: bool,
+    semantic: Option<ir::Semantic>,
     default_expr: Option<ir::Expression>,
 }
 
@@ -382,7 +406,31 @@ fn parse_paramtype(param: &ast::FunctionParam, context: &mut Context) -> TyperRe
     let interpolation_modifier = interpolation_modifier.map(|(im, _)| im);
 
     // If the parameter has type information bound to the name then apply it to the type now
-    let type_id = apply_variable_bind(ty, param.name.location, &param.bind, &None, false, context)?;
+    let (type_id, scoped_name) = parse_declarator(&param.declarator, ty, None, false, context)?;
+
+    // Ensure the name is unqualified
+    let name = match scoped_name.try_trivial() {
+        Some(name) => name.clone(),
+        _ => return Err(TyperError::IllegalVariableName(scoped_name.get_location())),
+    };
+
+    let mut semantic = None;
+    for location_annotation in &param.location_annotations {
+        match location_annotation {
+            ast::LocationAnnotation::Register(_) => {
+                return Err(TyperError::UnexpectedRegisterAnnotation(name.location));
+            }
+            ast::LocationAnnotation::PackOffset(_) => {
+                return Err(TyperError::UnexpectedPackOffset(name.location));
+            }
+            ast::LocationAnnotation::Semantic(s) => {
+                if semantic.is_some() {
+                    return Err(TyperError::UnexpectedSemantic(name.location));
+                }
+                semantic = Some(s.clone());
+            }
+        }
+    }
 
     // Parse the default expression
     // TODO: Validate function declaration / definitions specify the default values in the right place
@@ -396,10 +444,12 @@ fn parse_paramtype(param: &ast::FunctionParam, context: &mut Context) -> TyperRe
     };
 
     Ok(ParsedParam {
+        name,
         type_id,
         input_modifier,
         interpolation_modifier,
         precise: precise_result.is_some(),
+        semantic,
         default_expr,
     })
 }

@@ -111,23 +111,8 @@ fn format_global_variable(
 ) -> Result<(), FormatError> {
     format_attributes(&def.attributes, false, output, context)?;
     format_type(&def.global_type, output, context)?;
-
-    let mut first = true;
-    for entry in &def.defs {
-        if !first {
-            output.push_str(", ");
-        }
-        first = false;
-
-        output.push(' ');
-        output.push_str(&entry.name);
-        format_type_bind(&entry.bind, output, context)?;
-        format_initializer(&entry.init, output, context)?;
-        format_register_annotation(&entry.slot, output)?;
-    }
-
+    format_init_declarators(&def.defs, output, context)?;
     output.push(';');
-
     Ok(())
 }
 
@@ -185,7 +170,7 @@ fn format_function(
 
     output.push(')');
 
-    format_semantic_annotation(&def.returntype.semantic, output)?;
+    format_location_annotations(&def.returntype.location_annotations, output)?;
 
     if let Some(body) = &def.body {
         output.push_str(" {");
@@ -274,11 +259,8 @@ fn format_function_param(
     format_type(&param.param_type, output, context)?;
 
     output.push(' ');
-    output.push_str(&param.name);
-
-    format_type_bind(&param.bind, output, context)?;
-
-    format_semantic_annotation(&param.semantic, output)?;
+    format_declarator(&param.declarator, output, context)?;
+    format_location_annotations(&param.location_annotations, output)?;
 
     if let Some(default_expr) = &param.default_expr {
         output.push_str(" = ");
@@ -421,20 +403,102 @@ fn format_type_modifiers(
     Ok(())
 }
 
-/// Format type part bound to a variable name
-fn format_type_bind(
-    bind: &ast::VariableBind,
+/// Format a set of variable names and parts of type bound to name with an initializer
+fn format_init_declarators(
+    init_declarators: &[ast::InitDeclarator],
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
-    for bind in &bind.0 {
-        output.push('[');
-        if let Some(expr) = bind {
-            format_expression(expr, output, context)?;
+    let mut first = true;
+    for entry in init_declarators {
+        // Add separator between declarations
+        if !first {
+            output.push(',');
         }
-        output.push(']');
+        first = false;
+
+        format_init_declarator(entry, output, context)?;
     }
     Ok(())
+}
+
+/// Format variable name and parts of type bound to name with an initializer
+fn format_init_declarator(
+    init_declarator: &ast::InitDeclarator,
+    output: &mut String,
+    context: &mut FormatContext,
+) -> Result<(), FormatError> {
+    output.push(' ');
+    format_declarator(&init_declarator.declarator, output, context)?;
+    format_location_annotations(&init_declarator.location_annotations, output)?;
+    format_initializer(&init_declarator.init, output, context)?;
+    Ok(())
+}
+
+/// Format variable name and parts of type bound to name
+fn format_declarator(
+    declarator: &ast::Declarator,
+    output: &mut String,
+    context: &mut FormatContext,
+) -> Result<(), FormatError> {
+    match declarator {
+        ast::Declarator::Empty => {}
+        ast::Declarator::Identifier(name, attributes) => {
+            format_scoped_identifier(name, output, context)?;
+            format_attributes(attributes, false, output, context)?;
+        }
+        ast::Declarator::Pointer(ast::PointerDeclarator {
+            attributes,
+            qualifiers,
+            inner,
+        }) => {
+            output.push('*');
+            format_attributes(attributes, false, output, context)?;
+            format_type_modifiers(qualifiers, output)?;
+            format_declarator(inner, output, context)?;
+        }
+        ast::Declarator::Array(ast::ArrayDeclarator {
+            inner,
+            array_size,
+            attributes,
+        }) => {
+            format_declarator(inner, output, context)?;
+            output.push('[');
+            if let Some(expr) = array_size {
+                format_expression(expr, output, context)?;
+            }
+            output.push(']');
+            format_attributes(attributes, false, output, context)?;
+        }
+    }
+    Ok(())
+}
+
+/// Format annotations for register, packoffset, or semantic
+fn format_location_annotations(
+    annotations: &[ast::LocationAnnotation],
+    output: &mut String,
+) -> Result<(), FormatError> {
+    for location_annotation in annotations {
+        format_location_annotation(location_annotation, output)?;
+    }
+    Ok(())
+}
+
+/// Format annotation for register, packoffset, or semantic
+fn format_location_annotation(
+    annotation: &ast::LocationAnnotation,
+    output: &mut String,
+) -> Result<(), FormatError> {
+    match annotation {
+        ast::LocationAnnotation::Semantic(semantic) => {
+            format_semantic_annotation(&Some(semantic.clone()), output)
+        }
+        ast::LocationAnnotation::PackOffset(_) => unimplemented!("packoffset not implemented"),
+        ast::LocationAnnotation::Register(semantic) => {
+            format_register_annotation(&Some(semantic.clone()), output)
+        }
+    }
 }
 
 /// Format an expression or type
@@ -618,21 +682,7 @@ fn format_variable_definition(
 ) -> Result<(), FormatError> {
     // Format the part of the type that is shared between declarations
     format_type(&def.local_type, output, context)?;
-
-    let mut first = true;
-    for entry in &def.defs {
-        // Add separator between declarations
-        if !first {
-            output.push(',');
-        }
-        first = false;
-
-        output.push(' ');
-        output.push_str(&entry.name);
-        format_type_bind(&entry.bind, output, context)?;
-
-        format_initializer(&entry.init, output, context)?;
-    }
+    format_init_declarators(&def.defs, output, context)?;
     Ok(())
 }
 
@@ -983,23 +1033,8 @@ fn format_struct(
             ast::StructEntry::Variable(member) => {
                 format_attributes(&member.attributes, false, output, context)?;
                 format_type(&member.ty, output, context)?;
-
-                let mut first = true;
-                for entry in &member.defs {
-                    // Add separator between declarations
-                    if !first {
-                        output.push(',');
-                    }
-                    first = false;
-
-                    output.push(' ');
-                    output.push_str(&entry.name);
-                    format_type_bind(&entry.bind, output, context)?;
-
-                    format_semantic_annotation(&entry.semantic, output)?;
-
-                    output.push(';');
-                }
+                format_init_declarators(&member.defs, output, context)?;
+                output.push(';');
             }
             ast::StructEntry::Method(method) => {
                 context.new_line(output);
@@ -1057,7 +1092,7 @@ fn format_constant_buffer(
 
     output.push_str("cbuffer ");
     output.push_str(&def.name);
-    format_register_annotation(&def.slot, output)?;
+    format_location_annotations(&def.location_annotations, output)?;
 
     context.new_line(output);
     output.push('{');
@@ -1065,26 +1100,8 @@ fn format_constant_buffer(
 
     for member in &def.members {
         context.new_line(output);
-
         format_type(&member.ty, output, context)?;
-
-        let mut first = true;
-        for entry in &member.defs {
-            // Add separator between declarations
-            if !first {
-                output.push(',');
-            }
-            first = false;
-
-            output.push(' ');
-            output.push_str(&entry.name);
-            format_type_bind(&entry.bind, output, context)?;
-
-            if entry.offset.is_some() {
-                todo!("Constant buffer variable with packoffset");
-            }
-        }
-
+        format_init_declarators(&member.defs, output, context)?;
         output.push(';');
     }
 

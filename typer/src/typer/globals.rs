@@ -1,7 +1,8 @@
+use super::declarations::parse_declarator;
 use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
-use super::statements::{apply_variable_bind, parse_initializer_opt};
+use super::statements::parse_initializer_opt;
 use super::types::{is_illegal_variable_name, parse_type_for_usage, TypePosition};
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
@@ -18,30 +19,29 @@ pub fn parse_rootdefinition_globalvariable(
 
     let mut defs = vec![];
     for global_variable in &gv.defs {
-        // Deny restricted non-keyword names
-        if is_illegal_variable_name(&global_variable.name) {
-            return Err(TyperError::IllegalVariableName(
-                global_variable.name.get_location(),
-            ));
-        }
-
-        // Resolve type bind
-        let type_id = apply_variable_bind(
+        // Modify the type and fetch the name from the declarator
+        let (type_id, scoped_name) = parse_declarator(
+            &global_variable.declarator,
             base_id,
-            global_variable.name.location,
-            &global_variable.bind,
-            &global_variable.init,
+            global_variable.init.as_ref(),
             true,
             context,
         )?;
 
+        // Ensure the name is unqualified
+        let name = match scoped_name.try_trivial() {
+            Some(name) => name,
+            _ => return Err(TyperError::IllegalVariableName(scoped_name.get_location())),
+        };
+
+        // Deny restricted non-keyword names
+        if is_illegal_variable_name(name) {
+            return Err(TyperError::IllegalVariableName(name.get_location()));
+        }
+
         // Parse the initializer
-        let var_init = parse_initializer_opt(
-            &global_variable.init,
-            type_id,
-            global_variable.name.get_location(),
-            context,
-        )?;
+        let var_init =
+            parse_initializer_opt(&global_variable.init, type_id, name.get_location(), context)?;
 
         // Attempt to resolve the initializer as a constant expression
         let evaluated_value = (|| {
@@ -57,45 +57,64 @@ pub fn parse_rootdefinition_globalvariable(
         })();
 
         // Insert variable
-        let var_id = context.insert_global(global_variable.name.clone(), type_id, storage_class)?;
+        let var_id = context.insert_global(name.clone(), type_id, storage_class)?;
 
         let gv_ir = &mut context.module.global_registry[var_id.0 as usize];
-        gv_ir.lang_slot = match &global_variable.slot {
-            Some(register) => {
-                let unmodified_base_id = context.module.type_registry.remove_modifier(base_id);
-                let unmodified_base_tyl = context
-                    .module
-                    .type_registry
-                    .get_type_layer(unmodified_base_id);
-                if let ir::TypeLayer::Object(ot) = unmodified_base_tyl {
-                    let expected_slot_type = ot.get_register_type();
 
-                    let index = if let Some(slot) = &register.slot {
-                        if slot.slot_type != expected_slot_type {
-                            return Err(TyperError::InvalidRegisterType(
-                                slot.slot_type,
-                                expected_slot_type,
-                                global_variable.name.location,
+        for location_annotation in &global_variable.location_annotations {
+            match location_annotation {
+                ast::LocationAnnotation::Register(register) => {
+                    let unmodified_base_id = context.module.type_registry.remove_modifier(base_id);
+                    let unmodified_base_tyl = context
+                        .module
+                        .type_registry
+                        .get_type_layer(unmodified_base_id);
+                    if let ir::TypeLayer::Object(ot) = unmodified_base_tyl {
+                        let expected_slot_type = ot.get_register_type();
+
+                        let index = if let Some(slot) = &register.slot {
+                            if slot.slot_type != expected_slot_type {
+                                return Err(TyperError::InvalidRegisterType(
+                                    slot.slot_type,
+                                    expected_slot_type,
+                                    name.location,
+                                ));
+                            }
+                            Some(slot.index)
+                        } else {
+                            None
+                        };
+
+                        let new_binding = ir::LanguageBinding {
+                            set: register.space,
+                            index,
+                        };
+
+                        if gv_ir.lang_slot != ir::LanguageBinding::default()
+                            && gv_ir.lang_slot != new_binding
+                        {
+                            return Err(TyperError::InvalidRegisterAnnotation(
+                                type_id,
+                                name.location,
                             ));
                         }
-                        Some(slot.index)
-                    } else {
-                        None
-                    };
 
-                    ir::LanguageBinding {
-                        set: register.space,
-                        index,
+                        gv_ir.lang_slot = new_binding;
+                    } else {
+                        return Err(TyperError::InvalidRegisterAnnotation(
+                            type_id,
+                            name.location,
+                        ));
                     }
-                } else {
-                    return Err(TyperError::InvalidRegisterAnnotation(
-                        type_id,
-                        global_variable.name.location,
-                    ));
+                }
+                ast::LocationAnnotation::PackOffset(_) => {
+                    return Err(TyperError::UnexpectedPackOffset(name.location));
+                }
+                ast::LocationAnnotation::Semantic(_) => {
+                    return Err(TyperError::UnexpectedSemantic(name.location));
                 }
             }
-            None => ir::LanguageBinding::default(),
-        };
+        }
 
         // Override binding index with value from attribute
         if let Some(binding_index) = attribute_result.binding_index_override {
@@ -187,25 +206,43 @@ pub fn parse_rootdefinition_constantbuffer(
         }
 
         for def in &member.defs {
+            // Modify the type and fetch the name from the declarator
+            let (type_id, scoped_name) =
+                parse_declarator(&def.declarator, base_type, def.init.as_ref(), true, context)?;
+
+            // Ensure the name is unqualified
+            let name = match scoped_name.try_trivial() {
+                Some(name) => name,
+                _ => return Err(TyperError::IllegalVariableName(scoped_name.get_location())),
+            };
+
             // Deny restricted non-keyword names
-            if is_illegal_variable_name(&def.name) {
-                return Err(TyperError::IllegalVariableName(def.name.get_location()));
+            if is_illegal_variable_name(name) {
+                return Err(TyperError::IllegalVariableName(name.get_location()));
             }
 
-            let var_name = def.name.clone();
-            let var_offset = def.offset.clone();
-            let type_id = apply_variable_bind(
-                base_type,
-                def.name.location,
-                &def.bind,
-                &None,
-                false,
-                context,
-            )?;
+            let mut offset = None;
+            for location_annotation in &def.location_annotations {
+                match location_annotation {
+                    ast::LocationAnnotation::Register(_) => {
+                        return Err(TyperError::UnexpectedRegisterAnnotation(name.location));
+                    }
+                    ast::LocationAnnotation::PackOffset(packoffset) => {
+                        if offset.is_some() {
+                            return Err(TyperError::UnexpectedPackOffset(name.location));
+                        }
+                        offset = Some(packoffset.clone());
+                    }
+                    ast::LocationAnnotation::Semantic(_) => {
+                        return Err(TyperError::UnexpectedSemantic(name.location));
+                    }
+                }
+            }
+
             members.push(ir::ConstantVariable {
-                name: var_name,
+                name: name.clone(),
                 type_id,
-                offset: var_offset,
+                offset,
             });
         }
     }
@@ -221,28 +258,47 @@ pub fn parse_rootdefinition_constantbuffer(
     });
 
     let cb_ir = &mut context.module.cbuffer_registry[id.0 as usize];
-    cb_ir.lang_binding = match &cb.slot {
-        Some(register) => {
-            let index = if let Some(slot) = &register.slot {
-                if slot.slot_type != ir::RegisterType::B {
-                    return Err(TyperError::InvalidRegisterType(
-                        slot.slot_type,
-                        ir::RegisterType::B,
-                        cb.name.location,
-                    ));
-                };
-                Some(slot.index)
-            } else {
-                None
-            };
 
-            ir::LanguageBinding {
-                set: register.space,
-                index,
+    for location_annotation in &cb.location_annotations {
+        match location_annotation {
+            ast::LocationAnnotation::Register(register) => {
+                let index = if let Some(slot) = &register.slot {
+                    if slot.slot_type != ir::RegisterType::B {
+                        return Err(TyperError::InvalidRegisterType(
+                            slot.slot_type,
+                            ir::RegisterType::B,
+                            cb.name.location,
+                        ));
+                    };
+                    Some(slot.index)
+                } else {
+                    None
+                };
+
+                let new_binding = ir::LanguageBinding {
+                    set: register.space,
+                    index,
+                };
+
+                if cb_ir.lang_binding != ir::LanguageBinding::default()
+                    && cb_ir.lang_binding != new_binding
+                {
+                    return Err(TyperError::UnexpectedRegisterAnnotation(
+                        cb_ir.name.location,
+                    ));
+                }
+
+                cb_ir.lang_binding = new_binding;
+            }
+            ast::LocationAnnotation::PackOffset(_) => {
+                return Err(TyperError::UnexpectedPackOffset(cb_ir.name.location));
+            }
+            ast::LocationAnnotation::Semantic(_) => {
+                return Err(TyperError::UnexpectedSemantic(cb_ir.name.location));
             }
         }
-        None => ir::LanguageBinding::default(),
-    };
+    }
+
     cb_ir.members = members;
 
     // Insert it into the scopes

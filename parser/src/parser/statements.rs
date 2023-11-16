@@ -145,17 +145,7 @@ fn test_initializer() {
 fn parse_vardef(input: &[LexToken]) -> ParseResult<VarDef> {
     // TODO: This may defeat expressions
     let (input, typename) = parse_type(input)?;
-    let (input, defs) = parse_list_nonempty(parse_token(Token::Comma), |input| {
-        let (input, varname) = parse_variable_name(input)?;
-        let (input, bind) = parse_multiple(parse_arraydim)(input)?;
-        let (input, init) = parse_initializer(input)?;
-        let v = LocalVariableName {
-            name: varname,
-            bind: VariableBind(bind),
-            init,
-        };
-        Ok((input, v))
-    })(input)?;
+    let (input, defs) = parse_init_declarators(input)?;
     let defs = VarDef {
         local_type: typename,
         defs,
@@ -214,10 +204,30 @@ fn test_init_statement() {
     );
 }
 
-/// Parse an attribute
+/// Parse an attribute with either [ ] or [[ ]]
 pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
+    parse_attribute_base(input, true)
+}
+
+/// Parse an attribute with [[ ]]
+pub fn parse_attribute_double_only(input: &[LexToken]) -> ParseResult<Attribute> {
+    parse_attribute_base(input, false)
+}
+
+/// Parse an attribute
+fn parse_attribute_base(input: &[LexToken], allow_single: bool) -> ParseResult<Attribute> {
+    let original = input;
+
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
-    let (input, opt_second_bracket) = parse_optional(parse_token(Token::LeftSquareBracket))(input)?;
+    let (input, opt_second_bracket) = if allow_single {
+        let (input, opt) = parse_optional(parse_token(Token::LeftSquareBracket))(input)?;
+        (input, opt.is_some())
+    } else {
+        match parse_token(Token::LeftSquareBracket)(input) {
+            Ok((input, _)) => (input, true),
+            Err(_) => return ParseErrorReason::wrong_token(original),
+        }
+    };
 
     let (input, name) =
         parse_list_nonempty(parse_token(Token::ScopeResolution), parse_variable_name)(input)?;
@@ -253,7 +263,7 @@ pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
     };
 
     let (input, _) = parse_token(Token::RightSquareBracket)(input)?;
-    let input = if opt_second_bracket.is_some() {
+    let input = if opt_second_bracket {
         parse_token(Token::RightSquareBracket)(input)?.0
     } else {
         input
@@ -262,7 +272,7 @@ pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
     let attr = Attribute {
         name,
         arguments,
-        two_square_brackets: opt_second_bracket.is_some(),
+        two_square_brackets: opt_second_bracket,
     };
 
     Ok((input, attr))
@@ -579,19 +589,34 @@ fn test_local_variables() {
             kind: StatementKind::Var(VarDef {
                 local_type: Type::from("float".loc(0)),
                 defs: Vec::from([
-                    LocalVariableName {
-                        name: "x".to_string().loc(6),
-                        bind: VariableBind(Vec::from([Some(
-                            Expression::Literal(Literal::IntUntyped(3)).loc(8),
-                        )])),
+                    InitDeclarator {
+                        declarator: Declarator::Array(ArrayDeclarator {
+                            inner: Box::new(Declarator::Identifier(
+                                ScopedIdentifier::unqualified("x".to_string().loc(6)),
+                                Vec::new(),
+                            )),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(3)).loc(8)),
+                            attributes: Vec::new(),
+                        }),
+                        location_annotations: Vec::new(),
                         init: None,
                     },
-                    LocalVariableName {
-                        name: "y".to_string().loc(12),
-                        bind: VariableBind(Vec::from([
-                            Some(Expression::Literal(Literal::IntUntyped(2)).loc(14)),
-                            Some(Expression::Literal(Literal::IntUntyped(4)).loc(17)),
-                        ])),
+                    InitDeclarator {
+                        declarator: Declarator::Array(ArrayDeclarator {
+                            inner: Box::new(Declarator::Array(ArrayDeclarator {
+                                inner: Box::new(Declarator::Identifier(
+                                    ScopedIdentifier::unqualified("y".to_string().loc(12)),
+                                    Vec::new(),
+                                )),
+                                array_size: Some(
+                                    Expression::Literal(Literal::IntUntyped(2)).loc(14),
+                                ),
+                                attributes: Vec::new(),
+                            })),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(17)),
+                            attributes: Vec::new(),
+                        }),
+                        location_annotations: Vec::new(),
                         init: None,
                     },
                 ]),

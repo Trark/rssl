@@ -207,6 +207,10 @@ mod expressions;
 use expressions::parse_expression;
 use expressions::parse_expression_no_seq;
 
+/// Implement parsing for declarations
+mod declarations;
+use declarations::parse_init_declarators;
+
 // Implement parsing for statements
 mod statements;
 use statements::{parse_initializer, statement_block};
