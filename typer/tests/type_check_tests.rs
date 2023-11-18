@@ -301,6 +301,12 @@ fn check_statements() {
 }
 
 #[test]
+fn check_ambiguous_init_or_expr() {
+    check_types("void f() { float x, y; x * y; }");
+    check_types("void f() { uint x, y; x & y; }");
+}
+
+#[test]
 fn check_return() {
     check_types("void f() { return; }");
     check_types("float f() { return 0.0; }");

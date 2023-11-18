@@ -83,6 +83,30 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
                 .collect::<Vec<_>>();
             Ok(vars)
         }
+        ast::StatementKind::AmbiguousDeclarationOrExpression(ref vd, ref expr) => {
+            // First attempt to parse the type specifier in the declaration
+            // If it passes then take the declaration pass (which will wastefully reevaluate the type)
+            // If it fails then assume we are an expression
+            if parse_localtype(&vd.local_type, context).is_ok() {
+                let vd_ir = parse_vardef(vd, context)?;
+                let vars = vd_ir
+                    .into_iter()
+                    .map(|vd| ir::Statement {
+                        kind: ir::StatementKind::Var(vd),
+                        location: ast.location,
+                        attributes: attributes.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                Ok(vars)
+            } else {
+                let (expr_ir, _) = parse_expr(expr, context)?;
+                Ok(Vec::from([ir::Statement {
+                    kind: ir::StatementKind::Expression(expr_ir),
+                    location: ast.location,
+                    attributes,
+                }]))
+            }
+        }
         ast::StatementKind::Block(ref statement_vec) => {
             context.push_scope();
             let statements = parse_statement_list(statement_vec, context)?;

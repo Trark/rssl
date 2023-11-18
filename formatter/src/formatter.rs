@@ -586,6 +586,9 @@ fn format_statement(
             format_variable_definition(def, output, context)?;
             output.push(';');
         }
+        ast::StatementKind::AmbiguousDeclarationOrExpression(..) => {
+            return Err(FormatError::AmbiguousParseBranch);
+        }
         ast::StatementKind::Block(block) => {
             output.push('{');
             context.push_indent();
