@@ -1603,7 +1603,8 @@ fn parse_expr_unchecked(
                         Ok(StructMemberValue::Variable(ty, id, member_index)) => {
                             let composite = Box::new(composite_ir);
                             let member = ir::Expression::StructMember(composite, id, member_index);
-                            Ok(TypedExpression::Value(member, ty.to_lvalue()))
+                            let ety = ExpressionType(ty, composite_ety.1);
+                            Ok(TypedExpression::Value(member, ety))
                         }
                         Ok(StructMemberValue::Method(overloads)) => {
                             Ok(TypedExpression::Method(UnresolvedMethod {
