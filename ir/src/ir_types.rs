@@ -427,17 +427,28 @@ pub enum InputModifier {
 }
 
 /// Modifier applied to a variable interpolated between stages
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum InterpolationModifier {
-    NoInterpolation,
+    /// Interpolate at pixel center
+    CenterPerspective,
 
-    Linear,
+    /// Interpolate at approximate center of coverage
+    CentroidPerspective,
 
-    Centroid,
+    /// Interpolate at sample location
+    SamplePerspective,
 
-    NoPerspective,
+    /// Interpolate at pixel center without perspective-correction
+    CenterNoPerspective,
 
-    Sample,
+    /// Interpolate at approximate center of coverage without perspective-correction
+    CentroidNoPerspective,
+
+    /// Interpolate at sample location without perspective-correction
+    SampleNoPerspective,
+
+    /// Do not interpolate
+    Flat,
 
     /// Geometry shader point primitive type
     Point,
@@ -1023,27 +1034,6 @@ impl std::fmt::Debug for InputModifier {
             InputModifier::In => write!(f, "in"),
             InputModifier::Out => write!(f, "out"),
             InputModifier::InOut => write!(f, "inout"),
-        }
-    }
-}
-
-impl std::fmt::Debug for InterpolationModifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            InterpolationModifier::NoInterpolation => write!(f, "nointerpolation"),
-            InterpolationModifier::Linear => write!(f, "linear"),
-            InterpolationModifier::Centroid => write!(f, "centroid"),
-            InterpolationModifier::NoPerspective => write!(f, "noperspective"),
-            InterpolationModifier::Sample => write!(f, "sample"),
-            InterpolationModifier::Point => write!(f, "point"),
-            InterpolationModifier::Line => write!(f, "line"),
-            InterpolationModifier::Triangle => write!(f, "triangle"),
-            InterpolationModifier::LineAdj => write!(f, "lineadj"),
-            InterpolationModifier::TriangleAdj => write!(f, "triangleadj"),
-            InterpolationModifier::Vertices => write!(f, "vertices"),
-            InterpolationModifier::Primitives => write!(f, "primitives"),
-            InterpolationModifier::Indices => write!(f, "indices"),
-            InterpolationModifier::Payload => write!(f, "payload"),
         }
     }
 }

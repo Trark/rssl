@@ -219,8 +219,8 @@ fn check_function_param_interp_modifiers() {
     );
 
     check_rssl_to_hlsl(
-        "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}",
-        "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}\n",
+        "void VSMAIN(out sample float4 x : TEXCOORD) {}",
+        "void VSMAIN(out sample float4 x : TEXCOORD) {}\n",
     );
 
     check_rssl_to_hlsl(
@@ -229,8 +229,18 @@ fn check_function_param_interp_modifiers() {
     );
 
     check_rssl_to_hlsl(
-        "void VSMAIN(out sample float4 x : TEXCOORD) {}",
-        "void VSMAIN(out sample float4 x : TEXCOORD) {}\n",
+        "void VSMAIN(out centroid noperspective float4 x : TEXCOORD) {}",
+        "void VSMAIN(out centroid noperspective float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out sample noperspective float4 x : TEXCOORD) {}",
+        "void VSMAIN(out sample noperspective float4 x : TEXCOORD) {}\n",
+    );
+
+    check_rssl_to_hlsl(
+        "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}",
+        "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}\n",
     );
 }
 

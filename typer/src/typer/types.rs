@@ -587,42 +587,160 @@ fn deny_input_modifier(
 pub fn parse_interpolation_modifier(
     modifiers: &ast::TypeModifierSet,
 ) -> TyperResult<Option<(ir::InterpolationModifier, SourceLocation)>> {
-    let mut current_modifier: Option<(ir::InterpolationModifier, Located<ast::TypeModifier>)> =
+    #[derive(PartialEq)]
+    enum LocationMode {
+        Center,
+        Centroid,
+        Sample,
+    }
+
+    #[derive(PartialEq)]
+    enum PerspectiveMode {
+        Linear,
+        NoPerspective,
+    }
+
+    let mut current_location: Option<(LocationMode, Located<ast::TypeModifier>)> = None;
+    let mut current_perspective: Option<(PerspectiveMode, Located<ast::TypeModifier>)> = None;
+    let mut current_immediate: Option<(ir::InterpolationModifier, Located<ast::TypeModifier>)> =
         None;
+
     for modifier in &modifiers.modifiers {
-        let next_im = match &modifier.node {
-            ast::TypeModifier::NoInterpolation => ir::InterpolationModifier::NoInterpolation,
-            ast::TypeModifier::Linear => ir::InterpolationModifier::Linear,
-            ast::TypeModifier::Centroid => ir::InterpolationModifier::Centroid,
-            ast::TypeModifier::NoPerspective => ir::InterpolationModifier::NoPerspective,
-            ast::TypeModifier::Sample => ir::InterpolationModifier::Sample,
-            ast::TypeModifier::Point => ir::InterpolationModifier::Point,
-            ast::TypeModifier::Line => ir::InterpolationModifier::Line,
-            ast::TypeModifier::Triangle => ir::InterpolationModifier::Triangle,
-            ast::TypeModifier::LineAdj => ir::InterpolationModifier::LineAdj,
-            ast::TypeModifier::TriangleAdj => ir::InterpolationModifier::TriangleAdj,
-            ast::TypeModifier::Vertices => ir::InterpolationModifier::Vertices,
-            ast::TypeModifier::Primitives => ir::InterpolationModifier::Primitives,
-            ast::TypeModifier::Indices => ir::InterpolationModifier::Indices,
-            ast::TypeModifier::Payload => ir::InterpolationModifier::Payload,
-            _ => continue,
+        let location_mode = match modifier.node {
+            ast::TypeModifier::Centroid => Some(LocationMode::Centroid),
+            ast::TypeModifier::Sample => Some(LocationMode::Sample),
+            _ => None,
         };
 
-        if let Some((current_im, ref current_source)) = current_modifier {
-            if current_im == next_im {
-                // TODO: Warn for duplicate modifier
+        if let Some(location_mode) = location_mode {
+            if let Some(ref current_location) = current_location {
+                if current_location.0 == location_mode {
+                    // TODO: Warn for duplicate modifier
+                } else {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        current_location.1.node,
+                    ));
+                }
             } else {
-                return Err(TyperError::ModifierConflict(
-                    modifier.node,
-                    modifier.location,
-                    current_source.node,
-                ));
+                current_location = Some((location_mode, modifier.clone()));
             }
-        } else {
-            current_modifier = Some((next_im, modifier.clone()));
+        }
+
+        let perpective_mode = match modifier.node {
+            ast::TypeModifier::Linear => Some(PerspectiveMode::Linear),
+            ast::TypeModifier::NoPerspective => Some(PerspectiveMode::NoPerspective),
+            _ => None,
+        };
+
+        if let Some(perpective_mode) = perpective_mode {
+            if let Some(ref current_perspective) = current_perspective {
+                if current_perspective.0 == perpective_mode {
+                    // TODO: Warn for duplicate modifier
+                } else {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        current_perspective.1.node,
+                    ));
+                }
+            } else {
+                current_perspective = Some((perpective_mode, modifier.clone()));
+            }
+        }
+
+        let immediate_modifier = match modifier.node {
+            ast::TypeModifier::NoInterpolation => Some(ir::InterpolationModifier::Flat),
+            ast::TypeModifier::Point => Some(ir::InterpolationModifier::Point),
+            ast::TypeModifier::Line => Some(ir::InterpolationModifier::Line),
+            ast::TypeModifier::Triangle => Some(ir::InterpolationModifier::Triangle),
+            ast::TypeModifier::LineAdj => Some(ir::InterpolationModifier::LineAdj),
+            ast::TypeModifier::TriangleAdj => Some(ir::InterpolationModifier::TriangleAdj),
+            ast::TypeModifier::Vertices => Some(ir::InterpolationModifier::Vertices),
+            ast::TypeModifier::Primitives => Some(ir::InterpolationModifier::Primitives),
+            ast::TypeModifier::Indices => Some(ir::InterpolationModifier::Indices),
+            ast::TypeModifier::Payload => Some(ir::InterpolationModifier::Payload),
+            _ => None,
+        };
+
+        if let Some(immediate_modifier) = immediate_modifier {
+            if let Some((current_im, ref current_source)) = current_immediate {
+                if current_im == immediate_modifier {
+                    // TODO: Warn for duplicate modifier
+                } else {
+                    return Err(TyperError::ModifierConflict(
+                        modifier.node,
+                        modifier.location,
+                        current_source.node,
+                    ));
+                }
+            } else {
+                current_immediate = Some((immediate_modifier, modifier.clone()));
+            }
         }
     }
-    Ok(current_modifier.map(|(im, m)| (im, m.location)))
+
+    let traditional_mode = if current_location.is_some() || current_perspective.is_some() {
+        // Get the source modifier with the last position for error reporting
+        let location_source = current_location.as_ref().map(|p| p.1.clone());
+        let perspective_source = current_perspective.as_ref().map(|p| p.1.clone());
+        let source_location = match (location_source, perspective_source) {
+            (None, None) => unreachable!(),
+            (Some(left), None) => left,
+            (None, Some(right)) => right,
+            (Some(left), Some(right)) => {
+                if left.location < right.location {
+                    right
+                } else {
+                    left
+                }
+            }
+        };
+
+        let current_location = current_location.map_or(LocationMode::Center, |(mode, _)| mode);
+        let current_perspective =
+            current_perspective.map_or(PerspectiveMode::Linear, |(mode, _)| mode);
+
+        let im = match (current_location, current_perspective) {
+            (LocationMode::Center, PerspectiveMode::Linear) => {
+                ir::InterpolationModifier::CenterPerspective
+            }
+            (LocationMode::Center, PerspectiveMode::NoPerspective) => {
+                ir::InterpolationModifier::CenterNoPerspective
+            }
+            (LocationMode::Centroid, PerspectiveMode::Linear) => {
+                ir::InterpolationModifier::CentroidPerspective
+            }
+            (LocationMode::Centroid, PerspectiveMode::NoPerspective) => {
+                ir::InterpolationModifier::CentroidNoPerspective
+            }
+            (LocationMode::Sample, PerspectiveMode::Linear) => {
+                ir::InterpolationModifier::SamplePerspective
+            }
+            (LocationMode::Sample, PerspectiveMode::NoPerspective) => {
+                ir::InterpolationModifier::SampleNoPerspective
+            }
+        };
+
+        Some((im, source_location))
+    } else {
+        None
+    };
+
+    match (traditional_mode, current_immediate) {
+        (Some(t), Some(m)) => {
+            // Currently we always error as if the traditional interpolator was applied after
+            Err(TyperError::ModifierConflict(
+                t.1.node,
+                t.1.location,
+                m.1.node,
+            ))
+        }
+        (Some((t, l)), None) => Ok(Some((t, l.location))),
+        (None, Some((m, l))) => Ok(Some((m, l.location))),
+        (None, None) => Ok(None),
+    }
 }
 
 /// Ensure interpolation modifiers do not appear as a type modifier

@@ -714,13 +714,17 @@ fn check_function_param_type_interpolators() {
     check_types("void f(centroid float x) {}");
     check_types("void f(noperspective float x) {}");
     check_types("void f(sample float x) {}");
+    check_types("void f(linear centroid float x) {}");
+    check_types("void f(centroid noperspective float x) {}");
+    check_types("void f(noperspective sample float x) {}");
+    check_types("void f(sample linear float x) {}");
 
-    // Only one interpolation modifier is allowed
+    // Disallow invalid combinations
+    // linear + noperspective is valid in HLSL as linear is just considered the default - but we disallow it
     check_fail("void f(nointerpolation linear float x) {}");
-    check_fail("void f(linear centroid float x) {}");
-    check_fail("void f(centroid noperspective float x) {}");
-    check_fail("void f(noperspective sample float x) {}");
+    check_fail("void f(linear noperspective float x) {}");
     check_fail("void f(sample nointerpolation float x) {}");
+    check_fail("void f(sample centroid float x) {}");
 }
 
 #[test]
@@ -1174,13 +1178,16 @@ fn check_struct_member_type_modifiers() {
     check_types("struct S { centroid float x; };");
     check_types("struct S { noperspective float x; };");
     check_types("struct S { sample float x; };");
+    check_types("struct S { linear centroid float x; };");
+    check_types("struct S { centroid noperspective float x; };");
+    check_types("struct S { noperspective sample float x; };");
+    check_types("struct S { sample linear float x; };");
 
-    // Only one interpolation modifier is allowed
+    // Disallow invalid combinations
     check_fail("struct S { nointerpolation linear float x; };");
-    check_fail("struct S { linear centroid float x; };");
-    check_fail("struct S { centroid noperspective float x; };");
-    check_fail("struct S { noperspective sample float x; };");
+    check_fail("struct S { linear noperspective float x; };");
     check_fail("struct S { sample nointerpolation float x; };");
+    check_fail("struct S { sample centroid float x; };");
 
     // Geometry shader primitive types are not allowed
     check_fail("struct S { point float x; };");

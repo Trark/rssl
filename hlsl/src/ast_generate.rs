@@ -756,10 +756,8 @@ fn generate_function_param(
     let (base_type, declarator) =
         generate_type_and_declarator(param.param_type.type_id, &name, false, context)?;
 
-    let param_type = prepend_modifiers(
-        base_type,
-        &[input_modifier, precise_modifier, interpolation_modifier],
-    );
+    let type_with_interp = prepend_modifiers(base_type, &interpolation_modifier);
+    let param_type = prepend_modifiers(type_with_interp, &[input_modifier, precise_modifier]);
 
     let location_annotations = if let Some(semantic) = &param.semantic {
         Vec::from([ast::LocationAnnotation::Semantic(semantic.clone())])
@@ -784,26 +782,35 @@ fn generate_function_param(
 /// Generate HLSL type modifier for an interpolation modifier
 fn generate_interpolation_modifier(
     interpolation_modifier: &Option<ir::InterpolationModifier>,
-) -> Result<Option<ast::TypeModifier>, GenerateError> {
+) -> Result<Vec<Option<ast::TypeModifier>>, GenerateError> {
     if let Some(interpolation_modifier) = &interpolation_modifier {
-        Ok(Some(match interpolation_modifier {
-            ir::InterpolationModifier::NoInterpolation => ast::TypeModifier::NoInterpolation,
-            ir::InterpolationModifier::Linear => ast::TypeModifier::Linear,
-            ir::InterpolationModifier::Centroid => ast::TypeModifier::Centroid,
-            ir::InterpolationModifier::NoPerspective => ast::TypeModifier::NoPerspective,
-            ir::InterpolationModifier::Sample => ast::TypeModifier::Sample,
-            ir::InterpolationModifier::Point => ast::TypeModifier::Point,
-            ir::InterpolationModifier::Line => ast::TypeModifier::Line,
-            ir::InterpolationModifier::Triangle => ast::TypeModifier::Triangle,
-            ir::InterpolationModifier::LineAdj => ast::TypeModifier::LineAdj,
-            ir::InterpolationModifier::TriangleAdj => ast::TypeModifier::TriangleAdj,
-            ir::InterpolationModifier::Vertices => ast::TypeModifier::Vertices,
-            ir::InterpolationModifier::Primitives => ast::TypeModifier::Primitives,
-            ir::InterpolationModifier::Indices => ast::TypeModifier::Indices,
-            ir::InterpolationModifier::Payload => ast::TypeModifier::Payload,
-        }))
+        let modifiers = match interpolation_modifier {
+            ir::InterpolationModifier::CenterPerspective => &[ast::TypeModifier::Linear],
+            ir::InterpolationModifier::CentroidPerspective => &[ast::TypeModifier::Centroid],
+            ir::InterpolationModifier::SamplePerspective => &[ast::TypeModifier::Sample],
+            ir::InterpolationModifier::CenterNoPerspective => &[ast::TypeModifier::NoPerspective],
+            ir::InterpolationModifier::CentroidNoPerspective => [
+                ast::TypeModifier::Centroid,
+                ast::TypeModifier::NoPerspective,
+            ]
+            .as_slice(),
+            ir::InterpolationModifier::SampleNoPerspective => {
+                &[ast::TypeModifier::Sample, ast::TypeModifier::NoPerspective]
+            }
+            ir::InterpolationModifier::Flat => &[ast::TypeModifier::NoInterpolation],
+            ir::InterpolationModifier::Point => &[ast::TypeModifier::Point],
+            ir::InterpolationModifier::Line => &[ast::TypeModifier::Line],
+            ir::InterpolationModifier::Triangle => &[ast::TypeModifier::Triangle],
+            ir::InterpolationModifier::LineAdj => &[ast::TypeModifier::LineAdj],
+            ir::InterpolationModifier::TriangleAdj => &[ast::TypeModifier::TriangleAdj],
+            ir::InterpolationModifier::Vertices => &[ast::TypeModifier::Vertices],
+            ir::InterpolationModifier::Primitives => &[ast::TypeModifier::Primitives],
+            ir::InterpolationModifier::Indices => &[ast::TypeModifier::Indices],
+            ir::InterpolationModifier::Payload => &[ast::TypeModifier::Payload],
+        };
+        Ok(modifiers.iter().cloned().map(Some).collect::<Vec<_>>())
     } else {
-        Ok(None)
+        Ok(Vec::new())
     }
 }
 
@@ -2138,7 +2145,8 @@ fn generate_struct(
             generate_type_and_declarator(member.type_id, &member.name, true, context)?;
 
         // Combine type with modifiers
-        let ty = prepend_modifiers(base, &[precise_modifier, interpolation_modifier]);
+        let base_with_interp = prepend_modifiers(base, &interpolation_modifier);
+        let ty = prepend_modifiers(base_with_interp, &[precise_modifier]);
 
         let location_annotations = if let Some(semantic) = &member.semantic {
             Vec::from([ast::LocationAnnotation::Semantic(semantic.clone())])
