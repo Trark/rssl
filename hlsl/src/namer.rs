@@ -82,6 +82,7 @@ impl NameMap {
             let id = ir::GlobalId(i as u32);
             let def = &module.global_registry[id.0 as usize];
 
+            // Do not assign names to intrinsics
             if def.is_intrinsic {
                 // All intrinsic values should have names that are reserved
                 assert!(
@@ -89,24 +90,16 @@ impl NameMap {
                     "{}",
                     def.name.node
                 );
-
-                // Insert intrinsic values into final name map immediately
-                name_map.names.insert(
-                    NameSymbol::GlobalVariable(id),
-                    NameString {
-                        namespace: None,
-                        name: def.name.node.clone(),
-                    },
-                );
-            } else {
-                // Insert the name into containing scope
-                let name_vec = scopes
-                    .get_mut(&def.namespace)
-                    .unwrap()
-                    .entry(def.name.node.clone())
-                    .or_default();
-                name_vec.push(NameSymbol::GlobalVariable(id));
+                continue;
             }
+
+            // Insert the name into containing scope
+            let name_vec = scopes
+                .get_mut(&def.namespace)
+                .unwrap()
+                .entry(def.name.node.clone())
+                .or_default();
+            name_vec.push(NameSymbol::GlobalVariable(id));
         }
 
         for i in 0..module.function_registry.get_function_count() {

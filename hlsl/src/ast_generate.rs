@@ -2322,7 +2322,12 @@ impl<'m> GenerateContext<'m> {
 
     /// Get the name of a global variable
     fn get_global_name(&self, id: ir::GlobalId) -> Result<&str, GenerateError> {
-        Ok(self.name_map.get_name_leaf(NameSymbol::GlobalVariable(id)))
+        let def = &self.module.global_registry[id.0 as usize];
+        if def.is_intrinsic {
+            Ok(&def.name.node)
+        } else {
+            Ok(self.name_map.get_name_leaf(NameSymbol::GlobalVariable(id)))
+        }
     }
 
     /// Get the name of a function
