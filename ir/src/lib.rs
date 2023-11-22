@@ -35,4 +35,6 @@ pub use ir_variables::*;
 mod value_types;
 pub use value_types::*;
 
+pub mod export;
+
 pub mod name_generator;

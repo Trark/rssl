@@ -1,9 +1,9 @@
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_ir::export::*;
 use rssl_text::{Located, SourceLocation};
 
 use crate::names::*;
-use crate::*;
 
 /// Result from generating HLSL from RSSL
 pub struct GeneratedAST {

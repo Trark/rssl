@@ -9,3 +9,6 @@ pub use rssl_parser as parser;
 pub use rssl_preprocess as preprocess;
 pub use rssl_text as text;
 pub use rssl_typer as typer;
+
+pub use rssl_ir::export::*;
+pub use rssl_ir::{AssignBindingsParams, ShaderStage};
