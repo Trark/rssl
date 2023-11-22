@@ -2,7 +2,7 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
-use crate::namer::*;
+use crate::names::*;
 use crate::*;
 
 /// Result from generating HLSL from RSSL
@@ -2309,7 +2309,7 @@ struct GenerateContext<'m> {
 impl<'m> GenerateContext<'m> {
     /// Start a new generate state
     fn new(module: &'m ir::Module) -> Self {
-        let name_map = NameMap::build(module);
+        let name_map = NameMap::build(module, RESERVED_NAMES, true);
 
         GenerateContext {
             module,

@@ -3,7 +3,7 @@
 //! This library contains the logic to convert typed RSSL into HLSL source
 
 mod ast_generate;
-mod namer;
+mod names;
 
 /// Export ir module to HLSL
 ///
