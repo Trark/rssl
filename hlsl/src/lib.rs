@@ -18,7 +18,8 @@ pub fn export_to_hlsl(module: &rssl_ir::Module) -> Result<ExportedSource, Export
     };
 
     // Output HLSL source by formatting the RSSL ast
-    let source = match rssl_formatter::format(&generate_output.ast_module) {
+    let target = rssl_formatter::Target::Hlsl;
+    let source = match rssl_formatter::format(&generate_output.ast_module, target) {
         Ok(output) => output,
         Err(err) => return Err(ExportError::FormatError(err)),
     };

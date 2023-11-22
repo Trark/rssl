@@ -1,16 +1,26 @@
 use rssl_ast as ast;
 use std::fmt::Write;
 
+/// Target language to output for
+#[derive(PartialEq, Debug)]
+pub enum Target {
+    /// RSSL
+    Rssl,
+
+    /// HLSL
+    Hlsl,
+}
+
 /// Error result when formatting fails
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum FormatError {
     /// Encountered an AmbiguousParseBranch expression
     AmbiguousParseBranch,
 }
 
 /// Format ast module as text
-pub fn format(module: &ast::Module) -> Result<String, FormatError> {
-    let mut context = FormatContext::new();
+pub fn format(module: &ast::Module, target: Target) -> Result<String, FormatError> {
+    let mut context = FormatContext::new(target);
     let mut output_string = String::new();
 
     format_root_definitions(
@@ -95,8 +105,11 @@ fn format_root_definition(
             output.push_str("} // namespace ");
             output.push_str(name);
         }
-        ast::RootDefinition::Pipeline(_) => {
+        ast::RootDefinition::Pipeline(_) if context.target == Target::Rssl => {
             panic!("pipeline definitions are not supported in formatter");
+        }
+        ast::RootDefinition::Pipeline(_) => {
+            panic!("pipeline definitions are not supported outside of RSSL");
         }
     }
 
@@ -524,7 +537,7 @@ fn format_expression_or_type(
 fn format_literal(
     literal: &ast::Literal,
     output: &mut String,
-    _: &mut FormatContext,
+    context: &mut FormatContext,
 ) -> Result<(), FormatError> {
     match literal {
         ast::Literal::Bool(true) => output.push_str("true"),
@@ -533,9 +546,12 @@ fn format_literal(
         ast::Literal::IntUnsigned32(v) => write!(output, "{v}u").unwrap(),
         ast::Literal::IntUnsigned64(v) => write!(output, "{v}ul").unwrap(),
         ast::Literal::IntSigned64(v) => write!(output, "{v}l").unwrap(),
-        ast::Literal::FloatUntyped(v) if *v == f64::INFINITY => write!(output, "1.#INF").unwrap(),
+        ast::Literal::FloatUntyped(v) if *v == f64::INFINITY => {
+            write_infinity_untyped(output, context);
+        }
         ast::Literal::FloatUntyped(v) if *v == f64::NEG_INFINITY => {
-            write!(output, "-1.#INF").unwrap()
+            output.push('-');
+            write_infinity_untyped(output, context);
         }
         ast::Literal::FloatUntyped(v) if *v == (*v as i64 as f64) => {
             write!(output, "{}.0", *v as i64).unwrap()
@@ -544,11 +560,22 @@ fn format_literal(
             write!(output, "{v}.0").unwrap()
         }
         ast::Literal::FloatUntyped(v) => write!(output, "{v}").unwrap(),
-        ast::Literal::Float16(v) if *v == f32::INFINITY => write!(output, "1.#INFh").unwrap(),
-        ast::Literal::Float16(v) if *v == f32::NEG_INFINITY => write!(output, "-1.#INFh").unwrap(),
+        ast::Literal::Float16(v) if *v == f32::INFINITY => {
+            write_infinity_f16(output, context);
+        }
+        ast::Literal::Float16(v) if *v == f32::NEG_INFINITY => {
+            output.push('-');
+            write_infinity_f16(output, context);
+        }
+        ast::Literal::Float16(v) if *v == f32::NEG_INFINITY => write!(output, "-INFINITY").unwrap(),
         ast::Literal::Float16(v) => write!(output, "{v}h").unwrap(),
-        ast::Literal::Float32(v) if *v == f32::INFINITY => write!(output, "1.#INFf").unwrap(),
-        ast::Literal::Float32(v) if *v == f32::NEG_INFINITY => write!(output, "-1.#INFf").unwrap(),
+        ast::Literal::Float32(v) if *v == f32::INFINITY => {
+            write_infinity_f32(output, context);
+        }
+        ast::Literal::Float32(v) if *v == f32::NEG_INFINITY => {
+            output.push('-');
+            write_infinity_f32(output, context);
+        }
         ast::Literal::Float32(v) if *v == (*v as i64 as f32) => {
             write!(output, "{}.0f", *v as i64).unwrap()
         }
@@ -556,12 +583,33 @@ fn format_literal(
             write!(output, "{v}.0f").unwrap()
         }
         ast::Literal::Float32(v) => write!(output, "{v}f").unwrap(),
-        ast::Literal::Float64(v) if *v == f64::INFINITY => write!(output, "1.#INFL").unwrap(),
-        ast::Literal::Float64(v) if *v == f64::NEG_INFINITY => write!(output, "-1.#INFL").unwrap(),
+        ast::Literal::Float64(v) if *v == f64::INFINITY => {
+            write_infinity_f64(output, context);
+        }
+        ast::Literal::Float64(v) if *v == f64::NEG_INFINITY => {
+            output.push('-');
+            write_infinity_f64(output, context);
+        }
         ast::Literal::Float64(v) => write!(output, "{v}L").unwrap(),
         ast::Literal::String(s) => write!(output, "\"{s}\"").unwrap(),
     }
     Ok(())
+}
+
+fn write_infinity_untyped(output: &mut String, _: &mut FormatContext) {
+    output.push_str("1.#INF");
+}
+
+fn write_infinity_f16(output: &mut String, _: &mut FormatContext) {
+    output.push_str("1.#INFh");
+}
+
+fn write_infinity_f32(output: &mut String, _: &mut FormatContext) {
+    output.push_str("1.#INFf");
+}
+
+fn write_infinity_f64(output: &mut String, _: &mut FormatContext) {
+    output.push_str("1.#INFL");
 }
 
 /// Format a statement
@@ -1123,12 +1171,13 @@ fn format_constant_buffer(
 /// Contextual state for the formatter
 struct FormatContext {
     indent: u32,
+    target: Target,
 }
 
 impl FormatContext {
     /// Start a new format state
-    fn new() -> Self {
-        FormatContext { indent: 0 }
+    fn new(target: Target) -> Self {
+        FormatContext { indent: 0, target }
     }
 
     /// Increase indentation
