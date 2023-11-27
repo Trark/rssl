@@ -16,6 +16,7 @@ rssl-parser = { path = "parser" }
 rssl-formatter = { path = "formatter" }
 rssl-typer = { path = "typer" }
 rssl-hlsl = { path = "hlsl" }
+rssl-msl = { path = "msl" }
 
 [workspace]
 members = [

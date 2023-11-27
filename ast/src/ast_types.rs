@@ -110,6 +110,34 @@ pub enum TypeModifier {
 
     /// Mesh shader input from task shader payload
     Payload,
+
+    /// Metal shading language address space modifier
+    AddressSpace(AddressSpace),
+}
+
+/// Address space qualifiers for pointer types
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub enum AddressSpace {
+    // Metal shading language device address space
+    Device,
+
+    // Metal shading language constant address space
+    Constant,
+
+    // Metal shading language thread address space
+    Thread,
+
+    // Metal shading language threadgroup address space
+    ThreadGroup,
+
+    // Metal shading language threadgroup_imageblock address space
+    ThreadGroupImageBlock,
+
+    // Metal shading language ray_data address space
+    RayData,
+
+    // Metal shading language object_data address space
+    ObjectData,
 }
 
 /// Semantic identifier for linking inputs / outputs
@@ -359,6 +387,21 @@ impl std::fmt::Debug for TypeModifier {
             TypeModifier::Primitives => write!(f, "primitives"),
             TypeModifier::Indices => write!(f, "indices"),
             TypeModifier::Payload => write!(f, "payload"),
+            TypeModifier::AddressSpace(address_space) => write!(f, "{:?}", address_space),
+        }
+    }
+}
+
+impl std::fmt::Debug for AddressSpace {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            AddressSpace::Device => write!(f, "device"),
+            AddressSpace::Constant => write!(f, "constant"),
+            AddressSpace::Thread => write!(f, "thread"),
+            AddressSpace::ThreadGroup => write!(f, "threadgroup"),
+            AddressSpace::ThreadGroupImageBlock => write!(f, "threadgroup_imageblock"),
+            AddressSpace::RayData => write!(f, "ray_data"),
+            AddressSpace::ObjectData => write!(f, "object_data"),
         }
     }
 }

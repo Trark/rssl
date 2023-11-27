@@ -9,6 +9,9 @@ pub enum Target {
 
     /// HLSL
     Hlsl,
+
+    /// Metal Shading Language
+    Msl,
 }
 
 /// Error result when formatting fails
@@ -596,20 +599,36 @@ fn format_literal(
     Ok(())
 }
 
-fn write_infinity_untyped(output: &mut String, _: &mut FormatContext) {
-    output.push_str("1.#INF");
+fn write_infinity_untyped(output: &mut String, context: &mut FormatContext) {
+    output.push_str(if context.target == Target::Msl {
+        "INFINITY"
+    } else {
+        "1.#INF"
+    });
 }
 
-fn write_infinity_f16(output: &mut String, _: &mut FormatContext) {
-    output.push_str("1.#INFh");
+fn write_infinity_f16(output: &mut String, context: &mut FormatContext) {
+    output.push_str(if context.target == Target::Msl {
+        "INFINITY"
+    } else {
+        "1.#INFh"
+    });
 }
 
-fn write_infinity_f32(output: &mut String, _: &mut FormatContext) {
-    output.push_str("1.#INFf");
+fn write_infinity_f32(output: &mut String, context: &mut FormatContext) {
+    output.push_str(if context.target == Target::Msl {
+        "INFINITY"
+    } else {
+        "1.#INFf"
+    });
 }
 
-fn write_infinity_f64(output: &mut String, _: &mut FormatContext) {
-    output.push_str("1.#INFL");
+fn write_infinity_f64(output: &mut String, context: &mut FormatContext) {
+    output.push_str(if context.target == Target::Msl {
+        panic!("invalid msl")
+    } else {
+        "1.#INFL"
+    });
 }
 
 /// Format a statement
