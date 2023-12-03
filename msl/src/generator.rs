@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -6,6 +6,9 @@ use rssl_ir::export::*;
 use rssl_text::{Located, SourceLocation};
 
 use crate::names::*;
+
+mod intrinsic_helpers;
+use intrinsic_helpers::*;
 
 /// Result from generating MSL from RSSL
 pub struct GeneratedAST {
@@ -110,7 +113,11 @@ pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateErro
         &mut context,
     )?;
 
-    let root_definitions = simplify_namespaces(root_definitions);
+    let mut root_definitions = simplify_namespaces(root_definitions);
+
+    if let Some(helpers) = generate_helpers(context.required_helpers)? {
+        root_definitions.insert(0, helpers);
+    }
 
     Ok(GeneratedAST {
         ast_module: ast::Module { root_definitions },
@@ -1835,6 +1842,7 @@ fn generate_intrinsic_function(
 ) -> Result<ast::Expression, GenerateError> {
     enum Form {
         Invoke(&'static str),
+        InvokeHelper(IntrinsicHelper),
         Unimplemented,
     }
 
@@ -2050,7 +2058,12 @@ fn generate_intrinsic_function(
         Texture2DGatherCmpAlpha => Form::Unimplemented,
 
         Texture2DArrayGetDimensions => Form::Unimplemented,
-        Texture2DArrayLoad => Form::Unimplemented,
+        Texture2DArrayLoad => Form::InvokeHelper(match exprs.len() {
+            2 => IntrinsicHelper::Texture2DArrayLoad,
+            3 => IntrinsicHelper::Texture2DArrayLoadOffset,
+            4 => IntrinsicHelper::Texture2DArrayLoadOffsetStatus,
+            _ => panic!("Invalid Texture2DArrayLoad"),
+        }),
         Texture2DArraySample => Form::Unimplemented,
         Texture2DArraySampleBias => Form::Unimplemented,
         Texture2DArraySampleCmp => Form::Unimplemented,
@@ -2141,6 +2154,22 @@ fn generate_intrinsic_function(
                 identifiers: Vec::from([
                     Located::none("metal".to_string()),
                     Located::none(s.to_string()),
+                ]),
+            };
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            let type_args = generate_template_type_args(tys, context)?;
+            let args = generate_invocation_args(exprs, context)?;
+            ast::Expression::Call(object, type_args, args)
+        }
+        Form::InvokeHelper(helper) => {
+            context.required_helpers.insert(helper);
+
+            let name = get_intrinsic_helper_name(helper);
+            let identifier = ast::ScopedIdentifier {
+                base: ast::ScopedIdentifierBase::Relative,
+                identifiers: Vec::from([
+                    Located::none("helper".to_string()),
+                    Located::none(name.to_string()),
                 ]),
             };
             let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
@@ -2392,6 +2421,18 @@ fn scoped_name_to_identifier(scoped_name: ScopedName) -> ast::ScopedIdentifier {
     }
 }
 
+/// Construct an ast scoped identifier from a name from the metal standard library
+fn metal_lib_identifier(name: &str) -> ast::ScopedIdentifier {
+    ast::ScopedIdentifier {
+        // metal is a reserved name so we can drop the leading ::
+        base: ast::ScopedIdentifierBase::Relative,
+        identifiers: Vec::from([
+            Located::none(String::from("metal")),
+            Located::none(String::from(name)),
+        ]),
+    }
+}
+
 /// Add additional modifiers to a type
 fn prepend_modifiers(mut ty: ast::Type, modifiers: &[Option<ast::TypeModifier>]) -> ast::Type {
     for modifier in modifiers.iter().rev().flatten() {
@@ -2417,6 +2458,7 @@ struct GenerateContext<'m> {
     name_map: NameMap,
     global_variable_modes: HashMap<ir::GlobalId, GlobalMode>,
     function_required_globals: HashMap<ir::FunctionId, Vec<ir::GlobalId>>,
+    required_helpers: HashSet<IntrinsicHelper>,
 
     pipeline_description: PipelineDescription,
 }
@@ -2431,6 +2473,7 @@ impl<'m> GenerateContext<'m> {
             name_map,
             global_variable_modes: HashMap::new(),
             function_required_globals: HashMap::new(),
+            required_helpers: HashSet::new(),
             pipeline_description: PipelineDescription {
                 bind_groups: Vec::new(),
             },

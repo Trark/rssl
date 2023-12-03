@@ -1385,6 +1385,14 @@ void entry() {
 }
 
 #[test]
+fn check_texture2darray() {
+    check(
+        include_str!("texture2darray.rssl"),
+        include_str!("texture2darray.metal"),
+    );
+}
+
+#[test]
 fn check_semantics() {
     expect_generate_fail(
         "float4 entry(uint id : SV_VertexID) : SV_Position { return 0; }",

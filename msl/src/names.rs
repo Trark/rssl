@@ -67,4 +67,9 @@ pub const RESERVED_NAMES: &[&str] = &[
     "void",
     "volatile",
     "while",
+    // Reserve the name of the standard library namespace everywhere
+    "metal",
+    // Names used by symbols generated in the generator
+    "helper",
+    "Load",
 ];
