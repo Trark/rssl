@@ -19,13 +19,13 @@ pub enum Declarator {
     /// Unqualified id or qualified id
     Identifier(ScopedIdentifier, Vec<Attribute>),
 
-    /// * declarator
+    /// `*` declarator
     Pointer(PointerDeclarator),
 
-    /// & declarator
+    /// `&` declarator
     Reference(ReferenceDeclarator),
 
-    /// [] declarator
+    /// `[]` declarator
     Array(ArrayDeclarator),
 }
 
