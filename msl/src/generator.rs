@@ -2041,7 +2041,12 @@ fn generate_intrinsic_function(
         RWBufferAddressStore => Form::Unimplemented,
 
         Texture2DGetDimensions => Form::Unimplemented,
-        Texture2DLoad => Form::Unimplemented,
+        Texture2DLoad => Form::InvokeHelper(match exprs.len() {
+            2 => IntrinsicHelper::Texture2DLoad,
+            3 => IntrinsicHelper::Texture2DLoadOffset,
+            4 => IntrinsicHelper::Texture2DLoadOffsetStatus,
+            _ => panic!("Invalid Texture2DLoad"),
+        }),
         Texture2DSample => Form::Unimplemented,
         Texture2DSampleBias => Form::Unimplemented,
         Texture2DSampleCmp => Form::Unimplemented,
@@ -2080,10 +2085,18 @@ fn generate_intrinsic_function(
         Texture2DArrayGatherCmpAlpha => Form::Unimplemented,
 
         RWTexture2DGetDimensions => Form::Unimplemented,
-        RWTexture2DLoad => Form::Unimplemented,
+        RWTexture2DLoad => Form::InvokeHelper(match exprs.len() {
+            2 => IntrinsicHelper::RWTexture2DLoad,
+            3 => IntrinsicHelper::RWTexture2DLoadStatus,
+            _ => panic!("Invalid RWTexture2DLoad"),
+        }),
 
         RWTexture2DArrayGetDimensions => Form::Unimplemented,
-        RWTexture2DArrayLoad => Form::Unimplemented,
+        RWTexture2DArrayLoad => Form::InvokeHelper(match exprs.len() {
+            2 => IntrinsicHelper::RWTexture2DArrayLoad,
+            3 => IntrinsicHelper::RWTexture2DArrayLoadStatus,
+            _ => panic!("Invalid RWTexture2DArrayLoad"),
+        }),
 
         TextureCubeSample => Form::Unimplemented,
         TextureCubeSampleLevel => Form::Unimplemented,
@@ -2092,14 +2105,23 @@ fn generate_intrinsic_function(
         TextureCubeArraySampleLevel => Form::Unimplemented,
 
         Texture3DGetDimensions => Form::Unimplemented,
-        Texture3DLoad => Form::Unimplemented,
+        Texture3DLoad => Form::InvokeHelper(match exprs.len() {
+            2 => IntrinsicHelper::Texture3DLoad,
+            3 => IntrinsicHelper::Texture3DLoadOffset,
+            4 => IntrinsicHelper::Texture3DLoadOffsetStatus,
+            _ => panic!("Invalid Texture3DLoad"),
+        }),
         Texture3DSample => Form::Unimplemented,
         Texture3DSampleBias => Form::Unimplemented,
         Texture3DSampleGrad => Form::Unimplemented,
         Texture3DSampleLevel => Form::Unimplemented,
 
         RWTexture3DGetDimensions => Form::Unimplemented,
-        RWTexture3DLoad => Form::Unimplemented,
+        RWTexture3DLoad => Form::InvokeHelper(match exprs.len() {
+            2 => IntrinsicHelper::RWTexture3DLoad,
+            3 => IntrinsicHelper::RWTexture3DLoadStatus,
+            _ => panic!("Invalid RWTexture3DLoad"),
+        }),
 
         TriangleStreamAppend | TriangleStreamRestartStrip => {
             return Err(GenerateError::UnsupportedGeometryShader)

@@ -1385,10 +1385,26 @@ void entry() {
 }
 
 #[test]
+fn check_texture2d() {
+    check(
+        include_str!("texture2d.rssl"),
+        include_str!("texture2d.metal"),
+    );
+}
+
+#[test]
 fn check_texture2darray() {
     check(
         include_str!("texture2darray.rssl"),
         include_str!("texture2darray.metal"),
+    );
+}
+
+#[test]
+fn check_texture3d() {
+    check(
+        include_str!("texture3d.rssl"),
+        include_str!("texture3d.metal"),
     );
 }
 
