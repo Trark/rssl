@@ -72,4 +72,5 @@ pub const RESERVED_NAMES: &[&str] = &[
     // Names used by symbols generated in the generator
     "helper",
     "Load",
+    "Sample",
 ];

@@ -294,6 +294,17 @@ impl From<Located<&str>> for Type {
     }
 }
 
+impl From<ScopedIdentifier> for Type {
+    fn from(name: ScopedIdentifier) -> Self {
+        let location = name.identifiers[0].location;
+        Type {
+            layout: name.into(),
+            modifiers: Default::default(),
+            location,
+        }
+    }
+}
+
 impl From<&str> for TypeLayout {
     fn from(name: &str) -> Self {
         Located::none(name).into()
@@ -303,6 +314,12 @@ impl From<&str> for TypeLayout {
 impl From<Located<&str>> for TypeLayout {
     fn from(name: Located<&str>) -> Self {
         TypeLayout(name.into(), Default::default())
+    }
+}
+
+impl From<ScopedIdentifier> for TypeLayout {
+    fn from(name: ScopedIdentifier) -> Self {
+        TypeLayout(name, Default::default())
     }
 }
 

@@ -1021,13 +1021,7 @@ fn generate_type_impl(
                 }
 
                 let ty = ast::Type::from_layout(ast::TypeLayout(
-                    ast::ScopedIdentifier {
-                        base: ast::ScopedIdentifierBase::Relative,
-                        identifiers: Vec::from([
-                            Located::none(String::from("metal")),
-                            Located::none(String::from(name)),
-                        ]),
-                    },
+                    metal_lib_identifier(name),
                     type_args.into_boxed_slice(),
                 ));
 
@@ -1101,8 +1095,8 @@ fn generate_type_impl(
                 RWTexture3D(ty) => build_texture("texture3d", ty, true, context)?,
 
                 ConstantBuffer(_) => return Err(GenerateError::UnimplementedObject(ot)),
-                SamplerState => ast::Type::trivial("sampler"),
-                SamplerComparisonState => ast::Type::trivial("sampler"),
+                SamplerState => ast::Type::from(metal_lib_identifier("sampler")),
+                SamplerComparisonState => ast::Type::from(metal_lib_identifier("sampler")),
 
                 TriangleStream(_) => return Err(GenerateError::UnsupportedGeometryShader),
 
@@ -1126,20 +1120,11 @@ fn generate_type_impl(
                 let (base, inner_declarator) =
                     generate_type_impl(ty, declarator, suppress_const_volatile, context)?;
 
-                let array_id = ast::ScopedIdentifier {
-                    base: ast::ScopedIdentifierBase::Relative,
-                    identifiers: Vec::from([
-                        Located::none("metal".to_string()),
-                        Located::none(
-                            if array_size.is_none() {
-                                "array_ref"
-                            } else {
-                                "array"
-                            }
-                            .to_string(),
-                        ),
-                    ]),
-                };
+                let array_id = metal_lib_identifier(if array_size.is_none() {
+                    "array_ref"
+                } else {
+                    "array"
+                });
 
                 let modified_args = match array_size {
                     Some(array_size) => Vec::from([
@@ -1448,13 +1433,7 @@ fn generate_statement(
         ir::StatementKind::Continue => ast::StatementKind::Continue,
         ir::StatementKind::Discard => ast::StatementKind::Expression(ast::Expression::Call(
             Box::new(Located::none(ast::Expression::Identifier(
-                ast::ScopedIdentifier {
-                    base: ast::ScopedIdentifierBase::Relative,
-                    identifiers: Vec::from([
-                        Located::none("metal".to_string()),
-                        Located::none("discard_fragment".to_string()),
-                    ]),
-                },
+                metal_lib_identifier("discard_fragment"),
             ))),
             Vec::new(),
             Vec::new(),
@@ -2047,7 +2026,12 @@ fn generate_intrinsic_function(
             4 => IntrinsicHelper::Texture2DLoadOffsetStatus,
             _ => panic!("Invalid Texture2DLoad"),
         }),
-        Texture2DSample => Form::Unimplemented,
+        Texture2DSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
+            dim: Dim::Tex2D,
+            has_offset: exprs.len() >= 4,
+            has_clamp: exprs.len() >= 5,
+            has_status: exprs.len() >= 6,
+        })),
         Texture2DSampleBias => Form::Unimplemented,
         Texture2DSampleCmp => Form::Unimplemented,
         Texture2DSampleCmpLevelZero => Form::Unimplemented,
@@ -2069,7 +2053,12 @@ fn generate_intrinsic_function(
             4 => IntrinsicHelper::Texture2DArrayLoadOffsetStatus,
             _ => panic!("Invalid Texture2DArrayLoad"),
         }),
-        Texture2DArraySample => Form::Unimplemented,
+        Texture2DArraySample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
+            dim: Dim::Tex2DArray,
+            has_offset: exprs.len() >= 4,
+            has_clamp: exprs.len() >= 5,
+            has_status: exprs.len() >= 6,
+        })),
         Texture2DArraySampleBias => Form::Unimplemented,
         Texture2DArraySampleCmp => Form::Unimplemented,
         Texture2DArraySampleCmpLevelZero => Form::Unimplemented,
@@ -2111,7 +2100,12 @@ fn generate_intrinsic_function(
             4 => IntrinsicHelper::Texture3DLoadOffsetStatus,
             _ => panic!("Invalid Texture3DLoad"),
         }),
-        Texture3DSample => Form::Unimplemented,
+        Texture3DSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
+            dim: Dim::Tex3D,
+            has_offset: exprs.len() >= 4,
+            has_clamp: exprs.len() >= 5,
+            has_status: exprs.len() >= 6,
+        })),
         Texture3DSampleBias => Form::Unimplemented,
         Texture3DSampleGrad => Form::Unimplemented,
         Texture3DSampleLevel => Form::Unimplemented,
@@ -2171,13 +2165,7 @@ fn generate_intrinsic_function(
 
     let expr = match form {
         Form::Invoke(s) => {
-            let identifier = ast::ScopedIdentifier {
-                base: ast::ScopedIdentifierBase::Relative,
-                identifiers: Vec::from([
-                    Located::none("metal".to_string()),
-                    Located::none(s.to_string()),
-                ]),
-            };
+            let identifier = metal_lib_identifier(s);
             let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
             let type_args = generate_template_type_args(tys, context)?;
             let args = generate_invocation_args(exprs, context)?;

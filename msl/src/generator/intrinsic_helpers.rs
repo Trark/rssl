@@ -23,6 +23,8 @@ pub enum IntrinsicHelper {
     Texture3DLoadOffsetStatus,
     RWTexture3DLoad,
     RWTexture3DLoadStatus,
+
+    Sample(SampleHelper),
 }
 
 /// Generate the function name required to call the helper
@@ -43,6 +45,8 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::Texture3DLoadOffsetStatus => "Load",
         IntrinsicHelper::RWTexture3DLoad => "Load",
         IntrinsicHelper::RWTexture3DLoadStatus => "Load",
+
+        IntrinsicHelper::Sample(_) => "Sample",
     }
 }
 
@@ -90,11 +94,13 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::RootDefinition, Gener
         Texture3DLoadOffsetStatus => Ok(build_texture_load(Dim::Tex3D, false, true, true)?),
         RWTexture3DLoad => Ok(build_texture_load(Dim::Tex3D, true, false, false)?),
         RWTexture3DLoadStatus => Ok(build_texture_load(Dim::Tex3D, true, false, true)?),
+        Sample(config) => Ok(build_texture_sample(config)?),
     }
 }
 
 /// Dimension of a texture object type
-enum Dim {
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Dim {
     Tex2D,
     Tex2DArray,
     Tex3D,
@@ -142,11 +148,40 @@ fn build_texture(name: &'static str, component: &'static str, read_write: bool) 
     ))
 }
 
+/// Create a type for a sampler object
+fn build_sampler() -> ast::Type {
+    ast::Type::from(metal_lib_identifier("sampler"))
+}
+
 /// Build a trivial function parameter
 fn build_param(param_type: ast::Type, name: &str) -> ast::FunctionParam {
     ast::FunctionParam {
         param_type,
         declarator: ast::Declarator::Identifier(ast::ScopedIdentifier::trivial(name), Vec::new()),
+        location_annotations: Vec::new(),
+        default_expr: None,
+    }
+}
+
+/// Build a function parameter for a sparse status result
+fn build_status_param() -> ast::FunctionParam {
+    ast::FunctionParam {
+        param_type: ast::Type {
+            layout: ast::TypeLayout::trivial("uint"),
+            modifiers: ast::TypeModifierSet {
+                modifiers: Vec::from([Located::none(ast::TypeModifier::AddressSpace(
+                    ast::AddressSpace::Thread,
+                ))]),
+            },
+            location: SourceLocation::UNKNOWN,
+        },
+        declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
+            attributes: Vec::new(),
+            inner: Box::new(ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("status"),
+                Vec::new(),
+            )),
+        }),
         location_annotations: Vec::new(),
         default_expr: None,
     }
@@ -200,26 +235,7 @@ fn build_texture_load(
         params.push(build_param(ast::Type::trivial(offset_type), "offset"));
     }
     if has_status {
-        params.push(ast::FunctionParam {
-            param_type: ast::Type {
-                layout: ast::TypeLayout::trivial("uint"),
-                modifiers: ast::TypeModifierSet {
-                    modifiers: Vec::from([Located::none(ast::TypeModifier::AddressSpace(
-                        ast::AddressSpace::Thread,
-                    ))]),
-                },
-                location: SourceLocation::UNKNOWN,
-            },
-            declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
-                attributes: Vec::new(),
-                inner: Box::new(ast::Declarator::Identifier(
-                    ast::ScopedIdentifier::trivial("status"),
-                    Vec::new(),
-                )),
-            }),
-            location_annotations: Vec::new(),
-            default_expr: None,
-        });
+        params.push(build_status_param());
     }
 
     let mut coord_args = Vec::new();
@@ -324,6 +340,205 @@ fn build_texture_load(
 
     Ok(ast::RootDefinition::Function(ast::FunctionDefinition {
         name: Located::none(String::from("Load")),
+        returntype: ast::FunctionReturn {
+            return_type: build_vec("T", 4),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("T"))),
+                default: None,
+            },
+        )])),
+        params,
+        body: Some(body),
+        attributes: Vec::new(),
+    }))
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SampleHelper {
+    pub dim: Dim,
+    pub has_offset: bool,
+    pub has_clamp: bool,
+    pub has_status: bool,
+}
+
+impl SampleHelper {
+    fn is_array(&self) -> bool {
+        matches!(self.dim, Dim::Tex2DArray)
+    }
+
+    fn is_3d(&self) -> bool {
+        matches!(self.dim, Dim::Tex3D)
+    }
+
+    fn has_offset(&self) -> bool {
+        self.has_offset
+    }
+
+    fn has_clamp(&self) -> bool {
+        self.has_clamp
+    }
+
+    fn has_status(&self) -> bool {
+        self.has_status
+    }
+}
+
+/// Create a definition for various texture sample methods
+fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, GenerateError> {
+    let coord_type = match config.is_array() || config.is_3d() {
+        false => "float2",
+        true => "float3",
+    };
+
+    let texture_type = match config.dim {
+        Dim::Tex2D => "texture2d",
+        Dim::Tex2DArray => "texture2d_array",
+        Dim::Tex3D => "texture3d",
+    };
+
+    let offset_type = match config.is_3d() {
+        false => "int2",
+        true => "int3",
+    };
+
+    let mut params = Vec::new();
+    params.push(build_param(
+        build_texture(texture_type, "T", false),
+        "texture",
+    ));
+    params.push(build_param(build_sampler(), "s"));
+    params.push(build_param(ast::Type::trivial(coord_type), "coord"));
+    if config.has_offset() {
+        params.push(build_param(ast::Type::trivial(offset_type), "offset"));
+    }
+    if config.has_clamp() {
+        params.push(build_param(ast::Type::trivial("float"), "clamp"));
+    }
+    if config.has_status() {
+        params.push(build_status_param());
+    }
+
+    let mut coord_args = Vec::new();
+    coord_args.push(build_expr_member("coord", "x"));
+    coord_args.push(build_expr_member("coord", "y"));
+    if config.is_3d() {
+        coord_args.push(build_expr_member("coord", "z"));
+    }
+
+    let coord_type = match config.is_3d() {
+        false => "float2",
+        true => "float3",
+    };
+
+    let mut sample_args = Vec::new();
+    sample_args.push(Located::none(ast::Expression::Identifier(
+        ast::ScopedIdentifier::trivial("s"),
+    )));
+    sample_args.push(Located::none(ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial(coord_type),
+        ))),
+        Vec::new(),
+        coord_args,
+    )));
+    if config.is_array() {
+        sample_args.push(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("uint"),
+            ))),
+            Vec::new(),
+            Vec::from([build_expr_member("coord", "z")]),
+        )));
+    }
+    if config.has_clamp() {
+        sample_args.push(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                metal_lib_identifier("min_lod_clamp"),
+            ))),
+            Vec::new(),
+            Vec::from([Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("clamp"),
+            ))]),
+        )));
+    }
+    if config.has_offset() {
+        sample_args.push(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("offset"),
+        )));
+    }
+
+    let load_expr = Located::none(ast::Expression::Call(
+        Box::new(build_expr_member(
+            "texture",
+            if config.has_status() {
+                "sparse_sample"
+            } else {
+                "sample"
+            },
+        )),
+        Vec::new(),
+        sample_args,
+    ));
+
+    let body = if config.has_status() {
+        Vec::from([
+            ast::Statement {
+                kind: ast::StatementKind::Var(ast::VarDef {
+                    local_type: ast::Type::from_layout(ast::TypeLayout(
+                        metal_lib_identifier("sparse_color"),
+                        Vec::from([ast::ExpressionOrType::Type(build_vec("T", 4))])
+                            .into_boxed_slice(),
+                    )),
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast::Declarator::Identifier(
+                            ast::ScopedIdentifier::trivial("color"),
+                            Vec::new(),
+                        ),
+                        location_annotations: Vec::new(),
+                        init: Some(ast::Initializer::Expression(load_expr)),
+                    }]),
+                }),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            },
+            ast::Statement {
+                kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                    ast::BinOp::Assignment,
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial("status"),
+                    ))),
+                    Box::new(Located::none(ast::Expression::Call(
+                        Box::new(build_expr_member("color", "resident")),
+                        Vec::new(),
+                        Vec::new(),
+                    ))),
+                )),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            },
+            ast::Statement {
+                kind: ast::StatementKind::Return(Some(Located::none(ast::Expression::Call(
+                    Box::new(build_expr_member("color", "value")),
+                    Vec::new(),
+                    Vec::new(),
+                )))),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            },
+        ])
+    } else {
+        Vec::from([ast::Statement {
+            kind: ast::StatementKind::Return(Some(load_expr)),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        }])
+    };
+
+    Ok(ast::RootDefinition::Function(ast::FunctionDefinition {
+        name: Located::none(String::from("Sample")),
         returntype: ast::FunctionReturn {
             return_type: build_vec("T", 4),
             location_annotations: Vec::new(),
