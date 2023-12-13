@@ -8,6 +8,8 @@ use super::{metal_lib_identifier, GenerateError};
 /// Represents a helper function that is generated to implement intrinsic operations
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntrinsicHelper {
+    GetDimensions(GetDimensionsHelper),
+
     Texture2DLoad,
     Texture2DLoadOffset,
     Texture2DLoadOffsetStatus,
@@ -30,6 +32,8 @@ pub enum IntrinsicHelper {
 /// Generate the function name required to call the helper
 pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
     match intrinsic {
+        IntrinsicHelper::GetDimensions(_) => "GetDimensions",
+
         IntrinsicHelper::Texture2DLoad => "Load",
         IntrinsicHelper::Texture2DLoadOffset => "Load",
         IntrinsicHelper::Texture2DLoadOffsetStatus => "Load",
@@ -77,6 +81,7 @@ pub fn generate_helpers(
 fn generate_helper(helper: IntrinsicHelper) -> Result<ast::RootDefinition, GenerateError> {
     use IntrinsicHelper::*;
     match helper {
+        GetDimensions(config) => Ok(build_get_dimensions(config)?),
         Texture2DLoad => Ok(build_texture_load(Dim::Tex2D, false, false, false)?),
         Texture2DLoadOffset => Ok(build_texture_load(Dim::Tex2D, false, true, false)?),
         Texture2DLoadOffsetStatus => Ok(build_texture_load(Dim::Tex2D, false, true, true)?),
@@ -163,22 +168,18 @@ fn build_param(param_type: ast::Type, name: &str) -> ast::FunctionParam {
     }
 }
 
-/// Build a function parameter for a sparse status result
-fn build_status_param() -> ast::FunctionParam {
+/// Build a function out parameter
+fn build_out_param(mut param_type: ast::Type, name: &str) -> ast::FunctionParam {
+    param_type.modifiers.modifiers.insert(
+        0,
+        Located::none(ast::TypeModifier::AddressSpace(ast::AddressSpace::Thread)),
+    );
     ast::FunctionParam {
-        param_type: ast::Type {
-            layout: ast::TypeLayout::trivial("uint"),
-            modifiers: ast::TypeModifierSet {
-                modifiers: Vec::from([Located::none(ast::TypeModifier::AddressSpace(
-                    ast::AddressSpace::Thread,
-                ))]),
-            },
-            location: SourceLocation::UNKNOWN,
-        },
+        param_type,
         declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
             attributes: Vec::new(),
             inner: Box::new(ast::Declarator::Identifier(
-                ast::ScopedIdentifier::trivial("status"),
+                ast::ScopedIdentifier::trivial(name),
                 Vec::new(),
             )),
         }),
@@ -195,6 +196,166 @@ fn build_expr_member(object: &str, member: &str) -> Located<ast::Expression> {
         ))),
         ast::ScopedIdentifier::trivial(member),
     ))
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GetDimensionsHelper {
+    pub dim: Dim,
+    pub read_write: bool,
+}
+
+/// Create a definition for various dimension fetching methods
+fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefinition, GenerateError> {
+    let has_mips = !config.read_write;
+
+    let has_width = matches!(config.dim, Dim::Tex2D | Dim::Tex2DArray | Dim::Tex3D);
+    let has_height = matches!(config.dim, Dim::Tex2D | Dim::Tex2DArray | Dim::Tex3D);
+    let has_elements = matches!(config.dim, Dim::Tex2DArray);
+    let has_depth = matches!(config.dim, Dim::Tex3D);
+
+    let texture_type = match config.dim {
+        Dim::Tex2D => "texture2d",
+        Dim::Tex2DArray => "texture2d_array",
+        Dim::Tex3D => "texture3d",
+    };
+
+    let mut params = Vec::new();
+    let mut body = Vec::new();
+
+    params.push(build_param(
+        build_texture(texture_type, "T", config.read_write),
+        "texture",
+    ));
+
+    let mip_args = if has_mips {
+        params.push(build_param(ast::Type::trivial("uint"), "mipLevel"));
+
+        Vec::from([Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("mipLevel"),
+        ))])
+    } else {
+        Vec::new()
+    };
+
+    if has_width {
+        params.push(build_out_param(ast::Type::trivial("uint"), "width"));
+
+        body.push(ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("width"),
+                ))),
+                Box::new(Located::none(ast::Expression::Call(
+                    Box::new(build_expr_member("texture", "get_width")),
+                    Vec::new(),
+                    mip_args.clone(),
+                ))),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    if has_height {
+        params.push(build_out_param(ast::Type::trivial("uint"), "height"));
+
+        body.push(ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("height"),
+                ))),
+                Box::new(Located::none(ast::Expression::Call(
+                    Box::new(build_expr_member("texture", "get_height")),
+                    Vec::new(),
+                    mip_args.clone(),
+                ))),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    if has_elements {
+        params.push(build_out_param(ast::Type::trivial("uint"), "elements"));
+
+        body.push(ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("elements"),
+                ))),
+                Box::new(Located::none(ast::Expression::Call(
+                    Box::new(build_expr_member("texture", "get_array_size")),
+                    Vec::new(),
+                    Vec::new(),
+                ))),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    if has_depth {
+        params.push(build_out_param(ast::Type::trivial("uint"), "depth"));
+
+        body.push(ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("depth"),
+                ))),
+                Box::new(Located::none(ast::Expression::Call(
+                    Box::new(build_expr_member("texture", "get_depth")),
+                    Vec::new(),
+                    mip_args,
+                ))),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    if has_mips {
+        params.push(build_out_param(
+            ast::Type::trivial("uint"),
+            "numberOfLevels",
+        ));
+
+        body.push(ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("numberOfLevels"),
+                ))),
+                Box::new(Located::none(ast::Expression::Call(
+                    Box::new(build_expr_member("texture", "get_num_mip_levels")),
+                    Vec::new(),
+                    Vec::new(),
+                ))),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    Ok(ast::RootDefinition::Function(ast::FunctionDefinition {
+        name: Located::none(String::from("GetDimensions")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::trivial("void"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("T"))),
+                default: None,
+            },
+        )])),
+        params,
+        body: Some(body),
+        attributes: Vec::new(),
+    }))
 }
 
 /// Create a definition for various texture load methods
@@ -235,7 +396,7 @@ fn build_texture_load(
         params.push(build_param(ast::Type::trivial(offset_type), "offset"));
     }
     if has_status {
-        params.push(build_status_param());
+        params.push(build_out_param(ast::Type::trivial("uint"), "status"));
     }
 
     let mut coord_args = Vec::new();
@@ -418,7 +579,7 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
         params.push(build_param(ast::Type::trivial("float"), "clamp"));
     }
     if config.has_status() {
-        params.push(build_status_param());
+        params.push(build_out_param(ast::Type::trivial("uint"), "status"));
     }
 
     let mut coord_args = Vec::new();

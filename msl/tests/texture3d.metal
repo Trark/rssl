@@ -1,6 +1,21 @@
 namespace helper {
 
 template<typename T>
+void GetDimensions(metal::texture3d<T> texture, uint mipLevel, thread uint &width, thread uint &height, thread uint &depth, thread uint &numberOfLevels) {
+    width = texture.get_width(mipLevel);
+    height = texture.get_height(mipLevel);
+    depth = texture.get_depth(mipLevel);
+    numberOfLevels = texture.get_num_mip_levels();
+}
+
+template<typename T>
+void GetDimensions(metal::texture3d<T, metal::access::read_write> texture, thread uint &width, thread uint &height, thread uint &depth) {
+    width = texture.get_width();
+    height = texture.get_height();
+    depth = texture.get_depth();
+}
+
+template<typename T>
 metal::vec<T, 4> Load(metal::texture3d<T> texture, int4 location) {
     return texture.read(uint3(location.x, location.y, location.z), location.w);
 }
@@ -55,6 +70,8 @@ metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 co
 
 void test(const metal::texture3d<float> g_input, const metal::texture3d<float, metal::access::read_write> g_output, const metal::sampler g_sampler) {
     uint outInt;
+    helper::GetDimensions(g_input, 0u, outInt, outInt, outInt, outInt);
+    helper::GetDimensions(g_output, outInt, outInt, outInt);
     const float4 load_srv = helper::Load(g_input, int4(0, 0, 0, 0));
     const float4 load_srv_offset = helper::Load(g_input, int4(0, 0, 0, 0), int3(0, 0, 0));
     const float4 load_srv_status = helper::Load(g_input, int4(0, 0, 0, 0), int3(0, 0, 0), outInt);

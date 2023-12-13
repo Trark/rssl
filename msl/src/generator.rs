@@ -2019,7 +2019,12 @@ fn generate_intrinsic_function(
         RWBufferAddressLoad => Form::Unimplemented,
         RWBufferAddressStore => Form::Unimplemented,
 
-        Texture2DGetDimensions => Form::Unimplemented,
+        Texture2DGetDimensions => {
+            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+                dim: Dim::Tex2D,
+                read_write: false,
+            }))
+        }
         Texture2DLoad => Form::InvokeHelper(match exprs.len() {
             2 => IntrinsicHelper::Texture2DLoad,
             3 => IntrinsicHelper::Texture2DLoadOffset,
@@ -2046,7 +2051,12 @@ fn generate_intrinsic_function(
         Texture2DGatherCmpBlue => Form::Unimplemented,
         Texture2DGatherCmpAlpha => Form::Unimplemented,
 
-        Texture2DArrayGetDimensions => Form::Unimplemented,
+        Texture2DArrayGetDimensions => {
+            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+                dim: Dim::Tex2DArray,
+                read_write: false,
+            }))
+        }
         Texture2DArrayLoad => Form::InvokeHelper(match exprs.len() {
             2 => IntrinsicHelper::Texture2DArrayLoad,
             3 => IntrinsicHelper::Texture2DArrayLoadOffset,
@@ -2073,14 +2083,24 @@ fn generate_intrinsic_function(
         Texture2DArrayGatherCmpBlue => Form::Unimplemented,
         Texture2DArrayGatherCmpAlpha => Form::Unimplemented,
 
-        RWTexture2DGetDimensions => Form::Unimplemented,
+        RWTexture2DGetDimensions => {
+            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+                dim: Dim::Tex2D,
+                read_write: true,
+            }))
+        }
         RWTexture2DLoad => Form::InvokeHelper(match exprs.len() {
             2 => IntrinsicHelper::RWTexture2DLoad,
             3 => IntrinsicHelper::RWTexture2DLoadStatus,
             _ => panic!("Invalid RWTexture2DLoad"),
         }),
 
-        RWTexture2DArrayGetDimensions => Form::Unimplemented,
+        RWTexture2DArrayGetDimensions => {
+            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+                dim: Dim::Tex2DArray,
+                read_write: true,
+            }))
+        }
         RWTexture2DArrayLoad => Form::InvokeHelper(match exprs.len() {
             2 => IntrinsicHelper::RWTexture2DArrayLoad,
             3 => IntrinsicHelper::RWTexture2DArrayLoadStatus,
@@ -2093,7 +2113,12 @@ fn generate_intrinsic_function(
         TextureCubeArraySample => Form::Unimplemented,
         TextureCubeArraySampleLevel => Form::Unimplemented,
 
-        Texture3DGetDimensions => Form::Unimplemented,
+        Texture3DGetDimensions => {
+            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+                dim: Dim::Tex3D,
+                read_write: false,
+            }))
+        }
         Texture3DLoad => Form::InvokeHelper(match exprs.len() {
             2 => IntrinsicHelper::Texture3DLoad,
             3 => IntrinsicHelper::Texture3DLoadOffset,
@@ -2110,7 +2135,12 @@ fn generate_intrinsic_function(
         Texture3DSampleGrad => Form::Unimplemented,
         Texture3DSampleLevel => Form::Unimplemented,
 
-        RWTexture3DGetDimensions => Form::Unimplemented,
+        RWTexture3DGetDimensions => {
+            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+                dim: Dim::Tex3D,
+                read_write: true,
+            }))
+        }
         RWTexture3DLoad => Form::InvokeHelper(match exprs.len() {
             2 => IntrinsicHelper::RWTexture3DLoad,
             3 => IntrinsicHelper::RWTexture3DLoadStatus,
