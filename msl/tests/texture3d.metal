@@ -46,22 +46,22 @@ metal::vec<T, 4> Load(metal::texture3d<T, metal::access::read_write> texture, in
 
 template<typename T>
 metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 coord) {
-    return texture.sample(s, float3(coord.x, coord.y, coord.z));
+    return texture.sample(s, coord);
 }
 
 template<typename T>
 metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 coord, int3 offset) {
-    return texture.sample(s, float3(coord.x, coord.y, coord.z), offset);
+    return texture.sample(s, coord, offset);
 }
 
 template<typename T>
 metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 coord, int3 offset, float clamp) {
-    return texture.sample(s, float3(coord.x, coord.y, coord.z), metal::min_lod_clamp(clamp), offset);
+    return texture.sample(s, coord, metal::min_lod_clamp(clamp), offset);
 }
 
 template<typename T>
 metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 coord, int3 offset, float clamp, thread uint &status) {
-    metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, float3(coord.x, coord.y, coord.z), metal::min_lod_clamp(clamp), offset);
+    metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, coord, metal::min_lod_clamp(clamp), offset);
     status = color.resident();
     return color.value();
 }

@@ -1401,6 +1401,14 @@ fn check_texture2darray() {
 }
 
 #[test]
+fn check_texturecube() {
+    check(
+        include_str!("texturecube.rssl"),
+        include_str!("texturecube.metal"),
+    );
+}
+
+#[test]
 fn check_texture3d() {
     check(
         include_str!("texture3d.rssl"),

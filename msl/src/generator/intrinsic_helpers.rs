@@ -60,7 +60,21 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::RootDefinition, Gener
 pub enum Dim {
     Tex2D,
     Tex2DArray,
+    TexCube,
+    TexCubeArray,
     Tex3D,
+}
+
+impl Dim {
+    fn get_type_name(&self) -> &'static str {
+        match self {
+            Dim::Tex2D => "texture2d",
+            Dim::Tex2DArray => "texture2d_array",
+            Dim::TexCube => "texturecube",
+            Dim::TexCubeArray => "texturecube_array",
+            Dim::Tex3D => "texture3d",
+        }
+    }
 }
 
 /// Create a type for a vec
@@ -165,17 +179,11 @@ fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefiniti
     let has_elements = matches!(config.dim, Dim::Tex2DArray);
     let has_depth = matches!(config.dim, Dim::Tex3D);
 
-    let texture_type = match config.dim {
-        Dim::Tex2D => "texture2d",
-        Dim::Tex2DArray => "texture2d_array",
-        Dim::Tex3D => "texture3d",
-    };
-
     let mut params = Vec::new();
     let mut body = Vec::new();
 
     params.push(build_param(
-        build_texture(texture_type, "T", config.read_write),
+        build_texture(config.dim.get_type_name(), "T", config.read_write),
         "texture",
     ));
 
@@ -330,12 +338,6 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
         (true, true) => "int3",
     };
 
-    let texture_type = match config.dim {
-        Dim::Tex2D => "texture2d",
-        Dim::Tex2DArray => "texture2d_array",
-        Dim::Tex3D => "texture3d",
-    };
-
     let offset_type = match need_z {
         false => "int2",
         true => "int3",
@@ -343,7 +345,7 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
 
     let mut params = Vec::new();
     params.push(build_param(
-        build_texture(texture_type, "T", config.read_write),
+        build_texture(config.dim.get_type_name(), "T", config.read_write),
         "texture",
     ));
     params.push(build_param(ast::Type::trivial(location_type), "location"));
@@ -486,7 +488,7 @@ pub struct SampleHelper {
 
 impl SampleHelper {
     fn is_array(&self) -> bool {
-        matches!(self.dim, Dim::Tex2DArray)
+        matches!(self.dim, Dim::Tex2DArray | Dim::TexCubeArray)
     }
 
     fn is_3d(&self) -> bool {
@@ -508,15 +510,10 @@ impl SampleHelper {
 
 /// Create a definition for various texture sample methods
 fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, GenerateError> {
-    let coord_type = match config.is_array() || config.is_3d() {
-        false => "float2",
-        true => "float3",
-    };
-
-    let texture_type = match config.dim {
-        Dim::Tex2D => "texture2d",
-        Dim::Tex2DArray => "texture2d_array",
-        Dim::Tex3D => "texture3d",
+    let coord_type = match config.dim {
+        Dim::Tex2D => "float2",
+        Dim::Tex2DArray | Dim::TexCube | Dim::Tex3D => "float3",
+        Dim::TexCubeArray => "float4",
     };
 
     let offset_type = match config.is_3d() {
@@ -526,7 +523,7 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
 
     let mut params = Vec::new();
     params.push(build_param(
-        build_texture(texture_type, "T", false),
+        build_texture(config.dim.get_type_name(), "T", false),
         "texture",
     ));
     params.push(build_param(build_sampler(), "s"));
@@ -541,29 +538,22 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
         params.push(build_out_param(ast::Type::trivial("uint"), "status"));
     }
 
-    let mut coord_args = Vec::new();
-    coord_args.push(build_expr_member("coord", "x"));
-    coord_args.push(build_expr_member("coord", "y"));
-    if config.is_3d() {
-        coord_args.push(build_expr_member("coord", "z"));
-    }
-
-    let coord_type = match config.is_3d() {
-        false => "float2",
-        true => "float3",
-    };
-
     let mut sample_args = Vec::new();
     sample_args.push(Located::none(ast::Expression::Identifier(
         ast::ScopedIdentifier::trivial("s"),
     )));
-    sample_args.push(Located::none(ast::Expression::Call(
-        Box::new(Located::none(ast::Expression::Identifier(
-            ast::ScopedIdentifier::trivial(coord_type),
-        ))),
-        Vec::new(),
-        coord_args,
-    )));
+    if config.is_array() {
+        let swizzle = if config.dim == Dim::TexCubeArray {
+            "xyz"
+        } else {
+            "xy"
+        };
+        sample_args.push(build_expr_member("coord", swizzle));
+    } else {
+        sample_args.push(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("coord"),
+        )));
+    }
     if config.is_array() {
         sample_args.push(Located::none(ast::Expression::Call(
             Box::new(Located::none(ast::Expression::Identifier(

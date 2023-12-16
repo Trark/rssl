@@ -2109,10 +2109,20 @@ fn generate_intrinsic_function(
             has_status: exprs.len() >= 3,
         })),
 
-        TextureCubeSample => Form::Unimplemented,
+        TextureCubeSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
+            dim: Dim::TexCube,
+            has_offset: false,
+            has_clamp: exprs.len() >= 4,
+            has_status: exprs.len() >= 5,
+        })),
         TextureCubeSampleLevel => Form::Unimplemented,
 
-        TextureCubeArraySample => Form::Unimplemented,
+        TextureCubeArraySample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
+            dim: Dim::TexCubeArray,
+            has_offset: false,
+            has_clamp: exprs.len() >= 4,
+            has_status: exprs.len() >= 5,
+        })),
         TextureCubeArraySampleLevel => Form::Unimplemented,
 
         Texture3DGetDimensions => {
