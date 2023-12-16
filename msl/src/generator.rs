@@ -2025,12 +2025,12 @@ fn generate_intrinsic_function(
                 read_write: false,
             }))
         }
-        Texture2DLoad => Form::InvokeHelper(match exprs.len() {
-            2 => IntrinsicHelper::Texture2DLoad,
-            3 => IntrinsicHelper::Texture2DLoadOffset,
-            4 => IntrinsicHelper::Texture2DLoadOffsetStatus,
-            _ => panic!("Invalid Texture2DLoad"),
-        }),
+        Texture2DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
+            dim: Dim::Tex2D,
+            read_write: false,
+            has_offset: exprs.len() >= 3,
+            has_status: exprs.len() >= 4,
+        })),
         Texture2DSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
             dim: Dim::Tex2D,
             has_offset: exprs.len() >= 4,
@@ -2057,12 +2057,12 @@ fn generate_intrinsic_function(
                 read_write: false,
             }))
         }
-        Texture2DArrayLoad => Form::InvokeHelper(match exprs.len() {
-            2 => IntrinsicHelper::Texture2DArrayLoad,
-            3 => IntrinsicHelper::Texture2DArrayLoadOffset,
-            4 => IntrinsicHelper::Texture2DArrayLoadOffsetStatus,
-            _ => panic!("Invalid Texture2DArrayLoad"),
-        }),
+        Texture2DArrayLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
+            dim: Dim::Tex2DArray,
+            read_write: false,
+            has_offset: exprs.len() >= 3,
+            has_status: exprs.len() >= 4,
+        })),
         Texture2DArraySample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
             dim: Dim::Tex2DArray,
             has_offset: exprs.len() >= 4,
@@ -2089,11 +2089,12 @@ fn generate_intrinsic_function(
                 read_write: true,
             }))
         }
-        RWTexture2DLoad => Form::InvokeHelper(match exprs.len() {
-            2 => IntrinsicHelper::RWTexture2DLoad,
-            3 => IntrinsicHelper::RWTexture2DLoadStatus,
-            _ => panic!("Invalid RWTexture2DLoad"),
-        }),
+        RWTexture2DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
+            dim: Dim::Tex2D,
+            read_write: true,
+            has_offset: false,
+            has_status: exprs.len() >= 3,
+        })),
 
         RWTexture2DArrayGetDimensions => {
             Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
@@ -2101,11 +2102,12 @@ fn generate_intrinsic_function(
                 read_write: true,
             }))
         }
-        RWTexture2DArrayLoad => Form::InvokeHelper(match exprs.len() {
-            2 => IntrinsicHelper::RWTexture2DArrayLoad,
-            3 => IntrinsicHelper::RWTexture2DArrayLoadStatus,
-            _ => panic!("Invalid RWTexture2DArrayLoad"),
-        }),
+        RWTexture2DArrayLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
+            dim: Dim::Tex2DArray,
+            read_write: true,
+            has_offset: false,
+            has_status: exprs.len() >= 3,
+        })),
 
         TextureCubeSample => Form::Unimplemented,
         TextureCubeSampleLevel => Form::Unimplemented,
@@ -2119,12 +2121,12 @@ fn generate_intrinsic_function(
                 read_write: false,
             }))
         }
-        Texture3DLoad => Form::InvokeHelper(match exprs.len() {
-            2 => IntrinsicHelper::Texture3DLoad,
-            3 => IntrinsicHelper::Texture3DLoadOffset,
-            4 => IntrinsicHelper::Texture3DLoadOffsetStatus,
-            _ => panic!("Invalid Texture3DLoad"),
-        }),
+        Texture3DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
+            dim: Dim::Tex3D,
+            read_write: false,
+            has_offset: exprs.len() >= 3,
+            has_status: exprs.len() >= 4,
+        })),
         Texture3DSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
             dim: Dim::Tex3D,
             has_offset: exprs.len() >= 4,
@@ -2141,11 +2143,12 @@ fn generate_intrinsic_function(
                 read_write: true,
             }))
         }
-        RWTexture3DLoad => Form::InvokeHelper(match exprs.len() {
-            2 => IntrinsicHelper::RWTexture3DLoad,
-            3 => IntrinsicHelper::RWTexture3DLoadStatus,
-            _ => panic!("Invalid RWTexture3DLoad"),
-        }),
+        RWTexture3DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
+            dim: Dim::Tex3D,
+            read_write: true,
+            has_offset: false,
+            has_status: exprs.len() >= 3,
+        })),
 
         TriangleStreamAppend | TriangleStreamRestartStrip => {
             return Err(GenerateError::UnsupportedGeometryShader)

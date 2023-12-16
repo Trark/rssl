@@ -9,23 +9,7 @@ use super::{metal_lib_identifier, GenerateError};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntrinsicHelper {
     GetDimensions(GetDimensionsHelper),
-
-    Texture2DLoad,
-    Texture2DLoadOffset,
-    Texture2DLoadOffsetStatus,
-    Texture2DArrayLoad,
-    Texture2DArrayLoadOffset,
-    Texture2DArrayLoadOffsetStatus,
-    RWTexture2DLoad,
-    RWTexture2DLoadStatus,
-    RWTexture2DArrayLoad,
-    RWTexture2DArrayLoadStatus,
-    Texture3DLoad,
-    Texture3DLoadOffset,
-    Texture3DLoadOffsetStatus,
-    RWTexture3DLoad,
-    RWTexture3DLoadStatus,
-
+    Load(LoadHelper),
     Sample(SampleHelper),
 }
 
@@ -33,23 +17,7 @@ pub enum IntrinsicHelper {
 pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
     match intrinsic {
         IntrinsicHelper::GetDimensions(_) => "GetDimensions",
-
-        IntrinsicHelper::Texture2DLoad => "Load",
-        IntrinsicHelper::Texture2DLoadOffset => "Load",
-        IntrinsicHelper::Texture2DLoadOffsetStatus => "Load",
-        IntrinsicHelper::Texture2DArrayLoad => "Load",
-        IntrinsicHelper::Texture2DArrayLoadOffset => "Load",
-        IntrinsicHelper::Texture2DArrayLoadOffsetStatus => "Load",
-        IntrinsicHelper::RWTexture2DLoad => "Load",
-        IntrinsicHelper::RWTexture2DLoadStatus => "Load",
-        IntrinsicHelper::RWTexture2DArrayLoad => "Load",
-        IntrinsicHelper::RWTexture2DArrayLoadStatus => "Load",
-        IntrinsicHelper::Texture3DLoad => "Load",
-        IntrinsicHelper::Texture3DLoadOffset => "Load",
-        IntrinsicHelper::Texture3DLoadOffsetStatus => "Load",
-        IntrinsicHelper::RWTexture3DLoad => "Load",
-        IntrinsicHelper::RWTexture3DLoadStatus => "Load",
-
+        IntrinsicHelper::Load(_) => "Load",
         IntrinsicHelper::Sample(_) => "Sample",
     }
 }
@@ -82,23 +50,7 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::RootDefinition, Gener
     use IntrinsicHelper::*;
     match helper {
         GetDimensions(config) => Ok(build_get_dimensions(config)?),
-        Texture2DLoad => Ok(build_texture_load(Dim::Tex2D, false, false, false)?),
-        Texture2DLoadOffset => Ok(build_texture_load(Dim::Tex2D, false, true, false)?),
-        Texture2DLoadOffsetStatus => Ok(build_texture_load(Dim::Tex2D, false, true, true)?),
-        Texture2DArrayLoad => Ok(build_texture_load(Dim::Tex2DArray, false, false, false)?),
-        Texture2DArrayLoadOffset => Ok(build_texture_load(Dim::Tex2DArray, false, true, false)?),
-        Texture2DArrayLoadOffsetStatus => {
-            Ok(build_texture_load(Dim::Tex2DArray, false, true, true)?)
-        }
-        RWTexture2DLoad => Ok(build_texture_load(Dim::Tex2D, true, false, false)?),
-        RWTexture2DLoadStatus => Ok(build_texture_load(Dim::Tex2D, true, false, true)?),
-        RWTexture2DArrayLoad => Ok(build_texture_load(Dim::Tex2DArray, true, false, false)?),
-        RWTexture2DArrayLoadStatus => Ok(build_texture_load(Dim::Tex2DArray, true, false, true)?),
-        Texture3DLoad => Ok(build_texture_load(Dim::Tex3D, false, false, false)?),
-        Texture3DLoadOffset => Ok(build_texture_load(Dim::Tex3D, false, true, false)?),
-        Texture3DLoadOffsetStatus => Ok(build_texture_load(Dim::Tex3D, false, true, true)?),
-        RWTexture3DLoad => Ok(build_texture_load(Dim::Tex3D, true, false, false)?),
-        RWTexture3DLoadStatus => Ok(build_texture_load(Dim::Tex3D, true, false, true)?),
+        Load(config) => Ok(build_texture_load(config)?),
         Sample(config) => Ok(build_texture_sample(config)?),
     }
 }
@@ -358,24 +310,27 @@ fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefiniti
     }))
 }
 
-/// Create a definition for various texture load methods
-fn build_texture_load(
-    dim: Dim,
-    read_write: bool,
-    has_offset: bool,
-    has_status: bool,
-) -> Result<ast::RootDefinition, GenerateError> {
-    let array_or_3d = matches!(dim, Dim::Tex2DArray | Dim::Tex3D);
-    let need_z = matches!(dim, Dim::Tex3D);
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LoadHelper {
+    pub dim: Dim,
+    pub read_write: bool,
+    pub has_offset: bool,
+    pub has_status: bool,
+}
 
-    let location_type = match (array_or_3d, read_write) {
+/// Create a definition for various texture load methods
+fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, GenerateError> {
+    let array_or_3d = matches!(config.dim, Dim::Tex2DArray | Dim::Tex3D);
+    let need_z = matches!(config.dim, Dim::Tex3D);
+
+    let location_type = match (array_or_3d, config.read_write) {
         (false, false) => "int3",
         (false, true) => "int2",
         (true, false) => "int4",
         (true, true) => "int3",
     };
 
-    let texture_type = match dim {
+    let texture_type = match config.dim {
         Dim::Tex2D => "texture2d",
         Dim::Tex2DArray => "texture2d_array",
         Dim::Tex3D => "texture3d",
@@ -388,20 +343,20 @@ fn build_texture_load(
 
     let mut params = Vec::new();
     params.push(build_param(
-        build_texture(texture_type, "T", read_write),
+        build_texture(texture_type, "T", config.read_write),
         "texture",
     ));
     params.push(build_param(ast::Type::trivial(location_type), "location"));
-    if has_offset {
+    if config.has_offset {
         params.push(build_param(ast::Type::trivial(offset_type), "offset"));
     }
-    if has_status {
+    if config.has_status {
         params.push(build_out_param(ast::Type::trivial("uint"), "status"));
     }
 
     let mut coord_args = Vec::new();
     let make_coord_arg = |c| {
-        if has_offset {
+        if config.has_offset {
             Located::none(ast::Expression::BinaryOperation(
                 ast::BinOp::Add,
                 Box::new(build_expr_member("location", c)),
@@ -429,23 +384,27 @@ fn build_texture_load(
         Vec::new(),
         coord_args,
     ))]);
-    if !need_z && (!read_write || array_or_3d) {
+    if !need_z && (!config.read_write || array_or_3d) {
         load_args.push(build_expr_member("location", "z"));
     }
-    if !read_write && array_or_3d {
+    if !config.read_write && array_or_3d {
         load_args.push(build_expr_member("location", "w"));
     }
 
     let load_expr = Located::none(ast::Expression::Call(
         Box::new(build_expr_member(
             "texture",
-            if has_status { "sparse_read" } else { "read" },
+            if config.has_status {
+                "sparse_read"
+            } else {
+                "read"
+            },
         )),
         Vec::new(),
         load_args,
     ));
 
-    let body = if has_status {
+    let body = if config.has_status {
         Vec::from([
             ast::Statement {
                 kind: ast::StatementKind::Var(ast::VarDef {
