@@ -43,6 +43,12 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
         _ => panic!("Multiple pipelines in test file"),
     };
 
+    // Assign api slots to bindings
+    let ir = ir.assign_api_bindings(rssl_ir::AssignBindingsParams {
+        require_slot_type: false,
+        support_buffer_address: false,
+    });
+
     (ir, source_manager)
 }
 

@@ -1,0 +1,18 @@
+const Texture2D g_input;
+const Texture3D g_unused;
+const RWTexture2D<float4> g_output : register(space1);
+
+void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID) {
+    g_input;
+}
+
+void PSMAIN(uint pid : SV_PrimitiveID) {
+    g_input;
+    g_output;
+}
+
+Pipeline GraphicsTest
+{
+    VertexShader = VSMAIN;
+    PixelShader = PSMAIN;
+}

@@ -1,7 +1,7 @@
 pub use crate::ApiLocation;
 
 /// Description of a shader pipeline
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct PipelineDescription {
     pub bind_groups: Vec<BindGroup>,
 }
@@ -33,6 +33,9 @@ pub struct DescriptorBinding {
 
     /// If the descriptor is intended for bindless usage
     pub is_bindless: bool,
+
+    /// If the descriptor is used by the shader
+    pub is_used: bool,
 }
 
 /// Type of a descriptor

@@ -7,6 +7,9 @@ use rssl_text::{Located, SourceLocation};
 
 use crate::names::*;
 
+mod pipeline;
+use pipeline::*;
+
 mod intrinsic_helpers;
 use intrinsic_helpers::*;
 
@@ -65,9 +68,6 @@ pub enum GenerateError {
     UnimplementedOutParameters,
 
     /// Semantics need special handling
-    UnimplementedFunctionParameterWithSemantic,
-
-    /// Semantics need special handling
     UnimplementedFunctionReturnWithSemantic,
 
     /// Semantics need special handling
@@ -90,17 +90,18 @@ pub enum GenerateError {
 
     /// Raytracing has not been implemented
     UnimplementedRaytracing,
+
+    /// Constructing static variables in the entry function is not implemented yet
+    UnimplementedFunctionEntryStatic,
+
+    /// Constructing groupshared variables in the entry function is not implemented yet
+    UnimplementedFunctionEntryGroupShared,
 }
 
 /// Generate MSL ast from ir module
 pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateError> {
     let mut context = GenerateContext::new(module);
     let mut root_definitions = Vec::new();
-
-    // Generate binding info
-    for decl in &module.root_definitions {
-        analyse_bindings(decl, &mut context)?;
-    }
 
     analyse_globals(&mut context)?;
 
@@ -115,126 +116,24 @@ pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateErro
 
     let mut root_definitions = simplify_namespaces(root_definitions);
 
+    let pipeline_description = if let Some(selected_pipeline) = module.selected_pipeline {
+        let (mut pipeline_defs, pipeline_metadata) =
+            generate_pipeline(&module.pipelines[selected_pipeline], &mut context)?;
+        root_definitions.append(&mut pipeline_defs);
+        pipeline_metadata
+    } else {
+        // Generating a shader without a usable pipeline - return the empty binding set
+        PipelineDescription::default()
+    };
+
     if let Some(helpers) = generate_helpers(context.required_helpers)? {
         root_definitions.insert(0, helpers);
     }
 
     Ok(GeneratedAST {
         ast_module: ast::Module { root_definitions },
-        pipeline_description: context.pipeline_description,
+        pipeline_description,
     })
-}
-
-/// Check bindings
-fn analyse_bindings(
-    decl: &ir::RootDefinition,
-    context: &mut GenerateContext,
-) -> Result<(), GenerateError> {
-    match decl {
-        ir::RootDefinition::Struct(_)
-        | ir::RootDefinition::StructTemplate(_)
-        | ir::RootDefinition::Enum(_)
-        | ir::RootDefinition::FunctionDeclaration(_)
-        | ir::RootDefinition::Function(_) => {}
-        ir::RootDefinition::ConstantBuffer(id) => {
-            let cb = &context.module.cbuffer_registry[id.0 as usize];
-            if let Some(api_slot) = cb.api_binding {
-                let binding = DescriptorBinding {
-                    name: context.get_constant_buffer_name(*id)?.to_string(),
-                    api_binding: api_slot.location,
-                    descriptor_type: DescriptorType::ConstantBuffer,
-                    descriptor_count: Some(1),
-                    is_bindless: false,
-                };
-
-                context.register_binding(api_slot.set, binding);
-            }
-        }
-        ir::RootDefinition::GlobalVariable(id) => {
-            let decl = &context.module.global_registry[id.0 as usize];
-
-            // Remove outer layer of modifier
-            let unmodified_id = context.module.type_registry.remove_modifier(decl.type_id);
-
-            // Attempt to remove array type - and extract the length
-            let (unmodified_id, descriptor_count) = if let ir::TypeLayer::Array(inner, len) =
-                context.module.type_registry.get_type_layer(unmodified_id)
-            {
-                // Remove inner layer of modifier
-                let unmodified_id = context.module.type_registry.remove_modifier(inner);
-                let len = len.map(|v| v as u32);
-                (unmodified_id, len)
-            } else {
-                (unmodified_id, Some(1))
-            };
-
-            // Get info for type layer after extracting outer shells
-            let type_layer = context.module.type_registry.get_type_layer(unmodified_id);
-
-            let descriptor_type = match type_layer {
-                ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(_)) => {
-                    DescriptorType::ConstantBuffer
-                }
-                ir::TypeLayer::Object(ir::ObjectType::ByteAddressBuffer) => {
-                    DescriptorType::ByteBuffer
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWByteAddressBuffer) => {
-                    DescriptorType::RwByteBuffer
-                }
-                ir::TypeLayer::Object(ir::ObjectType::BufferAddress) => {
-                    DescriptorType::BufferAddress
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWBufferAddress) => {
-                    DescriptorType::RwBufferAddress
-                }
-                ir::TypeLayer::Object(ir::ObjectType::StructuredBuffer(_)) => {
-                    DescriptorType::StructuredBuffer
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWStructuredBuffer(_)) => {
-                    DescriptorType::RwStructuredBuffer
-                }
-                ir::TypeLayer::Object(ir::ObjectType::Buffer(_)) => DescriptorType::TexelBuffer,
-                ir::TypeLayer::Object(ir::ObjectType::RWBuffer(_)) => DescriptorType::RwTexelBuffer,
-                ir::TypeLayer::Object(ir::ObjectType::Texture2D(_)) => DescriptorType::Texture2d,
-                ir::TypeLayer::Object(ir::ObjectType::Texture2DArray(_)) => {
-                    DescriptorType::Texture2dArray
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWTexture2D(_)) => {
-                    DescriptorType::RwTexture2d
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RWTexture2DArray(_)) => {
-                    DescriptorType::RwTexture2dArray
-                }
-                ir::TypeLayer::Object(ir::ObjectType::TextureCube(_)) => {
-                    DescriptorType::TextureCube
-                }
-                ir::TypeLayer::Object(ir::ObjectType::TextureCubeArray(_)) => {
-                    DescriptorType::TextureCubeArray
-                }
-                ir::TypeLayer::Object(ir::ObjectType::Texture3D(_)) => DescriptorType::Texture3d,
-                ir::TypeLayer::Object(ir::ObjectType::RWTexture3D(_)) => {
-                    DescriptorType::RwTexture3d
-                }
-                ir::TypeLayer::Object(ir::ObjectType::RaytracingAccelerationStructure) => {
-                    DescriptorType::RaytracingAccelerationStructure
-                }
-                _ => DescriptorType::PushConstants,
-            };
-
-            if let Some(api_slot) = decl.api_slot {
-                let binding = DescriptorBinding {
-                    name: context.get_global_name(*id)?.to_string(),
-                    api_binding: api_slot.location,
-                    descriptor_type,
-                    descriptor_count,
-                    is_bindless: decl.is_bindless,
-                };
-
-                context.register_binding(api_slot.set, binding);
-            }
-        }
-    }
-    Ok(())
 }
 
 /// How we will handle generating a global variable
@@ -675,7 +574,7 @@ fn generate_function_inner(
 
     let mut params = Vec::new();
     for param in &decl.params {
-        params.push(generate_function_param(param, context)?);
+        params.push(generate_function_param(param, false, context)?);
     }
 
     // Parameters for implementing global variables come after the normal parameters
@@ -744,6 +643,7 @@ fn generate_function_attribute(
 /// Generate a function parameter
 fn generate_function_param(
     param: &ir::FunctionParam,
+    include_semantic: bool,
     context: &mut GenerateContext,
 ) -> Result<ast::FunctionParam, GenerateError> {
     let input_modifier = match param.param_type.input_modifier {
@@ -757,7 +657,7 @@ fn generate_function_param(
     };
 
     let name = context.get_variable_name(param.id)?.to_string();
-    let (base_type, declarator) =
+    let (base_type, mut declarator) =
         generate_type_and_declarator(param.param_type.type_id, &name, false, context)?;
 
     let interpolation_modifier =
@@ -768,9 +668,13 @@ fn generate_function_param(
 
     let param_type = prepend_modifiers(base_type, &[input_modifier]);
 
-    let semantic = generate_semantic_annotation(&param.semantic)?;
-    if semantic.is_some() {
-        return Err(GenerateError::UnimplementedFunctionParameterWithSemantic);
+    let semantic = if include_semantic {
+        generate_semantic_annotation(&param.semantic)?
+    } else {
+        None
+    };
+    if let Some(semantic) = semantic {
+        prepend_attribute_to_declarator(semantic, &mut declarator);
     }
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
@@ -2222,7 +2126,7 @@ fn generate_intrinsic_function(
             let identifier = ast::ScopedIdentifier {
                 base: ast::ScopedIdentifierBase::Relative,
                 identifiers: Vec::from([
-                    Located::none("helper".to_string()),
+                    Located::none(HELPER_NAMESPACE_NAME.to_string()),
                     Located::none(name.to_string()),
                 ]),
             };
@@ -2497,6 +2401,23 @@ fn prepend_modifiers(mut ty: ast::Type, modifiers: &[Option<ast::TypeModifier>])
     ty
 }
 
+/// Add an attribute to a declarator
+fn prepend_attribute_to_declarator(attr: ast::Attribute, declarator: &mut ast::Declarator) {
+    match declarator {
+        ast::Declarator::Empty => panic!("Empty not expected in prepend_attribute_to_declarator"),
+        ast::Declarator::Identifier(_, attrs) => attrs.push(attr),
+        ast::Declarator::Pointer(ast::PointerDeclarator { inner, .. }) => {
+            prepend_attribute_to_declarator(attr, inner)
+        }
+        ast::Declarator::Reference(ast::ReferenceDeclarator { inner, .. }) => {
+            prepend_attribute_to_declarator(attr, inner)
+        }
+        ast::Declarator::Array(ast::ArrayDeclarator { inner, .. }) => {
+            prepend_attribute_to_declarator(attr, inner)
+        }
+    }
+}
+
 /// Construct a basic attribute
 fn make_attribute(name: &str) -> ast::Attribute {
     ast::Attribute {
@@ -2507,14 +2428,12 @@ fn make_attribute(name: &str) -> ast::Attribute {
 }
 
 /// Contextual state for MSL generator
-struct GenerateContext<'m> {
+pub(crate) struct GenerateContext<'m> {
     module: &'m ir::Module,
     name_map: NameMap,
     global_variable_modes: HashMap<ir::GlobalId, GlobalMode>,
     function_required_globals: HashMap<ir::FunctionId, Vec<ir::GlobalId>>,
     required_helpers: HashSet<IntrinsicHelper>,
-
-    pipeline_description: PipelineDescription,
 }
 
 impl<'m> GenerateContext<'m> {
@@ -2528,9 +2447,6 @@ impl<'m> GenerateContext<'m> {
             global_variable_modes: HashMap::new(),
             function_required_globals: HashMap::new(),
             required_helpers: HashSet::new(),
-            pipeline_description: PipelineDescription {
-                bind_groups: Vec::new(),
-            },
         }
     }
 
@@ -2582,14 +2498,6 @@ impl<'m> GenerateContext<'m> {
         Ok(name)
     }
 
-    /// Get the name of a constant buffer
-    fn get_constant_buffer_name(&self, id: ir::ConstantBufferId) -> Result<&str, GenerateError> {
-        match self.module.cbuffer_registry.get(id.0 as usize) {
-            Some(cd) => Ok(cd.name.as_str()),
-            None => Err(GenerateError::InvalidModule),
-        }
-    }
-
     /// Get the name of a local variable
     fn get_variable_name(&self, id: ir::VariableId) -> Result<&str, GenerateError> {
         Ok(&self
@@ -2598,23 +2506,5 @@ impl<'m> GenerateContext<'m> {
             .get_local_variable(id)
             .name
             .node)
-    }
-
-    /// Add a binding to the pipeline layout description
-    fn register_binding(&mut self, group_index: u32, binding: DescriptorBinding) {
-        let group_index = group_index as usize;
-        if group_index >= self.pipeline_description.bind_groups.len() {
-            self.pipeline_description.bind_groups.resize(
-                group_index + 1,
-                BindGroup {
-                    bindings: Vec::new(),
-                    inline_constants: None,
-                },
-            )
-        }
-
-        self.pipeline_description.bind_groups[group_index]
-            .bindings
-            .push(binding);
     }
 }

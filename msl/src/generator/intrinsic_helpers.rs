@@ -4,6 +4,7 @@ use rssl_ast as ast;
 use rssl_text::{Located, SourceLocation};
 
 use super::{metal_lib_identifier, GenerateError};
+use crate::names::HELPER_NAMESPACE_NAME;
 
 /// Represents a helper function that is generated to implement intrinsic operations
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,7 +40,7 @@ pub fn generate_helpers(
         Ok(None)
     } else {
         Ok(Some(ast::RootDefinition::Namespace(
-            Located::none(String::from("helper")),
+            Located::none(String::from(HELPER_NAMESPACE_NAME)),
             definitions,
         )))
     }

@@ -1,5 +1,16 @@
 pub use rssl_ir::name_generator::{NameMap, NameSymbol, ScopedName};
 
+pub const HELPER_NAMESPACE_NAME: &str = "helper";
+pub const ENTRY_POINT_NAME_COMPUTE: &str = "ComputeShaderEntry";
+pub const ENTRY_POINT_NAME_PIXEL: &str = "PixelShaderEntry";
+pub const ENTRY_POINT_NAME_VERTEX: &str = "VertexShaderEntry";
+pub const ENTRY_POINT_NAME_MESH: &str = "MeshShaderEntry";
+pub const ENTRY_POINT_NAME_TASK: &str = "TaskShaderEntry";
+pub const ARGUMENT_BUFFER_0_NAME: &str = "ArgumentBuffer0";
+pub const ARGUMENT_BUFFER_1_NAME: &str = "ArgumentBuffer1";
+pub const ARGUMENT_BUFFER_2_NAME: &str = "ArgumentBuffer2";
+pub const ARGUMENT_BUFFER_3_NAME: &str = "ArgumentBuffer3";
+
 /// List of names we want to avoid in the generated code
 pub const RESERVED_NAMES: &[&str] = &[
     "and",
@@ -70,7 +81,15 @@ pub const RESERVED_NAMES: &[&str] = &[
     // Reserve the name of the standard library namespace everywhere
     "metal",
     // Names used by symbols generated in the generator
-    "helper",
-    "Load",
-    "Sample",
+    HELPER_NAMESPACE_NAME,
+    // Names used for entry point generation
+    ENTRY_POINT_NAME_COMPUTE,
+    ENTRY_POINT_NAME_PIXEL,
+    ENTRY_POINT_NAME_VERTEX,
+    ENTRY_POINT_NAME_MESH,
+    ENTRY_POINT_NAME_TASK,
+    ARGUMENT_BUFFER_0_NAME,
+    ARGUMENT_BUFFER_1_NAME,
+    ARGUMENT_BUFFER_2_NAME,
+    ARGUMENT_BUFFER_3_NAME,
 ];

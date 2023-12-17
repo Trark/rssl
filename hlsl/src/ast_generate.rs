@@ -80,6 +80,7 @@ fn analyse_bindings(
                     descriptor_type: DescriptorType::ConstantBuffer,
                     descriptor_count: Some(1),
                     is_bindless: false,
+                    is_used: true, // We do not currently check for usage
                 };
 
                 context.register_binding(api_slot.set, binding);
@@ -163,6 +164,7 @@ fn analyse_bindings(
                     descriptor_type,
                     descriptor_count,
                     is_bindless: decl.is_bindless,
+                    is_used: true, // We do not currently check for usage
                 };
 
                 context.register_binding(api_slot.set, binding);

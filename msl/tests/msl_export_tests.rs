@@ -1420,11 +1420,27 @@ fn check_texture3d() {
 fn check_semantics() {
     expect_generate_fail(
         "float4 entry(uint id : SV_VertexID) : SV_Position { return 0; }",
-        GenerateError::UnimplementedFunctionParameterWithSemantic,
+        GenerateError::UnimplementedFunctionReturnWithSemantic,
     );
 
     expect_generate_fail(
         "float4 entry(float4 coord : SV_Position) : SV_Target { return 0; }",
-        GenerateError::UnimplementedFunctionParameterWithSemantic,
+        GenerateError::UnimplementedFunctionReturnWithSemantic,
+    );
+}
+
+#[test]
+fn check_compute_pipeline() {
+    check(
+        include_str!("compute_pipeline.rssl"),
+        include_str!("compute_pipeline.metal"),
+    );
+}
+
+#[test]
+fn check_vertex_pixel_pipeline() {
+    check(
+        include_str!("vertex_pixel_pipeline.rssl"),
+        include_str!("vertex_pixel_pipeline.metal"),
     );
 }
