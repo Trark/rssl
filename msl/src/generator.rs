@@ -313,10 +313,11 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
 
             // Add the address space to the type
             if let Some(address_space) = address_space {
-                param_type.modifiers.modifiers.insert(
-                    0,
-                    Located::none(ast::TypeModifier::AddressSpace(address_space)),
-                );
+                param_type
+                    .modifiers
+                    .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                        address_space,
+                    )));
             }
 
             let declarator = if !is_object {
@@ -1192,14 +1193,14 @@ fn generate_type_impl(
                 match &mut declarator {
                     ast::Declarator::Pointer(ast::PointerDeclarator { qualifiers, .. }) => {
                         for modifier in modifiers.iter().rev() {
-                            qualifiers.modifiers.insert(0, Located::none(*modifier));
+                            qualifiers.prepend(Located::none(*modifier));
                         }
                     }
                     ast::Declarator::Empty
                     | ast::Declarator::Identifier(..)
                     | ast::Declarator::Array(..) => {
                         for modifier in modifiers.iter().rev() {
-                            base.modifiers.modifiers.insert(0, Located::none(*modifier));
+                            base.modifiers.prepend(Located::none(*modifier));
                         }
                     }
                     _ => panic!(
@@ -2490,7 +2491,7 @@ fn metal_lib_identifier(name: &str) -> ast::ScopedIdentifier {
 fn prepend_modifiers(mut ty: ast::Type, modifiers: &[Option<ast::TypeModifier>]) -> ast::Type {
     for modifier in modifiers.iter().rev().flatten() {
         if !ty.modifiers.modifiers.iter().any(|e| e.node == *modifier) {
-            ty.modifiers.modifiers.insert(0, Located::none(*modifier))
+            ty.modifiers.prepend(Located::none(*modifier))
         }
     }
     ty

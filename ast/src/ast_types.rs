@@ -263,6 +263,11 @@ impl TypeModifierSet {
     pub fn append(&mut self, modifier: Located<TypeModifier>) {
         self.modifiers.push(modifier);
     }
+
+    /// Add a modifier to the start of the set
+    pub fn prepend(&mut self, modifier: Located<TypeModifier>) {
+        self.modifiers.insert(0, modifier);
+    }
 }
 
 impl Default for TypeModifierSet {

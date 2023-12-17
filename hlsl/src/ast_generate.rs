@@ -1012,7 +1012,7 @@ fn generate_type_impl(
 
             if !modifiers.is_empty() {
                 for modifier in modifiers.iter().rev() {
-                    base.modifiers.modifiers.insert(0, Located::none(*modifier));
+                    base.modifiers.prepend(Located::none(*modifier));
                 }
             }
 
@@ -2292,7 +2292,7 @@ fn scoped_name_to_identifier(scoped_name: ScopedName) -> ast::ScopedIdentifier {
 fn prepend_modifiers(mut ty: ast::Type, modifiers: &[Option<ast::TypeModifier>]) -> ast::Type {
     for modifier in modifiers.iter().rev().flatten() {
         if !ty.modifiers.modifiers.iter().any(|e| e.node == *modifier) {
-            ty.modifiers.modifiers.insert(0, Located::none(*modifier))
+            ty.modifiers.prepend(Located::none(*modifier))
         }
     }
     ty

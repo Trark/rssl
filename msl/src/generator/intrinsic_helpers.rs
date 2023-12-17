@@ -136,10 +136,11 @@ fn build_param(param_type: ast::Type, name: &str) -> ast::FunctionParam {
 
 /// Build a function out parameter
 fn build_out_param(mut param_type: ast::Type, name: &str) -> ast::FunctionParam {
-    param_type.modifiers.modifiers.insert(
-        0,
-        Located::none(ast::TypeModifier::AddressSpace(ast::AddressSpace::Thread)),
-    );
+    param_type
+        .modifiers
+        .prepend(Located::none(ast::TypeModifier::AddressSpace(
+            ast::AddressSpace::Thread,
+        )));
     ast::FunctionParam {
         param_type,
         declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
