@@ -125,7 +125,7 @@ fn format_global_variable(
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
-    format_attributes(&def.attributes, false, output, context)?;
+    format_attributes(&def.attributes, false, false, output, context)?;
     format_type(&def.global_type, output, context)?;
     format_init_declarators(&def.defs, output, context)?;
     output.push(';');
@@ -161,7 +161,7 @@ fn format_function(
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
     for attribute in &def.attributes {
-        format_attribute(attribute, true, output, context)?;
+        format_attribute(attribute, true, false, output, context)?;
     }
 
     format_template_param_list(&def.template_params, output, context)?;
@@ -213,11 +213,12 @@ fn format_function(
 fn format_attributes(
     attrs: &[ast::Attribute],
     new_line: bool,
+    after_content: bool,
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
     for attr in attrs {
-        format_attribute(attr, new_line, output, context)?;
+        format_attribute(attr, new_line, after_content, output, context)?;
     }
     Ok(())
 }
@@ -226,9 +227,14 @@ fn format_attributes(
 fn format_attribute(
     attr: &ast::Attribute,
     new_line: bool,
+    after_content: bool,
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
+    if !new_line && after_content {
+        output.push(' ');
+    }
+
     output.push('[');
     if attr.two_square_brackets {
         output.push('[');
@@ -259,7 +265,7 @@ fn format_attribute(
 
     if new_line {
         context.new_line(output);
-    } else {
+    } else if !after_content {
         output.push(' ');
     }
 
@@ -461,7 +467,7 @@ fn format_declarator(
         ast::Declarator::Empty => {}
         ast::Declarator::Identifier(name, attributes) => {
             format_scoped_identifier(name, output, context)?;
-            format_attributes(attributes, false, output, context)?;
+            format_attributes(attributes, false, true, output, context)?;
         }
         ast::Declarator::Pointer(ast::PointerDeclarator {
             attributes,
@@ -469,13 +475,13 @@ fn format_declarator(
             inner,
         }) => {
             output.push('*');
-            format_attributes(attributes, false, output, context)?;
+            format_attributes(attributes, false, false, output, context)?;
             format_type_modifiers(qualifiers, output)?;
             format_declarator(inner, output, context)?;
         }
         ast::Declarator::Reference(ast::ReferenceDeclarator { attributes, inner }) => {
             output.push('&');
-            format_attributes(attributes, false, output, context)?;
+            format_attributes(attributes, false, false, output, context)?;
             format_declarator(inner, output, context)?;
         }
         ast::Declarator::Array(ast::ArrayDeclarator {
@@ -489,7 +495,7 @@ fn format_declarator(
                 format_expression(expr, output, context)?;
             }
             output.push(']');
-            format_attributes(attributes, false, output, context)?;
+            format_attributes(attributes, false, false, output, context)?;
         }
     }
     Ok(())
@@ -639,7 +645,7 @@ fn format_statement(
 ) -> Result<(), FormatError> {
     context.new_line(output);
 
-    format_attributes(&statement.attributes, true, output, context)?;
+    format_attributes(&statement.attributes, true, false, output, context)?;
 
     match &statement.kind {
         ast::StatementKind::Empty => {
@@ -1106,7 +1112,7 @@ fn format_struct(
 
         match entry {
             ast::StructEntry::Variable(member) => {
-                format_attributes(&member.attributes, false, output, context)?;
+                format_attributes(&member.attributes, false, false, output, context)?;
                 format_type(&member.ty, output, context)?;
                 format_init_declarators(&member.defs, output, context)?;
                 output.push(';');
@@ -1163,7 +1169,7 @@ fn format_constant_buffer(
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
-    format_attributes(&def.attributes, false, output, context)?;
+    format_attributes(&def.attributes, false, false, output, context)?;
 
     output.push_str("cbuffer ");
     output.push_str(&def.name);
