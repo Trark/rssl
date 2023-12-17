@@ -1,7 +1,7 @@
 namespace helper {
 
 template<typename T>
-void GetDimensions(metal::texture3d<T> texture, uint mipLevel, thread uint &width, thread uint &height, thread uint &depth, thread uint &numberOfLevels) {
+void GetDimensions(metal::texture3d<T> texture, uint mipLevel, thread uint& width, thread uint& height, thread uint& depth, thread uint& numberOfLevels) {
     width = texture.get_width(mipLevel);
     height = texture.get_height(mipLevel);
     depth = texture.get_depth(mipLevel);
@@ -9,7 +9,7 @@ void GetDimensions(metal::texture3d<T> texture, uint mipLevel, thread uint &widt
 }
 
 template<typename T>
-void GetDimensions(metal::texture3d<T, metal::access::read_write> texture, thread uint &width, thread uint &height, thread uint &depth) {
+void GetDimensions(metal::texture3d<T, metal::access::read_write> texture, thread uint& width, thread uint& height, thread uint& depth) {
     width = texture.get_width();
     height = texture.get_height();
     depth = texture.get_depth();
@@ -26,7 +26,7 @@ metal::vec<T, 4> Load(metal::texture3d<T> texture, int4 location, int3 offset) {
 }
 
 template<typename T>
-metal::vec<T, 4> Load(metal::texture3d<T> texture, int4 location, int3 offset, thread uint &status) {
+metal::vec<T, 4> Load(metal::texture3d<T> texture, int4 location, int3 offset, thread uint& status) {
     metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_read(uint3(location.x + offset.x, location.y + offset.y, location.z + offset.z), location.w);
     status = color.resident();
     return color.value();
@@ -38,7 +38,7 @@ metal::vec<T, 4> Load(metal::texture3d<T, metal::access::read_write> texture, in
 }
 
 template<typename T>
-metal::vec<T, 4> Load(metal::texture3d<T, metal::access::read_write> texture, int3 location, thread uint &status) {
+metal::vec<T, 4> Load(metal::texture3d<T, metal::access::read_write> texture, int3 location, thread uint& status) {
     metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_read(uint3(location.x, location.y, location.z));
     status = color.resident();
     return color.value();
@@ -60,7 +60,7 @@ metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 co
 }
 
 template<typename T>
-metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 coord, int3 offset, float clamp, thread uint &status) {
+metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 coord, int3 offset, float clamp, thread uint& status) {
     metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, coord, metal::min_lod_clamp(clamp), offset);
     status = color.resident();
     return color.value();

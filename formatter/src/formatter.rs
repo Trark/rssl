@@ -280,8 +280,7 @@ fn format_function_param(
 ) -> Result<(), FormatError> {
     format_type(&param.param_type, output, context)?;
 
-    output.push(' ');
-    format_declarator(&param.declarator, output, context)?;
+    format_declarator(&param.declarator, true, output, context)?;
     format_location_annotations(&param.location_annotations, output)?;
 
     if let Some(default_expr) = &param.default_expr {
@@ -389,7 +388,7 @@ fn format_type(
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
-    format_type_modifiers(&ty.modifiers, output)?;
+    format_type_modifiers(&ty.modifiers, false, output)?;
     format_type_layout(&ty.layout, output, context)?;
     Ok(())
 }
@@ -416,11 +415,16 @@ fn format_type_layout(
 /// Format type modifiers
 fn format_type_modifiers(
     modifiers: &ast::TypeModifierSet,
+    space_before: bool,
     output: &mut String,
 ) -> Result<(), FormatError> {
     for modifier in &modifiers.modifiers {
         // The debug formatting is the same as we want here
-        write!(output, "{:?} ", modifier.node).unwrap();
+        if space_before {
+            write!(output, " {:?}", modifier.node).unwrap();
+        } else {
+            write!(output, "{:?} ", modifier.node).unwrap();
+        }
     }
     Ok(())
 }
@@ -431,6 +435,7 @@ fn format_init_declarators(
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
+    let single_declaration = init_declarators.len() == 1;
     let mut first = true;
     for entry in init_declarators {
         // Add separator between declarations
@@ -439,7 +444,7 @@ fn format_init_declarators(
         }
         first = false;
 
-        format_init_declarator(entry, output, context)?;
+        format_init_declarator(entry, single_declaration, output, context)?;
     }
     Ok(())
 }
@@ -447,11 +452,19 @@ fn format_init_declarators(
 /// Format variable name and parts of type bound to name with an initializer
 fn format_init_declarator(
     init_declarator: &ast::InitDeclarator,
+    single_declaration: bool,
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
-    output.push(' ');
-    format_declarator(&init_declarator.declarator, output, context)?;
+    if !single_declaration {
+        output.push(' ');
+    }
+    format_declarator(
+        &init_declarator.declarator,
+        single_declaration,
+        output,
+        context,
+    )?;
     format_location_annotations(&init_declarator.location_annotations, output)?;
     format_initializer(&init_declarator.init, output, context)?;
     Ok(())
@@ -460,12 +473,16 @@ fn format_init_declarator(
 /// Format variable name and parts of type bound to name
 fn format_declarator(
     declarator: &ast::Declarator,
+    single_declaration: bool,
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
     match declarator {
         ast::Declarator::Empty => {}
         ast::Declarator::Identifier(name, attributes) => {
+            if single_declaration {
+                output.push(' ');
+            }
             format_scoped_identifier(name, output, context)?;
             format_attributes(attributes, false, true, output, context)?;
         }
@@ -476,20 +493,20 @@ fn format_declarator(
         }) => {
             output.push('*');
             format_attributes(attributes, false, false, output, context)?;
-            format_type_modifiers(qualifiers, output)?;
-            format_declarator(inner, output, context)?;
+            format_type_modifiers(qualifiers, single_declaration, output)?;
+            format_declarator(inner, single_declaration, output, context)?;
         }
         ast::Declarator::Reference(ast::ReferenceDeclarator { attributes, inner }) => {
             output.push('&');
             format_attributes(attributes, false, false, output, context)?;
-            format_declarator(inner, output, context)?;
+            format_declarator(inner, single_declaration, output, context)?;
         }
         ast::Declarator::Array(ast::ArrayDeclarator {
             inner,
             array_size,
             attributes,
         }) => {
-            format_declarator(inner, output, context)?;
+            format_declarator(inner, single_declaration, output, context)?;
             output.push('[');
             if let Some(expr) = array_size {
                 format_expression(expr, output, context)?;

@@ -11,7 +11,7 @@ metal::vec<T, 4> Sample(metal::texturecube<T> texture, metal::sampler s, float3 
 }
 
 template<typename T>
-metal::vec<T, 4> Sample(metal::texturecube<T> texture, metal::sampler s, float3 coord, float clamp, thread uint &status) {
+metal::vec<T, 4> Sample(metal::texturecube<T> texture, metal::sampler s, float3 coord, float clamp, thread uint& status) {
     metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, coord, metal::min_lod_clamp(clamp));
     status = color.resident();
     return color.value();
@@ -28,7 +28,7 @@ metal::vec<T, 4> Sample(metal::texturecube_array<T> texture, metal::sampler s, f
 }
 
 template<typename T>
-metal::vec<T, 4> Sample(metal::texturecube_array<T> texture, metal::sampler s, float4 coord, float clamp, thread uint &status) {
+metal::vec<T, 4> Sample(metal::texturecube_array<T> texture, metal::sampler s, float4 coord, float clamp, thread uint& status) {
     metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, coord.xyz, uint(coord.z), metal::min_lod_clamp(clamp));
     status = color.resident();
     return color.value();
