@@ -1,3 +1,4 @@
+use metal_invoker::*;
 use rssl_msl::ExportError;
 use rssl_text::*;
 
@@ -97,54 +98,15 @@ fn validate_metal(metal_source: &str) {
     let prelude = "#include <metal_stdlib>\n";
     let final_source = prelude.to_string() + metal_source;
 
-    // Get the path to the metal compiler
-    let (program_path, mut args) = if cfg!(target_os = "macos") {
-        // xcrun will find the metal compiler
-        ("xcrun", Vec::from(["-sdk", "macosx", "metal"]))
-    } else if cfg!(target_os = "windows") {
-        // Default file path to the metal tools on Windows
-        let metal_exe_path =
-            "C:\\Program Files\\Metal Developer Tools\\metal\\macos\\bin\\metal.exe";
-        (metal_exe_path, Vec::new())
-    } else {
-        panic!("Unknown metal compiler path");
+    let compiler = match MetalCompiler::find() {
+        Ok(compiler) => compiler,
+        Err(err) => panic!("{}", err),
     };
 
-    args.push("-std=metal3.1");
-
-    // Write output to stdout, which we will ignore
-    args.push("-o");
-    args.push("-");
-
-    // Read input from stdin
-    args.push("-x");
-    args.push("metal");
-    args.push("-c");
-    args.push("-");
-
-    // Spawn the compiler process with stdio piped into us
-    let mut process = std::process::Command::new(program_path)
-        .args(args)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    // Give the metal source to the compiler
-    std::io::Write::write_all(
-        &mut process.stdin.as_mut().unwrap(),
-        final_source.as_bytes(),
-    )
-    .unwrap();
-
-    // Wait for the compiler to finish
-    let result = process.wait_with_output().expect("failed");
+    let execute_result = compiler.execute(&final_source, &["-std=metal3.1"]);
 
     // Ensure the build was a success and display the errors if not
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8(result.stderr).unwrap(),
-    );
+    if let Err(err) = execute_result {
+        panic!("{}", err);
+    }
 }

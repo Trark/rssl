@@ -17,6 +17,7 @@ rssl-formatter = { path = "formatter" }
 rssl-typer = { path = "typer" }
 rssl-hlsl = { path = "hlsl" }
 rssl-msl = { path = "msl" }
+metal_invoker = { path = "metal_invoker" }
 
 [workspace]
 members = [
@@ -28,4 +29,6 @@ members = [
     "text",
     "typer",
     "hlsl",
+    "msl",
+    "metal_invoker",
 ]

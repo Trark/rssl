@@ -16,3 +16,4 @@ rssl-formatter = { path = "../formatter" }
 rssl-preprocess = { path = "../preprocess" }
 rssl-parser = { path = "../parser" }
 rssl-typer = { path = "../typer" }
+metal_invoker = { path = "../metal_invoker" }
