@@ -1337,6 +1337,31 @@ void entry() {
 ",
         GenerateError::UnimplementedConstantBuffer,
     );
+
+    check(
+        "struct MyStruct
+{
+    uint m;
+};
+
+const ConstantBuffer<MyStruct> g_input : register(b0);
+
+void test() {
+    const MyStruct s1 = (MyStruct)g_input;
+    const uint m1 = g_input.m;
+}
+",
+        "struct MyStruct
+{
+    uint m;
+};
+
+void test(constant MyStruct& g_input) {
+    const MyStruct s1 = (MyStruct)g_input;
+    const uint m1 = g_input.m;
+}
+",
+    );
 }
 
 #[test]

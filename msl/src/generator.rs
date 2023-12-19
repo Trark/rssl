@@ -197,6 +197,9 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                             | ir::ObjectType::RWStructuredBuffer(_) => {
                                 (Some(ast::AddressSpace::Device), true)
                             }
+                            ir::ObjectType::ConstantBuffer(_) => {
+                                (Some(ast::AddressSpace::Constant), true)
+                            }
                             _ => {
                                 // Types that turn into intrinsic object types do not
                                 (None, true)
@@ -999,7 +1002,23 @@ fn generate_type_impl(
                 }
                 RWTexture3D(ty) => build_texture("texture3d", ty, true, context)?,
 
-                ConstantBuffer(_) => return Err(GenerateError::UnimplementedObject(ot)),
+                ConstantBuffer(id) => {
+                    let ty = generate_type(id, context)?;
+
+                    assert!(!ty
+                        .modifiers
+                        .modifiers
+                        .contains(&Located::none(ast::TypeModifier::Const)));
+
+                    let prev_declarator =
+                        std::mem::replace(&mut declarator, ast::Declarator::Empty);
+                    declarator = ast::Declarator::Reference(ast::ReferenceDeclarator {
+                        attributes: Vec::new(),
+                        inner: Box::new(prev_declarator),
+                    });
+
+                    ty
+                }
                 SamplerState => ast::Type::from(metal_lib_identifier("sampler")),
                 SamplerComparisonState => ast::Type::from(metal_lib_identifier("sampler")),
 
@@ -1072,6 +1091,13 @@ fn generate_type_impl(
             // Array layers can be inside modifiers - when we export the modifier ends up with the type
             // The language does not distinguish between a "const array T" vs an "array const T"
             declarator = inner_declarator;
+
+            // If we are a reference type then modifying the reference is not valid
+            // However in the case of const the reference itself is already immutable
+            let already_immutable = matches!(declarator, ast::Declarator::Reference(_));
+            if already_immutable {
+                modifier.is_const = false;
+            }
 
             let mut modifiers = Vec::new();
             if modifier.row_major {
