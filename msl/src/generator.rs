@@ -1887,10 +1887,19 @@ fn generate_intrinsic_function(
         RWBufferLoad => Form::Unimplemented,
 
         StructuredBufferGetDimensions => Form::Unimplemented,
-        StructuredBufferLoad => Form::Unimplemented,
+        StructuredBufferLoad | RWStructuredBufferLoad => {
+            if exprs.len() == 2 {
+                assert_eq!(exprs.len(), 2);
+                let object_ir = Box::new(Located::none(generate_expression(&exprs[0], context)?));
+                let subscript_ir =
+                    Box::new(Located::none(generate_expression(&exprs[1], context)?));
+                return Ok(ast::Expression::ArraySubscript(object_ir, subscript_ir));
+            } else {
+                Form::Unimplemented
+            }
+        }
 
         RWStructuredBufferGetDimensions => Form::Unimplemented,
-        RWStructuredBufferLoad => Form::Unimplemented,
 
         ByteAddressBufferGetDimensions => Form::Unimplemented,
         ByteAddressBufferLoad => Form::Unimplemented,
