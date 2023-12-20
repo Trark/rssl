@@ -307,7 +307,7 @@ fn analyse_bindings(
         | ir::RootDefinition::FunctionDeclaration(_)
         | ir::RootDefinition::Function(_) => {}
         ir::RootDefinition::ConstantBuffer(_) => {
-            return Err(GenerateError::UnimplementedConstantBuffer);
+            return Err(GenerateError::ConstantBuffersNotSimplified);
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let decl = &module.global_registry[id.0 as usize];

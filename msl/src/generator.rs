@@ -28,6 +28,9 @@ pub enum GenerateError {
     /// Input module is invalid
     InvalidModule,
 
+    /// We expect all input constant buffers to have been transformed into struct / global pairs already
+    ConstantBuffersNotSimplified,
+
     /// Unable to generate a valid ast for a type with an array modifier in this position
     ComplexTypeBind,
 
@@ -79,9 +82,6 @@ pub enum GenerateError {
     /// RSSL object type is not implemented yet
     UnimplementedObject(ir::ObjectType),
 
-    /// Constant buffers are not implemented
-    UnimplementedConstantBuffer,
-
     /// RSSL intrinsic is not implemented yet
     UnimplementedIntrinsic(ir::Intrinsic),
 
@@ -102,6 +102,10 @@ pub enum GenerateError {
 pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateError> {
     let mut context = GenerateContext::new(module);
     let mut root_definitions = Vec::new();
+
+    if !module.cbuffer_registry.is_empty() {
+        return Err(GenerateError::ConstantBuffersNotSimplified);
+    }
 
     analyse_globals(&mut context)?;
 
@@ -399,7 +403,7 @@ fn generate_root_definition(
             Vec::from([ast::RootDefinition::Enum(def)])
         }
         ir::RootDefinition::ConstantBuffer(_) => {
-            return Err(GenerateError::UnimplementedConstantBuffer);
+            return Err(GenerateError::ConstantBuffersNotSimplified);
         }
         ir::RootDefinition::GlobalVariable(id) => {
             let mode = context.global_variable_modes.get(id).unwrap();
@@ -1547,9 +1551,8 @@ fn generate_expression(
         ir::Expression::Global(v) => ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
             context.get_global_name(*v)?,
         )),
-        ir::Expression::ConstantVariable(id) => {
-            let def = &context.module.cbuffer_registry[id.0 .0 as usize].members[id.1 as usize];
-            ast::Expression::Identifier(ast::ScopedIdentifier::trivial(&def.name))
+        ir::Expression::ConstantVariable(_) => {
+            return Err(GenerateError::ConstantBuffersNotSimplified);
         }
         ir::Expression::EnumValue(id) => ast::Expression::Identifier(scoped_name_to_identifier(
             context.get_enum_value_name_full(*id)?,

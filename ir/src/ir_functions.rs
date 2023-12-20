@@ -186,6 +186,14 @@ impl FunctionRegistry {
     }
 
     /// Get the implementation from a function id
+    pub fn get_function_implementation_mut(
+        &mut self,
+        id: FunctionId,
+    ) -> &mut Option<FunctionImplementation> {
+        &mut self.implementations[id.0 as usize]
+    }
+
+    /// Get the implementation from a function id
     pub fn get_intrinsic_data(&self, id: FunctionId) -> &Option<Intrinsic> {
         &self.intrinsic_data[id.0 as usize]
     }

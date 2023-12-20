@@ -39,4 +39,7 @@ pub mod export;
 
 pub mod name_generator;
 
+mod simplify_cbuffers;
+pub use simplify_cbuffers::simplify_cbuffers;
+
 pub mod usage_analysis;

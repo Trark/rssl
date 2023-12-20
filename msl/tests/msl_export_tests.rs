@@ -1320,7 +1320,7 @@ fn check_intrinsic_functions() {
 
 #[test]
 fn check_constant_buffer() {
-    expect_generate_fail(
+    check(
         "cbuffer GlobalConstants
 {
     float4 v0;
@@ -1335,7 +1335,21 @@ void entry() {
     m2;
 }
 ",
-        GenerateError::UnimplementedConstantBuffer,
+        "struct GlobalConstantsType
+{
+    float4 v0;
+    uint4 v1;
+    metal::float4x4 m2;
+    float a3[2];
+    float a4[3][4];
+};
+
+void entry(constant GlobalConstantsType& GlobalConstants) {
+    GlobalConstants.v0;
+    GlobalConstants.v1.wwww;
+    GlobalConstants.m2;
+}
+",
     );
 
     check(
