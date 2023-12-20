@@ -293,8 +293,7 @@ fn test_ast_to_ir() {
             );
 
             let mut intrinsic_func_id = None;
-            for i in 0..actual.function_registry.get_function_count() {
-                let id = ir::FunctionId(i);
+            for id in actual.function_registry.iter() {
                 if let Some(ir::Intrinsic::GroupMemoryBarrierWithGroupSync) =
                     actual.function_registry.get_intrinsic_data(id)
                 {

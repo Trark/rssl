@@ -26,9 +26,7 @@ impl GlobalUsageAnalysis {
     fn calculate_local(module: &Module) -> GlobalUsageAnalysis {
         let mut result = HashMap::new();
 
-        let function_count = module.function_registry.get_function_count();
-        for index in 0..function_count {
-            let id = FunctionId(index);
+        for id in module.function_registry.iter() {
             let usage = LocalUsageAnalysis::calculate_for_function(id, module);
             let valid_insert = result.insert(UsageSymbol::Function(id), usage).is_none();
             assert!(valid_insert);

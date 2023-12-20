@@ -546,9 +546,7 @@ fn generate_function(
     if is_template {
         let mut fs = Vec::new();
 
-        let function_count = context.module.function_registry.get_function_count();
-        for index in 0..function_count {
-            let child_id = ir::FunctionId(index);
+        for child_id in context.module.function_registry.iter() {
             if let Some(data) = context
                 .module
                 .function_registry

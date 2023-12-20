@@ -97,8 +97,7 @@ pub fn simplify_cbuffers(module: &mut Module) {
 
     // Ignore struct templates as they are already resolved by this point anyway
 
-    for i in 0..module.function_registry.get_function_count() {
-        let id = FunctionId(i);
+    for id in module.function_registry.iter() {
         if let Some(function_impl) = module.function_registry.get_function_implementation_mut(id) {
             for param in &mut function_impl.params {
                 if let Some(expr) = &mut param.default_expr {

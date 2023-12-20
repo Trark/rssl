@@ -108,9 +108,7 @@ impl NameMap {
             name_vec.push(NameSymbol::GlobalVariable(id));
         }
 
-        for i in 0..module.function_registry.get_function_count() {
-            let id = FunctionId(i);
-
+        for id in module.function_registry.iter() {
             // Do not assign names to intrinsics
             let is_intrinsic = module.function_registry.get_intrinsic_data(id).is_some();
             if is_intrinsic {

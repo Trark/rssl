@@ -160,6 +160,17 @@ impl FunctionRegistry {
         self.names.len() as u32
     }
 
+    /// Iterate the set of valid function ids
+    ///
+    /// This does not take a reference to the registry so the caller may modify the functions when this is in progress
+    /// In this case if new functions are registered the iterator will stop before it reaches the new functions
+    pub fn iter(&self) -> FunctionIdIterator {
+        FunctionIdIterator {
+            current: 0,
+            end: self.get_function_count(),
+        }
+    }
+
     /// Get the signature from a function id
     pub fn get_function_signature(&self, id: FunctionId) -> &FunctionSignature {
         &self.signatures[id.0 as usize]
@@ -242,6 +253,25 @@ impl Default for FunctionRegistry {
             template_source: Vec::with_capacity(1024),
             template_instantiation_data: Vec::with_capacity(1024),
         }
+    }
+}
+
+pub struct FunctionIdIterator {
+    current: u32,
+    end: u32,
+}
+
+impl Iterator for FunctionIdIterator {
+    type Item = FunctionId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = if self.current < self.end {
+            Some(FunctionId(self.current))
+        } else {
+            None
+        };
+        self.current += 1;
+        result
     }
 }
 

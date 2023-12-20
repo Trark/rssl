@@ -190,9 +190,7 @@ fn add_stage(
     };
 
     let mut func_id = None;
-    let intrinsic_count = context.module.function_registry.get_function_count();
-    for index in 1..intrinsic_count {
-        let id = ir::FunctionId(index);
+    for id in context.module.function_registry.iter() {
         let name = context.module.function_registry.get_function_name(id);
         if name == entry_name {
             if func_id.is_some() {

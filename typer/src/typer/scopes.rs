@@ -106,9 +106,7 @@ impl Context {
         }
 
         // For each intrinsic function
-        for i in 0..context.module.function_registry.get_function_count() {
-            let id = ir::FunctionId(i);
-
+        for id in context.module.function_registry.iter() {
             assert!(context
                 .module
                 .function_registry

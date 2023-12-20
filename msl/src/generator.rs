@@ -261,10 +261,7 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
         assert!(valid_insert);
     }
 
-    let function_count = context.module.function_registry.get_function_count();
-    for i in 0..function_count {
-        let id = ir::FunctionId(i);
-
+    for id in context.module.function_registry.iter() {
         if context
             .module
             .function_registry
@@ -471,9 +468,7 @@ fn generate_function(
     if is_template {
         let mut fs = Vec::new();
 
-        let function_count = context.module.function_registry.get_function_count();
-        for index in 0..function_count {
-            let child_id = ir::FunctionId(index);
+        for child_id in context.module.function_registry.iter() {
             if let Some(data) = context
                 .module
                 .function_registry
