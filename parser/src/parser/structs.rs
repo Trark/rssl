@@ -133,7 +133,7 @@ fn test_struct() {
                     InitDeclarator {
                         declarator: Declarator::Array(ArrayDeclarator {
                             inner: Box::new("a".loc(23).into()),
-                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).loc(25)),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).bloc(25)),
                             attributes: Vec::new(),
                         }),
                         location_annotations: Vec::new(),
@@ -144,11 +144,11 @@ fn test_struct() {
                             inner: Box::new(Declarator::Array(ArrayDeclarator {
                                 inner: Box::new("b".loc(29).into()),
                                 array_size: Some(
-                                    Expression::Literal(Literal::IntUntyped(3)).loc(31),
+                                    Expression::Literal(Literal::IntUntyped(3)).bloc(31),
                                 ),
                                 attributes: Vec::new(),
                             })),
-                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(34)),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).bloc(34)),
                             attributes: Vec::new(),
                         }),
                         location_annotations: Vec::new(),
@@ -234,7 +234,7 @@ fn test_struct() {
                     InitDeclarator {
                         declarator: Declarator::Array(ArrayDeclarator {
                             inner: Box::new("a".loc(23).into()),
-                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).loc(25)),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).bloc(25)),
                             attributes: Vec::new(),
                         }),
                         location_annotations: Vec::from([LocationAnnotation::Semantic(
@@ -247,11 +247,11 @@ fn test_struct() {
                             inner: Box::new(Declarator::Array(ArrayDeclarator {
                                 inner: Box::new("b".loc(37).into()),
                                 array_size: Some(
-                                    Expression::Literal(Literal::IntUntyped(3)).loc(39),
+                                    Expression::Literal(Literal::IntUntyped(3)).bloc(39),
                                 ),
                                 attributes: Vec::new(),
                             })),
-                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(42)),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).bloc(42)),
                             attributes: Vec::new(),
                         }),
                         location_annotations: Vec::from([LocationAnnotation::Semantic(

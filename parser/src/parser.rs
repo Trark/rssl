@@ -192,10 +192,10 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 mod types;
 use types::{parse_template_params, parse_type};
 
-fn parse_arraydim(input: &[LexToken]) -> ParseResult<Option<Located<Expression>>> {
+fn parse_arraydim(input: &[LexToken]) -> ParseResult<Option<Box<Located<Expression>>>> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
     let (input, constant_expression) = match parse_expression_no_seq(input) {
-        Ok((rest, constant_expression)) => (rest, Some(constant_expression)),
+        Ok((rest, constant_expression)) => (rest, Some(Box::new(constant_expression))),
         _ => (input, None),
     };
     let (input, _) = parse_token(Token::RightSquareBracket)(input)?;

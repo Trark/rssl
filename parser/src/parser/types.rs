@@ -1,4 +1,4 @@
-use super::declarations::parse_declarator;
+use super::declarations::{parse_abstract_declarator, parse_declarator};
 use super::*;
 
 /// Parse a type layout
@@ -128,16 +128,38 @@ pub fn parse_type_modifiers_after<'t>(
 }
 
 /// Parse a type
-pub fn parse_type_with_symbols<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-) -> ParseResult<'t, Type> {
-    parse_type_internal(input, Some(st))
-}
-
-/// Parse a type
 pub fn parse_type(input: &[LexToken]) -> ParseResult<Type> {
     parse_type_internal(input, None)
+}
+
+/// Parse a type id
+pub fn parse_type_id_with_symbols<'t>(
+    input: &'t [LexToken],
+    st: &SymbolTable,
+) -> ParseResult<'t, TypeId> {
+    parse_type_id_internal(input, Some(st))
+}
+
+/// Parse a type id
+pub fn parse_type_id(input: &[LexToken]) -> ParseResult<TypeId> {
+    parse_type_id_internal(input, None)
+}
+
+/// Parse a type id
+fn parse_type_id_internal<'t>(
+    input: &'t [LexToken],
+    st: Option<&SymbolTable>,
+) -> ParseResult<'t, TypeId> {
+    let (input, base) = parse_type_internal(input, st)?;
+
+    let (input, abstract_declarator) = parse_abstract_declarator(input)?;
+
+    let ty = TypeId {
+        base,
+        abstract_declarator,
+    };
+
+    Ok((input, ty))
 }
 
 #[test]
@@ -416,7 +438,7 @@ fn test_typedef() {
             source: Type::from("uint".loc(8)),
             declarator: Declarator::Array(ArrayDeclarator {
                 inner: Box::new(Declarator::from("u32x4".loc(13))),
-                array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(19)),
+                array_size: Some(Expression::Literal(Literal::IntUntyped(4)).bloc(19)),
                 attributes: Vec::new(),
             }),
         },

@@ -70,7 +70,7 @@ pub fn parse_declarator(
                             }
                             Some(val) => Some(val),
                             None => {
-                                let p = (**dim_expr).clone();
+                                let p = (***dim_expr).clone();
                                 return Err(TyperError::ArrayDimensionsMustBeConstantExpression(
                                     p,
                                     dim_expr.get_location(),

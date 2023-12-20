@@ -22,13 +22,26 @@ fn parse_init_declarator(input: &[LexToken]) -> ParseResult<InitDeclarator> {
 
 /// Parse the declarator part of a declaration
 pub fn parse_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
+    parse_declarator_internal(input, false)
+}
+
+/// Parse the declarator part of a type id
+pub fn parse_abstract_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
+    parse_declarator_internal(input, true)
+}
+
+/// Parse the declarator part of a declaration or type id
+fn parse_declarator_internal(
+    input: &[LexToken],
+    abstract_declarator: bool,
+) -> ParseResult<Declarator> {
     if let Ok((input, _)) = parse_token(Token::Asterix)(input) {
         let (input, attributes) = parse_multiple(parse_attribute)(input)?;
 
         let mut modifiers = TypeModifierSet::default();
         let input = parse_type_modifiers_after(input, &mut modifiers);
 
-        let (input, inner) = parse_declarator(input)?;
+        let (input, inner) = parse_declarator_internal(input, abstract_declarator)?;
 
         let decl = Declarator::Pointer(PointerDeclarator {
             attributes,
@@ -40,7 +53,7 @@ pub fn parse_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
 
     if let Ok((input, _)) = parse_token(Token::Ampersand)(input) {
         let (input, attributes) = parse_multiple(parse_attribute)(input)?;
-        let (input, inner) = parse_declarator(input)?;
+        let (input, inner) = parse_declarator_internal(input, abstract_declarator)?;
 
         let decl = Declarator::Reference(ReferenceDeclarator {
             attributes,
@@ -49,13 +62,19 @@ pub fn parse_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
         return Ok((input, decl));
     };
 
-    let (input, identifier) = parse_variable_name(input)?;
-    let (input, identifier_attributes) = parse_multiple(parse_attribute_double_only)(input)?;
+    let (input, mut decl) = if abstract_declarator {
+        (input, Declarator::Empty)
+    } else {
+        let (input, identifier) = parse_variable_name(input)?;
+        let (input, identifier_attributes) = parse_multiple(parse_attribute_double_only)(input)?;
 
-    let mut decl = Declarator::Identifier(
-        ScopedIdentifier::unqualified(identifier),
-        identifier_attributes,
-    );
+        let decl = Declarator::Identifier(
+            ScopedIdentifier::unqualified(identifier),
+            identifier_attributes,
+        );
+
+        (input, decl)
+    };
 
     let mut input = input;
     while let Ok((next, array_size)) = parse_arraydim(input) {

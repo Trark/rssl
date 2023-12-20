@@ -23,7 +23,7 @@ fn test_ast_pass() {
             ast::RootDefinition::GlobalVariable(ast::GlobalVariable {
                 global_type: ast::Type::from_layout(ast::TypeLayout::with_template_types(
                     Located::none("RWBuffer"),
-                    &[ast::ExpressionOrType::Type(ast::Type::from("float4"))],
+                    &[ast::ExpressionOrType::Type(ast::TypeId::from("float4"))],
                 )),
                 defs: Vec::from([ast::InitDeclarator {
                     declarator: ast::Declarator::Identifier(
@@ -181,8 +181,8 @@ fn test_ast_pass() {
                                     ast::ScopedIdentifier::trivial("x"),
                                     Vec::new(),
                                 )),
-                                array_size: Some(Located::none(ast::Expression::Literal(
-                                    ast::Literal::IntUntyped(3),
+                                array_size: Some(Box::new(Located::none(
+                                    ast::Expression::Literal(ast::Literal::IntUntyped(3)),
                                 ))),
                                 attributes: Vec::new(),
                             }),

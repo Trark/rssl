@@ -1,4 +1,4 @@
-use crate::ast_types::Type;
+use crate::ast_types::{Type, TypeId};
 use rssl_text::{Locate, Located, SourceLocation};
 
 /// An RSSL expression
@@ -25,7 +25,7 @@ pub enum Expression {
         /// Arguments
         Vec<Located<Expression>>,
     ),
-    Cast(Type, Box<Located<Expression>>),
+    Cast(TypeId, Box<Located<Expression>>),
     /// sizeof() an expression or a direct type
     SizeOf(Box<ExpressionOrType>),
     /// Set of expressions which may be selected depending on known type names
@@ -119,10 +119,10 @@ pub enum ExpressionOrType {
     Expression(Located<Expression>),
 
     /// Fragment must be a type
-    Type(Type),
+    Type(TypeId),
 
     /// Fragment may be a type or an expression depending on context
-    Either(Located<Expression>, Type),
+    Either(Located<Expression>, TypeId),
 }
 
 /// Expression which can only be activated when certain symbols are types
@@ -204,11 +204,11 @@ impl From<Located<&str>> for ExpressionOrType {
         let location = name.location;
         ExpressionOrType::Either(
             Located::new(Expression::Identifier(name.clone().into()), name.location),
-            Type {
+            TypeId::from(Type {
                 layout: name.into(),
                 modifiers: Default::default(),
                 location,
-            },
+            }),
         )
     }
 }

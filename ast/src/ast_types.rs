@@ -4,7 +4,7 @@ use crate::ExpressionOrType;
 use crate::ScopedIdentifier;
 use rssl_text::{Locate, Located, SourceLocation};
 
-/// A full type name reference
+/// The type part of a declaration
 ///
 /// As AST does not have full type information this may trigger ambiguous parse branches in the tree.
 #[derive(PartialEq, Clone)]
@@ -12,6 +12,18 @@ pub struct Type {
     pub layout: TypeLayout,
     pub modifiers: TypeModifierSet,
     pub location: SourceLocation,
+}
+
+/// A type-id that includes both a base type and optionally modifiers from an abstract declarator
+///
+/// As AST does not have full type information this may trigger ambiguous parse branches in the tree.
+#[derive(PartialEq, Clone)]
+pub struct TypeId {
+    /// The type specifier part of the type
+    pub base: Type,
+
+    /// The modifiers from the declarator part. The base must be [Declarator::Empty] and not [Declarator::Identifier].
+    pub abstract_declarator: Declarator,
 }
 
 /// A type name reference without modifiers
@@ -282,6 +294,18 @@ impl Locate for Type {
     }
 }
 
+impl Locate for TypeId {
+    fn get_location(&self) -> SourceLocation {
+        self.base.get_location()
+    }
+}
+
+impl From<TypeLayout> for Type {
+    fn from(layout: TypeLayout) -> Self {
+        Type::from_layout(layout)
+    }
+}
+
 impl From<&str> for Type {
     fn from(name: &str) -> Self {
         Located::none(name).into()
@@ -307,6 +331,39 @@ impl From<ScopedIdentifier> for Type {
             modifiers: Default::default(),
             location,
         }
+    }
+}
+
+impl From<Type> for TypeId {
+    fn from(base: Type) -> Self {
+        TypeId {
+            base,
+            abstract_declarator: Declarator::Empty,
+        }
+    }
+}
+
+impl From<TypeLayout> for TypeId {
+    fn from(layout: TypeLayout) -> Self {
+        TypeId::from(Type::from(layout))
+    }
+}
+
+impl From<&str> for TypeId {
+    fn from(name: &str) -> Self {
+        TypeId::from(Type::from(name))
+    }
+}
+
+impl From<Located<&str>> for TypeId {
+    fn from(name: Located<&str>) -> Self {
+        TypeId::from(Type::from(name))
+    }
+}
+
+impl From<ScopedIdentifier> for TypeId {
+    fn from(name: ScopedIdentifier) -> Self {
+        TypeId::from(Type::from(name))
     }
 }
 
@@ -337,6 +394,16 @@ impl std::fmt::Debug for Type {
             self.layout,
             self.location.get_raw()
         )
+    }
+}
+
+impl std::fmt::Debug for TypeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.abstract_declarator == Declarator::Empty {
+            write!(f, "{:?}", self.base)
+        } else {
+            write!(f, "{:?} ~ {:?}", self.base, self.abstract_declarator)
+        }
     }
 }
 

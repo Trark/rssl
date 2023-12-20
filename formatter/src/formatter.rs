@@ -393,6 +393,17 @@ fn format_type(
     Ok(())
 }
 
+/// Format a type id
+fn format_type_id(
+    ty: &ast::TypeId,
+    output: &mut String,
+    context: &mut FormatContext,
+) -> Result<(), FormatError> {
+    format_type(&ty.base, output, context)?;
+    format_declarator(&ty.abstract_declarator, true, output, context)?;
+    Ok(())
+}
+
 /// Format a type without modifiers
 fn format_type_layout(
     ty: &ast::TypeLayout,
@@ -555,7 +566,7 @@ fn format_expression_or_type(
         ast::ExpressionOrType::Expression(expr) | ast::ExpressionOrType::Either(expr, _) => {
             format_expression(expr, output, context)
         }
-        ast::ExpressionOrType::Type(ty) => format_type(ty, output, context),
+        ast::ExpressionOrType::Type(ty) => format_type_id(ty, output, context),
     }
 }
 
@@ -887,7 +898,7 @@ fn format_subexpression(
         }
         ast::Expression::Cast(ty, expr) => {
             output.push('(');
-            format_type(ty, output, context)?;
+            format_type_id(ty, output, context)?;
             output.push(')');
             format_subexpression(expr, prec, OperatorSide::Right, output, context)?;
         }

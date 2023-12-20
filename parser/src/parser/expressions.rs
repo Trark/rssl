@@ -1,5 +1,5 @@
 use super::errors::get_result_significance;
-use super::types::parse_type_with_symbols;
+use super::types::{parse_type_id, parse_type_id_with_symbols};
 use super::*;
 
 /// Try to parse a literal
@@ -85,8 +85,8 @@ fn parse_expression_or_type_with_or_without_symbols<'t>(
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, ExpressionOrType> {
     let type_result = match st {
-        Some(st) => parse_type_with_symbols(input, st),
-        None => parse_type(input),
+        Some(st) => parse_type_id_with_symbols(input, st),
+        None => parse_type_id(input),
     };
     let expr_result = parse_expression_resolve_symbols(input, Terminator::TypeList);
 
@@ -363,8 +363,9 @@ fn expr_p2<'t>(
         st: &mut SymbolTable,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
-        let (input, cast) = contextual(parse_type_with_symbols, st)(input)?;
-        st.assumed_symbols.push(cast.layout.0.clone().unlocate());
+        let (input, cast) = contextual(parse_type_id_with_symbols, st)(input)?;
+        st.assumed_symbols
+            .push(cast.base.layout.0.clone().unlocate());
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st)?;
         Ok((
@@ -1224,12 +1225,12 @@ fn test_cast() {
 
     expr.check(
         "(float) b",
-        Expression::Cast(Type::from("float".loc(1)), "b".as_bvar(8)).loc(0),
+        Expression::Cast(TypeId::from("float".loc(1)), "b".as_bvar(8)).loc(0),
     );
 
     expr.check(
         "(float3) x",
-        Expression::Cast(Type::from("float3".loc(1)), "x".as_bvar(9)).loc(0),
+        Expression::Cast(TypeId::from("float3".loc(1)), "x".as_bvar(9)).loc(0),
     );
 
     expr.check(
@@ -1259,7 +1260,7 @@ fn test_cast() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    Type::from("float2".loc(1)),
+                    TypeId::from("float2".loc(1)),
                     Expression::BinaryOperation(BinOp::Sequence, "x".as_bvar(9), "y".as_bvar(12))
                         .bloc(8),
                 )
@@ -1290,7 +1291,7 @@ fn test_ambiguous() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    Type::from("a".loc(1)),
+                    TypeId::from("a".loc(1)),
                     Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
                 )
                 .loc(0),
@@ -1314,11 +1315,11 @@ fn test_ambiguous() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    Type::from("a".loc(1)),
+                    TypeId::from("a".loc(1)),
                     Expression::UnaryOperation(
                         UnaryOp::Plus,
                         Expression::Cast(
-                            Type::from("b".loc(7)),
+                            TypeId::from("b".loc(7)),
                             Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12))
                                 .bloc(10),
                         )
@@ -1337,7 +1338,7 @@ fn test_ambiguous() {
                     BinOp::Add,
                     "a".as_bvar2(1, 0),
                     Expression::Cast(
-                        Type::from("b".loc(7)),
+                        TypeId::from("b".loc(7)),
                         Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12)).bloc(10),
                     )
                     .bloc(6),
@@ -1349,7 +1350,7 @@ fn test_ambiguous() {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
                     Expression::Cast(
-                        Type::from("a".loc(1)),
+                        TypeId::from("a".loc(1)),
                         Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
                     )
                     .bloc(0),
@@ -1418,8 +1419,21 @@ fn test_sizeof() {
         " sizeof ( float4 ) ",
         Expression::SizeOf(Box::new(ExpressionOrType::Either(
             Expression::Identifier("float4".loc(10).into()).loc(10),
-            Type::from("float4".loc(10)),
+            TypeId::from("float4".loc(10)),
         )))
+        .loc(1),
+    );
+
+    expr.check(
+        " sizeof ( float4* ) ",
+        Expression::SizeOf(Box::new(ExpressionOrType::Type(TypeId {
+            base: Type::from("float4".loc(10)),
+            abstract_declarator: Declarator::Pointer(PointerDeclarator {
+                attributes: Vec::new(),
+                qualifiers: Default::default(),
+                inner: Box::new(Declarator::Empty),
+            }),
+        })))
         .loc(1),
     );
 }
@@ -1546,7 +1560,7 @@ fn test_method_call() {
                 "i".as_bvar(19),
                 Expression::SizeOf(Box::new(ExpressionOrType::Either(
                     Expression::Identifier("float4".loc(30).into()).loc(30),
-                    Type::from("float4".loc(30)),
+                    TypeId::from("float4".loc(30)),
                 )))
                 .bloc(23),
             )

@@ -1893,9 +1893,12 @@ fn parse_expr_unchecked(
         ast::Expression::Cast(ref ty, ref expr) => {
             let expr_texp = parse_expr_internal(expr, context)?;
             let expr_pt = expr_texp.to_error_type();
+            if ty.abstract_declarator != ast::Declarator::Empty {
+                return Err(TyperError::InvalidTypeDeclarator(ty.get_location()));
+            }
             match expr_texp {
                 TypedExpression::Value(expr_ir, _) => {
-                    let ir_type = parse_type(ty, context)?;
+                    let ir_type = parse_type(&ty.base, context)?;
                     Ok(TypedExpression::Value(
                         ir::Expression::Cast(ir_type, Box::new(expr_ir)),
                         ir_type.to_rvalue(),
@@ -1903,7 +1906,7 @@ fn parse_expr_unchecked(
                 }
                 _ => Err(TyperError::InvalidCast(
                     expr_pt,
-                    ErrorType::Untyped(ty.clone()),
+                    ErrorType::Untyped(ty.base.clone()),
                     expr.get_location(),
                 )),
             }
@@ -1911,7 +1914,10 @@ fn parse_expr_unchecked(
         ast::Expression::SizeOf(ref expr_or_ty) => {
             let (ty, loc) = match **expr_or_ty {
                 ast::ExpressionOrType::Type(ref ast_ty) => {
-                    let ty = parse_type(ast_ty, context)?;
+                    if ast_ty.abstract_declarator != ast::Declarator::Empty {
+                        return Err(TyperError::InvalidTypeDeclarator(ast_ty.get_location()));
+                    }
+                    let ty = parse_type(&ast_ty.base, context)?;
                     (ty, ast_ty.get_location())
                 }
                 ast::ExpressionOrType::Expression(ref ast_expr) => {
@@ -1920,7 +1926,10 @@ fn parse_expr_unchecked(
                 }
                 ast::ExpressionOrType::Either(ref ast_expr, ref ast_ty) => {
                     // TODO: Only try the path that should succeed based on known types
-                    if let Ok(ir_ty) = parse_type(ast_ty, context) {
+                    if ast_ty.abstract_declarator != ast::Declarator::Empty {
+                        return Err(TyperError::InvalidTypeDeclarator(ast_ty.get_location()));
+                    }
+                    if let Ok(ir_ty) = parse_type(&ast_ty.base, context) {
                         (ir_ty, ast_ty.get_location())
                     } else {
                         let ty = parse_expr(ast_expr, context)?.1 .0;

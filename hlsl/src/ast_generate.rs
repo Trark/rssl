@@ -212,7 +212,8 @@ fn generate_inline_constant_buffers(
         assert_eq!(buffer.size_in_bytes, found_size);
 
         let struct_name = format!("InlineDescriptor{}", buffer.set);
-        let struct_name_identifier = ast::ExpressionOrType::Type(ast::Type::trivial(&struct_name));
+        let struct_name_identifier =
+            ast::ExpressionOrType::Type(ast::TypeId::from(ast::Type::trivial(&struct_name)));
 
         let inline_descriptor = ast::StructDefinition {
             name: Located::none(struct_name),
@@ -827,6 +828,20 @@ fn generate_type(
     Ok(base)
 }
 
+/// Generate type id
+fn generate_type_id(
+    ty: ir::TypeId,
+    context: &mut GenerateContext,
+) -> Result<ast::TypeId, GenerateError> {
+    let base_declarator = ast::Declarator::Empty;
+    let (base, declarator) = generate_type_impl(ty, base_declarator, false, context)?;
+    assert!(declarator.is_abstract());
+    Ok(ast::TypeId {
+        base,
+        abstract_declarator: declarator,
+    })
+}
+
 /// Generate base type and declarator from a type for a declaration
 fn generate_type_and_declarator(
     ty: ir::TypeId,
@@ -894,7 +909,7 @@ fn generate_type_impl(
             ) -> Result<ast::Type, GenerateError> {
                 Ok(ast::Type::with_template_types(
                     Located::none(name),
-                    &[ast::ExpressionOrType::Type(generate_type(ty, context)?)],
+                    &[ast::ExpressionOrType::Type(generate_type_id(ty, context)?)],
                 ))
             }
 
@@ -968,7 +983,7 @@ fn generate_type_impl(
 
             declarator = ast::Declarator::Array(ast::ArrayDeclarator {
                 inner: Box::new(declarator),
-                array_size,
+                array_size: array_size.map(Box::new),
                 attributes: Vec::new(),
             });
 
@@ -1047,7 +1062,7 @@ fn generate_type_or_constant(
 ) -> Result<ast::ExpressionOrType, GenerateError> {
     match tc {
         ir::TypeOrConstant::Type(ty) => {
-            let ty = generate_type(*ty, context)?;
+            let ty = generate_type_id(*ty, context)?;
             Ok(ast::ExpressionOrType::Type(ty))
         }
         ir::TypeOrConstant::Constant(c) => {
@@ -1115,8 +1130,7 @@ fn generate_literal(
                     let enum_type = {
                         let scoped_name = context.get_enum_name_full(id)?;
                         let identifier = scoped_name_to_identifier(scoped_name);
-
-                        ast::Type::from_layout(ast::TypeLayout(identifier, Default::default()))
+                        ast::TypeId::from(identifier)
                     };
 
                     let literal_expr = {
@@ -1546,14 +1560,14 @@ fn generate_expression(
             let inner = generate_expression(expr, context)?;
 
             if !to_literal {
-                let ty = generate_type(*type_id, context)?;
+                let ty = generate_type_id(*type_id, context)?;
                 ast::Expression::Cast(ty, Box::new(Located::none(inner)))
             } else {
                 inner
             }
         }
         ir::Expression::SizeOf(type_id) => {
-            let ty = generate_type(*type_id, context)?;
+            let ty = generate_type_id(*type_id, context)?;
             ast::Expression::SizeOf(Box::new(ast::ExpressionOrType::Type(ty)))
         }
         ir::Expression::StructMember(expr, id, member_index) => {

@@ -129,7 +129,7 @@ fn test_global_variable() {
         GlobalVariable {
             global_type: Type::from_layout(TypeLayout::with_template_types(
                 "Buffer".loc(0),
-                &[ExpressionOrType::Type(Type::from_layout(
+                &[ExpressionOrType::Type(TypeId::from(
                     TypeLayout::with_template_types(
                         "vector".loc(7),
                         &[
@@ -238,7 +238,7 @@ fn test_global_variable() {
                         },
                         Vec::new(),
                     )),
-                    array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(22)),
+                    array_size: Some(Expression::Literal(Literal::IntUntyped(4)).bloc(22)),
                     attributes: Vec::new(),
                 }),
                 location_annotations: Vec::new(),
@@ -270,7 +270,7 @@ fn test_global_variable() {
                         },
                         Vec::new(),
                     )),
-                    array_size: Some(Expression::Literal(Literal::IntUntyped(32)).loc(30)),
+                    array_size: Some(Expression::Literal(Literal::IntUntyped(32)).bloc(30)),
                     attributes: Vec::new(),
                 }),
                 location_annotations: Vec::new(),
@@ -301,10 +301,10 @@ fn test_global_variable() {
                             },
                             Vec::new(),
                         )),
-                        array_size: Some(Expression::Literal(Literal::IntUntyped(2)).loc(22)),
+                        array_size: Some(Expression::Literal(Literal::IntUntyped(2)).bloc(22)),
                         attributes: Vec::new(),
                     })),
-                    array_size: Some(Expression::Literal(Literal::IntUntyped(3)).loc(25)),
+                    array_size: Some(Expression::Literal(Literal::IntUntyped(3)).bloc(25)),
                     attributes: Vec::new(),
                 }),
                 location_annotations: Vec::new(),
@@ -460,7 +460,7 @@ fn test_constant_buffer() {
                                 },
                                 Vec::new(),
                             )),
-                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).loc(81)),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(2)).bloc(81)),
                             attributes: Vec::new(),
                         }),
                         location_annotations: Vec::new(),
@@ -477,11 +477,11 @@ fn test_constant_buffer() {
                                     Vec::new(),
                                 )),
                                 array_size: Some(
-                                    Expression::Literal(Literal::IntUntyped(3)).loc(87),
+                                    Expression::Literal(Literal::IntUntyped(3)).bloc(87),
                                 ),
                                 attributes: Vec::new(),
                             })),
-                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(90)),
+                            array_size: Some(Expression::Literal(Literal::IntUntyped(4)).bloc(90)),
                             attributes: Vec::new(),
                         }),
                         location_annotations: Vec::new(),

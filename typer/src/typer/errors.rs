@@ -190,6 +190,9 @@ pub enum TyperError {
     /// Function has a parameter which must have a default argument
     DefaultArgumentMissing(SourceLocation),
 
+    /// Type id with declarator modifiers are not valid for any RSSL types
+    InvalidTypeDeclarator(SourceLocation),
+
     /// assert_type had invalid format
     AssertTypeInvalid(SourceLocation),
 
@@ -896,6 +899,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::DefaultArgumentMissing(loc) => w.write_message(
                 &|f| write!(f, "missing default argument"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::InvalidTypeDeclarator(loc) => w.write_message(
+                &|f| write!(f, "invalid type declarator modifier"),
                 *loc,
                 Severity::Error,
             ),

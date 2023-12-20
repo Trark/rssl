@@ -45,7 +45,7 @@ pub struct ReferenceDeclarator {
 #[derive(PartialEq, Debug, Clone)]
 pub struct ArrayDeclarator {
     pub inner: Box<Declarator>,
-    pub array_size: Option<Located<Expression>>,
+    pub array_size: Option<Box<Located<Expression>>>,
     pub attributes: Vec<Attribute>,
 }
 
@@ -55,6 +55,19 @@ pub enum LocationAnnotation {
     Semantic(Semantic),
     PackOffset(PackOffset),
     Register(Register),
+}
+
+impl Declarator {
+    /// Return if the declarator does not have an identifier
+    pub fn is_abstract(&self) -> bool {
+        match self {
+            Declarator::Empty => true,
+            Declarator::Identifier(_, _) => false,
+            Declarator::Pointer(PointerDeclarator { inner, .. }) => inner.is_abstract(),
+            Declarator::Reference(ReferenceDeclarator { inner, .. }) => inner.is_abstract(),
+            Declarator::Array(ArrayDeclarator { inner, .. }) => inner.is_abstract(),
+        }
+    }
 }
 
 impl From<Located<&str>> for Declarator {

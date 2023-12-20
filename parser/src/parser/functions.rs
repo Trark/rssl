@@ -155,7 +155,7 @@ fn test_function_param() {
                     },
                     Vec::new(),
                 )),
-                array_size: Some(Expression::Literal(Literal::IntUntyped(4)).loc(8)),
+                array_size: Some(Expression::Literal(Literal::IntUntyped(4)).bloc(8)),
                 attributes: Vec::new(),
             }),
             location_annotations: Vec::new(),

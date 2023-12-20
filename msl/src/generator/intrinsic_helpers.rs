@@ -83,7 +83,7 @@ fn build_vec(ty: &str, n: u64) -> ast::Type {
     ast::Type::from_layout(ast::TypeLayout(
         metal_lib_identifier("vec"),
         Vec::from([
-            ast::ExpressionOrType::Type(ast::Type::trivial(ty)),
+            ast::ExpressionOrType::Type(ast::TypeId::from(ty)),
             ast::ExpressionOrType::Expression(Located::none(ast::Expression::Literal(
                 ast::Literal::IntUntyped(n),
             ))),
@@ -94,7 +94,7 @@ fn build_vec(ty: &str, n: u64) -> ast::Type {
 
 /// Create a type for a texture object
 fn build_texture(name: &'static str, component: &'static str, read_write: bool) -> ast::Type {
-    let mut type_args = Vec::from([ast::ExpressionOrType::Type(ast::Type::trivial(component))]);
+    let mut type_args = Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from(component))]);
 
     if read_write {
         let access = ast::Expression::Identifier(ast::ScopedIdentifier {
@@ -414,8 +414,10 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
                 kind: ast::StatementKind::Var(ast::VarDef {
                     local_type: ast::Type::from_layout(ast::TypeLayout(
                         metal_lib_identifier("sparse_color"),
-                        Vec::from([ast::ExpressionOrType::Type(build_vec("T", 4))])
-                            .into_boxed_slice(),
+                        Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from(build_vec(
+                            "T", 4,
+                        )))])
+                        .into_boxed_slice(),
                     )),
                     defs: Vec::from([ast::InitDeclarator {
                         declarator: ast::Declarator::Identifier(
@@ -601,8 +603,10 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
                 kind: ast::StatementKind::Var(ast::VarDef {
                     local_type: ast::Type::from_layout(ast::TypeLayout(
                         metal_lib_identifier("sparse_color"),
-                        Vec::from([ast::ExpressionOrType::Type(build_vec("T", 4))])
-                            .into_boxed_slice(),
+                        Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from(build_vec(
+                            "T", 4,
+                        )))])
+                        .into_boxed_slice(),
                     )),
                     defs: Vec::from([ast::InitDeclarator {
                         declarator: ast::Declarator::Identifier(
