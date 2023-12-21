@@ -197,7 +197,9 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                         assert_eq!(natural_address_space, ast::AddressSpace::Device);
                         match ot {
                             // Types that turn into pointers need an address space
-                            ir::ObjectType::StructuredBuffer(_)
+                            ir::ObjectType::ByteAddressBuffer
+                            | ir::ObjectType::RWByteAddressBuffer
+                            | ir::ObjectType::StructuredBuffer(_)
                             | ir::ObjectType::RWStructuredBuffer(_) => {
                                 (Some(ast::AddressSpace::Device), true)
                             }
@@ -966,8 +968,28 @@ fn generate_type_impl(
 
                 if !read_write {
                     ty.modifiers
-                        .modifiers
-                        .insert(0, Located::none(ast::TypeModifier::Const));
+                        .prepend(Located::none(ast::TypeModifier::Const));
+                }
+
+                let prev_declarator = std::mem::replace(declarator, ast::Declarator::Empty);
+                *declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
+                    attributes: Vec::new(),
+                    qualifiers: ast::TypeModifierSet::new(),
+                    inner: Box::new(prev_declarator),
+                });
+
+                Ok(ty)
+            }
+
+            fn build_byte_buffer(
+                read_write: bool,
+                declarator: &mut ast::Declarator,
+            ) -> Result<ast::Type, GenerateError> {
+                let mut ty = ast::Type::from("uint8_t");
+
+                if !read_write {
+                    ty.modifiers
+                        .prepend(Located::none(ast::TypeModifier::Const));
                 }
 
                 let prev_declarator = std::mem::replace(declarator, ast::Declarator::Empty);
@@ -984,8 +1006,8 @@ fn generate_type_impl(
             match ot {
                 Buffer(ty) => build_texture("texture_buffer", ty, false, context)?,
                 RWBuffer(ty) => build_texture("texture_buffer", ty, true, context)?,
-                ByteAddressBuffer => return Err(GenerateError::UnimplementedObject(ot)),
-                RWByteAddressBuffer => return Err(GenerateError::UnimplementedObject(ot)),
+                ByteAddressBuffer => build_byte_buffer(false, &mut declarator)?,
+                RWByteAddressBuffer => build_byte_buffer(true, &mut declarator)?,
                 BufferAddress => return Err(GenerateError::UnimplementedObject(ot)),
                 RWBufferAddress => return Err(GenerateError::UnimplementedObject(ot)),
                 StructuredBuffer(id) => build_buffer(id, false, &mut declarator, context)?,
@@ -1941,22 +1963,105 @@ fn generate_intrinsic_function(
         RWStructuredBufferGetDimensions => Form::Unimplemented,
 
         ByteAddressBufferGetDimensions => Form::Unimplemented,
-        ByteAddressBufferLoad => Form::Unimplemented,
-        ByteAddressBufferLoad2 => Form::Unimplemented,
-        ByteAddressBufferLoad3 => Form::Unimplemented,
-        ByteAddressBufferLoad4 => Form::Unimplemented,
-        ByteAddressBufferLoadT => Form::Unimplemented,
+        ByteAddressBufferLoad | RWByteAddressBufferLoad => {
+            assert_eq!(exprs.len(), 2);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_load(
+                ast::TypeId::from("uint"),
+                &exprs[0],
+                &exprs[1],
+                context,
+            );
+        }
+        ByteAddressBufferLoad2 | RWByteAddressBufferLoad2 => {
+            assert_eq!(exprs.len(), 2);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_load(
+                ast::TypeId::from("uint2"),
+                &exprs[0],
+                &exprs[1],
+                context,
+            );
+        }
+        ByteAddressBufferLoad3 | RWByteAddressBufferLoad3 => {
+            assert_eq!(exprs.len(), 2);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_load(
+                ast::TypeId::from("uint3"),
+                &exprs[0],
+                &exprs[1],
+                context,
+            );
+        }
+        ByteAddressBufferLoad4 | RWByteAddressBufferLoad4 => {
+            assert_eq!(exprs.len(), 2);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_load(
+                ast::TypeId::from("uint4"),
+                &exprs[0],
+                &exprs[1],
+                context,
+            );
+        }
+        ByteAddressBufferLoadT | RWByteAddressBufferLoadT => {
+            assert_eq!(exprs.len(), 2);
+            assert_eq!(tys.len(), 1);
+            match tys[0] {
+                ir::TypeOrConstant::Type(ty) => {
+                    let ty = generate_type_id(ty, context)?;
+                    return generate_byte_buffer_load(ty, &exprs[0], &exprs[1], context);
+                }
+                ir::TypeOrConstant::Constant(_) => return Err(GenerateError::InvalidModule),
+            }
+        }
 
         RWByteAddressBufferGetDimensions => Form::Unimplemented,
-        RWByteAddressBufferLoad => Form::Unimplemented,
-        RWByteAddressBufferLoad2 => Form::Unimplemented,
-        RWByteAddressBufferLoad3 => Form::Unimplemented,
-        RWByteAddressBufferLoad4 => Form::Unimplemented,
-        RWByteAddressBufferLoadT => Form::Unimplemented,
-        RWByteAddressBufferStore => Form::Unimplemented,
-        RWByteAddressBufferStore2 => Form::Unimplemented,
-        RWByteAddressBufferStore3 => Form::Unimplemented,
-        RWByteAddressBufferStore4 => Form::Unimplemented,
+        RWByteAddressBufferStore => {
+            assert_eq!(exprs.len(), 3);
+            assert_eq!(tys.len(), 1);
+            match tys[0] {
+                ir::TypeOrConstant::Type(ty) => {
+                    let ty = generate_type_id(ty, context)?;
+                    return generate_byte_buffer_store(
+                        ty, &exprs[0], &exprs[1], &exprs[2], context,
+                    );
+                }
+                ir::TypeOrConstant::Constant(_) => return Err(GenerateError::InvalidModule),
+            }
+        }
+        RWByteAddressBufferStore2 => {
+            assert_eq!(exprs.len(), 3);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_store(
+                ast::TypeId::from("uint2"),
+                &exprs[0],
+                &exprs[1],
+                &exprs[2],
+                context,
+            );
+        }
+        RWByteAddressBufferStore3 => {
+            assert_eq!(exprs.len(), 3);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_store(
+                ast::TypeId::from("uint3"),
+                &exprs[0],
+                &exprs[1],
+                &exprs[2],
+                context,
+            );
+        }
+        RWByteAddressBufferStore4 => {
+            assert_eq!(exprs.len(), 3);
+            assert_eq!(tys.len(), 0);
+            return generate_byte_buffer_store(
+                ast::TypeId::from("uint4"),
+                &exprs[0],
+                &exprs[1],
+                &exprs[2],
+                context,
+            );
+        }
         RWByteAddressBufferInterlockedAdd => Form::Unimplemented,
         RWByteAddressBufferInterlockedAnd => Form::Unimplemented,
         RWByteAddressBufferInterlockedCompareExchange => Form::Unimplemented,
@@ -2186,6 +2291,93 @@ fn generate_intrinsic_function(
         Form::Unimplemented => return Err(UnimplementedIntrinsic(intrinsic.clone())),
     };
     Ok(expr)
+}
+
+/// Create a Load / Load2 / Load3 / Load4 / Load<T> for a byte buffer
+fn generate_byte_buffer_load(
+    mut target: ast::TypeId,
+    object: &ir::Expression,
+    offset: &ir::Expression,
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let object = generate_expression(object, context)?;
+    let offset = generate_expression(offset, context)?;
+    target
+        .base
+        .modifiers
+        .prepend(Located::none(ast::TypeModifier::Const));
+    target
+        .base
+        .modifiers
+        .prepend(Located::none(ast::TypeModifier::AddressSpace(
+            ast::AddressSpace::Device,
+        )));
+    target.abstract_declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
+        attributes: Vec::new(),
+        qualifiers: ast::TypeModifierSet::new(),
+        inner: Box::new(target.abstract_declarator),
+    });
+    let address = ast::Expression::BinaryOperation(
+        ast::BinOp::Add,
+        Box::new(Located::none(object)),
+        Box::new(Located::none(offset)),
+    );
+    let typed_address = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+        ))),
+        Vec::from([ast::ExpressionOrType::Type(target)]),
+        Vec::from([Located::none(address)]),
+    );
+    Ok(ast::Expression::UnaryOperation(
+        ast::UnaryOp::Dereference,
+        Box::new(Located::none(typed_address)),
+    ))
+}
+
+/// Create a Store / Store2 / Store3 / Store4 for a byte buffer
+fn generate_byte_buffer_store(
+    mut target: ast::TypeId,
+    object: &ir::Expression,
+    offset: &ir::Expression,
+    value: &ir::Expression,
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let object = generate_expression(object, context)?;
+    let offset = generate_expression(offset, context)?;
+    let value = generate_expression(value, context)?;
+    target
+        .base
+        .modifiers
+        .prepend(Located::none(ast::TypeModifier::AddressSpace(
+            ast::AddressSpace::Device,
+        )));
+    target.abstract_declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
+        attributes: Vec::new(),
+        qualifiers: ast::TypeModifierSet::new(),
+        inner: Box::new(target.abstract_declarator),
+    });
+    let address = ast::Expression::BinaryOperation(
+        ast::BinOp::Add,
+        Box::new(Located::none(object)),
+        Box::new(Located::none(offset)),
+    );
+    let typed_address = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+        ))),
+        Vec::from([ast::ExpressionOrType::Type(target)]),
+        Vec::from([Located::none(address)]),
+    );
+    let typed_reference = ast::Expression::UnaryOperation(
+        ast::UnaryOp::Dereference,
+        Box::new(Located::none(typed_address)),
+    );
+    Ok(ast::Expression::BinaryOperation(
+        ast::BinOp::Assignment,
+        Box::new(Located::none(typed_reference)),
+        Box::new(Located::none(value)),
+    ))
 }
 
 /// Write out an intrinsic operator expression

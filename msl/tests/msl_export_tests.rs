@@ -1424,6 +1424,14 @@ void entry() {
 }
 
 #[test]
+fn check_byte_buffer() {
+    check(
+        include_str!("byte_buffer.rssl"),
+        include_str!("byte_buffer.metal"),
+    );
+}
+
+#[test]
 fn check_structured_buffer() {
     check(
         include_str!("structured_buffer.rssl"),
