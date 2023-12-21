@@ -949,6 +949,8 @@ fn get_expression_precedence(expr: &ast::Expression) -> Result<u32, FormatError>
                 Minus => 3,
                 LogicalNot => 3,
                 BitwiseNot => 3,
+                Dereference => 3,
+                AddressOf => 3,
             }
         }
         ast::Expression::BinaryOperation(op, _, _) => {
@@ -1023,6 +1025,8 @@ fn format_unary_op(op: &ast::UnaryOp, output: &mut String) -> Result<(), FormatE
         Minus => "-",
         LogicalNot => "!",
         BitwiseNot => "~",
+        Dereference => "*",
+        AddressOf => "&",
     };
 
     output.push_str(text);

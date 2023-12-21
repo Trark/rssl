@@ -820,6 +820,9 @@ fn parse_expr_unaryop(
 
                     (ir::IntrinsicOp::BitwiseNot, expr_ir, op_output_ety)
                 }
+                ast::UnaryOp::Dereference | ast::UnaryOp::AddressOf => {
+                    return Err(TyperError::PointersNotSupported(base_location));
+                }
             };
 
             let mut expr_with_op = ir::Expression::IntrinsicOp(intrinsic, Vec::from([eir]));

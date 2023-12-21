@@ -331,12 +331,24 @@ fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
         Ok((input, Located::new(UnaryOp::BitwiseNot, start.to_loc())))
     }
 
+    fn unaryop_dereference(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+        let (input, start) = parse_token(Token::Asterix)(input)?;
+        Ok((input, Located::new(UnaryOp::Dereference, start.to_loc())))
+    }
+
+    fn unaryop_address_of(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+        let (input, start) = parse_token(Token::Ampersand)(input)?;
+        Ok((input, Located::new(UnaryOp::AddressOf, start.to_loc())))
+    }
+
     unaryop_increment(input)
         .select(unaryop_decrement(input))
         .select(unaryop_add(input))
         .select(unaryop_subtract(input))
         .select(unaryop_logical_not(input))
         .select(unaryop_bitwise_not(input))
+        .select(unaryop_dereference(input))
+        .select(unaryop_address_of(input))
 }
 
 fn expr_p2<'t>(
@@ -1215,6 +1227,14 @@ fn test_unary_op() {
     expr.check(
         "~a",
         Expression::UnaryOperation(UnaryOp::BitwiseNot, "a".as_bvar(1)).loc(0),
+    );
+    expr.check(
+        "*a",
+        Expression::UnaryOperation(UnaryOp::Dereference, "a".as_bvar(1)).loc(0),
+    );
+    expr.check(
+        "&a",
+        Expression::UnaryOperation(UnaryOp::AddressOf, "a".as_bvar(1)).loc(0),
     );
 }
 

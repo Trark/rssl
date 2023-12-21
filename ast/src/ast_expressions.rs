@@ -75,6 +75,8 @@ pub enum UnaryOp {
     Minus,
     LogicalNot,
     BitwiseNot,
+    Dereference,
+    AddressOf,
 }
 
 /// Any operator which takes two expressions as arguments
