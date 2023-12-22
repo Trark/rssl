@@ -1,0 +1,8 @@
+const Buffer<uint> g_input : register(t0);
+const RWBuffer<uint> g_output : register(u1);
+
+void test() {
+    uint outInt;
+    const uint load_srv = g_input.Load(0);
+    const uint load_uav = g_output.Load(0);
+}

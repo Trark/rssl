@@ -1950,10 +1950,23 @@ fn generate_intrinsic_function(
         DispatchMesh => unimplemented_intrinsic(),
 
         BufferGetDimensions => unimplemented_intrinsic(),
-        BufferLoad => unimplemented_intrinsic(),
+        BufferLoad | RWBufferLoad => {
+            if exprs.len() < 3 {
+                invoke_object_read_helper(
+                    IntrinsicHelper::Load(LoadHelper {
+                        dim: Dim::TexelBuffer,
+                        read_write: matches!(intrinsic, RWBufferLoad),
+                        has_offset: false,
+                        has_status: false,
+                    }),
+                    context,
+                )
+            } else {
+                unimplemented_intrinsic()
+            }
+        }
 
         RWBufferGetDimensions => unimplemented_intrinsic(),
-        RWBufferLoad => unimplemented_intrinsic(),
 
         StructuredBufferGetDimensions => unimplemented_intrinsic(),
         StructuredBufferLoad | RWStructuredBufferLoad => {

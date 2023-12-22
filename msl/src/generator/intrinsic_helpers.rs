@@ -64,6 +64,7 @@ pub enum Dim {
     TexCube,
     TexCubeArray,
     Tex3D,
+    TexelBuffer,
 }
 
 impl Dim {
@@ -74,6 +75,7 @@ impl Dim {
             Dim::TexCube => "texturecube",
             Dim::TexCubeArray => "texturecube_array",
             Dim::Tex3D => "texture3d",
+            Dim::TexelBuffer => "texture_buffer",
         }
     }
 }
@@ -330,19 +332,34 @@ pub struct LoadHelper {
 
 /// Create a definition for various texture load methods
 fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, GenerateError> {
-    let array_or_3d = matches!(config.dim, Dim::Tex2DArray | Dim::Tex3D);
-    let need_z = matches!(config.dim, Dim::Tex3D);
-
-    let location_type = match (array_or_3d, config.read_write) {
-        (false, false) => "int3",
-        (false, true) => "int2",
-        (true, false) => "int4",
-        (true, true) => "int3",
+    let num_dims_base = match config.dim {
+        Dim::TexelBuffer => 1,
+        Dim::Tex2D | Dim::Tex2DArray => 2,
+        Dim::Tex3D => 3,
+        Dim::TexCube | Dim::TexCubeArray => panic!("Cubes are not supported in Load"),
     };
 
-    let offset_type = match need_z {
-        false => "int2",
-        true => "int3",
+    let has_mips = !config.read_write && config.dim != Dim::TexelBuffer;
+    let has_array_slices = matches!(config.dim, Dim::Tex2DArray);
+
+    let num_dims = num_dims_base + has_mips as usize + has_array_slices as usize;
+
+    let location_type = match num_dims {
+        1 => "int",
+        2 => "int2",
+        3 => "int3",
+        4 => "int4",
+        _ => panic!(),
+    };
+
+    let offset_type = match num_dims_base {
+        1 => {
+            assert!(!config.has_offset);
+            "void"
+        }
+        2 => "int2",
+        3 => "int3",
+        _ => panic!(),
     };
 
     let mut params = Vec::new();
@@ -370,15 +387,23 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
             build_expr_member("location", c)
         }
     };
-    coord_args.push(make_coord_arg("x"));
-    coord_args.push(make_coord_arg("y"));
-    if need_z {
-        coord_args.push(make_coord_arg("z"));
+    if num_dims_base == 1 {
+        coord_args.push(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("location"),
+        )));
+    } else {
+        coord_args.push(make_coord_arg("x"));
+        coord_args.push(make_coord_arg("y"));
+        if num_dims_base >= 3 {
+            coord_args.push(make_coord_arg("z"));
+        }
     }
 
-    let coord_type = match need_z {
-        false => "uint2",
-        true => "uint3",
+    let coord_type = match num_dims_base {
+        1 => "uint",
+        2 => "uint2",
+        3 => "uint3",
+        _ => panic!(),
     };
 
     let mut load_args = Vec::from([Located::none(ast::Expression::Call(
@@ -388,10 +413,10 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
         Vec::new(),
         coord_args,
     ))]);
-    if !need_z && (!config.read_write || array_or_3d) {
+    if num_dims_base == 2 && num_dims_base < num_dims {
         load_args.push(build_expr_member("location", "z"));
     }
-    if !config.read_write && array_or_3d {
+    if (num_dims_base == 3 && num_dims_base < num_dims) || (num_dims_base + 1 < num_dims) {
         load_args.push(build_expr_member("location", "w"));
     }
 
@@ -518,6 +543,7 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
         Dim::Tex2D => "float2",
         Dim::Tex2DArray | Dim::TexCube | Dim::Tex3D => "float3",
         Dim::TexCubeArray => "float4",
+        Dim::TexelBuffer => panic!("Texel buffers do not support sampling"),
     };
 
     let offset_type = match config.is_3d() {

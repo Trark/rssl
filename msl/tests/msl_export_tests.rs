@@ -1424,6 +1424,14 @@ void entry() {
 }
 
 #[test]
+fn check_texel_buffer() {
+    check(
+        include_str!("texel_buffer.rssl"),
+        include_str!("texel_buffer.metal"),
+    );
+}
+
+#[test]
 fn check_byte_buffer() {
     check(
         include_str!("byte_buffer.rssl"),
