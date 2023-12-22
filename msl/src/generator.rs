@@ -1796,6 +1796,9 @@ fn generate_intrinsic_function(
     };
     let invoke_helper =
         |helper, context: &mut GenerateContext| generate_invoke_helper(helper, tys, exprs, context);
+    let invoke_object_read_helper = |helper, context: &mut GenerateContext| {
+        vector_4_to_vector_n(invoke_helper(helper, context)?, exprs, context)
+    };
 
     use ir::Intrinsic::*;
     match &intrinsic {
@@ -2058,7 +2061,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        Texture2DLoad => invoke_helper(
+        Texture2DLoad => invoke_object_read_helper(
             IntrinsicHelper::Load(LoadHelper {
                 dim: Dim::Tex2D,
                 read_write: false,
@@ -2067,7 +2070,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        Texture2DSample => invoke_helper(
+        Texture2DSample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::Tex2D,
                 has_offset: exprs.len() >= 4,
@@ -2097,7 +2100,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        Texture2DArrayLoad => invoke_helper(
+        Texture2DArrayLoad => invoke_object_read_helper(
             IntrinsicHelper::Load(LoadHelper {
                 dim: Dim::Tex2DArray,
                 read_write: false,
@@ -2106,7 +2109,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        Texture2DArraySample => invoke_helper(
+        Texture2DArraySample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::Tex2DArray,
                 has_offset: exprs.len() >= 4,
@@ -2136,7 +2139,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        RWTexture2DLoad => invoke_helper(
+        RWTexture2DLoad => invoke_object_read_helper(
             IntrinsicHelper::Load(LoadHelper {
                 dim: Dim::Tex2D,
                 read_write: true,
@@ -2153,7 +2156,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        RWTexture2DArrayLoad => invoke_helper(
+        RWTexture2DArrayLoad => invoke_object_read_helper(
             IntrinsicHelper::Load(LoadHelper {
                 dim: Dim::Tex2DArray,
                 read_write: true,
@@ -2163,7 +2166,7 @@ fn generate_intrinsic_function(
             context,
         ),
 
-        TextureCubeSample => invoke_helper(
+        TextureCubeSample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::TexCube,
                 has_offset: false,
@@ -2174,7 +2177,7 @@ fn generate_intrinsic_function(
         ),
         TextureCubeSampleLevel => unimplemented_intrinsic(),
 
-        TextureCubeArraySample => invoke_helper(
+        TextureCubeArraySample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::TexCubeArray,
                 has_offset: false,
@@ -2192,7 +2195,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        Texture3DLoad => invoke_helper(
+        Texture3DLoad => invoke_object_read_helper(
             IntrinsicHelper::Load(LoadHelper {
                 dim: Dim::Tex3D,
                 read_write: false,
@@ -2201,7 +2204,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        Texture3DSample => invoke_helper(
+        Texture3DSample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::Tex3D,
                 has_offset: exprs.len() >= 4,
@@ -2221,7 +2224,7 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
-        RWTexture3DLoad => invoke_helper(
+        RWTexture3DLoad => invoke_object_read_helper(
             IntrinsicHelper::Load(LoadHelper {
                 dim: Dim::Tex3D,
                 read_write: true,
@@ -2313,6 +2316,71 @@ fn generate_invoke_helper(
     let type_args = generate_template_type_args(tys, context)?;
     let args = generate_invocation_args(exprs, context)?;
     Ok(ast::Expression::Call(object, type_args, args))
+}
+
+/// Cast down from 4 component vector to component count declared by the resource
+fn vector_4_to_vector_n(
+    expr: ast::Expression,
+    input_exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let object_expr = match input_exprs.first() {
+        Some(object_expr) => object_expr,
+        None => return Err(GenerateError::InvalidModule),
+    };
+
+    let object_ty = match object_expr.get_type(context.module) {
+        Ok(ety) => ety.0,
+        Err(_) => return Err(GenerateError::InvalidModule),
+    };
+
+    let object_ty = context.module.type_registry.remove_modifier(object_ty);
+    let object_ty = match context.module.type_registry.get_type_layer(object_ty) {
+        ir::TypeLayer::Object(ty) => ty,
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    let component_ty = match object_ty {
+        ir::ObjectType::Buffer(ty) => ty,
+        ir::ObjectType::RWBuffer(ty) => ty,
+        ir::ObjectType::Texture2D(ty) => ty,
+        ir::ObjectType::Texture2DArray(ty) => ty,
+        ir::ObjectType::RWTexture2D(ty) => ty,
+        ir::ObjectType::RWTexture2DArray(ty) => ty,
+        ir::ObjectType::TextureCube(ty) => ty,
+        ir::ObjectType::TextureCubeArray(ty) => ty,
+        ir::ObjectType::Texture3D(ty) => ty,
+        ir::ObjectType::RWTexture3D(ty) => ty,
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    let component_ty = context.module.type_registry.remove_modifier(component_ty);
+    let component_tyl = context.module.type_registry.get_type_layer(component_ty);
+
+    let component_count = match component_tyl {
+        ir::TypeLayer::Scalar(_) => 1,
+        ir::TypeLayer::Vector(_, arity) => arity,
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    // If we are already the correct type then there is nothing to add
+    if component_count == 4 {
+        return Ok(expr);
+    }
+
+    let swizzle = match component_count {
+        1 => "x",
+        2 => "xy",
+        3 => "xyz",
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    let vec_n = ast::Expression::Member(
+        Box::new(Located::none(expr)),
+        ast::ScopedIdentifier::trivial(swizzle),
+    );
+
+    Ok(vec_n)
 }
 
 /// Create a Load / Load2 / Load3 / Load4 / Load<T> for a byte buffer
