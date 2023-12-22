@@ -1785,90 +1785,95 @@ fn generate_intrinsic_function(
     exprs: &Vec<ir::Expression>,
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
-    enum Form {
-        Invoke(&'static str),
-        InvokeHelper(IntrinsicHelper),
-        Unimplemented,
-    }
+    let unimplemented_intrinsic = || {
+        Err::<ast::Expression, GenerateError>(GenerateError::UnimplementedIntrinsic(
+            intrinsic.clone(),
+        ))
+    };
+
+    let invoke_simple = |name: &str, context: &mut GenerateContext| {
+        generate_invoke_simple(name, tys, exprs, context)
+    };
+    let invoke_helper =
+        |helper, context: &mut GenerateContext| generate_invoke_helper(helper, tys, exprs, context);
 
     use ir::Intrinsic::*;
-    use GenerateError::UnimplementedIntrinsic;
-    let form = match &intrinsic {
-        AllMemoryBarrier => Form::Unimplemented,
-        AllMemoryBarrierWithGroupSync => Form::Unimplemented,
-        DeviceMemoryBarrier => Form::Unimplemented,
-        DeviceMemoryBarrierWithGroupSync => Form::Unimplemented,
-        GroupMemoryBarrier => Form::Unimplemented,
-        GroupMemoryBarrierWithGroupSync => Form::Unimplemented,
+    match &intrinsic {
+        AllMemoryBarrier => unimplemented_intrinsic(),
+        AllMemoryBarrierWithGroupSync => unimplemented_intrinsic(),
+        DeviceMemoryBarrier => unimplemented_intrinsic(),
+        DeviceMemoryBarrierWithGroupSync => unimplemented_intrinsic(),
+        GroupMemoryBarrier => unimplemented_intrinsic(),
+        GroupMemoryBarrierWithGroupSync => unimplemented_intrinsic(),
 
-        AsInt => Form::Unimplemented,
-        AsUInt => Form::Unimplemented,
-        AsFloat => Form::Unimplemented,
-        AsDouble => Form::Unimplemented,
+        AsInt => unimplemented_intrinsic(),
+        AsUInt => unimplemented_intrinsic(),
+        AsFloat => unimplemented_intrinsic(),
+        AsDouble => unimplemented_intrinsic(),
 
-        All => Form::Unimplemented,
-        Any => Form::Unimplemented,
-        And => Form::Unimplemented,
-        Or => Form::Unimplemented,
-        Select => Form::Unimplemented,
+        All => unimplemented_intrinsic(),
+        Any => unimplemented_intrinsic(),
+        And => unimplemented_intrinsic(),
+        Or => unimplemented_intrinsic(),
+        Select => unimplemented_intrinsic(),
 
-        Abs => Form::Invoke("abs"),
+        Abs => invoke_simple("abs", context),
 
         // Transcendental functions
-        Acos => Form::Unimplemented,
-        Asin => Form::Unimplemented,
-        Atan => Form::Unimplemented,
-        Atan2 => Form::Unimplemented,
-        Cos => Form::Unimplemented,
-        Cosh => Form::Unimplemented,
-        Sin => Form::Unimplemented,
-        Sinh => Form::Unimplemented,
-        Sincos => Form::Unimplemented,
-        Tan => Form::Unimplemented,
-        Tanh => Form::Unimplemented,
-        Sqrt => Form::Unimplemented,
-        RcpSqrt => Form::Unimplemented,
-        Pow => Form::Unimplemented,
-        Exp => Form::Unimplemented,
-        Exp2 => Form::Unimplemented,
-        Log => Form::Unimplemented,
-        Log2 => Form::Unimplemented,
-        Log10 => Form::Unimplemented,
+        Acos => unimplemented_intrinsic(),
+        Asin => unimplemented_intrinsic(),
+        Atan => unimplemented_intrinsic(),
+        Atan2 => unimplemented_intrinsic(),
+        Cos => unimplemented_intrinsic(),
+        Cosh => unimplemented_intrinsic(),
+        Sin => unimplemented_intrinsic(),
+        Sinh => unimplemented_intrinsic(),
+        Sincos => unimplemented_intrinsic(),
+        Tan => unimplemented_intrinsic(),
+        Tanh => unimplemented_intrinsic(),
+        Sqrt => unimplemented_intrinsic(),
+        RcpSqrt => unimplemented_intrinsic(),
+        Pow => unimplemented_intrinsic(),
+        Exp => unimplemented_intrinsic(),
+        Exp2 => unimplemented_intrinsic(),
+        Log => unimplemented_intrinsic(),
+        Log2 => unimplemented_intrinsic(),
+        Log10 => unimplemented_intrinsic(),
 
-        F16ToF32 => Form::Unimplemented,
-        F32ToF16 => Form::Unimplemented,
+        F16ToF32 => unimplemented_intrinsic(),
+        F32ToF16 => unimplemented_intrinsic(),
 
-        Floor => Form::Unimplemented,
-        Ceil => Form::Unimplemented,
-        Trunc => Form::Unimplemented,
-        Round => Form::Unimplemented,
-        Frac => Form::Unimplemented,
-        Modf => Form::Unimplemented,
-        Fmod => Form::Unimplemented,
+        Floor => unimplemented_intrinsic(),
+        Ceil => unimplemented_intrinsic(),
+        Trunc => unimplemented_intrinsic(),
+        Round => unimplemented_intrinsic(),
+        Frac => unimplemented_intrinsic(),
+        Modf => unimplemented_intrinsic(),
+        Fmod => unimplemented_intrinsic(),
 
-        IsNaN => Form::Unimplemented,
-        IsInfinite => Form::Unimplemented,
-        IsFinite => Form::Unimplemented,
+        IsNaN => unimplemented_intrinsic(),
+        IsInfinite => unimplemented_intrinsic(),
+        IsFinite => unimplemented_intrinsic(),
 
-        Length => Form::Unimplemented,
-        Normalize => Form::Unimplemented,
-        Rcp => Form::Unimplemented,
+        Length => unimplemented_intrinsic(),
+        Normalize => unimplemented_intrinsic(),
+        Rcp => unimplemented_intrinsic(),
 
-        Reflect => Form::Unimplemented,
-        Refract => Form::Unimplemented,
+        Reflect => unimplemented_intrinsic(),
+        Refract => unimplemented_intrinsic(),
 
-        CountBits => Form::Unimplemented,
-        ReverseBits => Form::Unimplemented,
-        FirstBitHigh => Form::Unimplemented,
-        FirstBitLow => Form::Unimplemented,
+        CountBits => unimplemented_intrinsic(),
+        ReverseBits => unimplemented_intrinsic(),
+        FirstBitHigh => unimplemented_intrinsic(),
+        FirstBitLow => unimplemented_intrinsic(),
 
-        Saturate => Form::Unimplemented,
+        Saturate => unimplemented_intrinsic(),
 
-        Sign => Form::Unimplemented,
+        Sign => unimplemented_intrinsic(),
 
-        Cross => Form::Unimplemented,
-        Distance => Form::Unimplemented,
-        Dot => Form::Unimplemented,
+        Cross => unimplemented_intrinsic(),
+        Distance => unimplemented_intrinsic(),
+        Dot => unimplemented_intrinsic(),
 
         Mul => {
             assert_eq!(exprs.len(), 2);
@@ -1879,347 +1884,355 @@ fn generate_intrinsic_function(
                 Box::new(Located::none(left)),
                 Box::new(Located::none(right)),
             );
-            return Ok(ast);
+            Ok(ast)
         }
 
-        Min => Form::Unimplemented,
-        Max => Form::Unimplemented,
+        Min => unimplemented_intrinsic(),
+        Max => unimplemented_intrinsic(),
 
-        Step => Form::Unimplemented,
+        Step => unimplemented_intrinsic(),
 
-        Clamp => Form::Unimplemented,
-        Lerp => Form::Unimplemented,
-        SmoothStep => Form::Unimplemented,
+        Clamp => unimplemented_intrinsic(),
+        Lerp => unimplemented_intrinsic(),
+        SmoothStep => unimplemented_intrinsic(),
 
-        Transpose => Form::Unimplemented,
-        Determinant => Form::Unimplemented,
+        Transpose => unimplemented_intrinsic(),
+        Determinant => unimplemented_intrinsic(),
 
-        DDX => Form::Unimplemented,
-        DDXCoarse => Form::Unimplemented,
-        DDXFine => Form::Unimplemented,
-        DDY => Form::Unimplemented,
-        DDYCoarse => Form::Unimplemented,
-        DDYFine => Form::Unimplemented,
+        DDX => unimplemented_intrinsic(),
+        DDXCoarse => unimplemented_intrinsic(),
+        DDXFine => unimplemented_intrinsic(),
+        DDY => unimplemented_intrinsic(),
+        DDYCoarse => unimplemented_intrinsic(),
+        DDYFine => unimplemented_intrinsic(),
 
-        InterlockedAdd => Form::Unimplemented,
-        InterlockedAnd => Form::Unimplemented,
-        InterlockedCompareExchange => Form::Unimplemented,
-        InterlockedCompareStore => Form::Unimplemented,
-        InterlockedExchange => Form::Unimplemented,
-        InterlockedMax => Form::Unimplemented,
-        InterlockedMin => Form::Unimplemented,
-        InterlockedOr => Form::Unimplemented,
-        InterlockedXor => Form::Unimplemented,
+        InterlockedAdd => unimplemented_intrinsic(),
+        InterlockedAnd => unimplemented_intrinsic(),
+        InterlockedCompareExchange => unimplemented_intrinsic(),
+        InterlockedCompareStore => unimplemented_intrinsic(),
+        InterlockedExchange => unimplemented_intrinsic(),
+        InterlockedMax => unimplemented_intrinsic(),
+        InterlockedMin => unimplemented_intrinsic(),
+        InterlockedOr => unimplemented_intrinsic(),
+        InterlockedXor => unimplemented_intrinsic(),
 
-        NonUniformResourceIndex => Form::Unimplemented,
+        NonUniformResourceIndex => unimplemented_intrinsic(),
 
-        WaveGetLaneCount => Form::Unimplemented,
-        WaveGetLaneIndex => Form::Unimplemented,
-        WaveIsFirstLane => Form::Unimplemented,
-        WaveActiveAnyTrue => Form::Unimplemented,
-        WaveActiveAllTrue => Form::Unimplemented,
-        WaveActiveBallot => Form::Unimplemented,
-        WaveReadLaneAt => Form::Unimplemented,
-        WaveReadLaneFirst => Form::Unimplemented,
-        WaveActiveAllEqual => Form::Unimplemented,
-        WaveActiveCountBits => Form::Unimplemented,
-        WaveActiveSum => Form::Unimplemented,
-        WaveActiveProduct => Form::Unimplemented,
-        WaveActiveBitAnd => Form::Unimplemented,
-        WaveActiveBitOr => Form::Unimplemented,
-        WaveActiveBitXor => Form::Unimplemented,
-        WaveActiveMin => Form::Unimplemented,
-        WaveActiveMax => Form::Unimplemented,
-        WavePrefixCountBits => Form::Unimplemented,
-        WavePrefixProduct => Form::Unimplemented,
-        WavePrefixSum => Form::Unimplemented,
-        QuadReadAcrossX => Form::Unimplemented,
-        QuadReadAcrossY => Form::Unimplemented,
-        QuadReadAcrossDiagonal => Form::Unimplemented,
-        QuadReadLaneAt => Form::Unimplemented,
+        WaveGetLaneCount => unimplemented_intrinsic(),
+        WaveGetLaneIndex => unimplemented_intrinsic(),
+        WaveIsFirstLane => unimplemented_intrinsic(),
+        WaveActiveAnyTrue => unimplemented_intrinsic(),
+        WaveActiveAllTrue => unimplemented_intrinsic(),
+        WaveActiveBallot => unimplemented_intrinsic(),
+        WaveReadLaneAt => unimplemented_intrinsic(),
+        WaveReadLaneFirst => unimplemented_intrinsic(),
+        WaveActiveAllEqual => unimplemented_intrinsic(),
+        WaveActiveCountBits => unimplemented_intrinsic(),
+        WaveActiveSum => unimplemented_intrinsic(),
+        WaveActiveProduct => unimplemented_intrinsic(),
+        WaveActiveBitAnd => unimplemented_intrinsic(),
+        WaveActiveBitOr => unimplemented_intrinsic(),
+        WaveActiveBitXor => unimplemented_intrinsic(),
+        WaveActiveMin => unimplemented_intrinsic(),
+        WaveActiveMax => unimplemented_intrinsic(),
+        WavePrefixCountBits => unimplemented_intrinsic(),
+        WavePrefixProduct => unimplemented_intrinsic(),
+        WavePrefixSum => unimplemented_intrinsic(),
+        QuadReadAcrossX => unimplemented_intrinsic(),
+        QuadReadAcrossY => unimplemented_intrinsic(),
+        QuadReadAcrossDiagonal => unimplemented_intrinsic(),
+        QuadReadLaneAt => unimplemented_intrinsic(),
 
-        SetMeshOutputCounts => Form::Unimplemented,
-        DispatchMesh => Form::Unimplemented,
+        SetMeshOutputCounts => unimplemented_intrinsic(),
+        DispatchMesh => unimplemented_intrinsic(),
 
-        BufferGetDimensions => Form::Unimplemented,
-        BufferLoad => Form::Unimplemented,
+        BufferGetDimensions => unimplemented_intrinsic(),
+        BufferLoad => unimplemented_intrinsic(),
 
-        RWBufferGetDimensions => Form::Unimplemented,
-        RWBufferLoad => Form::Unimplemented,
+        RWBufferGetDimensions => unimplemented_intrinsic(),
+        RWBufferLoad => unimplemented_intrinsic(),
 
-        StructuredBufferGetDimensions => Form::Unimplemented,
+        StructuredBufferGetDimensions => unimplemented_intrinsic(),
         StructuredBufferLoad | RWStructuredBufferLoad => {
             if exprs.len() == 2 {
                 assert_eq!(exprs.len(), 2);
                 let object_ir = Box::new(Located::none(generate_expression(&exprs[0], context)?));
                 let subscript_ir =
                     Box::new(Located::none(generate_expression(&exprs[1], context)?));
-                return Ok(ast::Expression::ArraySubscript(object_ir, subscript_ir));
+                Ok(ast::Expression::ArraySubscript(object_ir, subscript_ir))
             } else {
-                Form::Unimplemented
+                unimplemented_intrinsic()
             }
         }
 
-        RWStructuredBufferGetDimensions => Form::Unimplemented,
+        RWStructuredBufferGetDimensions => unimplemented_intrinsic(),
 
-        ByteAddressBufferGetDimensions => Form::Unimplemented,
+        ByteAddressBufferGetDimensions => unimplemented_intrinsic(),
         ByteAddressBufferLoad | RWByteAddressBufferLoad => {
-            assert_eq!(exprs.len(), 2);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_load(
-                ast::TypeId::from("uint"),
-                &exprs[0],
-                &exprs[1],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_load(ast::TypeId::from("uint"), exprs, context)
         }
         ByteAddressBufferLoad2 | RWByteAddressBufferLoad2 => {
-            assert_eq!(exprs.len(), 2);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_load(
-                ast::TypeId::from("uint2"),
-                &exprs[0],
-                &exprs[1],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_load(ast::TypeId::from("uint2"), exprs, context)
         }
         ByteAddressBufferLoad3 | RWByteAddressBufferLoad3 => {
-            assert_eq!(exprs.len(), 2);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_load(
-                ast::TypeId::from("uint3"),
-                &exprs[0],
-                &exprs[1],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_load(ast::TypeId::from("uint3"), exprs, context)
         }
         ByteAddressBufferLoad4 | RWByteAddressBufferLoad4 => {
-            assert_eq!(exprs.len(), 2);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_load(
-                ast::TypeId::from("uint4"),
-                &exprs[0],
-                &exprs[1],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_load(ast::TypeId::from("uint4"), exprs, context)
         }
         ByteAddressBufferLoadT | RWByteAddressBufferLoadT => {
-            assert_eq!(exprs.len(), 2);
-            assert_eq!(tys.len(), 1);
+            if tys.len() != 1 {
+                return Err(GenerateError::InvalidModule);
+            }
             match tys[0] {
                 ir::TypeOrConstant::Type(ty) => {
                     let ty = generate_type_id(ty, context)?;
-                    return generate_byte_buffer_load(ty, &exprs[0], &exprs[1], context);
+                    generate_byte_buffer_load(ty, exprs, context)
                 }
-                ir::TypeOrConstant::Constant(_) => return Err(GenerateError::InvalidModule),
+                ir::TypeOrConstant::Constant(_) => Err(GenerateError::InvalidModule),
             }
         }
 
-        RWByteAddressBufferGetDimensions => Form::Unimplemented,
+        RWByteAddressBufferGetDimensions => unimplemented_intrinsic(),
         RWByteAddressBufferStore => {
-            assert_eq!(exprs.len(), 3);
-            assert_eq!(tys.len(), 1);
+            if tys.len() != 1 {
+                return Err(GenerateError::InvalidModule);
+            }
             match tys[0] {
                 ir::TypeOrConstant::Type(ty) => {
                     let ty = generate_type_id(ty, context)?;
-                    return generate_byte_buffer_store(
-                        ty, &exprs[0], &exprs[1], &exprs[2], context,
-                    );
+                    generate_byte_buffer_store(ty, exprs, context)
                 }
-                ir::TypeOrConstant::Constant(_) => return Err(GenerateError::InvalidModule),
+                ir::TypeOrConstant::Constant(_) => Err(GenerateError::InvalidModule),
             }
         }
         RWByteAddressBufferStore2 => {
-            assert_eq!(exprs.len(), 3);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_store(
-                ast::TypeId::from("uint2"),
-                &exprs[0],
-                &exprs[1],
-                &exprs[2],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_store(ast::TypeId::from("uint2"), exprs, context)
         }
         RWByteAddressBufferStore3 => {
-            assert_eq!(exprs.len(), 3);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_store(
-                ast::TypeId::from("uint3"),
-                &exprs[0],
-                &exprs[1],
-                &exprs[2],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_store(ast::TypeId::from("uint3"), exprs, context)
         }
         RWByteAddressBufferStore4 => {
-            assert_eq!(exprs.len(), 3);
-            assert_eq!(tys.len(), 0);
-            return generate_byte_buffer_store(
-                ast::TypeId::from("uint4"),
-                &exprs[0],
-                &exprs[1],
-                &exprs[2],
-                context,
-            );
+            if !tys.is_empty() {
+                return Err(GenerateError::InvalidModule);
+            }
+            generate_byte_buffer_store(ast::TypeId::from("uint4"), exprs, context)
         }
-        RWByteAddressBufferInterlockedAdd => Form::Unimplemented,
-        RWByteAddressBufferInterlockedAnd => Form::Unimplemented,
-        RWByteAddressBufferInterlockedCompareExchange => Form::Unimplemented,
-        RWByteAddressBufferInterlockedCompareStore => Form::Unimplemented,
-        RWByteAddressBufferInterlockedExchange => Form::Unimplemented,
-        RWByteAddressBufferInterlockedMax => Form::Unimplemented,
-        RWByteAddressBufferInterlockedMin => Form::Unimplemented,
-        RWByteAddressBufferInterlockedOr => Form::Unimplemented,
-        RWByteAddressBufferInterlockedXor => Form::Unimplemented,
+        RWByteAddressBufferInterlockedAdd => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedAnd => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedCompareExchange => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedCompareStore => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedExchange => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedMax => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedMin => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedOr => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedXor => unimplemented_intrinsic(),
 
-        BufferAddressLoad => Form::Unimplemented,
+        BufferAddressLoad => unimplemented_intrinsic(),
 
-        RWBufferAddressLoad => Form::Unimplemented,
-        RWBufferAddressStore => Form::Unimplemented,
+        RWBufferAddressLoad => unimplemented_intrinsic(),
+        RWBufferAddressStore => unimplemented_intrinsic(),
 
-        Texture2DGetDimensions => {
-            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+        Texture2DGetDimensions => invoke_helper(
+            IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2D,
                 read_write: false,
-            }))
-        }
-        Texture2DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
-            dim: Dim::Tex2D,
-            read_write: false,
-            has_offset: exprs.len() >= 3,
-            has_status: exprs.len() >= 4,
-        })),
-        Texture2DSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
-            dim: Dim::Tex2D,
-            has_offset: exprs.len() >= 4,
-            has_clamp: exprs.len() >= 5,
-            has_status: exprs.len() >= 6,
-        })),
-        Texture2DSampleBias => Form::Unimplemented,
-        Texture2DSampleCmp => Form::Unimplemented,
-        Texture2DSampleCmpLevelZero => Form::Unimplemented,
-        Texture2DSampleGrad => Form::Unimplemented,
-        Texture2DSampleLevel => Form::Unimplemented,
-        Texture2DGatherRed => Form::Unimplemented,
-        Texture2DGatherGreen => Form::Unimplemented,
-        Texture2DGatherBlue => Form::Unimplemented,
-        Texture2DGatherAlpha => Form::Unimplemented,
-        Texture2DGatherCmpRed => Form::Unimplemented,
-        Texture2DGatherCmpGreen => Form::Unimplemented,
-        Texture2DGatherCmpBlue => Form::Unimplemented,
-        Texture2DGatherCmpAlpha => Form::Unimplemented,
+            }),
+            context,
+        ),
+        Texture2DLoad => invoke_helper(
+            IntrinsicHelper::Load(LoadHelper {
+                dim: Dim::Tex2D,
+                read_write: false,
+                has_offset: exprs.len() >= 3,
+                has_status: exprs.len() >= 4,
+            }),
+            context,
+        ),
+        Texture2DSample => invoke_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::Tex2D,
+                has_offset: exprs.len() >= 4,
+                has_clamp: exprs.len() >= 5,
+                has_status: exprs.len() >= 6,
+            }),
+            context,
+        ),
+        Texture2DSampleBias => unimplemented_intrinsic(),
+        Texture2DSampleCmp => unimplemented_intrinsic(),
+        Texture2DSampleCmpLevelZero => unimplemented_intrinsic(),
+        Texture2DSampleGrad => unimplemented_intrinsic(),
+        Texture2DSampleLevel => unimplemented_intrinsic(),
+        Texture2DGatherRed => unimplemented_intrinsic(),
+        Texture2DGatherGreen => unimplemented_intrinsic(),
+        Texture2DGatherBlue => unimplemented_intrinsic(),
+        Texture2DGatherAlpha => unimplemented_intrinsic(),
+        Texture2DGatherCmpRed => unimplemented_intrinsic(),
+        Texture2DGatherCmpGreen => unimplemented_intrinsic(),
+        Texture2DGatherCmpBlue => unimplemented_intrinsic(),
+        Texture2DGatherCmpAlpha => unimplemented_intrinsic(),
 
-        Texture2DArrayGetDimensions => {
-            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+        Texture2DArrayGetDimensions => invoke_helper(
+            IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2DArray,
                 read_write: false,
-            }))
-        }
-        Texture2DArrayLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
-            dim: Dim::Tex2DArray,
-            read_write: false,
-            has_offset: exprs.len() >= 3,
-            has_status: exprs.len() >= 4,
-        })),
-        Texture2DArraySample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
-            dim: Dim::Tex2DArray,
-            has_offset: exprs.len() >= 4,
-            has_clamp: exprs.len() >= 5,
-            has_status: exprs.len() >= 6,
-        })),
-        Texture2DArraySampleBias => Form::Unimplemented,
-        Texture2DArraySampleCmp => Form::Unimplemented,
-        Texture2DArraySampleCmpLevelZero => Form::Unimplemented,
-        Texture2DArraySampleGrad => Form::Unimplemented,
-        Texture2DArraySampleLevel => Form::Unimplemented,
-        Texture2DArrayGatherRed => Form::Unimplemented,
-        Texture2DArrayGatherGreen => Form::Unimplemented,
-        Texture2DArrayGatherBlue => Form::Unimplemented,
-        Texture2DArrayGatherAlpha => Form::Unimplemented,
-        Texture2DArrayGatherCmpRed => Form::Unimplemented,
-        Texture2DArrayGatherCmpGreen => Form::Unimplemented,
-        Texture2DArrayGatherCmpBlue => Form::Unimplemented,
-        Texture2DArrayGatherCmpAlpha => Form::Unimplemented,
+            }),
+            context,
+        ),
+        Texture2DArrayLoad => invoke_helper(
+            IntrinsicHelper::Load(LoadHelper {
+                dim: Dim::Tex2DArray,
+                read_write: false,
+                has_offset: exprs.len() >= 3,
+                has_status: exprs.len() >= 4,
+            }),
+            context,
+        ),
+        Texture2DArraySample => invoke_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::Tex2DArray,
+                has_offset: exprs.len() >= 4,
+                has_clamp: exprs.len() >= 5,
+                has_status: exprs.len() >= 6,
+            }),
+            context,
+        ),
+        Texture2DArraySampleBias => unimplemented_intrinsic(),
+        Texture2DArraySampleCmp => unimplemented_intrinsic(),
+        Texture2DArraySampleCmpLevelZero => unimplemented_intrinsic(),
+        Texture2DArraySampleGrad => unimplemented_intrinsic(),
+        Texture2DArraySampleLevel => unimplemented_intrinsic(),
+        Texture2DArrayGatherRed => unimplemented_intrinsic(),
+        Texture2DArrayGatherGreen => unimplemented_intrinsic(),
+        Texture2DArrayGatherBlue => unimplemented_intrinsic(),
+        Texture2DArrayGatherAlpha => unimplemented_intrinsic(),
+        Texture2DArrayGatherCmpRed => unimplemented_intrinsic(),
+        Texture2DArrayGatherCmpGreen => unimplemented_intrinsic(),
+        Texture2DArrayGatherCmpBlue => unimplemented_intrinsic(),
+        Texture2DArrayGatherCmpAlpha => unimplemented_intrinsic(),
 
-        RWTexture2DGetDimensions => {
-            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+        RWTexture2DGetDimensions => invoke_helper(
+            IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2D,
                 read_write: true,
-            }))
-        }
-        RWTexture2DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
-            dim: Dim::Tex2D,
-            read_write: true,
-            has_offset: false,
-            has_status: exprs.len() >= 3,
-        })),
+            }),
+            context,
+        ),
+        RWTexture2DLoad => invoke_helper(
+            IntrinsicHelper::Load(LoadHelper {
+                dim: Dim::Tex2D,
+                read_write: true,
+                has_offset: false,
+                has_status: exprs.len() >= 3,
+            }),
+            context,
+        ),
 
-        RWTexture2DArrayGetDimensions => {
-            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+        RWTexture2DArrayGetDimensions => invoke_helper(
+            IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2DArray,
                 read_write: true,
-            }))
-        }
-        RWTexture2DArrayLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
-            dim: Dim::Tex2DArray,
-            read_write: true,
-            has_offset: false,
-            has_status: exprs.len() >= 3,
-        })),
+            }),
+            context,
+        ),
+        RWTexture2DArrayLoad => invoke_helper(
+            IntrinsicHelper::Load(LoadHelper {
+                dim: Dim::Tex2DArray,
+                read_write: true,
+                has_offset: false,
+                has_status: exprs.len() >= 3,
+            }),
+            context,
+        ),
 
-        TextureCubeSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
-            dim: Dim::TexCube,
-            has_offset: false,
-            has_clamp: exprs.len() >= 4,
-            has_status: exprs.len() >= 5,
-        })),
-        TextureCubeSampleLevel => Form::Unimplemented,
+        TextureCubeSample => invoke_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::TexCube,
+                has_offset: false,
+                has_clamp: exprs.len() >= 4,
+                has_status: exprs.len() >= 5,
+            }),
+            context,
+        ),
+        TextureCubeSampleLevel => unimplemented_intrinsic(),
 
-        TextureCubeArraySample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
-            dim: Dim::TexCubeArray,
-            has_offset: false,
-            has_clamp: exprs.len() >= 4,
-            has_status: exprs.len() >= 5,
-        })),
-        TextureCubeArraySampleLevel => Form::Unimplemented,
+        TextureCubeArraySample => invoke_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::TexCubeArray,
+                has_offset: false,
+                has_clamp: exprs.len() >= 4,
+                has_status: exprs.len() >= 5,
+            }),
+            context,
+        ),
+        TextureCubeArraySampleLevel => unimplemented_intrinsic(),
 
-        Texture3DGetDimensions => {
-            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+        Texture3DGetDimensions => invoke_helper(
+            IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex3D,
                 read_write: false,
-            }))
-        }
-        Texture3DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
-            dim: Dim::Tex3D,
-            read_write: false,
-            has_offset: exprs.len() >= 3,
-            has_status: exprs.len() >= 4,
-        })),
-        Texture3DSample => Form::InvokeHelper(IntrinsicHelper::Sample(SampleHelper {
-            dim: Dim::Tex3D,
-            has_offset: exprs.len() >= 4,
-            has_clamp: exprs.len() >= 5,
-            has_status: exprs.len() >= 6,
-        })),
-        Texture3DSampleBias => Form::Unimplemented,
-        Texture3DSampleGrad => Form::Unimplemented,
-        Texture3DSampleLevel => Form::Unimplemented,
+            }),
+            context,
+        ),
+        Texture3DLoad => invoke_helper(
+            IntrinsicHelper::Load(LoadHelper {
+                dim: Dim::Tex3D,
+                read_write: false,
+                has_offset: exprs.len() >= 3,
+                has_status: exprs.len() >= 4,
+            }),
+            context,
+        ),
+        Texture3DSample => invoke_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::Tex3D,
+                has_offset: exprs.len() >= 4,
+                has_clamp: exprs.len() >= 5,
+                has_status: exprs.len() >= 6,
+            }),
+            context,
+        ),
+        Texture3DSampleBias => unimplemented_intrinsic(),
+        Texture3DSampleGrad => unimplemented_intrinsic(),
+        Texture3DSampleLevel => unimplemented_intrinsic(),
 
-        RWTexture3DGetDimensions => {
-            Form::InvokeHelper(IntrinsicHelper::GetDimensions(GetDimensionsHelper {
+        RWTexture3DGetDimensions => invoke_helper(
+            IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex3D,
                 read_write: true,
-            }))
-        }
-        RWTexture3DLoad => Form::InvokeHelper(IntrinsicHelper::Load(LoadHelper {
-            dim: Dim::Tex3D,
-            read_write: true,
-            has_offset: false,
-            has_status: exprs.len() >= 3,
-        })),
+            }),
+            context,
+        ),
+        RWTexture3DLoad => invoke_helper(
+            IntrinsicHelper::Load(LoadHelper {
+                dim: Dim::Tex3D,
+                read_write: true,
+                has_offset: false,
+                has_status: exprs.len() >= 3,
+            }),
+            context,
+        ),
 
         TriangleStreamAppend | TriangleStreamRestartStrip => {
-            return Err(GenerateError::UnsupportedGeometryShader)
+            Err(GenerateError::UnsupportedGeometryShader)
         }
 
         RayQueryTraceRayInline
@@ -2261,47 +2274,58 @@ fn generate_intrinsic_function(
         | RayQueryCandidateTriangleBarycentrics
         | RayQueryCandidateTriangleFrontFace
         | RayQueryCommittedTriangleBarycentrics
-        | RayQueryCommittedTriangleFrontFace => return Err(GenerateError::UnimplementedRaytracing),
-    };
+        | RayQueryCommittedTriangleFrontFace => Err(GenerateError::UnimplementedRaytracing),
+    }
+}
 
-    let expr = match form {
-        Form::Invoke(s) => {
-            let identifier = metal_lib_identifier(s);
-            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
-            let type_args = generate_template_type_args(tys, context)?;
-            let args = generate_invocation_args(exprs, context)?;
-            ast::Expression::Call(object, type_args, args)
-        }
-        Form::InvokeHelper(helper) => {
-            context.required_helpers.insert(helper);
+/// Invoke a simple function
+fn generate_invoke_simple(
+    name: &str,
+    tys: &[ir::TypeOrConstant],
+    exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let identifier = metal_lib_identifier(name);
+    let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+    let type_args = generate_template_type_args(tys, context)?;
+    let args = generate_invocation_args(exprs, context)?;
+    Ok(ast::Expression::Call(object, type_args, args))
+}
 
-            let name = get_intrinsic_helper_name(helper);
-            let identifier = ast::ScopedIdentifier {
-                base: ast::ScopedIdentifierBase::Relative,
-                identifiers: Vec::from([
-                    Located::none(HELPER_NAMESPACE_NAME.to_string()),
-                    Located::none(name.to_string()),
-                ]),
-            };
-            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
-            let type_args = generate_template_type_args(tys, context)?;
-            let args = generate_invocation_args(exprs, context)?;
-            ast::Expression::Call(object, type_args, args)
-        }
-        Form::Unimplemented => return Err(UnimplementedIntrinsic(intrinsic.clone())),
+/// Invoke a helper function
+fn generate_invoke_helper(
+    helper: IntrinsicHelper,
+    tys: &[ir::TypeOrConstant],
+    exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    context.required_helpers.insert(helper);
+
+    let name = get_intrinsic_helper_name(helper);
+    let identifier = ast::ScopedIdentifier {
+        base: ast::ScopedIdentifierBase::Relative,
+        identifiers: Vec::from([
+            Located::none(HELPER_NAMESPACE_NAME.to_string()),
+            Located::none(name.to_string()),
+        ]),
     };
-    Ok(expr)
+    let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+    let type_args = generate_template_type_args(tys, context)?;
+    let args = generate_invocation_args(exprs, context)?;
+    Ok(ast::Expression::Call(object, type_args, args))
 }
 
 /// Create a Load / Load2 / Load3 / Load4 / Load<T> for a byte buffer
 fn generate_byte_buffer_load(
     mut target: ast::TypeId,
-    object: &ir::Expression,
-    offset: &ir::Expression,
+    exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
-    let object = generate_expression(object, context)?;
-    let offset = generate_expression(offset, context)?;
+    if exprs.len() != 2 {
+        return Err(GenerateError::InvalidModule);
+    }
+    let object = generate_expression(&exprs[0], context)?;
+    let offset = generate_expression(&exprs[1], context)?;
     target
         .base
         .modifiers
@@ -2338,14 +2362,15 @@ fn generate_byte_buffer_load(
 /// Create a Store / Store2 / Store3 / Store4 for a byte buffer
 fn generate_byte_buffer_store(
     mut target: ast::TypeId,
-    object: &ir::Expression,
-    offset: &ir::Expression,
-    value: &ir::Expression,
+    exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
-    let object = generate_expression(object, context)?;
-    let offset = generate_expression(offset, context)?;
-    let value = generate_expression(value, context)?;
+    if exprs.len() != 3 {
+        return Err(GenerateError::InvalidModule);
+    }
+    let object = generate_expression(&exprs[0], context)?;
+    let offset = generate_expression(&exprs[1], context)?;
+    let value = generate_expression(&exprs[2], context)?;
     target
         .base
         .modifiers
