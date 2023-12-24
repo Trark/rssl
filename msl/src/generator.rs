@@ -2052,15 +2052,29 @@ fn generate_intrinsic_function(
             }
             generate_byte_buffer_store(ast::TypeId::from("uint4"), exprs, context)
         }
-        RWByteAddressBufferInterlockedAdd => unimplemented_intrinsic(),
-        RWByteAddressBufferInterlockedAnd => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedAdd => {
+            generate_byte_buffer_atomic("atomic_fetch_add_explicit", tys, exprs, context)
+        }
+        RWByteAddressBufferInterlockedAnd => {
+            generate_byte_buffer_atomic("atomic_fetch_and_explicit", tys, exprs, context)
+        }
         RWByteAddressBufferInterlockedCompareExchange => unimplemented_intrinsic(),
         RWByteAddressBufferInterlockedCompareStore => unimplemented_intrinsic(),
-        RWByteAddressBufferInterlockedExchange => unimplemented_intrinsic(),
-        RWByteAddressBufferInterlockedMax => unimplemented_intrinsic(),
-        RWByteAddressBufferInterlockedMin => unimplemented_intrinsic(),
-        RWByteAddressBufferInterlockedOr => unimplemented_intrinsic(),
-        RWByteAddressBufferInterlockedXor => unimplemented_intrinsic(),
+        RWByteAddressBufferInterlockedExchange => {
+            generate_byte_buffer_atomic("atomic_exchange_explicit", tys, exprs, context)
+        }
+        RWByteAddressBufferInterlockedMax => {
+            generate_byte_buffer_atomic("atomic_fetch_max_explicit", tys, exprs, context)
+        }
+        RWByteAddressBufferInterlockedMin => {
+            generate_byte_buffer_atomic("atomic_fetch_min_explicit", tys, exprs, context)
+        }
+        RWByteAddressBufferInterlockedOr => {
+            generate_byte_buffer_atomic("atomic_fetch_or_explicit", tys, exprs, context)
+        }
+        RWByteAddressBufferInterlockedXor => {
+            generate_byte_buffer_atomic("atomic_fetch_xor_explicit", tys, exprs, context)
+        }
 
         BufferAddressLoad => unimplemented_intrinsic(),
 
@@ -2486,6 +2500,84 @@ fn generate_byte_buffer_store(
     ))
 }
 
+/// Create an Interlocked operation for a byte buffer
+fn generate_byte_buffer_atomic(
+    op_name: &str,
+    tys: &[ir::TypeOrConstant],
+    exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    if !tys.is_empty() {
+        return Err(GenerateError::InvalidModule);
+    }
+    if exprs.len() != 4 {
+        return Err(GenerateError::InvalidModule);
+    }
+
+    let object_expr = generate_expression(&exprs[0], context)?;
+    let dest_expr = generate_expression(&exprs[1], context)?;
+    let value_expr = generate_expression(&exprs[2], context)?;
+    let original_value_expr = generate_expression(&exprs[3], context)?;
+
+    let address_expr = ast::Expression::BinaryOperation(
+        ast::BinOp::Add,
+        Box::new(Located::none(object_expr)),
+        Box::new(Located::none(dest_expr)),
+    );
+
+    let typed_address_expr = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+        ))),
+        Vec::from([ast::ExpressionOrType::Type(ast::TypeId {
+            base: ast::Type {
+                layout: ast::TypeLayout(
+                    metal_lib_identifier("atomic"),
+                    Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))])
+                        .into_boxed_slice(),
+                ),
+                modifiers: ast::TypeModifierSet::from(&[Located::none(
+                    ast::TypeModifier::AddressSpace(ast::AddressSpace::Device),
+                )]),
+                location: SourceLocation::UNKNOWN,
+            },
+            abstract_declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
+                attributes: Vec::new(),
+                qualifiers: ast::TypeModifierSet::default(),
+                inner: Box::new(ast::Declarator::Empty),
+            }),
+        })]),
+        Vec::from([Located::none(address_expr)]),
+    );
+
+    let atomic_call = ast::Expression::BinaryOperation(
+        ast::BinOp::Assignment,
+        Box::new(Located::none(original_value_expr)),
+        Box::new(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(op_name),
+            ))),
+            Vec::new(),
+            Vec::from([
+                Located::none(typed_address_expr),
+                Located::none(value_expr),
+                Located::none(ast::Expression::Identifier(ast::ScopedIdentifier {
+                    base: ast::ScopedIdentifierBase::Relative,
+                    identifiers: Vec::from([
+                        Located::none(String::from("metal")),
+                        Located::none(String::from("memory_order")),
+                        Located::none(String::from("memory_order_relaxed")),
+                    ]),
+                })),
+            ]),
+        ))),
+    );
+
+    Ok(ast::Expression::Cast(
+        ast::TypeId::from("void"),
+        Box::new(Located::none(atomic_call)),
+    ))
+}
 /// Write out an intrinsic operator expression
 fn generate_intrinsic_op(
     intrinsic: &ir::IntrinsicOp,
