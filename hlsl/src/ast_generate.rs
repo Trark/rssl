@@ -1138,7 +1138,7 @@ fn generate_literal(
                         Box::new(Located::none(literal_expr))
                     };
 
-                    return Ok(ast::Expression::Cast(enum_type, literal_expr));
+                    return Ok(ast::Expression::Cast(Box::new(enum_type), literal_expr));
                 }
             }
         }
@@ -1561,7 +1561,7 @@ fn generate_expression(
 
             if !to_literal {
                 let ty = generate_type_id(*type_id, context)?;
-                ast::Expression::Cast(ty, Box::new(Located::none(inner)))
+                ast::Expression::Cast(Box::new(ty), Box::new(Located::none(inner)))
             } else {
                 inner
             }

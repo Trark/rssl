@@ -382,7 +382,10 @@ fn expr_p2<'t>(
         let (input, expr) = expr_p2(input, st)?;
         Ok((
             input,
-            Located::new(Expression::Cast(cast, Box::new(expr)), start.to_loc()),
+            Located::new(
+                Expression::Cast(Box::new(cast), Box::new(expr)),
+                start.to_loc(),
+            ),
         ))
     }
 
@@ -1245,12 +1248,12 @@ fn test_cast() {
 
     expr.check(
         "(float) b",
-        Expression::Cast(TypeId::from("float".loc(1)), "b".as_bvar(8)).loc(0),
+        Expression::Cast(Box::new(TypeId::from("float".loc(1))), "b".as_bvar(8)).loc(0),
     );
 
     expr.check(
         "(float3) x",
-        Expression::Cast(TypeId::from("float3".loc(1)), "x".as_bvar(9)).loc(0),
+        Expression::Cast(Box::new(TypeId::from("float3".loc(1))), "x".as_bvar(9)).loc(0),
     );
 
     expr.check(
@@ -1280,7 +1283,7 @@ fn test_cast() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    TypeId::from("float2".loc(1)),
+                    Box::new(TypeId::from("float2".loc(1))),
                     Expression::BinaryOperation(BinOp::Sequence, "x".as_bvar(9), "y".as_bvar(12))
                         .bloc(8),
                 )
@@ -1311,7 +1314,7 @@ fn test_ambiguous() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    TypeId::from("a".loc(1)),
+                    Box::new(TypeId::from("a".loc(1))),
                     Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
                 )
                 .loc(0),
@@ -1335,11 +1338,11 @@ fn test_ambiguous() {
         Located::none(Expression::AmbiguousParseBranch(Vec::from([
             ConstrainedExpression {
                 expr: Expression::Cast(
-                    TypeId::from("a".loc(1)),
+                    Box::new(TypeId::from("a".loc(1))),
                     Expression::UnaryOperation(
                         UnaryOp::Plus,
                         Expression::Cast(
-                            TypeId::from("b".loc(7)),
+                            Box::new(TypeId::from("b".loc(7))),
                             Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12))
                                 .bloc(10),
                         )
@@ -1358,7 +1361,7 @@ fn test_ambiguous() {
                     BinOp::Add,
                     "a".as_bvar2(1, 0),
                     Expression::Cast(
-                        TypeId::from("b".loc(7)),
+                        Box::new(TypeId::from("b".loc(7))),
                         Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12)).bloc(10),
                     )
                     .bloc(6),
@@ -1370,7 +1373,7 @@ fn test_ambiguous() {
                 expr: Expression::BinaryOperation(
                     BinOp::Add,
                     Expression::Cast(
-                        TypeId::from("a".loc(1)),
+                        Box::new(TypeId::from("a".loc(1))),
                         Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
                     )
                     .bloc(0),

@@ -1284,7 +1284,7 @@ fn generate_literal(
                         Box::new(Located::none(literal_expr))
                     };
 
-                    return Ok(ast::Expression::Cast(enum_type, literal_expr));
+                    return Ok(ast::Expression::Cast(Box::new(enum_type), literal_expr));
                 }
             }
         }
@@ -1682,7 +1682,7 @@ fn generate_expression(
 
             if !to_literal {
                 let ty = generate_type_id(*type_id, context)?;
-                ast::Expression::Cast(ty, Box::new(Located::none(inner)))
+                ast::Expression::Cast(Box::new(ty), Box::new(Located::none(inner)))
             } else {
                 inner
             }
@@ -2574,7 +2574,7 @@ fn generate_byte_buffer_atomic(
     );
 
     Ok(ast::Expression::Cast(
-        ast::TypeId::from("void"),
+        Box::new(ast::TypeId::from("void")),
         Box::new(Located::none(atomic_call)),
     ))
 }
@@ -2655,7 +2655,7 @@ fn generate_intrinsic_op(
                 // Emit a cast that returns back to the enum type
                 // If we would then cast again this will be redundant
                 let cast_target = generate_type_id(output_type, context)?;
-                ast::Expression::Cast(cast_target, Box::new(Located::none(output)))
+                ast::Expression::Cast(Box::new(cast_target), Box::new(Located::none(output)))
             } else {
                 output
             }

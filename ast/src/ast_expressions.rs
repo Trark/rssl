@@ -25,7 +25,7 @@ pub enum Expression {
         /// Arguments
         Vec<Located<Expression>>,
     ),
-    Cast(TypeId, Box<Located<Expression>>),
+    Cast(Box<TypeId>, Box<Located<Expression>>),
     /// sizeof() an expression or a direct type
     SizeOf(Box<ExpressionOrType>),
     /// Set of expressions which may be selected depending on known type names
