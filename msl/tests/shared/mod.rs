@@ -1,4 +1,3 @@
-use metal_invoker::*;
 use rssl_msl::ExportError;
 use rssl_text::*;
 
@@ -93,20 +92,19 @@ pub fn expect_generate_fail(source_rssl: &str, expected_err: GenerateError) {
 /// Check that the input text is valid metal shading language source
 #[track_caller]
 fn validate_metal(metal_source: &str) {
+    use metal_invoker::*;
+
     if !std::env::vars().any(|v| v.0 == "VALIDATE_METAL" && v.1 != "0") {
         return;
     }
-
-    // Add a block to the start that is not currently output correctly by the exporter
-    let prelude = "#include <metal_stdlib>\n";
-    let final_source = prelude.to_string() + metal_source;
 
     let compiler = match MetalCompiler::find() {
         Ok(compiler) => compiler,
         Err(err) => panic!("{}", err),
     };
 
-    let execute_result = compiler.execute(&final_source, &["-std=metal3.1"]);
+    let execute_result =
+        compiler.execute(metal_source, &["-std=metal3.1", "-include", "metal_stdlib"]);
 
     // Ensure the build was a success and display the errors if not
     if let Err(err) = execute_result {
