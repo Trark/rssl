@@ -86,68 +86,49 @@ fn compile_file(entry_file: &str, files: &'static [(&'static str, &'static str)]
 
     let mut include_handler = TestIncludeHandler { files };
 
-    // Preprocess the text
-    let tokens = match rssl_preprocess::preprocess(
-        entry_file,
-        &mut source_manager,
-        &mut include_handler,
-        &[
-            ("__HLSL_VERSION", "2021"),
+    let compiled = match rssl::compile(
+        rssl::CompileArgs::new(
+            entry_file,
+            &mut include_handler,
+            rssl::Target::HlslForDirectX,
+        )
+        .defines(&[
             ("FFX_GPU", "1"),
             ("FFX_HLSL", "1"),
             ("globallycoherent", ""),
-        ],
+        ])
+        .no_pipeline_mode(),
     ) {
-        Ok(tokens) => tokens,
-        Err(err) => panic!("{}", err.display(&source_manager)),
+        Ok(ok) => ok,
+        Err(err) => panic!("{}", err),
     };
 
-    let tokens = rssl_preprocess::prepare_tokens(&tokens);
+    // Run ourself on the output again to ensure it is vaguely valid HLSL
+    {
+        assert_eq!(compiled.len(), 1);
+        let output_text = String::from_utf8(compiled[0].data.clone()).unwrap();
 
-    // Run the parser
-    let tree = match rssl_parser::parse(&tokens) {
-        Ok(tree) => tree,
-        Err(err) => panic!("{}", err.display(&source_manager)),
-    };
+        // Preprocess the text
+        let tokens = match rssl_preprocess::preprocess_fragment(
+            &output_text,
+            FileName("generated".to_string()),
+            &mut source_manager,
+        ) {
+            Ok(tokens) => tokens,
+            Err(err) => panic!("{}", err.display(&source_manager)),
+        };
 
-    // Run the type checker
-    let ir = match rssl_typer::type_check(&tree) {
-        Ok(ir) => ir,
-        Err(err) => panic!("{}", err.display(&source_manager)),
-    };
+        let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
-    let ir = ir.assign_api_bindings(rssl_ir::AssignBindingsParams::default());
+        // Run the parser
+        let tree = match rssl_parser::parse(&tokens) {
+            Ok(tree) => tree,
+            Err(err) => panic!("{}", err.display(&source_manager)),
+        };
 
-    match rssl_hlsl::export_to_hlsl(&ir) {
-        Ok(output) => {
-            // Success!
-
-            // Preprocess the text
-            let tokens = match rssl_preprocess::preprocess_fragment(
-                &output.source,
-                FileName("generated".to_string()),
-                &mut source_manager,
-            ) {
-                Ok(tokens) => tokens,
-                Err(err) => panic!("{}", err.display(&source_manager)),
-            };
-
-            let tokens = rssl_preprocess::prepare_tokens(&tokens);
-
-            // Run the parser
-            let tree = match rssl_parser::parse(&tokens) {
-                Ok(tree) => tree,
-                Err(err) => panic!("{}", err.display(&source_manager)),
-            };
-
-            // Run the type checker
-            if let Err(err) = rssl_typer::type_check(&tree) {
-                panic!("{}", err.display(&source_manager))
-            }
-        }
-        Err(err) => {
-            // TODO: Error printing
-            panic!("{err:?}")
+        // Run the type checker
+        if let Err(err) = rssl_typer::type_check(&tree) {
+            panic!("{}", err.display(&source_manager))
         }
     }
 }
