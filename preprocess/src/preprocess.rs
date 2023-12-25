@@ -1353,20 +1353,30 @@ fn preprocess_included_file(
 fn preprocess_initial_file(
     input_file: InputFile,
     file_loader: &mut FileLoader,
+    initial_defines: &[(&str, &str)],
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     let mut tokens = Vec::<PreprocessToken>::default();
     let mut macros = Vec::new();
     let mut condition_chain = ConditionChain::new();
 
     // Add initial macros
-    // We mirror the semantics of HLSL 2021
-    macros.push(Macro {
-        name: "__HLSL_VERSION".to_string(),
-        is_function: false,
-        num_params: 0,
-        tokens: Vec::from([PreprocessToken::without_location(Token::LiteralInt(2021))]),
-        location: SourceLocation::UNKNOWN,
-    });
+    for (name, value) in initial_defines {
+        let tokens = match TokenStream::new(value, SourceLocation::UNKNOWN)
+            .suppress_trailing_endline()
+            .read_to_end()
+        {
+            Ok(tokens) => tokens,
+            Err(_) => return Err(PreprocessError::InvalidDefine(SourceLocation::UNKNOWN)),
+        };
+
+        macros.push(Macro {
+            name: name.to_string(),
+            is_function: false,
+            num_params: 0,
+            tokens,
+            location: SourceLocation::UNKNOWN,
+        });
+    }
 
     preprocess_included_file(
         &mut tokens,
@@ -1388,10 +1398,11 @@ pub fn preprocess(
     entry_file_name: &str,
     source_manager: &mut SourceManager,
     include_handler: &mut dyn IncludeHandler,
+    initial_defines: &[(&str, &str)],
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     let mut file_loader = FileLoader::new(source_manager, include_handler);
     match file_loader.load(entry_file_name, None) {
-        Ok(file) => preprocess_initial_file(file, &mut file_loader),
+        Ok(file) => preprocess_initial_file(file, &mut file_loader, initial_defines),
         Err(err) => Err(PreprocessError::FailedToFindFile(
             SourceLocation::UNKNOWN,
             entry_file_name.to_string(),
@@ -1407,7 +1418,13 @@ pub fn preprocess_fragment(
     source_manager: &mut SourceManager,
 ) -> Result<Vec<PreprocessToken>, PreprocessError> {
     let mut files = [(file_name.0.as_ref(), input)];
-    preprocess(&file_name.0, source_manager, &mut files)
+    preprocess(
+        &file_name.0,
+        source_manager,
+        &mut files,
+        // We mirror the semantics of HLSL 2021 in main output - so set the define in test fragments as well
+        &[("__HLSL_VERSION", "2021")],
+    )
 }
 
 /// Convert a stream of preprocessor tokens for parsing

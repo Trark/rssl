@@ -22,7 +22,6 @@ impl<'bytes> TokenStream<'bytes> {
     }
 
     /// Suppress automated insertion of endline at end of file
-    #[cfg(test)]
     pub fn suppress_trailing_endline(mut self) -> Self {
         self.add_trailing_endline = false;
         self

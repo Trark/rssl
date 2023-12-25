@@ -342,7 +342,7 @@ fn test_include() {
             ("p1.rssl", "#pragma once\n1"),
             ("p2.rssl", "2"),
         ];
-        let tokens = preprocess("test.rssl", source_manager, &mut files)?;
+        let tokens = preprocess("test.rssl", source_manager, &mut files, &[])?;
         let string = unlex(&tokens, source_manager);
         Ok(string)
     }

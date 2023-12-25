@@ -211,15 +211,18 @@ impl PreprocessToken {
         start_offset: u32,
         end_offset: u32,
     ) -> Self {
-        assert_ne!(base_location, SourceLocation::UNKNOWN);
-        assert!(start_offset <= end_offset);
-        PreprocessToken(
-            tok,
-            PreprocessTokenData {
-                start_location: base_location.offset(start_offset),
-                end_location: base_location.offset(end_offset),
-            },
-        )
+        if base_location == SourceLocation::UNKNOWN {
+            Self::without_location(tok)
+        } else {
+            assert!(start_offset <= end_offset);
+            PreprocessToken(
+                tok,
+                PreprocessTokenData {
+                    start_location: base_location.offset(start_offset),
+                    end_location: base_location.offset(end_offset),
+                },
+            )
+        }
     }
 
     /// Construct a new token with the unknown source range

@@ -87,11 +87,20 @@ fn compile_file(entry_file: &str, files: &'static [(&'static str, &'static str)]
     let mut include_handler = TestIncludeHandler { files };
 
     // Preprocess the text
-    let tokens =
-        match rssl_preprocess::preprocess(entry_file, &mut source_manager, &mut include_handler) {
-            Ok(tokens) => tokens,
-            Err(err) => panic!("{}", err.display(&source_manager)),
-        };
+    let tokens = match rssl_preprocess::preprocess(
+        entry_file,
+        &mut source_manager,
+        &mut include_handler,
+        &[
+            ("__HLSL_VERSION", "2021"),
+            ("FFX_GPU", "1"),
+            ("FFX_HLSL", "1"),
+            ("globallycoherent", ""),
+        ],
+    ) {
+        Ok(tokens) => tokens,
+        Err(err) => panic!("{}", err.display(&source_manager)),
+    };
 
     let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
