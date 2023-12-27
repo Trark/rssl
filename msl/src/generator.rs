@@ -1919,7 +1919,13 @@ fn generate_intrinsic_function(
         InterlockedOr => unimplemented_intrinsic(),
         InterlockedXor => unimplemented_intrinsic(),
 
-        NonUniformResourceIndex => unimplemented_intrinsic(),
+        NonUniformResourceIndex => {
+            assert_eq!(exprs.len(), 1);
+            let index = generate_expression(&exprs[0], context)?;
+            // Implement NonUniformResourceIndex by ignoring it
+            // The default assumption is divergent values so this is safe
+            Ok(index)
+        }
 
         WaveGetLaneCount => unimplemented_intrinsic(),
         WaveGetLaneIndex => unimplemented_intrinsic(),
