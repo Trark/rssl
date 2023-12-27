@@ -344,6 +344,9 @@ impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             CompileError::Text(s) => write!(f, "{}", s),
+            CompileError::MetalCompilerFailed(metal_invoker::ExecuteError::CompileError(s)) => {
+                write!(f, "{}", s)
+            }
             _ => write!(f, "{:?}", self),
         }
     }
