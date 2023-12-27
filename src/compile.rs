@@ -26,7 +26,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
 
     defines.push((
         "RSSL_TARGET_MSL",
-        if matches!(args.target, Target::Msl) {
+        if matches!(args.target, Target::Msl | Target::MetalBytecode) {
             "1"
         } else {
             "0"
@@ -83,7 +83,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
             require_slot_type: false,
             support_buffer_address: args.support_buffer_address,
         },
-        Target::Msl => AssignBindingsParams {
+        Target::Msl | Target::MetalBytecode => AssignBindingsParams {
             require_slot_type: false,
             support_buffer_address: false,
         },
@@ -180,7 +180,7 @@ fn build_pipeline(
                 graphics_pipeline_state,
             }
         }
-        Target::Msl => {
+        Target::Msl | Target::MetalBytecode => {
             let mut ir = ir;
             ir::simplify_cbuffers(&mut ir);
 
@@ -206,8 +206,27 @@ fn build_pipeline(
                 }
             }
 
+            let data = if matches!(args.target, Target::MetalBytecode) {
+                let native_compiler = match metal_invoker::MetalCompiler::find() {
+                    Ok(compiler) => compiler,
+                    Err(err) => return Err(CompileError::MetalCompilerNotFound(err)),
+                };
+
+                let execute_result = native_compiler.execute(
+                    &exported_source.source,
+                    &["-std=metal3.1", "-include", "metal_stdlib"],
+                );
+
+                match execute_result {
+                    Ok(data) => data,
+                    Err(err) => return Err(CompileError::MetalCompilerFailed(err)),
+                }
+            } else {
+                exported_source.source.into_bytes()
+            };
+
             CompiledPipeline {
-                data: exported_source.source.into_bytes(),
+                data,
                 stages,
                 metadata: exported_source.pipeline_description,
                 graphics_pipeline_state,
@@ -247,6 +266,8 @@ pub struct CompiledPipelineStage {
 pub enum CompileError {
     Text(String),
     InvalidArgs,
+    MetalCompilerNotFound(metal_invoker::FindError),
+    MetalCompilerFailed(metal_invoker::ExecuteError),
 }
 
 /// Arguments for [compile()]
@@ -314,6 +335,9 @@ pub enum Target {
 
     /// Generate Metal shading language source to be compiled with metal shader compiler
     Msl,
+
+    /// Generate Metal bytecode
+    MetalBytecode,
 }
 
 impl std::fmt::Display for CompileError {
