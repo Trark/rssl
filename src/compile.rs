@@ -181,6 +181,9 @@ fn build_pipeline(
             }
         }
         Target::Msl => {
+            let mut ir = ir;
+            ir::simplify_cbuffers(&mut ir);
+
             let exported_source = match msl::export_to_msl(&ir) {
                 Ok(exported_source) => exported_source,
                 Err(err) => panic!("{err:?}"),
