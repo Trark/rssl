@@ -6,6 +6,12 @@ pub fn check_hlsl(source_rssl: &str, expected_hlsl: &str) {
 
 #[track_caller]
 #[allow(unused)]
+pub fn check_hlsl_vk(source_rssl: &str, expected_hlsl: &str) {
+    check_for_target(source_rssl, expected_hlsl, rssl::Target::HlslForVulkan);
+}
+
+#[track_caller]
+#[allow(unused)]
 pub fn check_msl(source_rssl: &str, expected_msl: &str) {
     validate_metal(expected_msl);
     check_for_target(source_rssl, expected_msl, rssl::Target::Msl);
@@ -17,7 +23,9 @@ pub fn check_for_target(source_rssl: &str, expected: &str, target: rssl::Target)
     let mut include_handler = [(test_file_name, source_rssl)];
 
     let compiled = match rssl::compile(
-        rssl::CompileArgs::new(test_file_name, &mut include_handler, target).no_pipeline_mode(),
+        rssl::CompileArgs::new(test_file_name, &mut include_handler, target)
+            .no_pipeline_mode()
+            .support_buffer_address(matches!(target, rssl::Target::HlslForVulkan)),
     ) {
         Ok(ok) => ok,
         Err(err) => panic!("{}", err),

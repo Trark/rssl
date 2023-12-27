@@ -199,6 +199,8 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                             // Types that turn into pointers need an address space
                             ir::ObjectType::ByteAddressBuffer
                             | ir::ObjectType::RWByteAddressBuffer
+                            | ir::ObjectType::BufferAddress
+                            | ir::ObjectType::RWBufferAddress
                             | ir::ObjectType::StructuredBuffer(_)
                             | ir::ObjectType::RWStructuredBuffer(_) => {
                                 (Some(ast::AddressSpace::Device), true)
@@ -1006,10 +1008,8 @@ fn generate_type_impl(
             match ot {
                 Buffer(ty) => build_texture("texture_buffer", ty, false, context)?,
                 RWBuffer(ty) => build_texture("texture_buffer", ty, true, context)?,
-                ByteAddressBuffer => build_byte_buffer(false, &mut declarator)?,
-                RWByteAddressBuffer => build_byte_buffer(true, &mut declarator)?,
-                BufferAddress => return Err(GenerateError::UnimplementedObject(ot)),
-                RWBufferAddress => return Err(GenerateError::UnimplementedObject(ot)),
+                ByteAddressBuffer | BufferAddress => build_byte_buffer(false, &mut declarator)?,
+                RWByteAddressBuffer | RWBufferAddress => build_byte_buffer(true, &mut declarator)?,
                 StructuredBuffer(id) => build_buffer(id, false, &mut declarator, context)?,
                 RWStructuredBuffer(id) => build_buffer(id, true, &mut declarator, context)?,
 
@@ -2008,7 +2008,10 @@ fn generate_intrinsic_function(
             }
             generate_byte_buffer_load(ast::TypeId::from("uint4"), exprs, context)
         }
-        ByteAddressBufferLoadT | RWByteAddressBufferLoadT => {
+        ByteAddressBufferLoadT
+        | RWByteAddressBufferLoadT
+        | BufferAddressLoad
+        | RWBufferAddressLoad => {
             if tys.len() != 1 {
                 return Err(GenerateError::InvalidModule);
             }
@@ -2022,7 +2025,7 @@ fn generate_intrinsic_function(
         }
 
         RWByteAddressBufferGetDimensions => unimplemented_intrinsic(),
-        RWByteAddressBufferStore => {
+        RWByteAddressBufferStore | RWBufferAddressStore => {
             if tys.len() != 1 {
                 return Err(GenerateError::InvalidModule);
             }
@@ -2075,11 +2078,6 @@ fn generate_intrinsic_function(
         RWByteAddressBufferInterlockedXor => {
             generate_byte_buffer_atomic("atomic_fetch_xor_explicit", tys, exprs, context)
         }
-
-        BufferAddressLoad => unimplemented_intrinsic(),
-
-        RWBufferAddressLoad => unimplemented_intrinsic(),
-        RWBufferAddressStore => unimplemented_intrinsic(),
 
         Texture2DGetDimensions => invoke_helper(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {

@@ -1374,27 +1374,6 @@ void f() {
 }
 
 #[test]
-fn check_byte_buffer() {
-    check_rssl_to_hlsl_dx(
-        include_str!("byte_buffer.rssl"),
-        include_str!("byte_buffer.hlsl"),
-    );
-}
-
-#[test]
-fn check_buffer_address() {
-    check_rssl_to_hlsl_dx(
-        include_str!("buffer_address.rssl"),
-        include_str!("buffer_address.hlsl"),
-    );
-
-    check_rssl_to_hlsl_vk(
-        include_str!("buffer_address.rssl"),
-        include_str!("buffer_address.vk.hlsl"),
-    );
-}
-
-#[test]
 fn check_structured_buffer() {
     check_rssl_to_hlsl_dx(
         include_str!("structured_buffer.rssl"),

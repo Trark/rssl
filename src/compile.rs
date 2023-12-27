@@ -324,7 +324,7 @@ impl<'a> CompileArgs<'a> {
     }
 }
 
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub enum Target {
     /// Generate HLSL to be compiled with DXC for DirectX
     #[default]
