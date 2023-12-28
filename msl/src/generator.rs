@@ -197,11 +197,7 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                         assert_eq!(natural_address_space, ast::AddressSpace::Device);
                         match ot {
                             // Types that turn into pointers need an address space
-                            ir::ObjectType::ByteAddressBuffer
-                            | ir::ObjectType::RWByteAddressBuffer
-                            | ir::ObjectType::BufferAddress
-                            | ir::ObjectType::RWBufferAddress
-                            | ir::ObjectType::StructuredBuffer(_)
+                            ir::ObjectType::StructuredBuffer(_)
                             | ir::ObjectType::RWStructuredBuffer(_) => {
                                 (Some(ast::AddressSpace::Device), true)
                             }
@@ -987,31 +983,24 @@ fn generate_type_impl(
 
             fn build_byte_buffer(
                 read_write: bool,
-                declarator: &mut ast::Declarator,
+                context: &mut GenerateContext,
             ) -> Result<ast::Type, GenerateError> {
-                let mut ty = ast::Type::from("uint8_t");
-
-                if !read_write {
-                    ty.modifiers
-                        .prepend(Located::none(ast::TypeModifier::Const));
-                }
-
-                let prev_declarator = std::mem::replace(declarator, ast::Declarator::Empty);
-                *declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
-                    attributes: Vec::new(),
-                    qualifiers: ast::TypeModifierSet::new(),
-                    inner: Box::new(prev_declarator),
-                });
-
-                Ok(ty)
+                Ok(ast::Type::from(require_helper_object(
+                    if read_write {
+                        IntrinsicObject::RWByteAddressBuffer
+                    } else {
+                        IntrinsicObject::ByteAddressBuffer
+                    },
+                    context,
+                )?))
             }
 
             use ir::ObjectType::*;
             match ot {
                 Buffer(ty) => build_texture("texture_buffer", ty, false, context)?,
                 RWBuffer(ty) => build_texture("texture_buffer", ty, true, context)?,
-                ByteAddressBuffer | BufferAddress => build_byte_buffer(false, &mut declarator)?,
-                RWByteAddressBuffer | RWBufferAddress => build_byte_buffer(true, &mut declarator)?,
+                ByteAddressBuffer | BufferAddress => build_byte_buffer(false, context)?,
+                RWByteAddressBuffer | RWBufferAddress => build_byte_buffer(true, context)?,
                 StructuredBuffer(id) => build_buffer(id, false, &mut declarator, context)?,
                 RWStructuredBuffer(id) => build_buffer(id, true, &mut declarator, context)?,
 
@@ -1992,29 +1981,36 @@ fn generate_intrinsic_function(
         RWStructuredBufferGetDimensions => unimplemented_intrinsic(),
 
         ByteAddressBufferGetDimensions => unimplemented_intrinsic(),
-        ByteAddressBufferLoad | RWByteAddressBufferLoad => {
+        ByteAddressBufferLoad
+        | RWByteAddressBufferLoad
+        | ByteAddressBufferLoad2
+        | RWByteAddressBufferLoad2
+        | ByteAddressBufferLoad3
+        | RWByteAddressBufferLoad3
+        | ByteAddressBufferLoad4
+        | RWByteAddressBufferLoad4 => {
             if !tys.is_empty() {
                 return Err(GenerateError::InvalidModule);
             }
-            generate_byte_buffer_load(ast::TypeId::from("uint"), exprs, context)
-        }
-        ByteAddressBufferLoad2 | RWByteAddressBufferLoad2 => {
-            if !tys.is_empty() {
-                return Err(GenerateError::InvalidModule);
-            }
-            generate_byte_buffer_load(ast::TypeId::from("uint2"), exprs, context)
-        }
-        ByteAddressBufferLoad3 | RWByteAddressBufferLoad3 => {
-            if !tys.is_empty() {
-                return Err(GenerateError::InvalidModule);
-            }
-            generate_byte_buffer_load(ast::TypeId::from("uint3"), exprs, context)
-        }
-        ByteAddressBufferLoad4 | RWByteAddressBufferLoad4 => {
-            if !tys.is_empty() {
-                return Err(GenerateError::InvalidModule);
-            }
-            generate_byte_buffer_load(ast::TypeId::from("uint4"), exprs, context)
+            let type_name = match intrinsic {
+                ByteAddressBufferLoad | RWByteAddressBufferLoad => "uint",
+                ByteAddressBufferLoad2 | RWByteAddressBufferLoad2 => "uint2",
+                ByteAddressBufferLoad3 | RWByteAddressBufferLoad3 => "uint3",
+                ByteAddressBufferLoad4 | RWByteAddressBufferLoad4 => "uint4",
+                _ => unreachable!(),
+            };
+            let object = match intrinsic {
+                ByteAddressBufferLoad
+                | ByteAddressBufferLoad2
+                | ByteAddressBufferLoad3
+                | ByteAddressBufferLoad4 => IntrinsicObject::ByteAddressBuffer,
+                RWByteAddressBufferLoad
+                | RWByteAddressBufferLoad2
+                | RWByteAddressBufferLoad3
+                | RWByteAddressBufferLoad4 => IntrinsicObject::RWByteAddressBuffer,
+                _ => unreachable!(),
+            };
+            generate_byte_buffer_load(object, ast::TypeId::from(type_name), exprs, context)
         }
         ByteAddressBufferLoadT
         | RWByteAddressBufferLoadT
@@ -2026,7 +2022,13 @@ fn generate_intrinsic_function(
             match tys[0] {
                 ir::TypeOrConstant::Type(ty) => {
                     let ty = generate_type_id(ty, context)?;
-                    generate_byte_buffer_load(ty, exprs, context)
+                    let object =
+                        if matches!(intrinsic, RWByteAddressBufferLoadT | RWBufferAddressLoad) {
+                            IntrinsicObject::RWByteAddressBuffer
+                        } else {
+                            IntrinsicObject::ByteAddressBuffer
+                        };
+                    generate_byte_buffer_load(object, ty, exprs, context)
                 }
                 ir::TypeOrConstant::Constant(_) => Err(GenerateError::InvalidModule),
             }
@@ -2040,7 +2042,12 @@ fn generate_intrinsic_function(
             match tys[0] {
                 ir::TypeOrConstant::Type(ty) => {
                     let ty = generate_type_id(ty, context)?;
-                    generate_byte_buffer_store(ty, exprs, context)
+                    generate_byte_buffer_store(
+                        IntrinsicObject::RWByteAddressBuffer,
+                        ty,
+                        exprs,
+                        context,
+                    )
                 }
                 ir::TypeOrConstant::Constant(_) => Err(GenerateError::InvalidModule),
             }
@@ -2049,42 +2056,57 @@ fn generate_intrinsic_function(
             if !tys.is_empty() {
                 return Err(GenerateError::InvalidModule);
             }
-            generate_byte_buffer_store(ast::TypeId::from("uint2"), exprs, context)
+            generate_byte_buffer_store(
+                IntrinsicObject::RWByteAddressBuffer,
+                ast::TypeId::from("uint2"),
+                exprs,
+                context,
+            )
         }
         RWByteAddressBufferStore3 => {
             if !tys.is_empty() {
                 return Err(GenerateError::InvalidModule);
             }
-            generate_byte_buffer_store(ast::TypeId::from("uint3"), exprs, context)
+            generate_byte_buffer_store(
+                IntrinsicObject::RWByteAddressBuffer,
+                ast::TypeId::from("uint3"),
+                exprs,
+                context,
+            )
         }
         RWByteAddressBufferStore4 => {
             if !tys.is_empty() {
                 return Err(GenerateError::InvalidModule);
             }
-            generate_byte_buffer_store(ast::TypeId::from("uint4"), exprs, context)
+            generate_byte_buffer_store(
+                IntrinsicObject::RWByteAddressBuffer,
+                ast::TypeId::from("uint4"),
+                exprs,
+                context,
+            )
         }
         RWByteAddressBufferInterlockedAdd => {
-            generate_byte_buffer_atomic("atomic_fetch_add_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::Add, tys, exprs, context)
         }
         RWByteAddressBufferInterlockedAnd => {
-            generate_byte_buffer_atomic("atomic_fetch_and_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::And, tys, exprs, context)
         }
         RWByteAddressBufferInterlockedCompareExchange => unimplemented_intrinsic(),
         RWByteAddressBufferInterlockedCompareStore => unimplemented_intrinsic(),
         RWByteAddressBufferInterlockedExchange => {
-            generate_byte_buffer_atomic("atomic_exchange_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::Exchange, tys, exprs, context)
         }
         RWByteAddressBufferInterlockedMax => {
-            generate_byte_buffer_atomic("atomic_fetch_max_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::Max, tys, exprs, context)
         }
         RWByteAddressBufferInterlockedMin => {
-            generate_byte_buffer_atomic("atomic_fetch_min_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::Min, tys, exprs, context)
         }
         RWByteAddressBufferInterlockedOr => {
-            generate_byte_buffer_atomic("atomic_fetch_or_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::Or, tys, exprs, context)
         }
         RWByteAddressBufferInterlockedXor => {
-            generate_byte_buffer_atomic("atomic_fetch_xor_explicit", tys, exprs, context)
+            generate_byte_buffer_atomic(BufferAtomicOp::Xor, tys, exprs, context)
         }
 
         Texture2DGetDimensions => invoke_helper(
@@ -2335,7 +2357,26 @@ fn generate_invoke_helper(
     exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
-    context.required_helpers.insert(helper);
+    let identifier = require_helper_function(helper, context)?;
+    let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+    let type_args = generate_template_type_args(tys, context)?;
+    let args = generate_invocation_args(exprs, context)?;
+    Ok(ast::Expression::Call(object, type_args, args))
+}
+
+/// Ensure a helper function is generated later
+fn require_helper_function(
+    helper: IntrinsicHelper,
+    context: &mut GenerateContext,
+) -> Result<ast::ScopedIdentifier, GenerateError> {
+    match context.required_helpers.entry(None) {
+        std::collections::hash_map::Entry::Occupied(mut o) => {
+            o.get_mut().insert(helper);
+        }
+        std::collections::hash_map::Entry::Vacant(v) => {
+            v.insert(HashSet::from([helper]));
+        }
+    };
 
     let name = get_intrinsic_helper_name(helper);
     let identifier = ast::ScopedIdentifier {
@@ -2345,10 +2386,40 @@ fn generate_invoke_helper(
             Located::none(name.to_string()),
         ]),
     };
-    let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
-    let type_args = generate_template_type_args(tys, context)?;
-    let args = generate_invocation_args(exprs, context)?;
-    Ok(ast::Expression::Call(object, type_args, args))
+
+    Ok(identifier)
+}
+
+/// Ensure a helper method is generated later
+fn require_helper_method(
+    object: IntrinsicObject,
+    helper: IntrinsicHelper,
+    context: &mut GenerateContext,
+) -> Result<ast::ScopedIdentifier, GenerateError> {
+    match context.required_helpers.entry(Some(object)) {
+        std::collections::hash_map::Entry::Occupied(mut o) => {
+            o.get_mut().insert(helper);
+        }
+        std::collections::hash_map::Entry::Vacant(v) => {
+            v.insert(HashSet::from([helper]));
+        }
+    };
+
+    let name = get_intrinsic_helper_name(helper);
+    Ok(ast::ScopedIdentifier::trivial(name))
+}
+
+/// Ensure a helper function is generated later
+fn require_helper_object(
+    object: IntrinsicObject,
+    context: &mut GenerateContext,
+) -> Result<ast::ScopedIdentifier, GenerateError> {
+    if let std::collections::hash_map::Entry::Vacant(v) =
+        context.required_helpers.entry(Some(object))
+    {
+        v.insert(HashSet::new());
+    };
+    Ok(object.get_scoped_name())
 }
 
 /// Cast down from 4 component vector to component count declared by the resource
@@ -2418,97 +2489,60 @@ fn vector_4_to_vector_n(
 
 /// Create a Load / Load2 / Load3 / Load4 / Load<T> for a byte buffer
 fn generate_byte_buffer_load(
-    mut target: ast::TypeId,
+    object_ty: IntrinsicObject,
+    target: ast::TypeId,
     exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
     if exprs.len() != 2 {
         return Err(GenerateError::InvalidModule);
     }
+
     let object = generate_expression(&exprs[0], context)?;
     let offset = generate_expression(&exprs[1], context)?;
-    target
-        .base
-        .modifiers
-        .prepend(Located::none(ast::TypeModifier::Const));
-    target
-        .base
-        .modifiers
-        .prepend(Located::none(ast::TypeModifier::AddressSpace(
-            ast::AddressSpace::Device,
-        )));
-    target.abstract_declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
-        attributes: Vec::new(),
-        qualifiers: ast::TypeModifierSet::new(),
-        inner: Box::new(target.abstract_declarator),
-    });
-    let address = ast::Expression::BinaryOperation(
-        ast::BinOp::Add,
-        Box::new(Located::none(object)),
-        Box::new(Located::none(offset)),
-    );
-    let typed_address = ast::Expression::Call(
-        Box::new(Located::none(ast::Expression::Identifier(
-            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+
+    let function = require_helper_method(object_ty, IntrinsicHelper::AddressLoad, context)?;
+
+    Ok(ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Member(
+            Box::new(Located::none(object)),
+            function,
         ))),
         Vec::from([ast::ExpressionOrType::Type(target)]),
-        Vec::from([Located::none(address)]),
-    );
-    Ok(ast::Expression::UnaryOperation(
-        ast::UnaryOp::Dereference,
-        Box::new(Located::none(typed_address)),
+        Vec::from([Located::none(offset)]),
     ))
 }
 
 /// Create a Store / Store2 / Store3 / Store4 for a byte buffer
 fn generate_byte_buffer_store(
-    mut target: ast::TypeId,
+    object_ty: IntrinsicObject,
+    target: ast::TypeId,
     exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
     if exprs.len() != 3 {
         return Err(GenerateError::InvalidModule);
     }
+
     let object = generate_expression(&exprs[0], context)?;
     let offset = generate_expression(&exprs[1], context)?;
     let value = generate_expression(&exprs[2], context)?;
-    target
-        .base
-        .modifiers
-        .prepend(Located::none(ast::TypeModifier::AddressSpace(
-            ast::AddressSpace::Device,
-        )));
-    target.abstract_declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
-        attributes: Vec::new(),
-        qualifiers: ast::TypeModifierSet::new(),
-        inner: Box::new(target.abstract_declarator),
-    });
-    let address = ast::Expression::BinaryOperation(
-        ast::BinOp::Add,
-        Box::new(Located::none(object)),
-        Box::new(Located::none(offset)),
-    );
-    let typed_address = ast::Expression::Call(
-        Box::new(Located::none(ast::Expression::Identifier(
-            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+
+    let function = require_helper_method(object_ty, IntrinsicHelper::AddressStore, context)?;
+
+    Ok(ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Member(
+            Box::new(Located::none(object)),
+            function,
         ))),
         Vec::from([ast::ExpressionOrType::Type(target)]),
-        Vec::from([Located::none(address)]),
-    );
-    let typed_reference = ast::Expression::UnaryOperation(
-        ast::UnaryOp::Dereference,
-        Box::new(Located::none(typed_address)),
-    );
-    Ok(ast::Expression::BinaryOperation(
-        ast::BinOp::Assignment,
-        Box::new(Located::none(typed_reference)),
-        Box::new(Located::none(value)),
+        Vec::from([Located::none(offset), Located::none(value)]),
     ))
 }
 
 /// Create an Interlocked operation for a byte buffer
 fn generate_byte_buffer_atomic(
-    op_name: &str,
+    op: BufferAtomicOp,
     tys: &[ir::TypeOrConstant],
     exprs: &[ir::Expression],
     context: &mut GenerateContext,
@@ -2525,65 +2559,26 @@ fn generate_byte_buffer_atomic(
     let value_expr = generate_expression(&exprs[2], context)?;
     let original_value_expr = generate_expression(&exprs[3], context)?;
 
-    let address_expr = ast::Expression::BinaryOperation(
-        ast::BinOp::Add,
-        Box::new(Located::none(object_expr)),
-        Box::new(Located::none(dest_expr)),
-    );
+    let function = require_helper_method(
+        IntrinsicObject::RWByteAddressBuffer,
+        IntrinsicHelper::AddressAtomic(op),
+        context,
+    )?;
 
-    let typed_address_expr = ast::Expression::Call(
-        Box::new(Located::none(ast::Expression::Identifier(
-            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+    Ok(ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Member(
+            Box::new(Located::none(object_expr)),
+            function,
         ))),
-        Vec::from([ast::ExpressionOrType::Type(ast::TypeId {
-            base: ast::Type {
-                layout: ast::TypeLayout(
-                    metal_lib_identifier("atomic"),
-                    Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))])
-                        .into_boxed_slice(),
-                ),
-                modifiers: ast::TypeModifierSet::from(&[Located::none(
-                    ast::TypeModifier::AddressSpace(ast::AddressSpace::Device),
-                )]),
-                location: SourceLocation::UNKNOWN,
-            },
-            abstract_declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
-                attributes: Vec::new(),
-                qualifiers: ast::TypeModifierSet::default(),
-                inner: Box::new(ast::Declarator::Empty),
-            }),
-        })]),
-        Vec::from([Located::none(address_expr)]),
-    );
-
-    let atomic_call = ast::Expression::BinaryOperation(
-        ast::BinOp::Assignment,
-        Box::new(Located::none(original_value_expr)),
-        Box::new(Located::none(ast::Expression::Call(
-            Box::new(Located::none(ast::Expression::Identifier(
-                ast::ScopedIdentifier::trivial(op_name),
-            ))),
-            Vec::new(),
-            Vec::from([
-                Located::none(typed_address_expr),
-                Located::none(value_expr),
-                Located::none(ast::Expression::Identifier(ast::ScopedIdentifier {
-                    base: ast::ScopedIdentifierBase::Relative,
-                    identifiers: Vec::from([
-                        Located::none(String::from("metal")),
-                        Located::none(String::from("memory_order")),
-                        Located::none(String::from("memory_order_relaxed")),
-                    ]),
-                })),
-            ]),
-        ))),
-    );
-
-    Ok(ast::Expression::Cast(
-        Box::new(ast::TypeId::from("void")),
-        Box::new(Located::none(atomic_call)),
+        Vec::new(),
+        Vec::from([
+            Located::none(dest_expr),
+            Located::none(value_expr),
+            Located::none(original_value_expr),
+        ]),
     ))
 }
+
 /// Write out an intrinsic operator expression
 fn generate_intrinsic_op(
     intrinsic: &ir::IntrinsicOp,
@@ -2877,7 +2872,7 @@ pub(crate) struct GenerateContext<'m> {
     name_map: NameMap,
     global_variable_modes: HashMap<ir::GlobalId, GlobalMode>,
     function_required_globals: HashMap<ir::FunctionId, Vec<ir::GlobalId>>,
-    required_helpers: HashSet<IntrinsicHelper>,
+    required_helpers: HashMap<Option<IntrinsicObject>, HashSet<IntrinsicHelper>>,
 }
 
 impl<'m> GenerateContext<'m> {
@@ -2890,7 +2885,7 @@ impl<'m> GenerateContext<'m> {
             name_map,
             global_variable_modes: HashMap::new(),
             function_required_globals: HashMap::new(),
-            required_helpers: HashSet::new(),
+            required_helpers: HashMap::new(),
         }
     }
 

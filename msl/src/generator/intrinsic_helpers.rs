@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rssl_ast as ast;
 use rssl_text::{Located, SourceLocation};
@@ -12,6 +12,16 @@ pub enum IntrinsicHelper {
     GetDimensions(GetDimensionsHelper),
     Load(LoadHelper),
     Sample(SampleHelper),
+    AddressLoad,
+    AddressStore,
+    AddressAtomic(BufferAtomicOp),
+}
+
+/// Represents a helper struct that is generated to implement intrinsic operations
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IntrinsicObject {
+    ByteAddressBuffer,
+    RWByteAddressBuffer,
 }
 
 /// Generate the function name required to call the helper
@@ -20,20 +30,68 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::GetDimensions(_) => "GetDimensions",
         IntrinsicHelper::Load(_) => "Load",
         IntrinsicHelper::Sample(_) => "Sample",
+        IntrinsicHelper::AddressLoad => "Load",
+        IntrinsicHelper::AddressStore => "Store",
+        IntrinsicHelper::AddressAtomic(op) => op.get_helper_name(),
+    }
+}
+
+impl IntrinsicObject {
+    /// Get the generated name of the object
+    pub fn get_name(&self) -> &'static str {
+        match self {
+            IntrinsicObject::ByteAddressBuffer => "ByteAddressBuffer",
+            IntrinsicObject::RWByteAddressBuffer => "RWByteAddressBuffer",
+        }
+    }
+
+    /// Get the generated name of the object inside the helper namespace
+    pub fn get_scoped_name(&self) -> ast::ScopedIdentifier {
+        ast::ScopedIdentifier {
+            base: ast::ScopedIdentifierBase::Relative,
+            identifiers: Vec::from([
+                Located::none(String::from(HELPER_NAMESPACE_NAME)),
+                Located::none(String::from(self.get_name())),
+            ]),
+        }
     }
 }
 
 /// Generate the definitions for all helpers
 pub fn generate_helpers(
-    required_helpers: HashSet<IntrinsicHelper>,
+    required_helpers: HashMap<Option<IntrinsicObject>, HashSet<IntrinsicHelper>>,
 ) -> Result<Option<ast::RootDefinition>, GenerateError> {
     let mut definitions = Vec::new();
 
-    let mut ordered = Vec::from_iter(required_helpers);
-    ordered.sort();
+    let mut objects = Vec::from_iter(required_helpers);
+    objects.sort_by(|(key_lhs, _), (key_rhs, _)| std::cmp::Ord::cmp(key_lhs, key_rhs));
 
-    for helper in ordered {
-        definitions.push(generate_helper(helper)?);
+    for (object, helpers) in objects {
+        let mut ordered = Vec::from_iter(helpers);
+        ordered.sort();
+
+        let mut functions = Vec::new();
+        for helper in ordered {
+            functions.push(generate_helper(helper)?);
+        }
+
+        if let Some(object) = object {
+            let member_vars = generate_members(object);
+            let mut members = member_vars
+                .into_iter()
+                .map(ast::StructEntry::Variable)
+                .collect::<Vec<_>>();
+            members.extend(functions.into_iter().map(ast::StructEntry::Method));
+
+            definitions.push(ast::RootDefinition::Struct(ast::StructDefinition {
+                name: Located::none(String::from(object.get_name())),
+                base_types: Vec::new(),
+                template_params: ast::TemplateParamList(Vec::new()),
+                members,
+            }));
+        } else {
+            definitions.extend(functions.into_iter().map(ast::RootDefinition::Function));
+        }
     }
 
     if definitions.is_empty() {
@@ -47,12 +105,50 @@ pub fn generate_helpers(
 }
 
 /// Generate the definition for a single helper
-fn generate_helper(helper: IntrinsicHelper) -> Result<ast::RootDefinition, GenerateError> {
+fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, GenerateError> {
     use IntrinsicHelper::*;
     match helper {
         GetDimensions(config) => Ok(build_get_dimensions(config)?),
         Load(config) => Ok(build_texture_load(config)?),
         Sample(config) => Ok(build_texture_sample(config)?),
+        AddressLoad => Ok(build_address_load()?),
+        AddressStore => Ok(build_address_store()?),
+        AddressAtomic(op) => Ok(build_address_atomic(op)?),
+    }
+}
+
+/// Generate the member variables for an intrinsic object
+fn generate_members(object: IntrinsicObject) -> Vec<ast::StructMember> {
+    use IntrinsicObject::*;
+    match object {
+        ByteAddressBuffer | RWByteAddressBuffer => {
+            let mut ty = ast::Type::from("uint8_t");
+            if !matches!(object, RWByteAddressBuffer) {
+                ty.modifiers
+                    .prepend(Located::none(ast::TypeModifier::Const));
+            }
+            ty.modifiers
+                .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                    ast::AddressSpace::Device,
+                )));
+
+            Vec::from([ast::StructMember {
+                ty,
+                defs: Vec::from([ast::InitDeclarator {
+                    declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
+                        attributes: Vec::new(),
+                        qualifiers: ast::TypeModifierSet::default(),
+                        inner: Box::new(ast::Declarator::Identifier(
+                            ast::ScopedIdentifier::trivial("address"),
+                            Vec::new(),
+                        )),
+                    }),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
+                attributes: Vec::new(),
+            }])
+        }
     }
 }
 
@@ -175,7 +271,9 @@ pub struct GetDimensionsHelper {
 }
 
 /// Create a definition for various dimension fetching methods
-fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefinition, GenerateError> {
+fn build_get_dimensions(
+    config: GetDimensionsHelper,
+) -> Result<ast::FunctionDefinition, GenerateError> {
     let has_mips = !config.read_write;
 
     let has_width = matches!(config.dim, Dim::Tex2D | Dim::Tex2DArray | Dim::Tex3D);
@@ -304,7 +402,7 @@ fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefiniti
         });
     }
 
-    Ok(ast::RootDefinition::Function(ast::FunctionDefinition {
+    Ok(ast::FunctionDefinition {
         name: Located::none(String::from("GetDimensions")),
         returntype: ast::FunctionReturn {
             return_type: ast::Type::trivial("void"),
@@ -321,7 +419,7 @@ fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefiniti
         is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),
-    }))
+    })
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -333,7 +431,7 @@ pub struct LoadHelper {
 }
 
 /// Create a definition for various texture load methods
-fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, GenerateError> {
+fn build_texture_load(config: LoadHelper) -> Result<ast::FunctionDefinition, GenerateError> {
     let num_dims_base = match config.dim {
         Dim::TexelBuffer => 1,
         Dim::Tex2D | Dim::Tex2DArray => 2,
@@ -491,7 +589,7 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
         }])
     };
 
-    Ok(ast::RootDefinition::Function(ast::FunctionDefinition {
+    Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Load")),
         returntype: ast::FunctionReturn {
             return_type: build_vec("T", 4),
@@ -508,7 +606,7 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
         is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),
-    }))
+    })
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -542,7 +640,7 @@ impl SampleHelper {
 }
 
 /// Create a definition for various texture sample methods
-fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, GenerateError> {
+fn build_texture_sample(config: SampleHelper) -> Result<ast::FunctionDefinition, GenerateError> {
     let coord_type = match config.dim {
         Dim::Tex2D => "float2",
         Dim::Tex2DArray | Dim::TexCube | Dim::Tex3D => "float3",
@@ -683,7 +781,7 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
         }])
     };
 
-    Ok(ast::RootDefinition::Function(ast::FunctionDefinition {
+    Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Sample")),
         returntype: ast::FunctionReturn {
             return_type: build_vec("T", 4),
@@ -700,5 +798,340 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
         is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),
-    }))
+    })
+}
+
+/// Build a Load / Load2 / Load3 / Load4 / Load<T> for a buffer
+fn build_address_load() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([ast::FunctionParam {
+        param_type: ast::Type::from("uint"),
+        declarator: ast::Declarator::Identifier(
+            ast::ScopedIdentifier::trivial("offset"),
+            Vec::new(),
+        ),
+        location_annotations: Vec::new(),
+        default_expr: None,
+    }]);
+
+    let target = {
+        let mut target = ast::TypeId::from("T");
+        target
+            .base
+            .modifiers
+            .prepend(Located::none(ast::TypeModifier::Const));
+        target
+            .base
+            .modifiers
+            .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                ast::AddressSpace::Device,
+            )));
+        target.abstract_declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
+            attributes: Vec::new(),
+            qualifiers: ast::TypeModifierSet::new(),
+            inner: Box::new(target.abstract_declarator),
+        });
+        target
+    };
+
+    let address = ast::Expression::BinaryOperation(
+        ast::BinOp::Add,
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("address"),
+        ))),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("offset"),
+        ))),
+    );
+
+    let typed_address = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+        ))),
+        Vec::from([ast::ExpressionOrType::Type(target)]),
+        Vec::from([Located::none(address)]),
+    );
+
+    let deref = ast::Expression::UnaryOperation(
+        ast::UnaryOp::Dereference,
+        Box::new(Located::none(typed_address)),
+    );
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("Load")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("T"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("T"))),
+                default: None,
+            },
+        )])),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(Vec::from([ast::Statement {
+            kind: ast::StatementKind::Return(Some(Located::none(deref))),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        }])),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a Store / Store2 / Store3 / Store4 for a byte buffer
+fn build_address_store() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([
+        ast::FunctionParam {
+            param_type: ast::Type::from("uint"),
+            declarator: ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("offset"),
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+        ast::FunctionParam {
+            param_type: ast::Type::from("T"),
+            declarator: ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("value"),
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+    ]);
+
+    let target = {
+        let mut target = ast::TypeId::from("T");
+        target
+            .base
+            .modifiers
+            .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                ast::AddressSpace::Device,
+            )));
+        target.abstract_declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
+            attributes: Vec::new(),
+            qualifiers: ast::TypeModifierSet::new(),
+            inner: Box::new(target.abstract_declarator),
+        });
+        target
+    };
+
+    let address = ast::Expression::BinaryOperation(
+        ast::BinOp::Add,
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("address"),
+        ))),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("offset"),
+        ))),
+    );
+
+    let typed_address = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+        ))),
+        Vec::from([ast::ExpressionOrType::Type(target)]),
+        Vec::from([Located::none(address)]),
+    );
+
+    let typed_reference = ast::Expression::UnaryOperation(
+        ast::UnaryOp::Dereference,
+        Box::new(Located::none(typed_address)),
+    );
+
+    let assign = ast::Expression::BinaryOperation(
+        ast::BinOp::Assignment,
+        Box::new(Located::none(typed_reference)),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("value"),
+        ))),
+    );
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("Store")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("T"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("T"))),
+                default: None,
+            },
+        )])),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(Vec::from([ast::Statement {
+            kind: ast::StatementKind::Expression(assign),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        }])),
+        attributes: Vec::new(),
+    })
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BufferAtomicOp {
+    Add,
+    And,
+    Exchange,
+    Max,
+    Min,
+    Or,
+    Xor,
+}
+
+impl BufferAtomicOp {
+    /// Get the name for the generated function
+    pub fn get_helper_name(&self) -> &'static str {
+        match self {
+            BufferAtomicOp::Add => "InterlockedAdd",
+            BufferAtomicOp::And => "InterlockedAnd",
+            BufferAtomicOp::Exchange => "InterlockedExchange",
+            BufferAtomicOp::Max => "InterlockedMax",
+            BufferAtomicOp::Min => "InterlockedMin",
+            BufferAtomicOp::Or => "InterlockedOr",
+            BufferAtomicOp::Xor => "InterlockedXor",
+        }
+    }
+
+    /// Get the name for the intrinsic function we will call
+    pub fn get_intrinsic_name(&self) -> &'static str {
+        match self {
+            BufferAtomicOp::Add => "atomic_fetch_add_explicit",
+            BufferAtomicOp::And => "atomic_fetch_and_explicit",
+            BufferAtomicOp::Exchange => "atomic_exchange_explicit",
+            BufferAtomicOp::Max => "atomic_fetch_max_explicit",
+            BufferAtomicOp::Min => "atomic_fetch_min_explicit",
+            BufferAtomicOp::Or => "atomic_fetch_or_explicit",
+            BufferAtomicOp::Xor => "atomic_fetch_xor_explicit",
+        }
+    }
+}
+
+/// Build a helper for an Interlocked operation for a byte buffer
+fn build_address_atomic(op: BufferAtomicOp) -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([
+        ast::FunctionParam {
+            param_type: ast::Type::from("uint"),
+            declarator: ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("dest"),
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+        ast::FunctionParam {
+            param_type: ast::Type::from("uint"),
+            declarator: ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("value"),
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+        ast::FunctionParam {
+            param_type: {
+                let mut ty = ast::Type::from("uint");
+                ty.modifiers
+                    .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                        ast::AddressSpace::Thread,
+                    )));
+                ty
+            },
+            declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
+                attributes: Vec::new(),
+                inner: Box::new(ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial("original_value"),
+                    Vec::new(),
+                )),
+            }),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+    ]);
+
+    let address = ast::Expression::BinaryOperation(
+        ast::BinOp::Add,
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("address"),
+        ))),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("dest"),
+        ))),
+    );
+
+    let typed_address = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("reinterpret_cast"),
+        ))),
+        Vec::from([ast::ExpressionOrType::Type(ast::TypeId {
+            base: ast::Type {
+                layout: ast::TypeLayout(
+                    metal_lib_identifier("atomic"),
+                    Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))])
+                        .into_boxed_slice(),
+                ),
+                modifiers: ast::TypeModifierSet::from(&[Located::none(
+                    ast::TypeModifier::AddressSpace(ast::AddressSpace::Device),
+                )]),
+                location: SourceLocation::UNKNOWN,
+            },
+            abstract_declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
+                attributes: Vec::new(),
+                qualifiers: ast::TypeModifierSet::default(),
+                inner: Box::new(ast::Declarator::Empty),
+            }),
+        })]),
+        Vec::from([Located::none(address)]),
+    );
+
+    let atomic_call = ast::Expression::BinaryOperation(
+        ast::BinOp::Assignment,
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("original_value"),
+        ))),
+        Box::new(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(op.get_intrinsic_name()),
+            ))),
+            Vec::new(),
+            Vec::from([
+                Located::none(typed_address),
+                Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                    "value",
+                ))),
+                Located::none(ast::Expression::Identifier(ast::ScopedIdentifier {
+                    base: ast::ScopedIdentifierBase::Relative,
+                    identifiers: Vec::from([
+                        Located::none(String::from("metal")),
+                        Located::none(String::from("memory_order")),
+                        Located::none(String::from("memory_order_relaxed")),
+                    ]),
+                })),
+            ]),
+        ))),
+    );
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from(op.get_helper_name())),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("void"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(Vec::from([ast::Statement {
+            kind: ast::StatementKind::Expression(atomic_call),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        }])),
+        attributes: Vec::new(),
+    })
 }

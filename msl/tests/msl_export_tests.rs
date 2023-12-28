@@ -1424,6 +1424,44 @@ void entry() {
 }
 
 #[test]
+fn check_resource_return() {
+    check(
+        "Buffer g_example;
+
+Buffer f() {
+    g_example;
+}
+",
+        "metal::texture_buffer<float> f(const metal::texture_buffer<float> g_example) {
+    g_example;
+}
+",
+    );
+
+    check(
+        "ByteAddressBuffer g_example;
+
+ByteAddressBuffer f() {
+    g_example;
+}
+",
+        "namespace helper {
+
+struct ByteAddressBuffer
+{
+    device const uint8_t* address;
+};
+
+} // namespace helper
+
+helper::ByteAddressBuffer f(const helper::ByteAddressBuffer g_example) {
+    g_example;
+}
+",
+    );
+}
+
+#[test]
 fn check_texel_buffer() {
     check(
         include_str!("texel_buffer.rssl"),
