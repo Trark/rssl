@@ -11,6 +11,8 @@ pub struct FunctionDefinition {
     pub returntype: FunctionReturn,
     pub template_params: TemplateParamList,
     pub params: Vec<FunctionParam>,
+    pub is_const: bool,
+    pub is_volatile: bool,
     pub body: Option<Vec<Statement>>,
     pub attributes: Vec<Attribute>,
 }

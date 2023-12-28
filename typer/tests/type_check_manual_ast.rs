@@ -73,6 +73,8 @@ fn test_ast_pass() {
                     location_annotations: Vec::new(),
                     default_expr: None,
                 }],
+                is_const: false,
+                is_volatile: false,
                 body: Some(Vec::new()),
                 attributes: vec![],
             }),
@@ -89,6 +91,8 @@ fn test_ast_pass() {
                     location_annotations: Vec::new(),
                     default_expr: None,
                 }],
+                is_const: false,
+                is_volatile: false,
                 body: Some(Vec::new()),
                 attributes: vec![],
             }),
@@ -106,6 +110,8 @@ fn test_ast_pass() {
                     location_annotations: Vec::new(),
                     default_expr: None,
                 }],
+                is_const: false,
+                is_volatile: false,
                 body: Some(Vec::from([
                     as_statement(ast::StatementKind::Var(ast::VarDef::one(
                         Located::none("local_static".to_string()),
@@ -129,6 +135,8 @@ fn test_ast_pass() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
+                is_const: false,
+                is_volatile: false,
                 body: Some(Vec::from([
                     as_statement(ast::StatementKind::Empty),
                     as_statement(ast::StatementKind::Var(ast::VarDef::one(
@@ -230,6 +238,8 @@ fn test_ast_to_ir() {
                 returntype: ast::Type::from("void").into(),
                 template_params: ast::TemplateParamList(Vec::new()),
                 params: vec![],
+                is_const: false,
+                is_volatile: false,
                 body: Some(Vec::from([
                     as_statement(ast::StatementKind::Expression(make_id("g_myFour").node)),
                     as_statement(ast::StatementKind::Expression(ast::Expression::Call(

@@ -186,6 +186,14 @@ fn format_function(
 
     output.push(')');
 
+    if def.is_const {
+        output.push_str(" const");
+    }
+
+    if def.is_volatile {
+        output.push_str(" volatile");
+    }
+
     format_location_annotations(&def.returntype.location_annotations, output)?;
 
     if let Some(body) = &def.body {

@@ -142,6 +142,8 @@ fn test_function() {
             location_annotations: Vec::new(),
             default_expr: None,
         }],
+        is_const: false,
+        is_volatile: false,
         body: Some(Vec::new()),
         attributes: Vec::new(),
     };
@@ -166,6 +168,8 @@ fn test_function() {
                 location_annotations: Vec::new(),
                 default_expr: None,
             }],
+            is_const: false,
+            is_volatile: false,
             body: Some(Vec::from([Statement {
                 kind: StatementKind::If(
                     Expression::BinaryOperation(
@@ -251,6 +255,8 @@ fn test_namespace() {
                             location_annotations: Vec::new(),
                         },
                         template_params: TemplateParamList(Vec::new()),
+                        is_const: false,
+                        is_volatile: false,
                         params: Vec::new(),
                         body: Some(Vec::new()),
                         attributes: Vec::new(),

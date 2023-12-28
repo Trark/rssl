@@ -680,6 +680,8 @@ fn generate_function_inner(
         },
         template_params: ast::TemplateParamList(template_params),
         params,
+        is_const: false,
+        is_volatile: false,
         body,
         attributes,
     })

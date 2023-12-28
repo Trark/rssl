@@ -317,6 +317,8 @@ fn build_get_dimensions(config: GetDimensionsHelper) -> Result<ast::RootDefiniti
             },
         )])),
         params,
+        is_const: false,
+        is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),
     }))
@@ -502,6 +504,8 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::RootDefinition, Generat
             },
         )])),
         params,
+        is_const: false,
+        is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),
     }))
@@ -692,6 +696,8 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::RootDefinition, Gen
             },
         )])),
         params,
+        is_const: false,
+        is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),
     }))

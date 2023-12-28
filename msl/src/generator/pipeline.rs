@@ -236,6 +236,8 @@ pub(crate) fn generate_pipeline(
             },
             template_params: ast::TemplateParamList(Vec::new()),
             params: entry_params.clone(),
+            is_const: false,
+            is_volatile: false,
             body: Some(body),
             attributes: Vec::from([ast::Attribute {
                 name: Vec::from([Located::none(String::from(stage_attribute_name))]),
