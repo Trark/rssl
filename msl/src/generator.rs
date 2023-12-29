@@ -2126,6 +2126,7 @@ fn generate_intrinsic_function(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2D,
                 read_write: false,
+                has_mip_args: exprs.len() == 5,
             }),
             context,
         ),
@@ -2165,6 +2166,7 @@ fn generate_intrinsic_function(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2DArray,
                 read_write: false,
+                has_mip_args: exprs.len() == 6,
             }),
             context,
         ),
@@ -2204,6 +2206,7 @@ fn generate_intrinsic_function(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2D,
                 read_write: true,
+                has_mip_args: false,
             }),
             context,
         ),
@@ -2221,6 +2224,7 @@ fn generate_intrinsic_function(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex2DArray,
                 read_write: true,
+                has_mip_args: false,
             }),
             context,
         ),
@@ -2260,6 +2264,7 @@ fn generate_intrinsic_function(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex3D,
                 read_write: false,
+                has_mip_args: exprs.len() == 6,
             }),
             context,
         ),
@@ -2289,6 +2294,7 @@ fn generate_intrinsic_function(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
                 dim: Dim::Tex3D,
                 read_write: true,
+                has_mip_args: false,
             }),
             context,
         ),

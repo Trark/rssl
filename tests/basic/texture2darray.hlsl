@@ -5,6 +5,7 @@ SamplerComparisonState g_comparisonSampler : register(s3);
 
 void test() {
     uint outInt;
+    g_input.GetDimensions(outInt, outInt, outInt);
     g_input.GetDimensions(0u, outInt, outInt, outInt, outInt);
     g_output.GetDimensions(outInt, outInt, outInt);
     const float4 load_srv = g_input.Load(int4(0, 0, 0, 0));

@@ -285,13 +285,14 @@ fn build_expr_member(object: &str, member: &str) -> Located<ast::Expression> {
 pub struct GetDimensionsHelper {
     pub dim: Dim,
     pub read_write: bool,
+    pub has_mip_args: bool,
 }
 
 /// Create a definition for various dimension fetching methods
 fn build_get_dimensions(
     config: GetDimensionsHelper,
 ) -> Result<ast::FunctionDefinition, GenerateError> {
-    let has_mips = !config.read_write;
+    let has_mips = config.has_mip_args;
 
     let has_width = matches!(config.dim, Dim::Tex2D | Dim::Tex2DArray | Dim::Tex3D);
     let has_height = matches!(config.dim, Dim::Tex2D | Dim::Tex2DArray | Dim::Tex3D);

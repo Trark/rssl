@@ -1,6 +1,13 @@
 namespace helper {
 
 template<typename T>
+void GetDimensions(metal::texture3d<T> texture, thread uint& width, thread uint& height, thread uint& depth) {
+    width = texture.get_width();
+    height = texture.get_height();
+    depth = texture.get_depth();
+}
+
+template<typename T>
 void GetDimensions(metal::texture3d<T> texture, uint mipLevel, thread uint& width, thread uint& height, thread uint& depth, thread uint& numberOfLevels) {
     width = texture.get_width(mipLevel);
     height = texture.get_height(mipLevel);
@@ -70,6 +77,7 @@ metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 co
 
 void test(const metal::texture3d<float> g_input, const metal::texture3d<float, metal::access::read_write> g_output, const metal::sampler g_sampler) {
     uint outInt;
+    helper::GetDimensions(g_input, outInt, outInt, outInt);
     helper::GetDimensions(g_input, 0u, outInt, outInt, outInt, outInt);
     helper::GetDimensions(g_output, outInt, outInt, outInt);
     const float4 load_srv = helper::Load(g_input, int4(0, 0, 0, 0));
