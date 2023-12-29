@@ -11,3 +11,8 @@ void test() {
     const MyStruct s2 = g_output.Load<MyStruct>(0);
     g_output.Store(4, s1);
 }
+
+Pipeline Test
+{
+    ComputeShader = test;
+}

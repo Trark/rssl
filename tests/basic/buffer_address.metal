@@ -39,3 +39,14 @@ void test(const helper::ByteAddressBuffer g_input, const helper::RWByteAddressBu
     const MyStruct s2 = g_output.Load<MyStruct>(0u);
     g_output.Store<MyStruct>(4u, (MyStruct)s1);
 }
+
+struct ArgumentBuffer0
+{
+    [[id(0)]] const helper::ByteAddressBuffer g_input;
+    [[id(2)]] const helper::RWByteAddressBuffer g_output;
+};
+
+[[kernel]]
+void ComputeShaderEntry(constant ArgumentBuffer0& set0 [[buffer(0)]]) {
+    test(set0.g_input, set0.g_output);
+}

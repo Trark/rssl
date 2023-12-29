@@ -46,3 +46,8 @@ void test() {
     g_output.InterlockedOr(4, 7, outInt);
     g_output.InterlockedXor(4, 7, outInt);
 }
+
+Pipeline Test
+{
+    ComputeShader = test;
+}

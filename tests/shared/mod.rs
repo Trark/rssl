@@ -24,7 +24,6 @@ pub fn check_for_target(source_rssl: &str, expected: &str, target: rssl::Target)
 
     let compiled = match rssl::compile(
         rssl::CompileArgs::new(test_file_name, &mut include_handler, target)
-            .no_pipeline_mode()
             .support_buffer_address(matches!(target, rssl::Target::HlslForVulkan)),
     ) {
         Ok(ok) => ok,

@@ -100,3 +100,14 @@ void test(const helper::ByteAddressBuffer g_input, const helper::RWByteAddressBu
     g_output.InterlockedOr(4u, 7u, outInt);
     g_output.InterlockedXor(4u, 7u, outInt);
 }
+
+struct ArgumentBuffer0
+{
+    [[id(0)]] const helper::ByteAddressBuffer g_input;
+    [[id(2)]] const helper::RWByteAddressBuffer g_output;
+};
+
+[[kernel]]
+void ComputeShaderEntry(constant ArgumentBuffer0& set0 [[buffer(0)]]) {
+    test(set0.g_input, set0.g_output);
+}
