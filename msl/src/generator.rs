@@ -1791,6 +1791,19 @@ fn generate_intrinsic_function(
         vector_4_to_vector_n(invoke_helper(helper, context)?, exprs, context)
     };
 
+    fn expression_is_vector(
+        expr: &ir::Expression,
+        context: &mut GenerateContext,
+    ) -> Result<bool, GenerateError> {
+        let ety = match expr.get_type(context.module) {
+            Ok(ety) => ety,
+            Err(_) => return Err(GenerateError::InvalidModule),
+        };
+        let ty = context.module.type_registry.remove_modifier(ety.0);
+        let tyl = context.module.type_registry.get_type_layer(ty);
+        Ok(matches!(tyl, ir::TypeLayer::Vector(_, x) if x > 1))
+    }
+
     use ir::Intrinsic::*;
     match &intrinsic {
         AllMemoryBarrier => unimplemented_intrinsic(),
@@ -1805,11 +1818,16 @@ fn generate_intrinsic_function(
         AsFloat => unimplemented_intrinsic(),
         AsDouble => unimplemented_intrinsic(),
 
-        All => unimplemented_intrinsic(),
-        Any => unimplemented_intrinsic(),
+        All => invoke_simple("all", context),
+        Any => invoke_simple("any", context),
         And => unimplemented_intrinsic(),
         Or => unimplemented_intrinsic(),
-        Select => unimplemented_intrinsic(),
+        Select => {
+            // metal's select intrinsic has the condition at the end instead of the start
+            // Reordering is okay as evaluation order is not defined anyway
+            let reordered_exprs = &[exprs[1].clone(), exprs[2].clone(), exprs[0].clone()];
+            generate_invoke_simple("select", tys, reordered_exprs, context)
+        }
 
         Abs => invoke_simple("abs", context),
 
@@ -1849,8 +1867,18 @@ fn generate_intrinsic_function(
         IsInfinite => unimplemented_intrinsic(),
         IsFinite => unimplemented_intrinsic(),
 
-        Length => unimplemented_intrinsic(),
-        Normalize => unimplemented_intrinsic(),
+        Length => {
+            if !expression_is_vector(&exprs[0], context)? {
+                return unimplemented_intrinsic();
+            }
+            invoke_simple("length", context)
+        }
+        Normalize => {
+            if !expression_is_vector(&exprs[0], context)? {
+                return unimplemented_intrinsic();
+            }
+            invoke_simple("normalize", context)
+        }
         Rcp => unimplemented_intrinsic(),
 
         Reflect => unimplemented_intrinsic(),
@@ -1865,9 +1893,33 @@ fn generate_intrinsic_function(
 
         Sign => unimplemented_intrinsic(),
 
-        Cross => unimplemented_intrinsic(),
-        Distance => unimplemented_intrinsic(),
-        Dot => unimplemented_intrinsic(),
+        Cross => invoke_simple("cross", context),
+        Distance => {
+            if !expression_is_vector(&exprs[0], context)? {
+                return unimplemented_intrinsic();
+            }
+            invoke_simple("distance", context)
+        }
+        Dot => {
+            let ety = match exprs[0].get_type(context.module) {
+                Ok(ety) => ety,
+                Err(_) => return Err(GenerateError::InvalidModule),
+            };
+            let ty = context.module.type_registry.remove_modifier(ety.0);
+            let tyl = context.module.type_registry.get_type_layer(ty);
+            let is_allowed = match tyl {
+                ir::TypeLayer::Vector(inner_ty, x) if x > 1 => {
+                    let inner_ty = context.module.type_registry.remove_modifier(inner_ty);
+                    let inner_tyl = context.module.type_registry.get_type_layer(inner_ty);
+                    matches!(inner_tyl, ir::TypeLayer::Scalar(ir::ScalarType::Float32))
+                }
+                _ => false,
+            };
+            if !is_allowed {
+                return unimplemented_intrinsic();
+            }
+            invoke_simple("dot", context)
+        }
 
         Mul => {
             assert_eq!(exprs.len(), 2);
@@ -1887,7 +1939,10 @@ fn generate_intrinsic_function(
         Step => unimplemented_intrinsic(),
 
         Clamp => unimplemented_intrinsic(),
-        Lerp => unimplemented_intrinsic(),
+        Lerp => {
+            // mix is undefined for blend values not in 0-1 range - but lerp is not
+            invoke_simple("mix", context)
+        }
         SmoothStep => unimplemented_intrinsic(),
 
         Transpose => unimplemented_intrinsic(),

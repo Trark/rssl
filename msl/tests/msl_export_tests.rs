@@ -1305,16 +1305,8 @@ void entry(thread uint& s_globalState, threadgroup float& lds_x, device const ui
 #[test]
 fn check_intrinsic_functions() {
     check(
-        "void entry() {
-    float x = -1.0f;
-    float y = abs(x);
-}
-",
-        "void entry() {
-    float x = -1.0f;
-    float y = metal::abs(x);
-}
-",
+        include_str!("intrinsic_functions.rssl"),
+        include_str!("intrinsic_functions.metal"),
     );
 }
 
