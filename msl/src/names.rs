@@ -78,6 +78,10 @@ pub const RESERVED_NAMES: &[&str] = &[
     "void",
     "volatile",
     "while",
+    // Keywords to mark entry points (although modern code uses attributes these still exist)
+    "kernel",
+    "vertex",
+    "fragment",
     // Reserve the name of the standard library namespace everywhere
     "metal",
     // Names used by symbols generated in the generator
