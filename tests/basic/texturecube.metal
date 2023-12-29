@@ -45,3 +45,15 @@ void test(const metal::texturecube<float> g_input, const metal::texturecube_arra
     const float4 sample_array_clamp = helper::Sample(g_array, (metal::sampler)g_sampler, float4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f);
     const float4 sample_array_status = helper::Sample(g_array, (metal::sampler)g_sampler, float4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f, outInt);
 }
+
+struct ArgumentBuffer0
+{
+    [[id(0)]] const metal::texturecube<float> g_input;
+    [[id(1)]] const metal::texturecube_array<float> g_array;
+    [[id(2)]] const metal::sampler g_sampler;
+};
+
+[[kernel]]
+void ComputeShaderEntry(constant ArgumentBuffer0& set0 [[buffer(0)]]) {
+    test(set0.g_input, set0.g_array, set0.g_sampler);
+}

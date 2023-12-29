@@ -1382,46 +1382,6 @@ fn check_structured_buffer() {
 }
 
 #[test]
-fn check_texel_buffer() {
-    check_rssl_to_hlsl_dx(
-        include_str!("texel_buffer.rssl"),
-        include_str!("texel_buffer.hlsl"),
-    );
-}
-
-#[test]
-fn check_texture2d() {
-    check_rssl_to_hlsl_dx(
-        include_str!("texture2d.rssl"),
-        include_str!("texture2d.hlsl"),
-    );
-}
-
-#[test]
-fn check_texture2darray() {
-    check_rssl_to_hlsl_dx(
-        include_str!("texture2darray.rssl"),
-        include_str!("texture2darray.hlsl"),
-    );
-}
-
-#[test]
-fn check_texturecube() {
-    check_rssl_to_hlsl_dx(
-        include_str!("texturecube.rssl"),
-        include_str!("texturecube.hlsl"),
-    );
-}
-
-#[test]
-fn check_texture3d() {
-    check_rssl_to_hlsl_dx(
-        include_str!("texture3d.rssl"),
-        include_str!("texture3d.hlsl"),
-    );
-}
-
-#[test]
 fn check_raytracing() {
     check_rssl_to_hlsl_dx(
         include_str!("raytracing.rssl"),

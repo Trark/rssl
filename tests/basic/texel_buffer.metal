@@ -17,3 +17,14 @@ void test(const metal::texture_buffer<uint> g_input, const metal::texture_buffer
     const uint load_srv = helper::Load(g_input, 0).x;
     const uint load_uav = helper::Load(g_output, 0).x;
 }
+
+struct ArgumentBuffer0
+{
+    [[id(0)]] const metal::texture_buffer<uint> g_input;
+    [[id(1)]] const metal::texture_buffer<uint, metal::access::read_write> g_output;
+};
+
+[[kernel]]
+void ComputeShaderEntry(constant ArgumentBuffer0& set0 [[buffer(0)]]) {
+    test(set0.g_input, set0.g_output);
+}

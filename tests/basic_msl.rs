@@ -16,3 +16,43 @@ fn check_buffer_address() {
         include_str!("basic/buffer_address.metal"),
     );
 }
+
+#[test]
+fn check_texel_buffer() {
+    check_msl(
+        include_str!("basic/texel_buffer.rssl"),
+        include_str!("basic/texel_buffer.metal"),
+    );
+}
+
+#[test]
+fn check_texture2d() {
+    check_msl(
+        include_str!("basic/texture2d.rssl"),
+        include_str!("basic/texture2d.metal"),
+    );
+}
+
+#[test]
+fn check_texture2darray() {
+    check_msl(
+        include_str!("basic/texture2darray.rssl"),
+        include_str!("basic/texture2darray.metal"),
+    );
+}
+
+#[test]
+fn check_texturecube() {
+    check_msl(
+        include_str!("basic/texturecube.rssl"),
+        include_str!("basic/texturecube.metal"),
+    );
+}
+
+#[test]
+fn check_texture3d() {
+    check_msl(
+        include_str!("basic/texture3d.rssl"),
+        include_str!("basic/texture3d.metal"),
+    );
+}

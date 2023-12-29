@@ -1463,50 +1463,10 @@ helper::ByteAddressBuffer f(const helper::ByteAddressBuffer g_example) {
 }
 
 #[test]
-fn check_texel_buffer() {
-    check(
-        include_str!("texel_buffer.rssl"),
-        include_str!("texel_buffer.metal"),
-    );
-}
-
-#[test]
 fn check_structured_buffer() {
     check(
         include_str!("structured_buffer.rssl"),
         include_str!("structured_buffer.metal"),
-    );
-}
-
-#[test]
-fn check_texture2d() {
-    check(
-        include_str!("texture2d.rssl"),
-        include_str!("texture2d.metal"),
-    );
-}
-
-#[test]
-fn check_texture2darray() {
-    check(
-        include_str!("texture2darray.rssl"),
-        include_str!("texture2darray.metal"),
-    );
-}
-
-#[test]
-fn check_texturecube() {
-    check(
-        include_str!("texturecube.rssl"),
-        include_str!("texturecube.metal"),
-    );
-}
-
-#[test]
-fn check_texture3d() {
-    check(
-        include_str!("texture3d.rssl"),
-        include_str!("texture3d.metal"),
     );
 }
 

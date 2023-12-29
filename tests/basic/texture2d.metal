@@ -80,3 +80,15 @@ void test(const metal::texture2d<float> g_input, const metal::texture2d<float, m
     const float4 load_uav = helper::Load(g_output, int2(0, 0));
     const float4 load_uav_status = helper::Load(g_output, int2(0, 0), outInt);
 }
+
+struct ArgumentBuffer0
+{
+    [[id(0)]] const metal::texture2d<float> g_input;
+    [[id(1)]] const metal::texture2d<float, metal::access::read_write> g_output;
+    [[id(2)]] const metal::sampler g_sampler;
+};
+
+[[kernel]]
+void ComputeShaderEntry(constant ArgumentBuffer0& set0 [[buffer(0)]]) {
+    test(set0.g_input, set0.g_output, set0.g_sampler);
+}

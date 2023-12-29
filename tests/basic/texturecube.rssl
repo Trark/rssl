@@ -11,3 +11,8 @@ void test() {
     const float4 sample_array_clamp = g_array.Sample(g_sampler, float4(0.0, 0.0, 0.0, 0.0), 0.0);
     const float4 sample_array_status = g_array.Sample(g_sampler, float4(0.0, 0.0, 0.0, 0.0), 0.0, outInt);
 }
+
+Pipeline Test
+{
+    ComputeShader = test;
+}
