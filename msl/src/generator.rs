@@ -1980,7 +1980,14 @@ fn generate_intrinsic_function(
 
         RWStructuredBufferGetDimensions => unimplemented_intrinsic(),
 
-        ByteAddressBufferGetDimensions => unimplemented_intrinsic(),
+        ByteAddressBufferGetDimensions => generate_invoke_helper_method(
+            IntrinsicObject::ByteAddressBuffer,
+            IntrinsicHelper::AddressGetDimensions,
+            tys,
+            exprs,
+            context,
+        ),
+
         ByteAddressBufferLoad
         | RWByteAddressBufferLoad
         | ByteAddressBufferLoad2
@@ -2034,7 +2041,13 @@ fn generate_intrinsic_function(
             }
         }
 
-        RWByteAddressBufferGetDimensions => unimplemented_intrinsic(),
+        RWByteAddressBufferGetDimensions => generate_invoke_helper_method(
+            IntrinsicObject::RWByteAddressBuffer,
+            IntrinsicHelper::AddressGetDimensions,
+            tys,
+            exprs,
+            context,
+        ),
         RWByteAddressBufferStore | RWBufferAddressStore => {
             if tys.len() != 1 {
                 return Err(GenerateError::InvalidModule);
@@ -2362,6 +2375,28 @@ fn generate_invoke_helper(
     let type_args = generate_template_type_args(tys, context)?;
     let args = generate_invocation_args(exprs, context)?;
     Ok(ast::Expression::Call(object, type_args, args))
+}
+
+/// Invoke a helper method
+fn generate_invoke_helper_method(
+    object_ty: IntrinsicObject,
+    helper: IntrinsicHelper,
+    tys: &[ir::TypeOrConstant],
+    exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let function = require_helper_method(object_ty, helper, context)?;
+    let type_args = generate_template_type_args(tys, context)?;
+    let object = generate_expression(&exprs[0], context)?;
+    let args = generate_invocation_args(&exprs[1..], context)?;
+    Ok(ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Member(
+            Box::new(Located::none(object)),
+            function,
+        ))),
+        type_args,
+        args,
+    ))
 }
 
 /// Ensure a helper function is generated later

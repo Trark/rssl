@@ -101,6 +101,7 @@ pub fn check_rssl_to_hlsl_vk(source_rssl: &str, expected_hlsl: &str) {
         Some(rssl_ir::AssignBindingsParams {
             require_slot_type: false,
             support_buffer_address: true,
+            metal_slot_layout: false,
         }),
     )
 }

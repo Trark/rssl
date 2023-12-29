@@ -92,6 +92,9 @@ pub struct AssignBindingsParams {
 
     /// Build bindings with buffer addresses as constant inputs
     pub support_buffer_address: bool,
+
+    /// Count number of slots for object types based on how many fields we need to fill for a Metal argument buffer
+    pub metal_slot_layout: bool,
 }
 
 impl Module {
@@ -337,10 +340,20 @@ impl Module {
                             _ => (unmodified_ty_id, None),
                         };
 
-                    let slot_count = array_len.unwrap_or(1) as u32;
-
                     // Get info for type layer after extracting outer shells
                     let unmodified_tyl = module.type_registry.get_type_layer(unmodified_ty_id);
+
+                    let array_count = array_len.unwrap_or(1) as u32;
+                    let slice_cost = match unmodified_tyl {
+                        TypeLayer::Object(
+                            ObjectType::ByteAddressBuffer
+                            | ObjectType::RWByteAddressBuffer
+                            | ObjectType::BufferAddress
+                            | ObjectType::RWBufferAddress,
+                        ) if params.metal_slot_layout => 2,
+                        _ => 1,
+                    };
+                    let slot_count = array_count * slice_cost;
 
                     assert_eq!(decl.api_slot, None);
                     if unmodified_tyl.is_object() {
@@ -435,6 +448,7 @@ impl Default for AssignBindingsParams {
         AssignBindingsParams {
             require_slot_type: true,
             support_buffer_address: false,
+            metal_slot_layout: false,
         }
     }
 }

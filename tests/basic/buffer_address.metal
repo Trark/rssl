@@ -3,6 +3,7 @@ namespace helper {
 struct ByteAddressBuffer
 {
     device const uint8_t* address;
+    uint64_t size;
 
     template<typename T>
     T Load(uint offset) const {
@@ -13,6 +14,7 @@ struct ByteAddressBuffer
 struct RWByteAddressBuffer
 {
     device uint8_t* address;
+    uint64_t size;
 
     template<typename T>
     T Load(uint offset) const {

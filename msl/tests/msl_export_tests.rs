@@ -1450,6 +1450,7 @@ ByteAddressBuffer f() {
 struct ByteAddressBuffer
 {
     device const uint8_t* address;
+    uint64_t size;
 };
 
 } // namespace helper

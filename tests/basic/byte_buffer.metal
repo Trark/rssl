@@ -3,16 +3,22 @@ namespace helper {
 struct ByteAddressBuffer
 {
     device const uint8_t* address;
+    uint64_t size;
 
     template<typename T>
     T Load(uint offset) const {
         return *reinterpret_cast<device const T*>(address + offset);
+    }
+
+    void GetDimensions(thread uint& dim) const {
+        dim = static_cast<uint>(size);
     }
 };
 
 struct RWByteAddressBuffer
 {
     device uint8_t* address;
+    uint64_t size;
 
     template<typename T>
     T Load(uint offset) const {
@@ -51,6 +57,10 @@ struct RWByteAddressBuffer
     void InterlockedXor(uint dest, uint value, thread uint& original_value) const {
         original_value = atomic_fetch_xor_explicit(reinterpret_cast<device metal::atomic<uint>*>(address + dest), value, metal::memory_order::memory_order_relaxed);
     }
+
+    void GetDimensions(thread uint& dim) const {
+        dim = static_cast<uint>(size);
+    }
 };
 
 } // namespace helper
@@ -80,6 +90,8 @@ void test(const helper::ByteAddressBuffer g_input, const helper::RWByteAddressBu
     g_output.Store<uint3>(0u, (uint3)0.0);
     g_output.Store<uint4>(0u, (uint4)0.0);
     uint outInt;
+    g_input.GetDimensions(outInt);
+    g_output.GetDimensions(outInt);
     g_output.InterlockedAdd(4u, 7u, outInt);
     g_output.InterlockedAnd(4u, 7u, outInt);
     g_output.InterlockedExchange(4u, 7u, outInt);

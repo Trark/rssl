@@ -82,10 +82,12 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
         Target::HlslForVulkan => AssignBindingsParams {
             require_slot_type: false,
             support_buffer_address: args.support_buffer_address,
+            metal_slot_layout: false,
         },
         Target::Msl | Target::MetalBytecode => AssignBindingsParams {
             require_slot_type: false,
             support_buffer_address: false,
+            metal_slot_layout: true,
         },
     };
 

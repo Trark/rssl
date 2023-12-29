@@ -15,6 +15,7 @@ pub enum IntrinsicHelper {
     AddressLoad,
     AddressStore,
     AddressAtomic(BufferAtomicOp),
+    AddressGetDimensions,
 }
 
 /// Represents a helper struct that is generated to implement intrinsic operations
@@ -33,6 +34,7 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::AddressLoad => "Load",
         IntrinsicHelper::AddressStore => "Store",
         IntrinsicHelper::AddressAtomic(op) => op.get_helper_name(),
+        IntrinsicHelper::AddressGetDimensions => "GetDimensions",
     }
 }
 
@@ -114,6 +116,7 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, G
         AddressLoad => Ok(build_address_load()?),
         AddressStore => Ok(build_address_store()?),
         AddressAtomic(op) => Ok(build_address_atomic(op)?),
+        AddressGetDimensions => Ok(build_address_get_dimensions()?),
     }
 }
 
@@ -132,22 +135,36 @@ fn generate_members(object: IntrinsicObject) -> Vec<ast::StructMember> {
                     ast::AddressSpace::Device,
                 )));
 
-            Vec::from([ast::StructMember {
-                ty,
-                defs: Vec::from([ast::InitDeclarator {
-                    declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
-                        attributes: Vec::new(),
-                        qualifiers: ast::TypeModifierSet::default(),
-                        inner: Box::new(ast::Declarator::Identifier(
-                            ast::ScopedIdentifier::trivial("address"),
+            Vec::from([
+                ast::StructMember {
+                    ty,
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
+                            attributes: Vec::new(),
+                            qualifiers: ast::TypeModifierSet::default(),
+                            inner: Box::new(ast::Declarator::Identifier(
+                                ast::ScopedIdentifier::trivial("address"),
+                                Vec::new(),
+                            )),
+                        }),
+                        location_annotations: Vec::new(),
+                        init: None,
+                    }]),
+                    attributes: Vec::new(),
+                },
+                ast::StructMember {
+                    ty: ast::Type::from("uint64_t"),
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast::Declarator::Identifier(
+                            ast::ScopedIdentifier::trivial("size"),
                             Vec::new(),
-                        )),
-                    }),
-                    location_annotations: Vec::new(),
-                    init: None,
-                }]),
-                attributes: Vec::new(),
-            }])
+                        ),
+                        location_annotations: Vec::new(),
+                        init: None,
+                    }]),
+                    attributes: Vec::new(),
+                },
+            ])
         }
     }
 }
@@ -1132,6 +1149,47 @@ fn build_address_atomic(op: BufferAtomicOp) -> Result<ast::FunctionDefinition, G
             location: SourceLocation::UNKNOWN,
             attributes: Vec::new(),
         }])),
+        attributes: Vec::new(),
+    })
+}
+
+/// Create a definition for byte buffer GetDimensions
+fn build_address_get_dimensions() -> Result<ast::FunctionDefinition, GenerateError> {
+    let mut params = Vec::new();
+    let mut body = Vec::new();
+
+    params.push(build_out_param(ast::Type::trivial("uint"), "dim"));
+    body.push(ast::Statement {
+        kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+            ast::BinOp::Assignment,
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("dim"),
+            ))),
+            Box::new(Located::none(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("static_cast"),
+                ))),
+                Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))]),
+                Vec::from([Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("size"),
+                ))]),
+            ))),
+        )),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    });
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("GetDimensions")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::trivial("void"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(body),
         attributes: Vec::new(),
     })
 }
