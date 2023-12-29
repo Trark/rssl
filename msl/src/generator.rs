@@ -650,27 +650,13 @@ fn generate_function_param(
     include_semantic: bool,
     context: &mut GenerateContext,
 ) -> Result<ast::FunctionParam, GenerateError> {
-    let input_modifier = match param.param_type.input_modifier {
-        ir::InputModifier::In => None,
-        ir::InputModifier::Out => return Err(GenerateError::UnimplementedOutParameters),
-        ir::InputModifier::InOut => return Err(GenerateError::UnimplementedOutParameters),
-    };
-
     if param.precise {
         return Err(GenerateError::UnsupportedPrecise);
     };
 
     let name = context.get_variable_name(param.id)?.to_string();
-    let (base_type, mut declarator) =
+    let (mut param_type, mut declarator) =
         generate_type_and_declarator(param.param_type.type_id, &name, false, context)?;
-
-    let interpolation_modifier =
-        generate_interpolation_modifier(&param.interpolation_modifier, &declarator)?;
-    if interpolation_modifier.is_some() {
-        todo!();
-    }
-
-    let param_type = prepend_modifiers(base_type, &[input_modifier]);
 
     let semantic = if include_semantic {
         generate_semantic_annotation(&param.semantic)?
@@ -679,6 +665,24 @@ fn generate_function_param(
     };
     if let Some(semantic) = semantic {
         prepend_attribute_to_declarator(semantic, &mut declarator);
+    }
+
+    let is_reference = matches!(
+        param.param_type.input_modifier,
+        ir::InputModifier::Out | ir::InputModifier::InOut
+    );
+
+    if is_reference {
+        param_type
+            .modifiers
+            .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                ast::AddressSpace::Thread,
+            )));
+
+        declarator = ast::Declarator::Reference(ast::ReferenceDeclarator {
+            attributes: Vec::new(),
+            inner: Box::new(declarator),
+        })
     }
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
@@ -1730,6 +1734,20 @@ fn generate_user_call(
     exprs: &Vec<ir::Expression>,
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
+    // inout/out parameters are implemented by copy-in / copy-out
+    // We generated functions with references for those arguments
+    // We need additional setup to maintain the same semantics
+    for param in &context
+        .module
+        .function_registry
+        .get_function_signature(id)
+        .param_types
+    {
+        if param.input_modifier != ir::InputModifier::In {
+            return Err(GenerateError::UnimplementedOutParameters);
+        }
+    }
+
     let (object, arguments) = match ct {
         ir::CallType::FreeFunction => {
             let scoped_name = context.get_function_name_full(id)?;

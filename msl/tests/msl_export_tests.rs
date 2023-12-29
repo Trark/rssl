@@ -239,47 +239,47 @@ fn check_function_attributes() {
 
 #[test]
 fn check_function_param_interp_modifiers() {
-    expect_generate_fail(
+    check(
         "void VSMAIN(out float4 x : TEXCOORD) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& x) {}\n",
     );
 
-    expect_generate_fail(
+    check(
         "void VSMAIN(out linear float4 x : TEXCOORD) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& x) {}\n",
     );
 
-    expect_generate_fail(
+    check(
         "void VSMAIN(out centroid float4 x : TEXCOORD) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& x) {}\n",
     );
 
-    expect_generate_fail(
+    check(
         "void VSMAIN(out nointerpolation float4 x : TEXCOORD) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& x) {}\n",
     );
 
-    expect_generate_fail(
+    check(
         "void VSMAIN(out noperspective float4 x : TEXCOORD) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& x) {}\n",
     );
 
-    expect_generate_fail(
+    check(
         "void VSMAIN(out sample float4 x : TEXCOORD) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& x) {}\n",
     );
 }
 
 #[test]
 fn check_function_param_system_semantics() {
-    expect_generate_fail(
+    check(
         "void VSMAIN(out float4 pos : SV_Position) {}",
-        GenerateError::UnimplementedOutParameters,
+        "void VSMAIN(thread float4& pos) {}\n",
     );
 
     expect_generate_fail(
         "void VSMAIN(out precise float4 pos : SV_Position) {}",
-        GenerateError::UnimplementedOutParameters,
+        GenerateError::UnsupportedPrecise,
     );
 }
 
