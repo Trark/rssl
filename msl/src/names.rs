@@ -10,6 +10,9 @@ pub const ARGUMENT_BUFFER_0_NAME: &str = "ArgumentBuffer0";
 pub const ARGUMENT_BUFFER_1_NAME: &str = "ArgumentBuffer1";
 pub const ARGUMENT_BUFFER_2_NAME: &str = "ArgumentBuffer2";
 pub const ARGUMENT_BUFFER_3_NAME: &str = "ArgumentBuffer3";
+pub const STAGE_OUTPUT_NAME_VERTEX: &str = "VertexOutput";
+pub const STAGE_OUTPUT_NAME_PIXEL: &str = "PixelOutput";
+pub const STAGE_OUTPUT_NAME_LOCAL: &str = "out";
 
 /// List of names we want to avoid in the generated code
 pub const RESERVED_NAMES: &[&str] = &[
@@ -96,4 +99,7 @@ pub const RESERVED_NAMES: &[&str] = &[
     ARGUMENT_BUFFER_1_NAME,
     ARGUMENT_BUFFER_2_NAME,
     ARGUMENT_BUFFER_3_NAME,
+    STAGE_OUTPUT_NAME_VERTEX,
+    STAGE_OUTPUT_NAME_PIXEL,
+    STAGE_OUTPUT_NAME_LOCAL,
 ];

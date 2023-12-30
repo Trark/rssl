@@ -70,12 +70,6 @@ pub enum GenerateError {
     /// Function argument passing rules are different and need careful handling
     UnimplementedOutParameters,
 
-    /// Semantics need special handling
-    UnimplementedFunctionReturnWithSemantic,
-
-    /// Semantics need special handling
-    UnimplementedStructWithSemantic,
-
     /// Texture type is not implemented yet
     UnimplementedTexture(&'static str),
 
@@ -589,11 +583,6 @@ fn generate_function_inner(
             }
             GlobalMode::Constant => panic!("global does not require a parameter"),
         }
-    }
-
-    let semantic = generate_semantic_annotation(&sig.return_type.semantic)?;
-    if semantic.is_some() {
-        return Err(GenerateError::UnimplementedFunctionReturnWithSemantic);
     }
 
     let body = if only_declare {
@@ -2854,9 +2843,6 @@ fn generate_struct(
             generate_type_and_declarator(member.type_id, &member.name, true, context)?;
 
         let semantic = generate_semantic_annotation(&member.semantic)?;
-        if semantic.is_some() {
-            return Err(GenerateError::UnimplementedStructWithSemantic);
-        }
 
         let interpolation_modifier =
             generate_interpolation_modifier(&member.interpolation_modifier, &declarator)?;

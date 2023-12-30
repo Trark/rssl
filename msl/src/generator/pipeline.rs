@@ -6,7 +6,8 @@ use rssl_ir::export::*;
 use rssl_text::{Located, SourceLocation};
 
 use super::{
-    generate_function_param, scoped_name_to_identifier, GenerateContext, GenerateError, GlobalMode,
+    generate_function_param, generate_semantic_annotation, generate_type,
+    scoped_name_to_identifier, GenerateContext, GenerateError, GlobalMode,
 };
 use crate::names::*;
 
@@ -147,7 +148,40 @@ pub(crate) fn generate_pipeline(
             scoped_name_to_identifier(context.get_function_name_full(stage.entry_point).unwrap());
 
         let mut entry_params = Vec::new();
+        let mut out_params = Vec::new();
         let mut args = Vec::new();
+
+        let entry_return = &context
+            .module
+            .function_registry
+            .get_function_signature(stage.entry_point)
+            .return_type;
+
+        let has_return = context
+            .module
+            .type_registry
+            .get_type_layer(entry_return.return_type)
+            != ir::TypeLayer::Void;
+
+        if has_return {
+            let ty = generate_type(entry_return.return_type, context)?;
+            let attrs = match generate_semantic_annotation(&entry_return.semantic)? {
+                Some(attr) => Vec::from([attr]),
+                None => Vec::new(),
+            };
+            out_params.push(ast::StructMember {
+                ty,
+                defs: Vec::from([ast::InitDeclarator {
+                    declarator: ast::Declarator::Identifier(
+                        ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
+                        attrs,
+                    ),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
+                attributes: Vec::new(),
+            });
+        }
 
         let semantic_params = &context
             .module
@@ -158,10 +192,45 @@ pub(crate) fn generate_pipeline(
             .params;
 
         for param in semantic_params {
-            entry_params.push(generate_function_param(param, true, context)?);
-            args.push(Located::none(ast::Expression::Identifier(
-                ast::ScopedIdentifier::trivial(context.get_variable_name(param.id)?),
-            )));
+            if param.param_type.input_modifier == ir::InputModifier::In {
+                entry_params.push(generate_function_param(param, true, context)?);
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial(context.get_variable_name(param.id)?),
+                )));
+            } else {
+                // There should not be any valid inout parameters
+                if param.param_type.input_modifier != ir::InputModifier::Out {
+                    return Err(GenerateError::InvalidModule);
+                }
+
+                // Reuse function parameter generation to get basic member details
+                let ast_param = {
+                    let mut param = param.clone();
+                    // With in parameter so it is not a reference
+                    param.param_type.input_modifier = ir::InputModifier::In;
+                    generate_function_param(&param, true, context)?
+                };
+
+                out_params.push(ast::StructMember {
+                    ty: ast_param.param_type,
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast_param.declarator,
+                        location_annotations: ast_param.location_annotations,
+                        init: ast_param
+                            .default_expr
+                            .map(Located::none)
+                            .map(ast::Initializer::Expression),
+                    }]),
+                    attributes: Vec::new(),
+                });
+
+                args.push(Located::none(ast::Expression::Member(
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
+                    ))),
+                    ast::ScopedIdentifier::trivial(context.get_variable_name(param.id)?),
+                )));
+            }
         }
 
         entry_params.extend_from_slice(&binding_params);
@@ -202,15 +271,77 @@ pub(crate) fn generate_pipeline(
             }
         }
 
+        let return_type = if !out_params.is_empty() {
+            let stage_out_param_name = match stage.stage {
+                ir::ShaderStage::Vertex => STAGE_OUTPUT_NAME_VERTEX,
+                ir::ShaderStage::Pixel => STAGE_OUTPUT_NAME_PIXEL,
+                ir::ShaderStage::Compute => return Err(GenerateError::InvalidModule),
+                ir::ShaderStage::Task => return Err(GenerateError::UnimplementedMeshShader),
+                ir::ShaderStage::Mesh => return Err(GenerateError::UnimplementedMeshShader),
+            };
+
+            let sd = ast::StructDefinition {
+                name: Located::none(String::from(stage_out_param_name)),
+                base_types: Vec::new(),
+                template_params: ast::TemplateParamList(Vec::new()),
+                members: out_params
+                    .into_iter()
+                    .map(ast::StructEntry::Variable)
+                    .collect(),
+            };
+
+            defs.push(ast::RootDefinition::Struct(sd));
+
+            body.push(ast::Statement {
+                kind: ast::StatementKind::Var(ast::VarDef::one(
+                    Located::none(String::from(STAGE_OUTPUT_NAME_LOCAL)),
+                    ast::Type::from(stage_out_param_name),
+                )),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            });
+
+            Some(stage_out_param_name)
+        } else {
+            None
+        };
+
+        let call_expr = ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(function_name))),
+            Vec::new(),
+            args,
+        );
+
+        let call_expr = if has_return {
+            ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Member(
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
+                    ))),
+                    ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
+                ))),
+                Box::new(Located::none(call_expr)),
+            )
+        } else {
+            call_expr
+        };
+
         body.push(ast::Statement {
-            kind: ast::StatementKind::Expression(ast::Expression::Call(
-                Box::new(Located::none(ast::Expression::Identifier(function_name))),
-                Vec::new(),
-                args,
-            )),
+            kind: ast::StatementKind::Expression(call_expr),
             location: SourceLocation::UNKNOWN,
             attributes: Vec::new(),
         });
+
+        if return_type.is_some() {
+            body.push(ast::Statement {
+                kind: ast::StatementKind::Return(Some(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
+                )))),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            });
+        }
 
         let entry_point_name = match stage.stage {
             ir::ShaderStage::Vertex => ENTRY_POINT_NAME_VERTEX,
@@ -231,7 +362,7 @@ pub(crate) fn generate_pipeline(
         let entry_point = ast::FunctionDefinition {
             name: Located::none(String::from(entry_point_name)),
             returntype: ast::FunctionReturn {
-                return_type: ast::Type::trivial("void"),
+                return_type: ast::Type::trivial(return_type.unwrap_or("void")),
                 location_annotations: Vec::new(),
             },
             template_params: ast::TemplateParamList(Vec::new()),

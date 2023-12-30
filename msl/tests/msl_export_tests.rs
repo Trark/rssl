@@ -1464,14 +1464,20 @@ fn check_structured_buffer() {
 
 #[test]
 fn check_semantics() {
-    expect_generate_fail(
+    check(
         "float4 entry(uint id : SV_VertexID) : SV_Position { return 0; }",
-        GenerateError::UnimplementedFunctionReturnWithSemantic,
+        "float4 entry(uint id) {
+    return (float4)0;
+}
+",
     );
 
-    expect_generate_fail(
+    check(
         "float4 entry(float4 coord : SV_Position) : SV_Target { return 0; }",
-        GenerateError::UnimplementedFunctionReturnWithSemantic,
+        "float4 entry(float4 coord) {
+    return (float4)0;
+}
+",
     );
 }
 

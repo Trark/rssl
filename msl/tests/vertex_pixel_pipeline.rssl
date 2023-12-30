@@ -2,13 +2,16 @@ const Texture2D g_input;
 const Texture3D g_unused;
 const RWTexture2D<float4> g_output : register(space1);
 
-void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID) {
+void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID, out float4 o_pos : SV_Position) {
     g_input;
+    o_pos = float4(0, 0, 0, 0);
 }
 
-void PSMAIN(uint pid : SV_PrimitiveID) {
+float4 PSMAIN(uint pid : SV_PrimitiveID, out float4 o_target0 : SV_Target0) : SV_Target1 {
     g_input;
     g_output;
+    o_target0 = float4(0, 0, 0, 0);
+    return float4(0, 0, 0, 0);
 }
 
 Pipeline GraphicsTest
