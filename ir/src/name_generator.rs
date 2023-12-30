@@ -15,6 +15,7 @@ pub enum NameSymbol {
     GlobalVariable(GlobalId),
     Function(FunctionId),
     Namespace(NamespaceId),
+    LocalVariable(VariableId),
 }
 
 /// A name which may have namespace qualification
@@ -144,6 +145,8 @@ impl NameMap {
             reserved_name_set.insert(name.to_string());
         }
 
+        let mut used_names_all_scopes = reserved_name_set.clone();
+
         for scope in &scopes {
             // Record used names within the current scope
             // Names may be reused in different namespaces
@@ -168,6 +171,7 @@ impl NameMap {
                             let candidate = format!("{}_{}", name, counter);
 
                             if used_names.insert(candidate.clone()) {
+                                used_names_all_scopes.insert(candidate.clone());
                                 break candidate;
                             }
 
@@ -184,6 +188,54 @@ impl NameMap {
                         panic!("duplicate name for {:?}", symbol)
                     }
                 }
+            }
+        }
+
+        // We generally assume the names setup for local variables will not conflict
+        // This will not be the case if we generate a name - so first find all the names we do not want to generate into
+
+        let mut all_local_names = HashSet::new();
+        for id in module.variable_registry.iter() {
+            let name = &module.variable_registry.get_local_variable(id).name.node;
+            all_local_names.insert(name);
+        }
+
+        // TODO: Member variable names
+
+        for id in module.variable_registry.iter() {
+            let name = &module.variable_registry.get_local_variable(id).name.node;
+
+            let picked_name = if used_names_all_scopes.contains(name) {
+                // Potential conflict
+                // Names used for different kinds of objects may not conflict but we assume they are
+                // Names used in other namespaces may not conflict but we assume they may
+
+                // Attempt to assign a name with an incrementing index
+                // This may not conflict with a global name or any other local name in the general case
+                let mut counter = 0;
+                loop {
+                    let candidate = format!("{}_{}", name, counter);
+
+                    if !all_local_names.contains(&candidate)
+                        && used_names_all_scopes.insert(candidate.clone())
+                    {
+                        break candidate;
+                    }
+
+                    counter += 1;
+                }
+            } else {
+                String::from(name)
+            };
+
+            let symbol = NameSymbol::LocalVariable(id);
+            let name_string = NameString {
+                namespace: None,
+                name: picked_name,
+            };
+
+            if name_map.names.insert(symbol, name_string).is_some() {
+                panic!("duplicate name for {:?}", symbol)
             }
         }
 

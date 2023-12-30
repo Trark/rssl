@@ -75,6 +75,19 @@ impl VariableRegistry {
         id
     }
 
+    /// Get the total number of registered variables
+    pub fn get_variable_count(&self) -> u32 {
+        self.local_variables.len() as u32
+    }
+
+    /// Iterate the set of valid variable ids
+    pub fn iter(&self) -> VariableIdIterator {
+        VariableIdIterator {
+            current: 0,
+            end: self.get_variable_count(),
+        }
+    }
+
     /// Get the stored data for a local variable from an id
     pub fn get_local_variable(&self, id: VariableId) -> &LocalVariable {
         &self.local_variables[id.0 as usize]
@@ -101,5 +114,24 @@ impl Default for VariableRegistry {
             local_variables: Vec::with_capacity(1024),
             template_values: Vec::with_capacity(1024),
         }
+    }
+}
+
+pub struct VariableIdIterator {
+    current: u32,
+    end: u32,
+}
+
+impl Iterator for VariableIdIterator {
+    type Item = VariableId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = if self.current < self.end {
+            Some(VariableId(self.current))
+        } else {
+            None
+        };
+        self.current += 1;
+        result
     }
 }

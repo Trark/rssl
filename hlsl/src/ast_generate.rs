@@ -2399,12 +2399,7 @@ impl<'m> GenerateContext<'m> {
 
     /// Get the name of a local variable
     fn get_variable_name(&self, id: ir::VariableId) -> Result<&str, GenerateError> {
-        Ok(&self
-            .module
-            .variable_registry
-            .get_local_variable(id)
-            .name
-            .node)
+        Ok(self.name_map.get_name_leaf(NameSymbol::LocalVariable(id)))
     }
 
     /// Add a binding to the pipeline layout description

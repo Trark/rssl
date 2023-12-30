@@ -335,6 +335,28 @@ fn check_local_variable_modifiers() {
 }
 
 #[test]
+fn check_local_variable_reserved_names() {
+    check(
+        "void f() { float vertex; vertex = 0; }",
+        "void f() {
+    float vertex_0;
+    vertex_0 = 0.0f;
+}
+",
+    );
+
+    check(
+        "void f() { float vertex; float vertex_0; vertex = 0; }",
+        "void f() {
+    float vertex_1;
+    float vertex_0;
+    vertex_1 = 0.0f;
+}
+",
+    );
+}
+
+#[test]
 fn check_expressions() {
     check(
         "void f() {
