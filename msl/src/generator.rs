@@ -1852,7 +1852,7 @@ fn generate_intrinsic_function(
         Tanh => unimplemented_intrinsic(),
         Sqrt => unimplemented_intrinsic(),
         RcpSqrt => unimplemented_intrinsic(),
-        Pow => unimplemented_intrinsic(),
+        Pow => invoke_simple("pow", context),
         Exp => unimplemented_intrinsic(),
         Exp2 => unimplemented_intrinsic(),
         Log => unimplemented_intrinsic(),
@@ -1886,7 +1886,18 @@ fn generate_intrinsic_function(
             }
             invoke_simple("normalize", context)
         }
-        Rcp => unimplemented_intrinsic(),
+        Rcp => {
+            assert_eq!(exprs.len(), 1);
+            let value = generate_expression(&exprs[0], context)?;
+            let ast = ast::Expression::BinaryOperation(
+                ast::BinOp::Divide,
+                Box::new(Located::none(ast::Expression::Literal(
+                    ast::Literal::IntUntyped(1),
+                ))),
+                Box::new(Located::none(value)),
+            );
+            Ok(ast)
+        }
 
         Reflect => unimplemented_intrinsic(),
         Refract => unimplemented_intrinsic(),
@@ -1896,7 +1907,7 @@ fn generate_intrinsic_function(
         FirstBitHigh => unimplemented_intrinsic(),
         FirstBitLow => unimplemented_intrinsic(),
 
-        Saturate => unimplemented_intrinsic(),
+        Saturate => invoke_simple("saturate", context),
 
         Sign => unimplemented_intrinsic(),
 
@@ -1940,12 +1951,12 @@ fn generate_intrinsic_function(
             Ok(ast)
         }
 
-        Min => unimplemented_intrinsic(),
-        Max => unimplemented_intrinsic(),
+        Min => invoke_simple("min", context),
+        Max => invoke_simple("max", context),
 
         Step => unimplemented_intrinsic(),
 
-        Clamp => unimplemented_intrinsic(),
+        Clamp => invoke_simple("clamp", context),
         Lerp => {
             // mix is undefined for blend values not in 0-1 range - but lerp is not
             invoke_simple("mix", context)
