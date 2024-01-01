@@ -1591,20 +1591,58 @@ fn generate_expression(
             end
         }
         ir::Expression::Swizzle(expr_object, swizzle) => {
+            // Find the type of the object - without modifiers
+            let object_ty = match expr_object.get_type(context.module) {
+                Ok(ty) => context.module.type_registry.remove_modifier(ty.0),
+                Err(_) => return Err(GenerateError::InvalidModule),
+            };
+            let object_tyl = context.module.type_registry.get_type_layer(object_ty);
+
             let object = generate_expression(expr_object, context)?;
-            let member = {
-                let mut member = String::new();
-                for channel in swizzle {
-                    match channel {
-                        ir::SwizzleSlot::X => member.push('x'),
-                        ir::SwizzleSlot::Y => member.push('y'),
-                        ir::SwizzleSlot::Z => member.push('z'),
-                        ir::SwizzleSlot::W => member.push('w'),
+            match object_tyl {
+                ir::TypeLayer::Scalar(_) => {
+                    // Swizzle on scalar does not exist in MSL
+                    let output_size = swizzle.len();
+                    for channel in swizzle {
+                        assert_eq!(*channel, ir::SwizzleSlot::X);
+                    }
+                    if output_size == 1 {
+                        // Swizzle to get a single channel out is a no op
+                        object
+                    } else {
+                        // Swizzle to construct a vector can be implemented with the constructor for the vector type with a single argument
+                        let output_ty = context
+                            .module
+                            .type_registry
+                            .register_type(ir::TypeLayer::Vector(object_ty, output_size as u32));
+                        let ty = generate_type(output_ty, context)?;
+                        assert_eq!(ty.layout.1.len(), 0);
+                        assert!(ty.modifiers.modifiers.is_empty());
+                        ast::Expression::Call(
+                            Box::new(Located::none(ast::Expression::Identifier(ty.layout.0))),
+                            Vec::new(),
+                            Vec::from([Located::none(object)]),
+                        )
                     }
                 }
-                ast::ScopedIdentifier::trivial(&member)
-            };
-            ast::Expression::Member(Box::new(Located::none(object)), member)
+                ir::TypeLayer::Vector(_, _) => {
+                    // Swizzle on vector works like HLSL
+                    let member = {
+                        let mut member = String::new();
+                        for channel in swizzle {
+                            match channel {
+                                ir::SwizzleSlot::X => member.push('x'),
+                                ir::SwizzleSlot::Y => member.push('y'),
+                                ir::SwizzleSlot::Z => member.push('z'),
+                                ir::SwizzleSlot::W => member.push('w'),
+                            }
+                        }
+                        ast::ScopedIdentifier::trivial(&member)
+                    };
+                    ast::Expression::Member(Box::new(Located::none(object)), member)
+                }
+                _ => return Err(GenerateError::InvalidModule),
+            }
         }
         ir::Expression::MatrixSwizzle(_, _) => {
             return Err(GenerateError::UnimplementedMatrixSwizzle);

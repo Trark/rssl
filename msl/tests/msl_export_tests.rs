@@ -482,6 +482,24 @@ void f() {
 }
 
 #[test]
+fn check_expression_scalar_swizzle() {
+    check(
+        "void f() {
+    float v0 = 1;
+    float4 v1 = v0.xxxx;
+    float v2 = v0.x;
+}
+",
+        "void f() {
+    float v0 = 1.0f;
+    float4 v1 = float4(v0);
+    float v2 = v0;
+}
+",
+    );
+}
+
+#[test]
 fn check_expression_vector_swizzle() {
     check(
         "void f() {
