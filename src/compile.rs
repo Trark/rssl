@@ -154,6 +154,8 @@ fn build_pipeline(
         None
     };
 
+    let thread_group_size = pipeline.and_then(|pipeline| pipeline.thread_group_size);
+
     let compiled = match args.target {
         Target::HlslForDirectX | Target::HlslForVulkan => {
             let exported_source = match hlsl::export_to_hlsl(&ir) {
@@ -180,6 +182,7 @@ fn build_pipeline(
                 stages,
                 metadata: exported_source.pipeline_description,
                 graphics_pipeline_state,
+                thread_group_size,
             }
         }
         Target::Msl | Target::MetalBytecode => {
@@ -229,6 +232,7 @@ fn build_pipeline(
                 stages,
                 metadata: exported_source.pipeline_description,
                 graphics_pipeline_state,
+                thread_group_size,
             }
         }
     };
@@ -249,6 +253,9 @@ pub struct CompiledPipeline {
 
     /// State for graphics pipelines
     pub graphics_pipeline_state: Option<ir::GraphicsPipelineState>,
+
+    /// The number of threads per thread group if the shader has a set size
+    pub thread_group_size: Option<(u32, u32, u32)>,
 }
 
 /// Output for a shader stage in a compiled shader pipeline

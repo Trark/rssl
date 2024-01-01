@@ -3,6 +3,7 @@ use super::scopes::*;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::Located;
+use rssl_text::SourceLocation;
 
 /// Process an AST pipeline definition
 pub fn parse_pipeline(def: &ast::PipelineDefinition, context: &mut Context) -> TyperResult<()> {
@@ -11,6 +12,7 @@ pub fn parse_pipeline(def: &ast::PipelineDefinition, context: &mut Context) -> T
         default_bind_group_index: 0,
         stages: Vec::new(),
         graphics_pipeline_state: None,
+        thread_group_size: None,
     };
 
     // Check for duplicate properties
@@ -209,6 +211,41 @@ fn add_stage(
         stage,
         entry_point: func_id,
     });
+
+    let function_impl = context
+        .module
+        .function_registry
+        .get_function_implementation(func_id)
+        .as_ref()
+        .unwrap();
+
+    for attribute in &function_impl.attributes.clone() {
+        if let ir::FunctionAttribute::NumThreads(x, y, z) = attribute {
+            let mut evaluate = |expr: &ir::Expression| {
+                let value = match crate::evaluator::evaluate_constexpr(expr, &mut context.module) {
+                    Ok(value) => value,
+                    _ => {
+                        return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
+                            SourceLocation::UNKNOWN,
+                        ))
+                    }
+                };
+                let integer = match value.to_uint64() {
+                    Some(v) if v <= u32::MAX as u64 => v as u32,
+                    _ => {
+                        return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
+                            SourceLocation::UNKNOWN,
+                        ))
+                    }
+                };
+                Ok(integer)
+            };
+            let x = evaluate(x)?;
+            let y = evaluate(y)?;
+            let z = evaluate(z)?;
+            def.thread_group_size = Some((x, y, z));
+        }
+    }
 
     Ok(())
 }
