@@ -129,6 +129,21 @@ impl TypeRegistry {
         id
     }
 
+    /// Get the total number of registered types
+    pub fn get_type_count(&self) -> u32 {
+        self.layers.borrow().len() as u32
+    }
+
+    /// Iterate the set of valid type ids
+    ///
+    /// This does not take a reference to the registry so the caller may add new types when this is in progress
+    pub fn iter(&self) -> TypeIdIterator {
+        TypeIdIterator {
+            current: 0,
+            end: self.get_type_count(),
+        }
+    }
+
     /// Get the top type layer for a type id
     #[inline]
     pub fn get_type_layer(&self, id: TypeId) -> TypeLayer {
@@ -981,6 +996,25 @@ impl TypeOrConstant {
             TypeOrConstant::Type(_) => None,
             TypeOrConstant::Constant(val) => Some(val),
         }
+    }
+}
+
+pub struct TypeIdIterator {
+    current: u32,
+    end: u32,
+}
+
+impl Iterator for TypeIdIterator {
+    type Item = TypeId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = if self.current < self.end {
+            Some(TypeId(self.current))
+        } else {
+            None
+        };
+        self.current += 1;
+        result
     }
 }
 
