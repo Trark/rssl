@@ -22,6 +22,7 @@ pub enum IntrinsicHelper {
 
 /// Represents a helper struct that is generated to implement intrinsic operations
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[allow(clippy::enum_variant_names)]
 pub enum IntrinsicObject {
     ByteAddressBuffer,
     RWByteAddressBuffer,
