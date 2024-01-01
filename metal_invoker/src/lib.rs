@@ -71,7 +71,6 @@ impl MetalCompiler {
         // Read input from stdin
         process_args.push("-x");
         process_args.push("metal");
-        process_args.push("-c");
         process_args.push("-");
 
         for arg in args {
