@@ -80,15 +80,15 @@ void test(const metal::texture2d_array<float> g_input, const metal::texture2d_ar
     helper::GetDimensions(g_input, outInt, outInt, outInt);
     helper::GetDimensions(g_input, 0u, outInt, outInt, outInt, outInt);
     helper::GetDimensions(g_output, outInt, outInt, outInt);
-    const float4 load_srv = helper::Load(g_input, int4(0, 0, 0, 0));
-    const float4 load_srv_offset = helper::Load(g_input, int4(0, 0, 0, 0), int2(0, 0));
-    const float4 load_srv_status = helper::Load(g_input, int4(0, 0, 0, 0), int2(0, 0), outInt);
-    const float4 sample_base = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f));
-    const float4 sample_offset = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0));
-    const float4 sample_clamp = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f);
-    const float4 sample_status = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f, outInt);
-    const float4 load_uav = helper::Load(g_output, int3(0, 0, 0));
-    const float4 load_uav_status = helper::Load(g_output, int3(0, 0, 0), outInt);
+    const float3 load_srv = helper::Load(g_input, int4(0, 0, 0, 0)).xyz;
+    const float3 load_srv_offset = helper::Load(g_input, int4(0, 0, 0, 0), int2(0, 0)).xyz;
+    const float3 load_srv_status = helper::Load(g_input, int4(0, 0, 0, 0), int2(0, 0), outInt).xyz;
+    const float3 sample_base = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f)).xyz;
+    const float3 sample_offset = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0)).xyz;
+    const float3 sample_clamp = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f).xyz;
+    const float3 sample_status = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f, outInt).xyz;
+    const float3 load_uav = helper::Load(g_output, int3(0, 0, 0)).xyz;
+    const float3 load_uav_status = helper::Load(g_output, int3(0, 0, 0), outInt).xyz;
 }
 
 struct ArgumentBuffer0

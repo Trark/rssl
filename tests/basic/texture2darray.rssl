@@ -1,5 +1,5 @@
-const Texture2DArray g_input : register(t0);
-const RWTexture2DArray<float4> g_output : register(u1);
+const Texture2DArray<float3> g_input : register(t0);
+const RWTexture2DArray<float3> g_output : register(u1);
 const SamplerState g_sampler : register(s2);
 #if !RSSL_TARGET_MSL
 const SamplerComparisonState g_comparisonSampler : register(s3);
@@ -10,33 +10,33 @@ void test() {
     g_input.GetDimensions(outInt, outInt, outInt);
     g_input.GetDimensions(0u, outInt, outInt, outInt, outInt);
     g_output.GetDimensions(outInt, outInt, outInt);
-    const float4 load_srv = g_input.Load(int4(0, 0, 0, 0));
-    const float4 load_srv_offset = g_input.Load(int4(0, 0, 0, 0), int2(0, 0));
-    const float4 load_srv_status = g_input.Load(int4(0, 0, 0, 0), int2(0, 0), outInt);
-    const float4 sample_base = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0));
-    const float4 sample_offset = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0));
-    const float4 sample_clamp = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), 0.0);
-    const float4 sample_status = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), 0.0, outInt);
+    const float3 load_srv = g_input.Load(int4(0, 0, 0, 0));
+    const float3 load_srv_offset = g_input.Load(int4(0, 0, 0, 0), int2(0, 0));
+    const float3 load_srv_status = g_input.Load(int4(0, 0, 0, 0), int2(0, 0), outInt);
+    const float3 sample_base = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0));
+    const float3 sample_offset = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0));
+    const float3 sample_clamp = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), 0.0);
+    const float3 sample_status = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), 0.0, outInt);
 #if !RSSL_TARGET_MSL
-    const float4 sample_bias_base = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0);
-    const float4 sample_bias_offset = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0));
-    const float4 sample_bias_clamp = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0);
-    const float4 sample_bias_status = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0, outInt);
-    const float4 sample_cmp = g_input.SampleCmp(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0));
-    const float4 sample_cmp_clamp = g_input.SampleCmp(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0);
-    const float4 sample_cmp_status = g_input.SampleCmp(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0, outInt);
-    const float4 sample_cmp_zero = g_input.SampleCmpLevelZero(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0));
-    const float4 sample_cmp_zero_status = g_input.SampleCmpLevelZero(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), outInt);
-    const float4 gather = g_input.Gather(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0));
-    const float4 gather_status = g_input.Gather(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), outInt);
-    const float4 gather_red = g_input.GatherRed(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0));
-    const float4 gather_red_status = g_input.GatherRed(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), outInt);
+    const float3 sample_bias_base = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0);
+    const float3 sample_bias_offset = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0));
+    const float3 sample_bias_clamp = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0);
+    const float3 sample_bias_status = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0, outInt);
+    const float3 sample_cmp = g_input.SampleCmp(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0));
+    const float3 sample_cmp_clamp = g_input.SampleCmp(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0);
+    const float3 sample_cmp_status = g_input.SampleCmp(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), 0.0, outInt);
+    const float3 sample_cmp_zero = g_input.SampleCmpLevelZero(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0));
+    const float3 sample_cmp_zero_status = g_input.SampleCmpLevelZero(g_comparisonSampler, float3(0.0, 0.0, 0.0), 0.0, int2(0, 0), outInt);
+    const float3 gather = g_input.Gather(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0));
+    const float3 gather_status = g_input.Gather(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), outInt);
+    const float3 gather_red = g_input.GatherRed(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0));
+    const float3 gather_red_status = g_input.GatherRed(g_sampler, float3(0.0, 0.0, 0.0), int2(0, 0), outInt);
 #endif
-    const float4 load_uav = g_output.Load(int3(0, 0, 0));
-    const float4 load_uav_status = g_output.Load(int3(0, 0, 0), outInt);
+    const float3 load_uav = g_output.Load(int3(0, 0, 0));
+    const float3 load_uav_status = g_output.Load(int3(0, 0, 0), outInt);
 #if !RSSL_TARGET_MSL
     g_output[uint3(2, 2, 2)] = g_output[uint3(1, 1, 1)] = g_input[uint3(1, 1, 1)];
-    float4 mips_load = g_input.mips[0][uint3(0, 0, 0)];
+    float3 mips_load = g_input.mips[0][uint3(0, 0, 0)];
 #endif
 }
 
