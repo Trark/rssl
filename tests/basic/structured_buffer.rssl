@@ -16,9 +16,7 @@ void test() {
 #endif
     g_input.GetDimensions(outInt, outInt);
     g_output.GetDimensions(outInt, outInt);
-#if !RSSL_TARGET_MSL
     g_output[2] = g_output[1] = g_input[1];
-#endif
 }
 
 Pipeline Test

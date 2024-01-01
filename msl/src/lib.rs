@@ -4,14 +4,24 @@
 
 mod generator;
 mod names;
+mod simplify_resource_subscript;
 
 /// Export module to Metal Shading Language
 ///
 /// We assume the generated code will be built with:
 /// * -std=metal3.1
 pub fn export_to_msl(module: &rssl_ir::Module) -> Result<ExportedSource, ExportError> {
+    // TODO: Consume the module as we have to modify it anyway
+    let mut module = module.clone();
+
+    // Transform all special syntax cbuffers into struct / ConstantBuffer global variable pairs
+    rssl_ir::simplify_cbuffers(&mut module);
+
+    // Attempt to remove access to resources via references
+    simplify_resource_subscript::simplify_resource_subscript(&mut module);
+
     // Generate MSL in the form of RSSL ast from RSSL ir module
-    let generate_output = match generator::generate_module(module) {
+    let generate_output = match generator::generate_module(&module) {
         Ok(output) => output,
         Err(err) => return Err(ExportError::GenerateError(err)),
     };

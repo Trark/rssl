@@ -52,6 +52,12 @@ metal::vec<T, 4> Load(metal::texture2d_array<T, metal::access::read_write> textu
 }
 
 template<typename T>
+metal::vec<T, 4> Store(metal::texture2d_array<T, metal::access::read_write> texture, uint3 location, metal::vec<T, 4> value) {
+    texture.write(value, location.xy, location.z);
+    return value;
+}
+
+template<typename T>
 metal::vec<T, 4> Sample(metal::texture2d_array<T> texture, metal::sampler s, float3 coord) {
     return texture.sample(s, coord.xy, uint(coord.z));
 }
@@ -73,6 +79,16 @@ metal::vec<T, 4> Sample(metal::texture2d_array<T> texture, metal::sampler s, flo
     return color.value();
 }
 
+template<typename T>
+metal::vec<T, 4> extend(metal::vec<T, 3> value) {
+    return metal::vec<T, 4>(value, 0);
+}
+
+template<size_t N>
+metal::vec<int, N + 1> make_signed_push_0(metal::vec<uint, N> coord) {
+    return metal::vec<int, N + 1>(metal::vec<int, N>(coord), 0u);
+}
+
 } // namespace helper
 
 void test(const metal::texture2d_array<float> g_input, const metal::texture2d_array<float, metal::access::read_write> g_output, const metal::sampler g_sampler) {
@@ -89,6 +105,7 @@ void test(const metal::texture2d_array<float> g_input, const metal::texture2d_ar
     const float3 sample_status = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f, outInt).xyz;
     const float3 load_uav = helper::Load(g_output, int3(0, 0, 0)).xyz;
     const float3 load_uav_status = helper::Load(g_output, int3(0, 0, 0), outInt).xyz;
+    helper::Store(g_output, uint3(2u, 2u, 2u), helper::extend(helper::Store(g_output, uint3(1u, 1u, 1u), helper::extend((float3)helper::Load(g_input, helper::make_signed_push_0(uint3(1u, 1u, 1u))).xyz)).xyz)).xyz;
 }
 
 struct ArgumentBuffer0

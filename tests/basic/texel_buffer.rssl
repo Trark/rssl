@@ -10,8 +10,8 @@ void test() {
     const uint load_uav_sparse = g_output.Load(0, outInt);
     g_input.GetDimensions(outInt);
     g_output.GetDimensions(outInt);
-    g_output[2] = g_output[1] = g_input[1];
 #endif
+    g_output[2] = g_output[1] = g_input[1];
 }
 
 Pipeline Test

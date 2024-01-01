@@ -1274,7 +1274,7 @@ void sub_static() {
 }
 
 void sub_buffer() {
-    g_buffer;
+    g_buffer[0u];
 }
 
 void sub_groupshared() {
@@ -1299,6 +1299,10 @@ struct StructuredBuffer
 {
     device const T* address;
     uint64_t size;
+
+    T Load(uint location) const {
+        return address[location];
+    }
 };
 
 } // namespace helper
@@ -1314,7 +1318,7 @@ void sub_static(thread uint& s_globalState) {
 }
 
 void sub_buffer(const helper::StructuredBuffer<uint4> g_buffer) {
-    g_buffer;
+    g_buffer.Load(0u);
 }
 
 void sub_groupshared(threadgroup float& lds_x) {

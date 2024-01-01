@@ -34,6 +34,9 @@ pub enum GenerateError {
     /// Unable to generate a valid ast for a type with an array modifier in this position
     ComplexTypeBind,
 
+    /// Resource subscript usage too complicated to rewrite
+    ComplexResourceSubscript,
+
     /// All constants must be initialized in metal
     UninitializedConstant,
 
@@ -1615,13 +1618,16 @@ fn generate_expression(
 
             // The type without modifiers
             let type_id = context.module.type_registry.remove_modifier(type_id);
+            let tyl = context.module.type_registry.get_type_layer(type_id);
 
             // Check for a matrix type and fail
             // The default indexing will index into a column instead of a row and we do not currently rewrite to work around this
-            if let ir::TypeLayer::Matrix(_, _, _) =
-                context.module.type_registry.get_type_layer(type_id)
-            {
+            if let ir::TypeLayer::Matrix(_, _, _) = tyl {
                 return Err(GenerateError::UnimplementedMatrixIndex);
+            }
+
+            if let ir::TypeLayer::Object(_) = tyl {
+                return Err(GenerateError::ComplexResourceSubscript);
             }
 
             let object = generate_expression(expr_object, context)?;
@@ -2027,6 +2033,12 @@ fn generate_intrinsic_function(
         }
 
         RWBufferGetDimensions => unimplemented_intrinsic(),
+        RWBufferStore => generate_invoke_helper_method_store(
+            IntrinsicHelper::Store(Dim::TexelBuffer),
+            exprs,
+            tys,
+            context,
+        ),
 
         StructuredBufferGetDimensions => generate_invoke_helper_method(
             IntrinsicObject::StructuredBuffer,
@@ -2056,6 +2068,13 @@ fn generate_intrinsic_function(
         RWStructuredBufferGetDimensions => generate_invoke_helper_method(
             IntrinsicObject::RWStructuredBuffer,
             IntrinsicHelper::StructuredBufferGetDimensions,
+            tys,
+            exprs,
+            context,
+        ),
+        RWStructuredBufferStore => generate_invoke_helper_method(
+            IntrinsicObject::RWStructuredBuffer,
+            IntrinsicHelper::StructuredBufferStore,
             tys,
             exprs,
             context,
@@ -2300,6 +2319,12 @@ fn generate_intrinsic_function(
             }),
             context,
         ),
+        RWTexture2DStore => generate_invoke_helper_method_store(
+            IntrinsicHelper::Store(Dim::Tex2D),
+            exprs,
+            tys,
+            context,
+        ),
 
         RWTexture2DArrayGetDimensions => invoke_helper(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
@@ -2316,6 +2341,12 @@ fn generate_intrinsic_function(
                 has_offset: false,
                 has_status: exprs.len() >= 3,
             }),
+            context,
+        ),
+        RWTexture2DArrayStore => generate_invoke_helper_method_store(
+            IntrinsicHelper::Store(Dim::Tex2DArray),
+            exprs,
+            tys,
             context,
         ),
 
@@ -2386,6 +2417,12 @@ fn generate_intrinsic_function(
                 has_offset: false,
                 has_status: exprs.len() >= 3,
             }),
+            context,
+        ),
+        RWTexture3DStore => generate_invoke_helper_method_store(
+            IntrinsicHelper::Store(Dim::Tex3D),
+            exprs,
+            tys,
             context,
         ),
 
@@ -2484,6 +2521,32 @@ fn generate_invoke_helper_method(
         type_args,
         args,
     ))
+}
+
+/// Invoke a helper method which is a store which requires special casting
+fn generate_invoke_helper_method_store(
+    helper: IntrinsicHelper,
+    exprs: &[ir::Expression],
+    tys: &[ir::TypeOrConstant],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    assert_eq!(exprs.len(), 3);
+    assert!(tys.is_empty());
+
+    let identifier = require_helper_function(helper, context)?;
+    let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+
+    let arg0 = Located::none(generate_expression(&exprs[0], context)?);
+    let arg1 = Located::none(generate_expression(&exprs[1], context)?);
+
+    // The last argument is the value which we only support 4 component vectors in the helper functions
+    // Depending on the type in the buffer this may be a scalar, vector2, or vector3
+    let arg2 = Located::none(vector_n_to_vector_4(&exprs[2], exprs, context)?);
+
+    let call_expr = ast::Expression::Call(object, Vec::new(), Vec::from([arg0, arg1, arg2]));
+
+    // Similar to loads we also need to clamp back down to the correct vector dimension on the return value
+    vector_4_to_vector_n(call_expr, exprs, context)
 }
 
 /// Ensure a helper function is generated later
@@ -2609,6 +2672,66 @@ fn vector_4_to_vector_n(
     Ok(vec_n)
 }
 
+/// Cast up to a 4 component vector
+fn vector_n_to_vector_4(
+    value_expr: &ir::Expression,
+    input_exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let object_expr = match input_exprs.first() {
+        Some(object_expr) => object_expr,
+        None => return Err(GenerateError::InvalidModule),
+    };
+
+    let object_ty = match object_expr.get_type(context.module) {
+        Ok(ety) => ety.0,
+        Err(_) => return Err(GenerateError::InvalidModule),
+    };
+
+    let object_ty = context.module.type_registry.remove_modifier(object_ty);
+    let object_ty = match context.module.type_registry.get_type_layer(object_ty) {
+        ir::TypeLayer::Object(ty) => ty,
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    let component_ty = match object_ty {
+        ir::ObjectType::Buffer(ty) => ty,
+        ir::ObjectType::RWBuffer(ty) => ty,
+        ir::ObjectType::Texture2D(ty) => ty,
+        ir::ObjectType::Texture2DArray(ty) => ty,
+        ir::ObjectType::RWTexture2D(ty) => ty,
+        ir::ObjectType::RWTexture2DArray(ty) => ty,
+        ir::ObjectType::TextureCube(ty) => ty,
+        ir::ObjectType::TextureCubeArray(ty) => ty,
+        ir::ObjectType::Texture3D(ty) => ty,
+        ir::ObjectType::RWTexture3D(ty) => ty,
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    let component_ty = context.module.type_registry.remove_modifier(component_ty);
+    let component_tyl = context.module.type_registry.get_type_layer(component_ty);
+
+    let component_count = match component_tyl {
+        ir::TypeLayer::Scalar(_) => 1,
+        ir::TypeLayer::Vector(_, arity) => arity,
+        _ => return Err(GenerateError::InvalidModule),
+    };
+
+    // If we are already the correct type then there is nothing to add
+    if component_count == 4 {
+        return generate_expression(value_expr, context);
+    }
+
+    let vec_4 = generate_invoke_helper(
+        IntrinsicHelper::Extend(component_count),
+        &[],
+        &[value_expr.clone()],
+        context,
+    )?;
+
+    Ok(vec_4)
+}
+
 /// Create a Load / Load2 / Load3 / Load4 / Load<T> for a byte buffer
 fn generate_byte_buffer_load(
     object_ty: IntrinsicObject,
@@ -2711,6 +2834,7 @@ fn generate_intrinsic_op(
     enum Form {
         Unary(ast::UnaryOp),
         Binary(ast::BinOp),
+        Special(IntrinsicHelper),
     }
 
     use ir::IntrinsicOp::*;
@@ -2753,6 +2877,9 @@ fn generate_intrinsic_op(
         BitwiseAndAssignment => Form::Binary(ast::BinOp::BitwiseAndAssignment),
         BitwiseOrAssignment => Form::Binary(ast::BinOp::BitwiseOrAssignment),
         BitwiseXorAssignment => Form::Binary(ast::BinOp::BitwiseXorAssignment),
+
+        MakeSigned => Form::Special(IntrinsicHelper::MakeSigned),
+        MakeSignedPushZero => Form::Special(IntrinsicHelper::MakeSignedPushZero),
     };
 
     let expr = match form {
@@ -2783,6 +2910,7 @@ fn generate_intrinsic_op(
                 output
             }
         }
+        Form::Special(helper) => generate_invoke_helper(helper, &[], exprs, context)?,
     };
     Ok(expr)
 }

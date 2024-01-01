@@ -11,13 +11,21 @@ use crate::names::HELPER_NAMESPACE_NAME;
 pub enum IntrinsicHelper {
     GetDimensions(GetDimensionsHelper),
     Load(LoadHelper),
+    Store(Dim),
     Sample(SampleHelper),
     AddressLoad,
     AddressStore,
     AddressAtomic(BufferAtomicOp),
     AddressGetDimensions,
-    StructuredBufferLoad,
     StructuredBufferGetDimensions,
+    StructuredBufferLoad,
+    StructuredBufferStore,
+    /// Turn a scalar or non-4 component vector into a 4 component vector - not caring about higher channels
+    Extend(u32),
+    /// Transform a uint coordinate to an int coordinate
+    MakeSigned,
+    /// Transform a uint coordinate to an int coordinate and add a zero on the end
+    MakeSignedPushZero,
 }
 
 /// Represents a helper struct that is generated to implement intrinsic operations
@@ -35,13 +43,18 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
     match intrinsic {
         IntrinsicHelper::GetDimensions(_) => "GetDimensions",
         IntrinsicHelper::Load(_) => "Load",
+        IntrinsicHelper::Store(_) => "Store",
         IntrinsicHelper::Sample(_) => "Sample",
         IntrinsicHelper::AddressLoad => "Load",
         IntrinsicHelper::AddressStore => "Store",
         IntrinsicHelper::AddressAtomic(op) => op.get_helper_name(),
         IntrinsicHelper::AddressGetDimensions => "GetDimensions",
         IntrinsicHelper::StructuredBufferLoad => "Load",
+        IntrinsicHelper::StructuredBufferStore => "Store",
         IntrinsicHelper::StructuredBufferGetDimensions => "GetDimensions",
+        IntrinsicHelper::Extend(_) => "extend",
+        IntrinsicHelper::MakeSigned => "make_signed",
+        IntrinsicHelper::MakeSignedPushZero => "make_signed_push_0",
     }
 }
 
@@ -133,13 +146,18 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, G
     match helper {
         GetDimensions(config) => Ok(build_get_dimensions(config)?),
         Load(config) => Ok(build_texture_load(config)?),
+        Store(dim) => Ok(build_texture_store(dim)?),
         Sample(config) => Ok(build_texture_sample(config)?),
         AddressLoad => Ok(build_address_load()?),
         AddressStore => Ok(build_address_store()?),
         AddressAtomic(op) => Ok(build_address_atomic(op)?),
         AddressGetDimensions => Ok(build_address_get_dimensions()?),
         StructuredBufferLoad => Ok(build_structured_buffer_load()?),
+        StructuredBufferStore => Ok(build_structured_buffer_store()?),
         StructuredBufferGetDimensions => Ok(build_structured_buffer_get_dimensions()?),
+        Extend(count) => Ok(build_vector_extend(count)?),
+        MakeSigned => Ok(build_unsign(false)?),
+        MakeSignedPushZero => Ok(build_unsign(true)?),
     }
 }
 
@@ -674,6 +692,79 @@ fn build_texture_load(config: LoadHelper) -> Result<ast::FunctionDefinition, Gen
 
     Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Load")),
+        returntype: ast::FunctionReturn {
+            return_type: build_vec("T", 4),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("T"))),
+                default: None,
+            },
+        )])),
+        params,
+        is_const: false,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Create a definition for various texture store methods
+fn build_texture_store(dim: Dim) -> Result<ast::FunctionDefinition, GenerateError> {
+    let location_type = match dim {
+        Dim::TexelBuffer => "uint",
+        Dim::Tex2D => "uint2",
+        Dim::Tex2DArray | Dim::Tex3D => "uint3",
+        _ => unreachable!(),
+    };
+
+    let params = Vec::from([
+        build_param(build_texture(dim.get_type_name(), "T", true), "texture"),
+        build_param(ast::Type::trivial(location_type), "location"),
+        build_param(build_vec("T", 4), "value"),
+    ]);
+
+    let mut load_args = Vec::new();
+    load_args.push(Located::none(ast::Expression::Identifier(
+        ast::ScopedIdentifier::trivial("value"),
+    )));
+    match dim {
+        Dim::Tex2D | Dim::Tex3D | Dim::TexelBuffer => {
+            load_args.push(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("location"),
+            )));
+        }
+        Dim::Tex2DArray => {
+            load_args.push(build_expr_member("location", "xy"));
+            load_args.push(build_expr_member("location", "z"));
+        }
+        Dim::TexCube | Dim::TexCubeArray => unreachable!(),
+    }
+
+    let load_expr = ast::Expression::Call(
+        Box::new(build_expr_member("texture", "write")),
+        Vec::new(),
+        load_args,
+    );
+
+    let body = Vec::from([
+        ast::Statement {
+            kind: ast::StatementKind::Expression(load_expr),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Return(Some(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("value"),
+            )))),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+    ]);
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("Store")),
         returntype: ast::FunctionReturn {
             return_type: build_vec("T", 4),
             location_annotations: Vec::new(),
@@ -1300,6 +1391,65 @@ fn build_structured_buffer_load() -> Result<ast::FunctionDefinition, GenerateErr
     })
 }
 
+/// Build a Store for a StructuredBuffer / RWStructuredBuffer
+fn build_structured_buffer_store() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([
+        ast::FunctionParam {
+            param_type: ast::Type::from("uint"),
+            declarator: ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("location"),
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+        ast::FunctionParam {
+            param_type: ast::Type::from("T"),
+            declarator: ast::Declarator::Identifier(
+                ast::ScopedIdentifier::trivial("value"),
+                Vec::new(),
+            ),
+            location_annotations: Vec::new(),
+            default_expr: None,
+        },
+    ]);
+
+    let access = ast::Expression::ArraySubscript(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("address"),
+        ))),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("location"),
+        ))),
+    );
+
+    let assign = ast::Expression::BinaryOperation(
+        ast::BinOp::Assignment,
+        Box::new(Located::none(access)),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("value"),
+        ))),
+    );
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("Store")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("T"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(Vec::from([ast::Statement {
+            kind: ast::StatementKind::Return(Some(Located::none(assign))),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        }])),
+        attributes: Vec::new(),
+    })
+}
+
 /// Create a definition for StructuredBuffer / RWStructuredBuffer GetDimensions
 fn build_structured_buffer_get_dimensions() -> Result<ast::FunctionDefinition, GenerateError> {
     let mut params = Vec::new();
@@ -1356,6 +1506,167 @@ fn build_structured_buffer_get_dimensions() -> Result<ast::FunctionDefinition, G
         template_params: ast::TemplateParamList(Vec::new()),
         params,
         is_const: true,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a helper function to turn a scalar or smaller vector into a 4 component vector
+fn build_vector_extend(count: u32) -> Result<ast::FunctionDefinition, GenerateError> {
+    let mut params = Vec::new();
+    let mut body = Vec::new();
+
+    let value_type = if count == 1 {
+        ast::Type::trivial("T")
+    } else {
+        build_vec("T", count as u64)
+    };
+
+    let constructor_args = if count == 1 {
+        Vec::from([
+            Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                "value",
+            ))),
+            Located::none(ast::Expression::Literal(ast::Literal::IntUntyped(0))),
+            Located::none(ast::Expression::Literal(ast::Literal::IntUntyped(0))),
+            Located::none(ast::Expression::Literal(ast::Literal::IntUntyped(0))),
+        ])
+    } else {
+        Vec::from([
+            Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                "value",
+            ))),
+            Located::none(ast::Expression::Literal(ast::Literal::IntUntyped(0))),
+        ])
+    };
+
+    params.push(build_param(value_type, "value"));
+    body.push(ast::Statement {
+        kind: ast::StatementKind::Return(Some(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                metal_lib_identifier("vec"),
+            ))),
+            Vec::from([
+                ast::ExpressionOrType::Type(ast::TypeId::from("T")),
+                ast::ExpressionOrType::Expression(Located::none(ast::Expression::Literal(
+                    ast::Literal::IntUntyped(4),
+                ))),
+            ]),
+            constructor_args,
+        )))),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    });
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("extend")),
+        returntype: ast::FunctionReturn {
+            return_type: build_vec("T", 4),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("T"))),
+                default: None,
+            },
+        )])),
+        params,
+        is_const: false,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a helper function to turn a coordinate without a mip index to a coordinate with a mip index of zero - and also int -> uint convert
+fn build_unsign(push_zero: bool) -> Result<ast::FunctionDefinition, GenerateError> {
+    let mut params = Vec::new();
+    let mut body = Vec::new();
+
+    let make_n = || {
+        ast::ExpressionOrType::Expression(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("N"),
+        )))
+    };
+
+    let make_n1 = || {
+        ast::ExpressionOrType::Expression(Located::none(ast::Expression::BinaryOperation(
+            ast::BinOp::Add,
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("N"),
+            ))),
+            Box::new(Located::none(ast::Expression::Literal(
+                ast::Literal::IntUntyped(1),
+            ))),
+        )))
+    };
+
+    let make_int = || ast::ExpressionOrType::Type(ast::TypeId::from("int"));
+    let make_uint = || ast::ExpressionOrType::Type(ast::TypeId::from("uint"));
+
+    params.push(build_param(
+        ast::Type::from_layout(ast::TypeLayout(
+            metal_lib_identifier("vec"),
+            Vec::from([make_uint(), make_n()]).into_boxed_slice(),
+        )),
+        "coord",
+    ));
+
+    let uint_to_int = ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Identifier(
+            metal_lib_identifier("vec"),
+        ))),
+        Vec::from([make_int(), make_n()]),
+        Vec::from([Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("coord"),
+        ))]),
+    );
+
+    let extend = if push_zero {
+        ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                metal_lib_identifier("vec"),
+            ))),
+            Vec::from([make_int(), make_n1()]),
+            Vec::from([
+                Located::none(uint_to_int),
+                Located::none(ast::Expression::Literal(ast::Literal::IntUnsigned32(0))),
+            ]),
+        )
+    } else {
+        uint_to_int
+    };
+
+    body.push(ast::Statement {
+        kind: ast::StatementKind::Return(Some(Located::none(extend))),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    });
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from(if push_zero {
+            "make_signed_push_0"
+        } else {
+            "make_signed"
+        })),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from_layout(ast::TypeLayout(
+                metal_lib_identifier("vec"),
+                Vec::from([make_int(), if push_zero { make_n1() } else { make_n() }])
+                    .into_boxed_slice(),
+            )),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Value(
+            ast::TemplateValueParam {
+                name: Some(Located::none(String::from("N"))),
+                default: None,
+                value_type: ast::Type::from("size_t"),
+            },
+        )])),
+        params,
+        is_const: false,
         is_volatile: false,
         body: Some(body),
         attributes: Vec::new(),

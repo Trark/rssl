@@ -6,13 +6,13 @@ struct StructuredBuffer
     device const T* address;
     uint64_t size;
 
-    T Load(uint location) const {
-        return address[location];
-    }
-
     void GetDimensions(thread uint& numStructs, thread uint& stride) const {
         numStructs = static_cast<uint>(size);
         stride = sizeof(T);
+    }
+
+    T Load(uint location) const {
+        return address[location];
     }
 };
 
@@ -22,13 +22,17 @@ struct RWStructuredBuffer
     device T* address;
     uint64_t size;
 
+    void GetDimensions(thread uint& numStructs, thread uint& stride) const {
+        numStructs = static_cast<uint>(size);
+        stride = sizeof(T);
+    }
+
     T Load(uint location) const {
         return address[location];
     }
 
-    void GetDimensions(thread uint& numStructs, thread uint& stride) const {
-        numStructs = static_cast<uint>(size);
-        stride = sizeof(T);
+    T Store(uint location, T value) const {
+        return address[location] = value;
     }
 };
 
@@ -45,6 +49,7 @@ void test(const helper::StructuredBuffer<MyStruct> g_input, const helper::RWStru
     const MyStruct s2 = g_output.Load(0);
     g_input.GetDimensions(outInt, outInt);
     g_output.GetDimensions(outInt, outInt);
+    g_output.Store(2u, g_output.Store(1u, (MyStruct)g_input.Load(1u)));
 }
 
 struct ArgumentBuffer0

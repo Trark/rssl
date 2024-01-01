@@ -43,6 +43,10 @@ pub enum IntrinsicOp {
     BitwiseAndAssignment,
     BitwiseOrAssignment,
     BitwiseXorAssignment,
+
+    // Internal operations
+    MakeSigned,
+    MakeSignedPushZero,
 }
 
 /// An intrinsic built in function
@@ -208,6 +212,7 @@ pub enum Intrinsic {
     // RWBuffer methods
     RWBufferGetDimensions,
     RWBufferLoad,
+    RWBufferStore,
 
     // StructuredBuffer methods
     StructuredBufferGetDimensions,
@@ -216,6 +221,7 @@ pub enum Intrinsic {
     // RWStructuredBuffer methods
     RWStructuredBufferGetDimensions,
     RWStructuredBufferLoad,
+    RWStructuredBufferStore,
 
     // ByteAddressBuffer methods
     ByteAddressBufferGetDimensions,
@@ -292,10 +298,12 @@ pub enum Intrinsic {
     // RWTexture2D methods
     RWTexture2DGetDimensions,
     RWTexture2DLoad,
+    RWTexture2DStore,
 
     // RWTexture2DArray methods
     RWTexture2DArrayGetDimensions,
     RWTexture2DArrayLoad,
+    RWTexture2DArrayStore,
 
     // TextureCube methods
     TextureCubeSample,
@@ -316,6 +324,7 @@ pub enum Intrinsic {
     // RWTexture3D methods
     RWTexture3DGetDimensions,
     RWTexture3DLoad,
+    RWTexture3DStore,
 
     // TriangleStream methods
     TriangleStreamAppend,
@@ -462,6 +471,29 @@ impl IntrinsicOp {
                 assert_eq!(param_types[0].0, param_types[1].0);
                 assert_eq!(param_types[0].1, ValueType::Lvalue);
                 param_types[0]
+            }
+            MakeSigned => {
+                assert_eq!(param_types.len(), 1);
+                let ty = module
+                    .type_registry
+                    .transform_scalar(param_types[0].0, ScalarType::Int32);
+                ty.to_rvalue()
+            }
+            MakeSignedPushZero => {
+                assert_eq!(param_types.len(), 1);
+                let tyl = module.type_registry.get_type_layer(param_types[0].0);
+                let output_ty = match tyl {
+                    TypeLayer::Vector(_, x) => {
+                        let new_inner = module
+                            .type_registry
+                            .register_type(TypeLayer::Scalar(ScalarType::Int32));
+                        module
+                            .type_registry
+                            .register_type(TypeLayer::Vector(new_inner, x + 1))
+                    }
+                    _ => panic!("Invalid {:?}", self),
+                };
+                output_ty.to_rvalue()
             }
         }
     }

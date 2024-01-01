@@ -1654,6 +1654,7 @@ fn generate_intrinsic_function(
         Invoke(&'static str),
         Method(&'static str),
         AddressMethod(&'static str, &'static str),
+        Unexpected,
     }
 
     use ir::Intrinsic::*;
@@ -1800,12 +1801,14 @@ fn generate_intrinsic_function(
 
         RWBufferGetDimensions => Form::Method("GetDimensions"),
         RWBufferLoad => Form::Method("Load"),
+        RWBufferStore => Form::Unexpected,
 
         StructuredBufferGetDimensions => Form::Method("GetDimensions"),
         StructuredBufferLoad => Form::Method("Load"),
 
         RWStructuredBufferGetDimensions => Form::Method("GetDimensions"),
         RWStructuredBufferLoad => Form::Method("Load"),
+        RWStructuredBufferStore => Form::Unexpected,
 
         ByteAddressBufferGetDimensions => Form::Method("GetDimensions"),
         ByteAddressBufferLoad => Form::Method("Load"),
@@ -1875,9 +1878,11 @@ fn generate_intrinsic_function(
 
         RWTexture2DGetDimensions => Form::Method("GetDimensions"),
         RWTexture2DLoad => Form::Method("Load"),
+        RWTexture2DStore => Form::Unexpected,
 
         RWTexture2DArrayGetDimensions => Form::Method("GetDimensions"),
         RWTexture2DArrayLoad => Form::Method("Load"),
+        RWTexture2DArrayStore => Form::Unexpected,
 
         TextureCubeSample => Form::Method("Sample"),
         TextureCubeSampleLevel => Form::Method("SampleLevel"),
@@ -1894,6 +1899,7 @@ fn generate_intrinsic_function(
 
         RWTexture3DGetDimensions => Form::Method("GetDimensions"),
         RWTexture3DLoad => Form::Method("Load"),
+        RWTexture3DStore => Form::Unexpected,
 
         TriangleStreamAppend => Form::Method("Append"),
         TriangleStreamRestartStrip => Form::Method("RestartStrip"),
@@ -2007,6 +2013,9 @@ fn generate_intrinsic_function(
             let args = generate_invocation_args(&exprs[1..], context)?;
             ast::Expression::Call(Box::new(Located::none(member)), type_args, args)
         }
+        Form::Unexpected => {
+            panic!("Unexpected intrinsic: {:?}", intrinsic)
+        }
     };
     Ok(expr)
 }
@@ -2062,6 +2071,8 @@ fn generate_intrinsic_op(
         BitwiseAndAssignment => Form::Binary(ast::BinOp::BitwiseAndAssignment),
         BitwiseOrAssignment => Form::Binary(ast::BinOp::BitwiseOrAssignment),
         BitwiseXorAssignment => Form::Binary(ast::BinOp::BitwiseXorAssignment),
+
+        MakeSigned | MakeSignedPushZero => panic!("{:?} not expected", intrinsic),
     };
 
     let expr = match form {

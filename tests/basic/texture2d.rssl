@@ -34,8 +34,9 @@ void test() {
 #endif
     const float4 load_uav = g_output.Load(int2(0, 0));
     const float4 load_uav_status = g_output.Load(int2(0, 0), outInt);
-#if !RSSL_TARGET_MSL
     g_output[uint2(2, 2)] = g_output[uint2(1, 1)] = g_input[uint2(1, 1)];
+    g_output[uint2(1, 1)];
+#if !RSSL_TARGET_MSL
     float4 mips_load = g_input.mips[0][uint2(0, 0)];
 #endif
 }
