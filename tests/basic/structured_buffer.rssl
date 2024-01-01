@@ -10,9 +10,18 @@ void test() {
     uint outInt;
     const MyStruct s1 = g_input.Load(0);
     const MyStruct s2 = g_output.Load(0);
+#if !RSSL_TARGET_MSL
     const MyStruct s3 = g_input.Load(0, outInt);
     const MyStruct s4 = g_output.Load(0, outInt);
+#endif
     g_input.GetDimensions(outInt, outInt);
     g_output.GetDimensions(outInt, outInt);
+#if !RSSL_TARGET_MSL
     g_output[2] = g_output[1] = g_input[1];
+#endif
+}
+
+Pipeline Test
+{
+    ComputeShader = test;
 }

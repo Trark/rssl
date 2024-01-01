@@ -1374,14 +1374,6 @@ void f() {
 }
 
 #[test]
-fn check_structured_buffer() {
-    check_rssl_to_hlsl_dx(
-        include_str!("structured_buffer.rssl"),
-        include_str!("structured_buffer.hlsl"),
-    );
-}
-
-#[test]
 fn check_raytracing() {
     check_rssl_to_hlsl_dx(
         include_str!("raytracing.rssl"),

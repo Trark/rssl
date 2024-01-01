@@ -16,6 +16,8 @@ pub enum IntrinsicHelper {
     AddressStore,
     AddressAtomic(BufferAtomicOp),
     AddressGetDimensions,
+    StructuredBufferLoad,
+    StructuredBufferGetDimensions,
 }
 
 /// Represents a helper struct that is generated to implement intrinsic operations
@@ -23,6 +25,8 @@ pub enum IntrinsicHelper {
 pub enum IntrinsicObject {
     ByteAddressBuffer,
     RWByteAddressBuffer,
+    StructuredBuffer,
+    RWStructuredBuffer,
 }
 
 /// Generate the function name required to call the helper
@@ -35,6 +39,8 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::AddressStore => "Store",
         IntrinsicHelper::AddressAtomic(op) => op.get_helper_name(),
         IntrinsicHelper::AddressGetDimensions => "GetDimensions",
+        IntrinsicHelper::StructuredBufferLoad => "Load",
+        IntrinsicHelper::StructuredBufferGetDimensions => "GetDimensions",
     }
 }
 
@@ -44,6 +50,8 @@ impl IntrinsicObject {
         match self {
             IntrinsicObject::ByteAddressBuffer => "ByteAddressBuffer",
             IntrinsicObject::RWByteAddressBuffer => "RWByteAddressBuffer",
+            IntrinsicObject::StructuredBuffer => "StructuredBuffer",
+            IntrinsicObject::RWStructuredBuffer => "RWStructuredBuffer",
         }
     }
 
@@ -78,6 +86,18 @@ pub fn generate_helpers(
         }
 
         if let Some(object) = object {
+            let template_args = if matches!(
+                object,
+                IntrinsicObject::StructuredBuffer | IntrinsicObject::RWStructuredBuffer
+            ) {
+                Vec::from([ast::TemplateParam::Type(ast::TemplateTypeParam {
+                    name: Some(Located::none(String::from("T"))),
+                    default: None,
+                })])
+            } else {
+                Vec::new()
+            };
+
             let member_vars = generate_members(object);
             let mut members = member_vars
                 .into_iter()
@@ -88,7 +108,7 @@ pub fn generate_helpers(
             definitions.push(ast::RootDefinition::Struct(ast::StructDefinition {
                 name: Located::none(String::from(object.get_name())),
                 base_types: Vec::new(),
-                template_params: ast::TemplateParamList(Vec::new()),
+                template_params: ast::TemplateParamList(template_args),
                 members,
             }));
         } else {
@@ -117,6 +137,8 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, G
         AddressStore => Ok(build_address_store()?),
         AddressAtomic(op) => Ok(build_address_atomic(op)?),
         AddressGetDimensions => Ok(build_address_get_dimensions()?),
+        StructuredBufferLoad => Ok(build_structured_buffer_load()?),
+        StructuredBufferGetDimensions => Ok(build_structured_buffer_get_dimensions()?),
     }
 }
 
@@ -127,6 +149,48 @@ fn generate_members(object: IntrinsicObject) -> Vec<ast::StructMember> {
         ByteAddressBuffer | RWByteAddressBuffer => {
             let mut ty = ast::Type::from("uint8_t");
             if !matches!(object, RWByteAddressBuffer) {
+                ty.modifiers
+                    .prepend(Located::none(ast::TypeModifier::Const));
+            }
+            ty.modifiers
+                .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                    ast::AddressSpace::Device,
+                )));
+
+            Vec::from([
+                ast::StructMember {
+                    ty,
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast::Declarator::Pointer(ast::PointerDeclarator {
+                            attributes: Vec::new(),
+                            qualifiers: ast::TypeModifierSet::default(),
+                            inner: Box::new(ast::Declarator::Identifier(
+                                ast::ScopedIdentifier::trivial("address"),
+                                Vec::new(),
+                            )),
+                        }),
+                        location_annotations: Vec::new(),
+                        init: None,
+                    }]),
+                    attributes: Vec::new(),
+                },
+                ast::StructMember {
+                    ty: ast::Type::from("uint64_t"),
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast::Declarator::Identifier(
+                            ast::ScopedIdentifier::trivial("size"),
+                            Vec::new(),
+                        ),
+                        location_annotations: Vec::new(),
+                        init: None,
+                    }]),
+                    attributes: Vec::new(),
+                },
+            ])
+        }
+        StructuredBuffer | RWStructuredBuffer => {
+            let mut ty = ast::Type::from("T");
+            if !matches!(object, RWStructuredBuffer) {
                 ty.modifiers
                     .prepend(Located::none(ast::TypeModifier::Const));
             }
@@ -1173,6 +1237,108 @@ fn build_address_get_dimensions() -> Result<ast::FunctionDefinition, GenerateErr
                 Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))]),
                 Vec::from([Located::none(ast::Expression::Identifier(
                     ast::ScopedIdentifier::trivial("size"),
+                ))]),
+            ))),
+        )),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    });
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("GetDimensions")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::trivial("void"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a Load for a StructuredBuffer / RWStructuredBuffer
+fn build_structured_buffer_load() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([ast::FunctionParam {
+        param_type: ast::Type::from("uint"),
+        declarator: ast::Declarator::Identifier(
+            ast::ScopedIdentifier::trivial("location"),
+            Vec::new(),
+        ),
+        location_annotations: Vec::new(),
+        default_expr: None,
+    }]);
+
+    let access = ast::Expression::ArraySubscript(
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("address"),
+        ))),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("location"),
+        ))),
+    );
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("Load")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("T"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: true,
+        is_volatile: false,
+        body: Some(Vec::from([ast::Statement {
+            kind: ast::StatementKind::Return(Some(Located::none(access))),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        }])),
+        attributes: Vec::new(),
+    })
+}
+
+/// Create a definition for StructuredBuffer / RWStructuredBuffer GetDimensions
+fn build_structured_buffer_get_dimensions() -> Result<ast::FunctionDefinition, GenerateError> {
+    let mut params = Vec::new();
+    let mut body = Vec::new();
+
+    params.push(build_out_param(ast::Type::trivial("uint"), "numStructs"));
+    body.push(ast::Statement {
+        kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+            ast::BinOp::Assignment,
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("numStructs"),
+            ))),
+            Box::new(Located::none(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("static_cast"),
+                ))),
+                Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))]),
+                Vec::from([Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("size"),
+                ))]),
+            ))),
+        )),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    });
+
+    params.push(build_out_param(ast::Type::trivial("uint"), "stride"));
+    body.push(ast::Statement {
+        kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+            ast::BinOp::Assignment,
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("stride"),
+            ))),
+            Box::new(Located::none(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("sizeof"),
+                ))),
+                Vec::new(),
+                Vec::from([Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("T"),
                 ))]),
             ))),
         )),

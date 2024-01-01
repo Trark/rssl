@@ -18,6 +18,14 @@ fn check_buffer_address() {
 }
 
 #[test]
+fn check_structured_buffer() {
+    check_msl(
+        include_str!("basic/structured_buffer.rssl"),
+        include_str!("basic/structured_buffer.metal"),
+    );
+}
+
+#[test]
 fn check_texel_buffer() {
     check_msl(
         include_str!("basic/texel_buffer.rssl"),

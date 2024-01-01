@@ -191,10 +191,6 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                         assert_eq!(natural_address_space, ast::AddressSpace::Device);
                         match ot {
                             // Types that turn into pointers need an address space
-                            ir::ObjectType::StructuredBuffer(_)
-                            | ir::ObjectType::RWStructuredBuffer(_) => {
-                                (Some(ast::AddressSpace::Device), true)
-                            }
                             ir::ObjectType::ConstantBuffer(_) => {
                                 (Some(ast::AddressSpace::Constant), true)
                             }
@@ -946,34 +942,6 @@ fn generate_type_impl(
                 Ok(ty)
             }
 
-            fn build_buffer(
-                id: ir::TypeId,
-                read_write: bool,
-                declarator: &mut ast::Declarator,
-                context: &mut GenerateContext,
-            ) -> Result<ast::Type, GenerateError> {
-                let mut ty = generate_type(id, context)?;
-
-                assert!(!ty
-                    .modifiers
-                    .modifiers
-                    .contains(&Located::none(ast::TypeModifier::Const)));
-
-                if !read_write {
-                    ty.modifiers
-                        .prepend(Located::none(ast::TypeModifier::Const));
-                }
-
-                let prev_declarator = std::mem::replace(declarator, ast::Declarator::Empty);
-                *declarator = ast::Declarator::Pointer(ast::PointerDeclarator {
-                    attributes: Vec::new(),
-                    qualifiers: ast::TypeModifierSet::new(),
-                    inner: Box::new(prev_declarator),
-                });
-
-                Ok(ty)
-            }
-
             fn build_byte_buffer(
                 read_write: bool,
                 context: &mut GenerateContext,
@@ -988,14 +956,36 @@ fn generate_type_impl(
                 )?))
             }
 
+            fn build_structured_buffer(
+                id: ir::TypeId,
+                read_write: bool,
+                context: &mut GenerateContext,
+            ) -> Result<ast::Type, GenerateError> {
+                let mut buffer_ty = ast::Type::from(require_helper_object(
+                    if read_write {
+                        IntrinsicObject::RWStructuredBuffer
+                    } else {
+                        IntrinsicObject::StructuredBuffer
+                    },
+                    context,
+                )?);
+
+                let inner_ty = generate_type(id, context)?;
+                buffer_ty.layout.1 =
+                    Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from(inner_ty))])
+                        .into_boxed_slice();
+
+                Ok(buffer_ty)
+            }
+
             use ir::ObjectType::*;
             match ot {
                 Buffer(ty) => build_texture("texture_buffer", ty, false, context)?,
                 RWBuffer(ty) => build_texture("texture_buffer", ty, true, context)?,
                 ByteAddressBuffer | BufferAddress => build_byte_buffer(false, context)?,
                 RWByteAddressBuffer | RWBufferAddress => build_byte_buffer(true, context)?,
-                StructuredBuffer(id) => build_buffer(id, false, &mut declarator, context)?,
-                RWStructuredBuffer(id) => build_buffer(id, true, &mut declarator, context)?,
+                StructuredBuffer(id) => build_structured_buffer(id, false, context)?,
+                RWStructuredBuffer(id) => build_structured_buffer(id, true, context)?,
 
                 Texture2D(ty) => build_texture("texture2d", ty, false, context)?,
                 Texture2DMips(_) | Texture2DMipsSlice(_) => {
@@ -2038,20 +2028,38 @@ fn generate_intrinsic_function(
 
         RWBufferGetDimensions => unimplemented_intrinsic(),
 
-        StructuredBufferGetDimensions => unimplemented_intrinsic(),
+        StructuredBufferGetDimensions => generate_invoke_helper_method(
+            IntrinsicObject::StructuredBuffer,
+            IntrinsicHelper::StructuredBufferGetDimensions,
+            tys,
+            exprs,
+            context,
+        ),
         StructuredBufferLoad | RWStructuredBufferLoad => {
             if exprs.len() == 2 {
-                assert_eq!(exprs.len(), 2);
-                let object_ir = Box::new(Located::none(generate_expression(&exprs[0], context)?));
-                let subscript_ir =
-                    Box::new(Located::none(generate_expression(&exprs[1], context)?));
-                Ok(ast::Expression::ArraySubscript(object_ir, subscript_ir))
+                generate_invoke_helper_method(
+                    if matches!(intrinsic, RWStructuredBufferLoad) {
+                        IntrinsicObject::RWStructuredBuffer
+                    } else {
+                        IntrinsicObject::StructuredBuffer
+                    },
+                    IntrinsicHelper::StructuredBufferLoad,
+                    tys,
+                    exprs,
+                    context,
+                )
             } else {
                 unimplemented_intrinsic()
             }
         }
 
-        RWStructuredBufferGetDimensions => unimplemented_intrinsic(),
+        RWStructuredBufferGetDimensions => generate_invoke_helper_method(
+            IntrinsicObject::RWStructuredBuffer,
+            IntrinsicHelper::StructuredBufferGetDimensions,
+            tys,
+            exprs,
+            context,
+        ),
 
         ByteAddressBufferGetDimensions => generate_invoke_helper_method(
             IntrinsicObject::ByteAddressBuffer,

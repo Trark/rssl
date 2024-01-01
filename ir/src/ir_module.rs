@@ -349,7 +349,9 @@ impl Module {
                             ObjectType::ByteAddressBuffer
                             | ObjectType::RWByteAddressBuffer
                             | ObjectType::BufferAddress
-                            | ObjectType::RWBufferAddress,
+                            | ObjectType::RWBufferAddress
+                            | ObjectType::StructuredBuffer(_)
+                            | ObjectType::RWStructuredBuffer(_),
                         ) if params.metal_slot_layout => 2,
                         _ => 1,
                     };

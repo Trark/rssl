@@ -1140,6 +1140,8 @@ fn format_struct(
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
+    format_template_param_list(&def.template_params, output, context)?;
+
     output.push_str("struct ");
     output.push_str(&def.name);
 

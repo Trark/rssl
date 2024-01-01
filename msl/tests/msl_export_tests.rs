@@ -1274,7 +1274,7 @@ void sub_static() {
 }
 
 void sub_buffer() {
-    g_buffer[0];
+    g_buffer;
 }
 
 void sub_groupshared() {
@@ -1292,7 +1292,18 @@ void entry() {
 }
 ";
 
-    let msl = "constant uint c_immutable = 4u;
+    let msl = "namespace helper {
+
+template<typename T>
+struct StructuredBuffer
+{
+    device const T* address;
+    uint64_t size;
+};
+
+} // namespace helper
+
+constant uint c_immutable = 4u;
 
 void sub_constant() {
     c_immutable;
@@ -1302,21 +1313,21 @@ void sub_static(thread uint& s_globalState) {
     s_globalState += 1u;
 }
 
-void sub_buffer(device const uint4* const g_buffer) {
-    g_buffer[0u];
+void sub_buffer(const helper::StructuredBuffer<uint4> g_buffer) {
+    g_buffer;
 }
 
 void sub_groupshared(threadgroup float& lds_x) {
     lds_x;
 }
 
-void sub_all(thread uint& s_globalState, threadgroup float& lds_x, device const uint4* const g_buffer) {
+void sub_all(thread uint& s_globalState, threadgroup float& lds_x, const helper::StructuredBuffer<uint4> g_buffer) {
     sub_static(s_globalState);
     sub_buffer(g_buffer);
     sub_groupshared(lds_x);
 }
 
-void entry(thread uint& s_globalState, threadgroup float& lds_x, device const uint4* const g_buffer) {
+void entry(thread uint& s_globalState, threadgroup float& lds_x, const helper::StructuredBuffer<uint4> g_buffer) {
     sub_all(s_globalState, lds_x, g_buffer);
 }
 ";
@@ -1473,14 +1484,6 @@ helper::ByteAddressBuffer f(const helper::ByteAddressBuffer g_example) {
     g_example;
 }
 ",
-    );
-}
-
-#[test]
-fn check_structured_buffer() {
-    check(
-        include_str!("structured_buffer.rssl"),
-        include_str!("structured_buffer.metal"),
     );
 }
 
