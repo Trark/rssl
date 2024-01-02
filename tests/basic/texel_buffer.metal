@@ -27,7 +27,7 @@ void test(const metal::texture_buffer<uint> g_input, const metal::texture_buffer
     uint outInt;
     const uint load_srv = helper::Load(g_input, 0).x;
     const uint load_uav = helper::Load(g_output, 0).x;
-    helper::Store(g_output, 2u, helper::extend(helper::Store(g_output, 1u, helper::extend((uint)helper::Load(g_input, 1u).x)).x)).x;
+    helper::Store(g_output, 2u, helper::extend(helper::Store(g_output, 1u, helper::extend((uint)helper::Load(g_input, (int)1u).x)).x)).x;
 }
 
 struct ArgumentBuffer0

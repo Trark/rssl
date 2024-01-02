@@ -506,7 +506,7 @@ const RWBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint) => RWBufferGetDimensions },
     f! { D Load(int) => RWBufferLoad },
     f! { D Load(int, out uint) => RWBufferLoad },
-    f! { void(int, D) => RWBufferStore },
+    f! { D(uint, D) => RWBufferStore },
 ];
 
 const STRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
@@ -519,7 +519,7 @@ const RWSTRUCTUREDBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out uint, out uint) => RWStructuredBufferGetDimensions },
     f! { D Load(int) => RWStructuredBufferLoad },
     f! { D Load(int, out uint) => RWStructuredBufferLoad },
-    f! { void(int, D) => RWStructuredBufferStore },
+    f! { D(uint, D) => RWStructuredBufferStore },
 ];
 
 const TEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
@@ -659,7 +659,7 @@ const RWTEXTURE2D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out float, out float) => RWTexture2DGetDimensions },
     f! { D Load(int2) => RWTexture2DLoad },
     f! { D Load(int2, out uint) => RWTexture2DLoad },
-    f! { void(int2, D) => RWTexture2DStore },
+    f! { D(uint2, D) => RWTexture2DStore },
 ];
 
 const RWTEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
@@ -667,7 +667,7 @@ const RWTEXTURE2DARRAY_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out float, out float, out float) => RWTexture2DArrayGetDimensions },
     f! { D Load(int3) => RWTexture2DArrayLoad },
     f! { D Load(int3, out uint) => RWTexture2DArrayLoad },
-    f! { void(int3, D) => RWTexture2DArrayStore },
+    f! { D(uint3, D) => RWTexture2DArrayStore },
 ];
 
 const TEXTURECUBE_INTRINSICS: &[IntrinsicDefinition] = &[
@@ -716,7 +716,7 @@ const RWTEXTURE3D_INTRINSICS: &[IntrinsicDefinition] = &[
     f! { void GetDimensions(out float, out float, out float) => RWTexture3DGetDimensions },
     f! { D Load(int3) => RWTexture3DLoad },
     f! { D Load(int3, out uint) => RWTexture3DLoad },
-    f! { void(int3, D) => RWTexture3DStore },
+    f! { D(uint3, D) => RWTexture3DStore },
 ];
 
 const BYTEADDRESSBUFFER_INTRINSICS: &[IntrinsicDefinition] = &[

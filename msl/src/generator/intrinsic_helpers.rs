@@ -1354,7 +1354,7 @@ fn build_address_get_dimensions() -> Result<ast::FunctionDefinition, GenerateErr
 /// Build a Load for a StructuredBuffer / RWStructuredBuffer
 fn build_structured_buffer_load() -> Result<ast::FunctionDefinition, GenerateError> {
     let params = Vec::from([ast::FunctionParam {
-        param_type: ast::Type::from("uint"),
+        param_type: ast::Type::from("int"),
         declarator: ast::Declarator::Identifier(
             ast::ScopedIdentifier::trivial("location"),
             Vec::new(),

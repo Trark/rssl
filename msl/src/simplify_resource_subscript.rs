@@ -133,7 +133,6 @@ fn process_expression(expr: &mut Expression, is_read_only: bool, reference_modul
 
                 if let Some(lhs_object_type) = get_object_type(ety, reference_module) {
                     if let Some(load) = get_remapped_load(lhs_object_type) {
-                        let function_id = find_function_for_intrinsic(load, reference_module);
                         let object = *object.clone();
                         let index = *index.clone();
 
@@ -151,21 +150,25 @@ fn process_expression(expr: &mut Expression, is_read_only: bool, reference_modul
                             | ObjectType::RWTexture3D(_) => {
                                 Expression::IntrinsicOp(IntrinsicOp::MakeSigned, Vec::from([index]))
                             }
-                            ObjectType::Buffer(_) => {
-                                // The signed -> unsigned conversion will be implicit for a scalar when we generate the MSL
-                                // This leaves the ir with slightly inconsitent types but lets hope that does not cause any major issues
-                                index
-                            }
-                            ObjectType::StructuredBuffer(_) | ObjectType::RWStructuredBuffer(_) => {
-                                index
+                            ObjectType::Buffer(_)
+                            | ObjectType::StructuredBuffer(_)
+                            | ObjectType::RWStructuredBuffer(_) => {
+                                // Int should already exist as intrinsics will create it
+                                let int_ty = reference_module
+                                    .type_registry
+                                    .try_find_type(TypeLayer::Scalar(ScalarType::Int32))
+                                    .unwrap();
+
+                                Expression::Cast(int_ty, Box::new(index))
                             }
                             _ => panic!("Unexpected object type {:?}", lhs_object_type),
                         };
-                        *expr = Expression::Call(
-                            function_id,
-                            CallType::MethodExternal,
-                            Vec::from([object, index]),
-                        );
+
+                        let arguments = Vec::from([object, index]);
+                        let function_id =
+                            find_function_for_intrinsic(load, &arguments, reference_module);
+
+                        *expr = Expression::Call(function_id, CallType::MethodExternal, arguments);
                     }
                 }
             }
@@ -276,12 +279,10 @@ fn process_expression(expr: &mut Expression, is_read_only: bool, reference_modul
                     };
 
                 if let Some((intrinsic, object_expr, index_expr)) = modification {
-                    let function_id = find_function_for_intrinsic(intrinsic, reference_module);
-                    *expr = Expression::Call(
-                        function_id,
-                        CallType::MethodExternal,
-                        Vec::from([*object_expr, *index_expr, args[1].clone()]),
-                    );
+                    let arguments = Vec::from([*object_expr, *index_expr, args[1].clone()]);
+                    let function_id =
+                        find_function_for_intrinsic(intrinsic, &arguments, reference_module);
+                    *expr = Expression::Call(function_id, CallType::MethodExternal, arguments);
                 }
             }
         }
@@ -348,13 +349,68 @@ fn get_remapped_store(object_type: ObjectType) -> Option<Intrinsic> {
     })
 }
 
-fn find_function_for_intrinsic(intrinsic: Intrinsic, reference_module: &Module) -> FunctionId {
-    for id in reference_module.function_registry.iter() {
+fn find_function_for_intrinsic(
+    intrinsic: Intrinsic,
+    arguments: &[Expression],
+    reference_module: &Module,
+) -> FunctionId {
+    let (object_argument, normal_argments) = arguments.split_first().unwrap();
+
+    let object_ty = match object_argument.get_type(reference_module) {
+        Ok(ety) => reference_module.type_registry.remove_modifier(ety.0),
+        Err(_) => panic!("Invalid module"),
+    };
+
+    let object_tyl = reference_module.type_registry.get_type_layer(object_ty);
+    let object_type = match object_tyl {
+        TypeLayer::Object(object_type) => object_type,
+        _ => panic!("Invalid module"),
+    };
+
+    let object_id = reference_module.try_find_object(object_type).unwrap();
+
+    let object_functions = reference_module
+        .type_registry
+        .get_object_functions(object_id);
+
+    let argument_types = normal_argments
+        .iter()
+        .map(|expr| match expr.get_type(reference_module) {
+            Ok(ety) => ety.0,
+            Err(_) => panic!("Invalid module"),
+        })
+        .collect::<Vec<_>>();
+
+    let mut found = None;
+    for id in object_functions.iter().cloned() {
         if let Some(data) = reference_module.function_registry.get_intrinsic_data(id) {
             if *data == intrinsic {
-                return id;
+                let sig = &reference_module
+                    .function_registry
+                    .get_function_signature(id);
+                if argument_types.len() >= sig.non_default_params
+                    && argument_types.len() <= sig.param_types.len()
+                {
+                    let mut same_params = true;
+                    for (i, argument_type) in argument_types.iter().enumerate() {
+                        let param_type = &sig.param_types[i];
+                        if *argument_type != param_type.type_id {
+                            same_params = false;
+                            break;
+                        }
+                    }
+
+                    if same_params {
+                        assert!(found.is_none());
+                        found = Some(id);
+                    }
+                }
             }
         }
     }
-    panic!("Failed to find function for {:?}", intrinsic)
+
+    match found {
+        Some(id) => id,
+        None => panic!("Failed to find function for {:?}", intrinsic),
+    }
 }

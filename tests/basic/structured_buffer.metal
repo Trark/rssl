@@ -11,7 +11,7 @@ struct StructuredBuffer
         stride = sizeof(T);
     }
 
-    T Load(uint location) const {
+    T Load(int location) const {
         return address[location];
     }
 };
@@ -27,7 +27,7 @@ struct RWStructuredBuffer
         stride = sizeof(T);
     }
 
-    T Load(uint location) const {
+    T Load(int location) const {
         return address[location];
     }
 
@@ -49,7 +49,7 @@ void test(const helper::StructuredBuffer<MyStruct> g_input, const helper::RWStru
     const MyStruct s2 = g_output.Load(0);
     g_input.GetDimensions(outInt, outInt);
     g_output.GetDimensions(outInt, outInt);
-    g_output.Store(2u, g_output.Store(1u, (MyStruct)g_input.Load(1u)));
+    g_output.Store(2u, g_output.Store(1u, (MyStruct)g_input.Load((int)1u)));
 }
 
 struct ArgumentBuffer0

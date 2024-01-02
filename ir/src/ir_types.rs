@@ -60,10 +60,8 @@ impl TypeRegistry {
     /// Get or create the type id from a type layer
     pub fn register_type(&self, layer: TypeLayer) -> TypeId {
         // Search for an existing registration of the type
-        for (i, existing) in self.layers.borrow().iter().enumerate() {
-            if layer == *existing {
-                return TypeId(i as u32);
-            }
+        if let Some(ty) = self.try_find_type(layer) {
+            return ty;
         }
 
         match layer {
@@ -95,6 +93,17 @@ impl TypeRegistry {
         let id = TypeId(layers.len() as u32);
         layers.push(layer);
         id
+    }
+
+    /// Find an existing type id from a type layer
+    pub fn try_find_type(&self, layer: TypeLayer) -> Option<TypeId> {
+        // Search for an existing registration of the type
+        for (i, existing) in self.layers.borrow().iter().enumerate() {
+            if layer == *existing {
+                return Some(TypeId(i as u32));
+            }
+        }
+        None
     }
 
     /// Get or create the type id from a numeric type
@@ -289,10 +298,8 @@ impl Module {
     /// Get or create the object id from an object type
     pub fn register_object(&mut self, object_type: ObjectType) -> ObjectId {
         // Search for an existing registration of the object
-        for (i, existing) in self.type_registry.object_layouts.iter().enumerate() {
-            if object_type == *existing {
-                return ObjectId(i as u32);
-            }
+        if let Some(object) = self.try_find_object(object_type) {
+            return object;
         }
 
         // Make a new entry
@@ -323,6 +330,17 @@ impl Module {
         self.type_registry.object_functions.push(functions);
 
         id
+    }
+
+    /// Get the object id from an existing object type
+    pub fn try_find_object(&self, object_type: ObjectType) -> Option<ObjectId> {
+        // Search for an existing registration of the object
+        for (i, existing) in self.type_registry.object_layouts.iter().enumerate() {
+            if object_type == *existing {
+                return Some(ObjectId(i as u32));
+            }
+        }
+        None
     }
 }
 
