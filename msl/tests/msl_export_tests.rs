@@ -601,6 +601,56 @@ fn check_expression_literal_operators() {
 }
 
 #[test]
+fn check_remainder() {
+    check(
+        "void f() {
+    uint x;
+    uint y;
+    x % y;
+    x %= y;
+}
+",
+        "void f() {
+    uint x;
+    uint y;
+    x % y;
+    x %= y;
+}
+",
+    );
+
+    check(
+        "void f() {
+    float x;
+    float y;
+    x % y;
+}
+",
+        "void f() {
+    float x;
+    float y;
+    metal::fmod(x, y);
+}
+",
+    );
+
+    check(
+        "void f() {
+    float3 x;
+    float3 y;
+    x % y;
+}
+",
+        "void f() {
+    float3 x;
+    float3 y;
+    metal::fmod(x, y);
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_block() {
     check(
         "void f() {

@@ -81,6 +81,7 @@ pub enum CallType {
 }
 
 /// Error type when attempting to query the type of an expression
+#[derive(Debug)]
 pub enum EvaluateTypeError {
     InvalidModule,
 }

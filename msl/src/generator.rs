@@ -2890,7 +2890,19 @@ fn generate_intrinsic_op(
         Subtract => Form::Binary(ast::BinOp::Subtract),
         Multiply => Form::Binary(ast::BinOp::Multiply),
         Divide => Form::Binary(ast::BinOp::Divide),
-        Modulus => Form::Binary(ast::BinOp::Modulus),
+        Modulus => {
+            let lhs_ety = exprs[0].get_type(context.module).unwrap();
+            let lhs_ty = context.module.type_registry.remove_modifier(lhs_ety.0);
+            match context.module.type_registry.extract_scalar(lhs_ty) {
+                Some(ir::ScalarType::Float16)
+                | Some(ir::ScalarType::Float32)
+                | Some(ir::ScalarType::Float64)
+                | Some(ir::ScalarType::FloatLiteral) => {
+                    return generate_invoke_simple("fmod", &[], exprs, context)
+                }
+                _ => Form::Binary(ast::BinOp::Modulus),
+            }
+        }
         LeftShift => Form::Binary(ast::BinOp::LeftShift),
         RightShift => Form::Binary(ast::BinOp::RightShift),
         BitwiseAnd => Form::Binary(ast::BinOp::BitwiseAnd),
