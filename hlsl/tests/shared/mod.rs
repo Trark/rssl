@@ -53,7 +53,7 @@ pub fn check_rssl_to_hlsl_params(
     };
 
     let ir = match assign_bindings_params {
-        Some(params) => ir.assign_api_bindings(params),
+        Some(params) => ir.assign_api_bindings(&params),
         None => ir,
     };
 

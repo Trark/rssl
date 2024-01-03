@@ -266,7 +266,7 @@ impl Module {
     /// Assign api binding locations to all global resources
     ///
     /// Api slots are assigned independent of language register assignments
-    pub fn assign_api_bindings(mut self, params: AssignBindingsParams) -> Self {
+    pub fn assign_api_bindings(mut self, params: &AssignBindingsParams) -> Self {
         assert!(!self.flags.assigned_api_slots);
         self.flags.assigned_api_slots = true;
         self.flags.requires_buffer_address = params.support_buffer_address;
@@ -420,7 +420,7 @@ impl Module {
             process_definition(
                 &mut self,
                 decl,
-                &params,
+                params,
                 &mut used_slots,
                 &mut inline_size,
                 default_set,

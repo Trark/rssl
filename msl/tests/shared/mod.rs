@@ -44,7 +44,7 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
     };
 
     // Assign api slots to bindings
-    let mut ir = ir.assign_api_bindings(rssl_ir::AssignBindingsParams {
+    let mut ir = ir.assign_api_bindings(&rssl_ir::AssignBindingsParams {
         require_slot_type: false,
         support_buffer_address: false,
         metal_slot_layout: true,

@@ -91,14 +91,11 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
         },
     };
 
-    // Set the binding slots for global parameters
-    let ir = ir.assign_api_bindings(binding_params);
-
     // Process each pipeline declared in the source file separately
     let mut output_pipelines = Vec::new();
 
     if args.no_pipeline_mode {
-        output_pipelines.push(build_pipeline(&args, &ir, None)?);
+        output_pipelines.push(build_pipeline(&args, &ir, &binding_params, None)?);
     } else {
         for pipeline in &ir.pipelines {
             if let Some(name) = args.pipeline_name {
@@ -107,7 +104,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
                 }
             }
 
-            output_pipelines.push(build_pipeline(&args, &ir, Some(pipeline))?);
+            output_pipelines.push(build_pipeline(&args, &ir, &binding_params, Some(pipeline))?);
         }
     }
 
@@ -135,6 +132,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
 fn build_pipeline(
     args: &CompileArgs,
     ir: &ir::Module,
+    binding_params: &AssignBindingsParams,
     pipeline: Option<&ir::PipelineDefinition>,
 ) -> Result<CompiledPipeline, CompileError> {
     // Clone the ir to process the selected pipeline independently
@@ -147,6 +145,9 @@ fn build_pipeline(
     } else {
         ir
     };
+
+    // Set the binding slots for global parameters
+    let ir = ir.assign_api_bindings(binding_params);
 
     let graphics_pipeline_state = if let Some(pipeline) = pipeline {
         pipeline.graphics_pipeline_state.clone()
