@@ -72,3 +72,11 @@ fn check_texture3d() {
         include_str!("basic/texture3d.metal"),
     );
 }
+
+#[test]
+fn check_bindless() {
+    check_msl(
+        include_str!("basic/bindless.rssl"),
+        include_str!("basic/bindless.metal"),
+    );
+}

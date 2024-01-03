@@ -1382,15 +1382,6 @@ fn check_raytracing() {
 }
 
 #[test]
-fn check_bindless() {
-    check_rssl_to_hlsl_dx(include_str!("bindless.rssl"), include_str!("bindless.hlsl"));
-    check_rssl_to_hlsl_vk(
-        include_str!("bindless.rssl"),
-        include_str!("bindless.vk.hlsl"),
-    );
-}
-
-#[test]
 fn check_semantics() {
     check_rssl_to_hlsl(
         "float4 main(uint id : SV_VertexID) : SV_Position { return 0; }",

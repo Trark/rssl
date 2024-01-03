@@ -77,3 +77,16 @@ fn check_texture3d() {
         include_str!("basic/texture3d.hlsl"),
     );
 }
+
+#[test]
+fn check_bindless() {
+    check_hlsl(
+        include_str!("basic/bindless.rssl"),
+        include_str!("basic/bindless.hlsl"),
+    );
+
+    check_hlsl_vk(
+        include_str!("basic/bindless.rssl"),
+        include_str!("basic/bindless.vk.hlsl"),
+    );
+}
