@@ -31,6 +31,14 @@ fn check_structured_buffer() {
 }
 
 #[test]
+fn check_constant_buffer() {
+    check_hlsl(
+        include_str!("basic/constant_buffer.rssl"),
+        include_str!("basic/constant_buffer.hlsl"),
+    );
+}
+
+#[test]
 fn check_texel_buffer() {
     check_hlsl(
         include_str!("basic/texel_buffer.rssl"),

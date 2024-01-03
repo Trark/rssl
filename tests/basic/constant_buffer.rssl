@@ -1,0 +1,17 @@
+struct MyStruct
+{
+    uint m;
+};
+
+const ConstantBuffer<MyStruct> g_constants : register(b0);
+
+void test() {
+    MyStruct s1 = (MyStruct)g_constants;
+    ConstantBuffer<MyStruct> localObject = g_constants;
+    MyStruct s2 = (MyStruct)localObject;
+}
+
+Pipeline Test
+{
+    ComputeShader = test;
+}
