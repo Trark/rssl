@@ -188,25 +188,13 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 let unarray_id = context.module.type_registry.get_non_array_id(def.type_id);
                 let unmod_id = context.module.type_registry.remove_modifier(unarray_id);
                 let tyl = context.module.type_registry.get_type_layer(unmod_id);
-                match tyl {
-                    ir::TypeLayer::Object(ot) => {
-                        // Object types depend on if they are pointer-like or not
-                        assert_eq!(natural_address_space, ast::AddressSpace::Device);
-                        match ot {
-                            // Types that turn into pointers need an address space
-                            ir::ObjectType::ConstantBuffer(_) => {
-                                (Some(ast::AddressSpace::Constant), true)
-                            }
-                            _ => {
-                                // Types that turn into intrinsic object types do not
-                                (None, true)
-                            }
-                        }
-                    }
-                    _ => {
-                        // Non-object types will need an address space qualifier
-                        (Some(natural_address_space), false)
-                    }
+                if tyl.is_object() {
+                    assert_eq!(natural_address_space, ast::AddressSpace::Device);
+                    // Object types that already have an address space do not need anything extra
+                    (None, true)
+                } else {
+                    // Non-object types will need an address space qualifier
+                    (Some(natural_address_space), false)
                 }
             };
 
@@ -1017,12 +1005,17 @@ fn generate_type_impl(
                 RWTexture3D(ty) => build_texture("texture3d", ty, true, context)?,
 
                 ConstantBuffer(id) => {
-                    let ty = generate_type(id, context)?;
+                    let mut ty = generate_type(id, context)?;
 
                     assert!(!ty
                         .modifiers
                         .modifiers
                         .contains(&Located::none(ast::TypeModifier::Const)));
+
+                    ty.modifiers
+                        .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                            ast::AddressSpace::Constant,
+                        )));
 
                     let prev_declarator =
                         std::mem::replace(&mut declarator, ast::Declarator::Empty);
