@@ -293,7 +293,35 @@ pub(crate) fn generate_pipeline(
                         }
                     }
                     ir::GlobalStorage::GroupShared => {
-                        return Err(GenerateError::UnimplementedFunctionEntryGroupShared)
+                        match context.global_variable_modes.get(gid).unwrap() {
+                            GlobalMode::Parameter {
+                                base_type,
+                                base_declarator,
+                                init,
+                                ..
+                            } => {
+                                let name = context.get_global_name(*gid).unwrap();
+
+                                body.push(ast::Statement {
+                                    kind: ast::StatementKind::Var(ast::VarDef {
+                                        local_type: base_type.clone(),
+                                        defs: Vec::from([ast::InitDeclarator {
+                                            declarator: base_declarator.clone(),
+                                            location_annotations: Vec::new(),
+                                            init: init.clone(),
+                                        }]),
+                                    }),
+                                    location: SourceLocation::UNKNOWN,
+                                    attributes: Vec::new(),
+                                });
+
+                                let member_expr = ast::Expression::Identifier(
+                                    ast::ScopedIdentifier::trivial(name),
+                                );
+                                args.push(Located::none(member_expr));
+                            }
+                            GlobalMode::Constant => panic!("static does not require a parameter"),
+                        }
                     }
                 }
             }

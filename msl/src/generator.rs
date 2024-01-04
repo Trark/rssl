@@ -87,12 +87,6 @@ pub enum GenerateError {
 
     /// Raytracing has not been implemented
     UnimplementedRaytracing,
-
-    /// Constructing static variables in the entry function is not implemented yet
-    UnimplementedFunctionEntryStatic,
-
-    /// Constructing groupshared variables in the entry function is not implemented yet
-    UnimplementedFunctionEntryGroupShared,
 }
 
 /// Generate MSL ast from ir module
@@ -180,14 +174,14 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
             let (mut param_type, declarator) =
                 generate_type_and_declarator(def.type_id, &name, is_global_constant, context)?;
 
+            let natural_address_space = match def.storage_class {
+                ir::GlobalStorage::Extern => ast::AddressSpace::Device,
+                ir::GlobalStorage::Static => ast::AddressSpace::Thread,
+                ir::GlobalStorage::GroupShared => ast::AddressSpace::ThreadGroup,
+            };
+
             // Pick the address space for the global
             let (address_space, is_object) = {
-                let natural_address_space = match def.storage_class {
-                    ir::GlobalStorage::Extern => ast::AddressSpace::Device,
-                    ir::GlobalStorage::Static => ast::AddressSpace::Thread,
-                    ir::GlobalStorage::GroupShared => ast::AddressSpace::ThreadGroup,
-                };
-
                 let unarray_id = context.module.type_registry.get_non_array_id(def.type_id);
                 let unmod_id = context.module.type_registry.remove_modifier(unarray_id);
                 let tyl = context.module.type_registry.get_type_layer(unmod_id);
@@ -201,10 +195,20 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 }
             };
 
-            let base_type = param_type.clone();
+            let mut base_type = param_type.clone();
             let base_declarator = declarator.clone();
 
-            // Add the address space to the type
+            // Add the address space to the basic type for where we declare it
+            // Thread is the default so we can omit it
+            if natural_address_space != ast::AddressSpace::Thread {
+                base_type
+                    .modifiers
+                    .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                        ast::AddressSpace::ThreadGroup,
+                    )));
+            };
+
+            // Add the address space to the parameter type
             if let Some(address_space) = address_space {
                 param_type
                     .modifiers

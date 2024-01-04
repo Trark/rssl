@@ -3,11 +3,13 @@ const Texture2D g_unused;
 const RWTexture3D<float4> g_output : register(space1);
 static uint s_unused;
 static uint4 s_localData[4096];
+groupshared float4 s_sharedData[1024];
 
 void CSMAIN(uint3 dtid : SV_DispatchThreadID) {
     g_input;
     g_output;
     s_localData[0] = uint4(1, 2, 3, 4);
+    s_sharedData[dtid.x] = float4(1, 2, 3, 4);
 }
 
 Pipeline ComputeTest
