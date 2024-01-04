@@ -140,18 +140,13 @@ pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateErro
 /// How we will handle generating a global variable
 enum GlobalMode {
     /// Variables that need passing between all functions - with additional metadata on the entry function
-    Parameter(ast::FunctionParam, ast::Expression, GlobalParameterMode),
+    Parameter {
+        param: ast::FunctionParam,
+        argument: ast::Expression,
+    },
 
     /// A constant value can be emitted at global scope
     Constant,
-}
-
-enum GlobalParameterMode {
-    /// Shader inputs require additional metadata on the entry function
-    ShaderInput,
-
-    /// Local state requires declaring in the entry function
-    LaneState,
 }
 
 /// Process global state that must be passed between functions
@@ -225,17 +220,11 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 default_expr: None,
             };
 
-            let arg_expr = ast::Expression::Identifier(ast::ScopedIdentifier::from(Located::none(
+            let argument = ast::Expression::Identifier(ast::ScopedIdentifier::from(Located::none(
                 name.as_str(),
             )));
 
-            let entry_mode = if def.storage_class == ir::GlobalStorage::Static {
-                GlobalParameterMode::LaneState
-            } else {
-                GlobalParameterMode::ShaderInput
-            };
-
-            GlobalMode::Parameter(param, arg_expr, entry_mode)
+            GlobalMode::Parameter { param, argument }
         };
 
         let valid_insert = context.global_variable_modes.insert(id, mode).is_none();
@@ -386,7 +375,7 @@ fn generate_root_definition(
         ir::RootDefinition::GlobalVariable(id) => {
             let mode = context.global_variable_modes.get(id).unwrap();
             match mode {
-                GlobalMode::Parameter(_, _, _) => Vec::new(),
+                GlobalMode::Parameter { .. } => Vec::new(),
                 GlobalMode::Constant => {
                     let def = generate_global_constant(*id, context)?;
                     Vec::from([ast::RootDefinition::GlobalVariable(def)])
@@ -564,8 +553,7 @@ fn generate_function_inner(
     let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
     for gid in parameters_for_globals {
         match context.global_variable_modes.get(gid).unwrap() {
-            GlobalMode::Parameter(param, _, _) => {
-                // TODO: Entry function special case
+            GlobalMode::Parameter { param, .. } => {
                 params.push(param.clone());
             }
             GlobalMode::Constant => panic!("global does not require a parameter"),
@@ -1792,8 +1780,8 @@ fn generate_user_call(
     let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
     for gid in parameters_for_globals {
         match context.global_variable_modes.get(gid).unwrap() {
-            GlobalMode::Parameter(_, arg_expr, _) => {
-                args.push(Located::none(arg_expr.clone()));
+            GlobalMode::Parameter { argument, .. } => {
+                args.push(Located::none(argument.clone()));
             }
             GlobalMode::Constant => panic!("global does not require a parameter"),
         }

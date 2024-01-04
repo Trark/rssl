@@ -76,7 +76,7 @@ pub(crate) fn generate_pipeline(
         for argument in &argument_buffer.0 {
             let mode = context.global_variable_modes.get(&argument.id).unwrap();
             let param = match mode {
-                GlobalMode::Parameter(param, _, _) => param,
+                GlobalMode::Parameter { param, .. } => param,
                 GlobalMode::Constant => panic!(),
             };
 
@@ -247,7 +247,7 @@ pub(crate) fn generate_pipeline(
                         .get(gid)
                         .unwrap()
                     {
-                        GlobalMode::Parameter(_, _, _) => {
+                        GlobalMode::Parameter { .. } => {
                             let set_index = global_to_set_index.get(gid).unwrap();
                             let member_expr = ast::Expression::Member(
                                 Box::new(Located::none(ast::Expression::Identifier(
