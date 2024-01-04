@@ -68,6 +68,37 @@ impl Declarator {
             Declarator::Array(ArrayDeclarator { inner, .. }) => inner.is_abstract(),
         }
     }
+
+    /// Add a declarator at the end of the chain
+    pub fn insert_base<F: FnOnce(Declarator) -> Declarator>(self, f: F) -> Self {
+        match self {
+            Declarator::Empty | Declarator::Identifier(_, _) => f(self),
+            Declarator::Pointer(PointerDeclarator {
+                attributes,
+                qualifiers,
+                inner,
+            }) => Declarator::Pointer(PointerDeclarator {
+                attributes,
+                qualifiers,
+                inner: Box::new(inner.insert_base(f)),
+            }),
+            Declarator::Reference(ReferenceDeclarator { attributes, inner }) => {
+                Declarator::Reference(ReferenceDeclarator {
+                    attributes,
+                    inner: Box::new(inner.insert_base(f)),
+                })
+            }
+            Declarator::Array(ArrayDeclarator {
+                inner,
+                array_size,
+                attributes,
+            }) => Declarator::Array(ArrayDeclarator {
+                inner: Box::new(inner.insert_base(f)),
+                array_size,
+                attributes,
+            }),
+        }
+    }
 }
 
 impl From<Located<&str>> for Declarator {

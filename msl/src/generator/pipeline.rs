@@ -264,7 +264,10 @@ pub(crate) fn generate_pipeline(
                     ir::GlobalStorage::Static => {
                         match context.global_variable_modes.get(gid).unwrap() {
                             GlobalMode::Parameter {
-                                base_type, init, ..
+                                base_type,
+                                base_declarator,
+                                init,
+                                ..
                             } => {
                                 let name = context.get_global_name(*gid).unwrap();
 
@@ -272,10 +275,7 @@ pub(crate) fn generate_pipeline(
                                     kind: ast::StatementKind::Var(ast::VarDef {
                                         local_type: base_type.clone(),
                                         defs: Vec::from([ast::InitDeclarator {
-                                            declarator: ast::Declarator::Identifier(
-                                                ast::ScopedIdentifier::trivial(name),
-                                                Vec::new(),
-                                            ),
+                                            declarator: base_declarator.clone(),
                                             location_annotations: Vec::new(),
                                             init: init.clone(),
                                         }]),

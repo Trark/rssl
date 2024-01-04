@@ -525,7 +525,30 @@ fn format_declarator(
             array_size,
             attributes,
         }) => {
-            format_declarator(inner, single_declaration, output, context)?;
+            let requires_scope = matches!(
+                **inner,
+                ast::Declarator::Pointer(_) | ast::Declarator::Reference(_)
+            );
+
+            if single_declaration && requires_scope {
+                output.push(' ');
+            }
+
+            if requires_scope {
+                output.push('(');
+            }
+
+            format_declarator(
+                inner,
+                single_declaration && !requires_scope,
+                output,
+                context,
+            )?;
+
+            if requires_scope {
+                output.push(')');
+            }
+
             output.push('[');
             if let Some(expr) = array_size {
                 format_expression(expr, output, context)?;

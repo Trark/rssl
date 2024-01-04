@@ -147,6 +147,8 @@ enum GlobalMode {
         argument: ast::Expression,
         /// Type of the parameter when it is not a reference
         base_type: ast::Type,
+        /// Declarator for the parameter when it is not a reference
+        base_declarator: ast::Declarator,
         /// Expression to initialize the variable
         init: Option<ast::Initializer>,
     },
@@ -200,6 +202,7 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
             };
 
             let base_type = param_type.clone();
+            let base_declarator = declarator.clone();
 
             // Add the address space to the type
             if let Some(address_space) = address_space {
@@ -212,9 +215,11 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
 
             let declarator = if !is_object {
                 // Make the parameter into a reference
-                ast::Declarator::Reference(ast::ReferenceDeclarator {
-                    attributes: Vec::new(),
-                    inner: Box::new(declarator),
+                declarator.insert_base(|base| {
+                    ast::Declarator::Reference(ast::ReferenceDeclarator {
+                        attributes: Vec::new(),
+                        inner: Box::new(base),
+                    })
                 })
             } else {
                 // The parameter will already be some kind of pointer type
@@ -246,6 +251,7 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 param,
                 argument,
                 base_type,
+                base_declarator,
                 init,
             }
         };
