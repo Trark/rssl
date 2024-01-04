@@ -2,11 +2,19 @@
 [[rssl::bind_group(1)]]
 Texture2D<float4> g_bindlessTexture2d[1024];
 
+[[rssl::bindless]]
+[[rssl::bind_group(1)]]
+ByteAddressBuffer g_bindlessByteBuffer[1024];
+
 SamplerState g_linearSampler;
 
 [numthreads(8, 8, 1)]
 void CSMAIN() {
     Texture2D tex = g_bindlessTexture2d[0u];
+    tex.Load(0u);
+    g_bindlessTexture2d[1u].Load(0u);
+    ByteAddressBuffer buf = g_bindlessByteBuffer[0u];
+    g_bindlessByteBuffer[2u].Load(0u);
 }
 
 Pipeline Main

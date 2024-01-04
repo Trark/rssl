@@ -82,6 +82,9 @@ pub enum GenerateError {
     /// RSSL intrinsic is not implemented yet
     UnimplementedIntrinsic(ir::Intrinsic),
 
+    /// Unbounded arrays are not implemented
+    UnimplementedUnboundedArray,
+
     /// Mesh shaders require more rewriting of inputs than is currently supported
     UnimplementedMeshShader,
 
@@ -174,51 +177,59 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
             let (mut param_type, declarator) =
                 generate_type_and_declarator(def.type_id, &name, is_global_constant, context)?;
 
+            // Get the address space for data stored depending on the storage class
             let natural_address_space = match def.storage_class {
-                ir::GlobalStorage::Extern => ast::AddressSpace::Device,
+                ir::GlobalStorage::Extern => ast::AddressSpace::Constant,
                 ir::GlobalStorage::Static => ast::AddressSpace::Thread,
                 ir::GlobalStorage::GroupShared => ast::AddressSpace::ThreadGroup,
             };
 
-            // Pick the address space for the global
-            let (address_space, is_object) = {
-                let unarray_id = context.module.type_registry.get_non_array_id(def.type_id);
-                let unmod_id = context.module.type_registry.remove_modifier(unarray_id);
-                let tyl = context.module.type_registry.get_type_layer(unmod_id);
-                if tyl.is_object() {
-                    assert_eq!(natural_address_space, ast::AddressSpace::Device);
-                    // Object types that already have an address space do not need anything extra
-                    (None, true)
-                } else {
-                    // Non-object types will need an address space qualifier
-                    (Some(natural_address_space), false)
-                }
-            };
-
+            // Clone the types to use as the base type/declarator for the primary definition
             let mut base_type = param_type.clone();
             let base_declarator = declarator.clone();
 
             // Add the address space to the basic type for where we declare it
+            // Externs will be generated in argument buffers so can not have the modifier
             // Thread is the default so we can omit it
-            if natural_address_space != ast::AddressSpace::Thread {
+            if natural_address_space != ast::AddressSpace::Constant
+                && natural_address_space != ast::AddressSpace::Thread
+            {
                 base_type
                     .modifiers
                     .prepend(Located::none(ast::TypeModifier::AddressSpace(
-                        ast::AddressSpace::ThreadGroup,
+                        natural_address_space,
                     )));
             };
 
-            // Add the address space to the parameter type
-            if let Some(address_space) = address_space {
+            // Decide if we want to make the type into a reference to pass it as a parameter
+            let requires_reference = {
+                // We do not remove array modifiers here because we want arrays to be considered not objects
+                let unmod_id = context.module.type_registry.remove_modifier(def.type_id);
+                let tyl = context.module.type_registry.get_type_layer(unmod_id);
+                if natural_address_space == ast::AddressSpace::Constant && tyl.is_object() {
+                    // Object types we pass around by value
+                    // There is not much benefit to passing by reference
+                    // It also makes it harder to generate intrinsic functions that work with multiple address spaces
+
+                    // Object arrays do generate references. This is required to stop implicit copies of huge arrays.
+                    // Indexing an array happens to generate a cast which means other intrinsics happen to work.
+
+                    false
+                } else {
+                    true
+                }
+            };
+
+            // Turn the parameter type / declarator into a reference
+            let declarator = if requires_reference {
+                // Add the address space
                 param_type
                     .modifiers
                     .prepend(Located::none(ast::TypeModifier::AddressSpace(
-                        address_space,
+                        natural_address_space,
                     )));
-            }
 
-            let declarator = if !is_object {
-                // Make the parameter into a reference
+                // Insert the reference node
                 declarator.insert_base(|base| {
                     ast::Declarator::Reference(ast::ReferenceDeclarator {
                         attributes: Vec::new(),
@@ -226,7 +237,7 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                     })
                 })
             } else {
-                // The parameter will already be some kind of pointer type
+                // We will pass the parameter by value so do not need to modify it
                 declarator
             };
 
@@ -1072,7 +1083,7 @@ fn generate_type_impl(
                     generate_type_impl(ty, declarator, suppress_const_volatile, context)?;
 
                 let array_id = metal_lib_identifier(if array_size.is_none() {
-                    "array_ref"
+                    return Err(GenerateError::UnimplementedUnboundedArray);
                 } else {
                     "array"
                 });
@@ -1666,9 +1677,6 @@ fn generate_expression(
                 Ok(ty) => context.module.type_registry.remove_modifier(ty.0),
                 Err(_) => return Err(GenerateError::InvalidModule),
             };
-
-            // The type without modifiers
-            let type_id = context.module.type_registry.remove_modifier(type_id);
             let tyl = context.module.type_registry.get_type_layer(type_id);
 
             // Check for a matrix type and fail
@@ -1685,7 +1693,40 @@ fn generate_expression(
             let index = generate_expression(expr_index, context)?;
             let object = Box::new(Located::none(object));
             let index = Box::new(Located::none(index));
-            ast::Expression::ArraySubscript(object, index)
+
+            let subscript = ast::Expression::ArraySubscript(object, index);
+
+            // Find the type of the result - without modifiers
+            let result_ty = match expr.get_type(context.module) {
+                Ok(ty) => context.module.type_registry.remove_modifier(ty.0),
+                Err(_) => return Err(GenerateError::InvalidModule),
+            };
+            let result_tyl = context.module.type_registry.get_type_layer(result_ty);
+
+            // The result type here may be wrong as it contains the address space information of the array
+            if let ir::TypeLayer::Object(ot) = result_tyl {
+                if matches!(
+                    ot,
+                    ir::ObjectType::ByteAddressBuffer
+                        | ir::ObjectType::RWByteAddressBuffer
+                        | ir::ObjectType::BufferAddress
+                        | ir::ObjectType::RWBufferAddress
+                        | ir::ObjectType::StructuredBuffer(_)
+                        | ir::ObjectType::RWStructuredBuffer(_)
+                ) {
+                    // The intrinsic methods we declare do not have an address space and we will not get an implicit cast
+                    // So create the cast ourself manually
+                    // We may then generate another cast (for example to remove const) so the output may have multiple casts
+                    let ty = generate_type_id(result_ty, context)?;
+                    ast::Expression::Cast(Box::new(ty), Box::new(Located::none(subscript)))
+                } else {
+                    // The intrinsic functions we use to implement methods for these objects will implicitly cast the object
+                    subscript
+                }
+            } else {
+                // For other types the conversion is implicit
+                subscript
+            }
         }
         ir::Expression::Constructor(type_id, args) => {
             let ty = generate_type(*type_id, context)?;

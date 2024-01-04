@@ -75,8 +75,12 @@ pub(crate) fn generate_pipeline(
 
         for argument in &argument_buffer.0 {
             let mode = context.global_variable_modes.get(&argument.id).unwrap();
-            let param = match mode {
-                GlobalMode::Parameter { param, .. } => param,
+            let (ty, declarator) = match mode {
+                GlobalMode::Parameter {
+                    base_type,
+                    base_declarator,
+                    ..
+                } => (base_type, base_declarator),
                 GlobalMode::Constant => panic!(),
             };
 
@@ -86,9 +90,9 @@ pub(crate) fn generate_pipeline(
             };
 
             members.push(ast::StructMember {
-                ty: param.param_type.clone(),
+                ty: ty.clone(),
                 defs: Vec::from([ast::InitDeclarator {
-                    declarator: param.declarator.clone(),
+                    declarator: declarator.clone(),
                     location_annotations: Vec::new(),
                     init: None,
                 }]),

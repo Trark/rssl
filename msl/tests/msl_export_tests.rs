@@ -1499,24 +1499,21 @@ void entry() {
     g_textures[0];
 }
 ",
-        "void entry(metal::array<const metal::texture2d<float>, 6> g_textures) {
+        "void entry(constant metal::array<const metal::texture2d<float>, 6>& g_textures) {
     g_textures[0u];
 }
 ",
     );
 
     // Unbounded
-    check(
+    expect_generate_fail(
         "Texture2D<float4> g_textures[];
 
 void entry() {
     g_textures[0];
 }
 ",
-        "void entry(metal::array_ref<const metal::texture2d<float>> g_textures) {
-    g_textures[0u];
-}
-",
+        GenerateError::UnimplementedUnboundedArray,
     );
 }
 
