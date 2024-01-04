@@ -879,7 +879,6 @@ fn generate_type_impl(
 
             let mut type_name = ast::Type::trivial(&name);
 
-            // TODO: Mark <metal_matrix> as required
             type_name
                 .layout
                 .0
