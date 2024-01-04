@@ -141,8 +141,14 @@ pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateErro
 enum GlobalMode {
     /// Variables that need passing between all functions - with additional metadata on the entry function
     Parameter {
+        /// Parameter that is in the parameter list for functions
         param: ast::FunctionParam,
+        /// Argument that is passed into other functions
         argument: ast::Expression,
+        /// Type of the parameter when it is not a reference
+        base_type: ast::Type,
+        /// Expression to initialize the variable
+        init: Option<ast::Initializer>,
     },
 
     /// A constant value can be emitted at global scope
@@ -193,6 +199,8 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 }
             };
 
+            let base_type = param_type.clone();
+
             // Add the address space to the type
             if let Some(address_space) = address_space {
                 param_type
@@ -213,6 +221,16 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 declarator
             };
 
+            let init = if def.storage_class == ir::GlobalStorage::Static {
+                generate_initializer(
+                    &context.module.global_registry[id.0 as usize].init,
+                    context.module.global_registry[id.0 as usize].type_id,
+                    context,
+                )?
+            } else {
+                None
+            };
+
             let param = ast::FunctionParam {
                 param_type,
                 declarator,
@@ -224,7 +242,12 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                 name.as_str(),
             )));
 
-            GlobalMode::Parameter { param, argument }
+            GlobalMode::Parameter {
+                param,
+                argument,
+                base_type,
+                init,
+            }
         };
 
         let valid_insert = context.global_variable_modes.insert(id, mode).is_none();

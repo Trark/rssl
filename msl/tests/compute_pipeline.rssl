@@ -1,6 +1,7 @@
 const Texture2DArray g_input;
 const Texture2D g_unused;
 const RWTexture3D<float4> g_output : register(space1);
+static uint s_unused;
 
 void CSMAIN(uint3 dtid : SV_DispatchThreadID) {
     g_input;

@@ -1,6 +1,7 @@
-void VSMAIN(uint vid, uint iid, thread float4& o_pos, const metal::texture2d<float> g_input) {
+void VSMAIN(uint vid, uint iid, thread float4& o_pos, const metal::texture2d<float> g_input, thread int& s_value) {
     g_input;
     o_pos = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    s_value = 1;
 }
 
 float4 PSMAIN(uint pid, thread float4& o_target0, const metal::texture2d<float> g_input, const metal::texture2d<float, metal::access::read_write> g_output) {
@@ -28,8 +29,9 @@ struct VertexOutput
 
 [[vertex]]
 VertexOutput VertexShaderEntry(uint vid [[vertex_id]], uint iid [[instance_id]], constant ArgumentBuffer0& set0 [[buffer(0)]], constant ArgumentBuffer1& set1 [[buffer(1)]]) {
+    int s_value = 0;
     VertexOutput out;
-    VSMAIN(vid, iid, out.o_pos, set0.g_input);
+    VSMAIN(vid, iid, out.o_pos, set0.g_input, s_value);
     return out;
 }
 

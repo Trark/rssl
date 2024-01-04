@@ -262,7 +262,35 @@ pub(crate) fn generate_pipeline(
                         GlobalMode::Constant => panic!("global does not require a parameter"),
                     },
                     ir::GlobalStorage::Static => {
-                        return Err(GenerateError::UnimplementedFunctionEntryStatic)
+                        match context.global_variable_modes.get(gid).unwrap() {
+                            GlobalMode::Parameter {
+                                base_type, init, ..
+                            } => {
+                                let name = context.get_global_name(*gid).unwrap();
+
+                                body.push(ast::Statement {
+                                    kind: ast::StatementKind::Var(ast::VarDef {
+                                        local_type: base_type.clone(),
+                                        defs: Vec::from([ast::InitDeclarator {
+                                            declarator: ast::Declarator::Identifier(
+                                                ast::ScopedIdentifier::trivial(name),
+                                                Vec::new(),
+                                            ),
+                                            location_annotations: Vec::new(),
+                                            init: init.clone(),
+                                        }]),
+                                    }),
+                                    location: SourceLocation::UNKNOWN,
+                                    attributes: Vec::new(),
+                                });
+
+                                let member_expr = ast::Expression::Identifier(
+                                    ast::ScopedIdentifier::trivial(name),
+                                );
+                                args.push(Located::none(member_expr));
+                            }
+                            GlobalMode::Constant => panic!("static does not require a parameter"),
+                        }
                     }
                     ir::GlobalStorage::GroupShared => {
                         return Err(GenerateError::UnimplementedFunctionEntryGroupShared)
