@@ -1,4 +1,5 @@
 use crate::ast_types::{Type, TypeId};
+use crate::Initializer;
 use rssl_text::{Locate, Located, SourceLocation};
 
 /// An RSSL expression
@@ -25,7 +26,10 @@ pub enum Expression {
         /// Arguments
         Vec<Located<Expression>>,
     ),
+    /// C-style cast
     Cast(Box<TypeId>, Box<Located<Expression>>),
+    /// T {} direct list initializer
+    BracedInit(Box<TypeId>, Vec<Initializer>),
     /// sizeof() an expression or a direct type
     SizeOf(Box<ExpressionOrType>),
     /// Set of expressions which may be selected depending on known type names

@@ -64,6 +64,9 @@ pub enum GenerateError {
     /// \[WaveSize\] not supported
     UnsupportedWaveSize,
 
+    /// Cast not supported
+    UnsupportedCast,
+
     /// Metal does not have a native matrix swizzle so we would need to decompose into components to reconstruct the same behaviour
     UnimplementedMatrixSwizzle,
 
@@ -1740,19 +1743,89 @@ fn generate_expression(
             ast::Expression::Call(name, ty.layout.1.to_vec(), ast_args)
         }
         ir::Expression::Cast(type_id, expr) => {
+            let unmod_id = context.module.type_registry.remove_modifier(*type_id);
+            let unmod_tyl = context.module.type_registry.get_type_layer(unmod_id);
+
             // Check if we are casting to a literal type
             // We can not emits such a cast as the type can not be named
             // These occur only where they would get implicitly converted so we can drop them
-            let unmod_id = context.module.type_registry.remove_modifier(*type_id);
             let to_literal = matches!(
-                context.module.type_registry.get_type_layer(unmod_id),
+                unmod_tyl,
                 ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral)
                     | ir::TypeLayer::Scalar(ir::ScalarType::FloatLiteral)
             );
 
             let inner = generate_expression(expr, context)?;
 
-            if !to_literal {
+            let to_struct = matches!(unmod_tyl, ir::TypeLayer::Struct(_));
+
+            if to_struct {
+                let input_ety = expr.get_type(context.module)?;
+                let input_ty = context.module.type_registry.remove_modifier(input_ety.0);
+                let input_tyl = context.module.type_registry.get_type_layer(input_ty);
+
+                let from_cb =
+                    if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(cb_inner)) =
+                        input_tyl
+                    {
+                        let cb_inner_nomod = context.module.type_registry.remove_modifier(cb_inner);
+                        unmod_id == cb_inner_nomod
+                    } else {
+                        false
+                    };
+
+                if input_ty == unmod_id || from_cb {
+                    // Modifier removing cast
+                    let ty = generate_type_id(*type_id, context)?;
+                    ast::Expression::Cast(Box::new(ty), Box::new(Located::none(inner)))
+                } else {
+                    // Attempt to construct via aggregate parts
+
+                    // Get the number of elements to initialize recursively in a type
+                    fn get_member_count(id: ir::TypeId, module: &ir::Module) -> usize {
+                        let id = module.type_registry.remove_modifier(id);
+                        let tyl = module.type_registry.get_type_layer(id);
+                        match tyl {
+                            ir::TypeLayer::Array(inner_id, Some(len)) => {
+                                get_member_count(inner_id, module) * len as usize
+                            }
+                            ir::TypeLayer::Array(_, None) => {
+                                panic!("Can not cast to unbounded array")
+                            }
+                            ir::TypeLayer::Struct(id) => {
+                                let sd = &module.struct_registry[id.0 as usize];
+                                let mut count = 0;
+                                for member in &sd.members {
+                                    count += get_member_count(member.type_id, module);
+                                }
+                                count
+                            }
+                            _ => 1,
+                        }
+                    }
+                    let member_count = get_member_count(unmod_id, context.module);
+
+                    let no_side_effects = match **expr {
+                        ir::Expression::Literal(_)
+                        | ir::Expression::Variable(_)
+                        | ir::Expression::MemberVariable(_, _)
+                        | ir::Expression::Global(_)
+                        | ir::Expression::ConstantVariable(_)
+                        | ir::Expression::EnumValue(_) => true,
+                        _ => member_count == 1,
+                    };
+
+                    if no_side_effects {
+                        let ty = generate_type_id(*type_id, context)?;
+                        let inits = (0..member_count)
+                            .map(|_| ast::Initializer::Expression(Located::none(inner.clone())))
+                            .collect();
+                        ast::Expression::BracedInit(Box::new(ty), inits)
+                    } else {
+                        return Err(GenerateError::UnsupportedCast);
+                    }
+                }
+            } else if !to_literal {
                 let ty = generate_type_id(*type_id, context)?;
                 ast::Expression::Cast(Box::new(ty), Box::new(Located::none(inner)))
             } else {
@@ -3291,5 +3364,11 @@ impl<'m> GenerateContext<'m> {
     /// Get the name of a local variable
     fn get_variable_name(&self, id: ir::VariableId) -> Result<&str, GenerateError> {
         Ok(self.name_map.get_name_leaf(NameSymbol::LocalVariable(id)))
+    }
+}
+
+impl From<ir::EvaluateTypeError> for GenerateError {
+    fn from(_: ir::EvaluateTypeError) -> Self {
+        GenerateError::InvalidModule
     }
 }

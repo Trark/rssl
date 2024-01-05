@@ -933,6 +933,17 @@ fn format_subexpression(
             output.push(')');
             format_subexpression(expr, prec, OperatorSide::Right, output, context)?;
         }
+        ast::Expression::BracedInit(ty, inits) => {
+            format_type_id(ty, output, context)?;
+            output.push_str(" { ");
+            let (head, tail) = inits.split_first().unwrap();
+            format_initializer_inner(head, output, context)?;
+            for expr in tail {
+                output.push_str(", ");
+                format_initializer_inner(expr, output, context)?;
+            }
+            output.push_str(" }");
+        }
         ast::Expression::SizeOf(expr) => {
             output.push_str("sizeof(");
             format_expression_or_type(expr, output, context)?;
@@ -1025,6 +1036,7 @@ fn get_expression_precedence(expr: &ast::Expression) -> Result<u32, FormatError>
         ast::Expression::Member(_, _) => 2,
         ast::Expression::Call(_, _, _) => 2,
         ast::Expression::Cast(_, _) => 3,
+        ast::Expression::BracedInit(_, _) => 0,
         ast::Expression::SizeOf(_) => 3,
         ast::Expression::AmbiguousParseBranch(_) => return Err(FormatError::AmbiguousParseBranch),
     };

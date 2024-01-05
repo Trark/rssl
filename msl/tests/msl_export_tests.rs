@@ -651,6 +651,59 @@ fn check_remainder() {
 }
 
 #[test]
+fn check_expression_cast() {
+    check(
+        "void f() {
+    uint x;
+    float y;
+    x = (uint)y;
+    y = (float)x;
+}
+",
+        "void f() {
+    uint x;
+    float y;
+    x = (uint)y;
+    y = (float)x;
+}
+",
+    );
+
+    check(
+        "struct Inner
+{
+    uint x[2];
+    uint2 y;
+};
+
+struct Value
+{
+    Inner x[2];
+};
+
+void f() {
+    Value v = (Value)0;
+}
+",
+        "struct Inner
+{
+    uint x[2];
+    uint2 y;
+};
+
+struct Value
+{
+    Inner x[2];
+};
+
+void f() {
+    Value v = Value { 0, 0, 0, 0, 0, 0 };
+}
+",
+    );
+}
+
+#[test]
 fn check_statement_block() {
     check(
         "void f() {

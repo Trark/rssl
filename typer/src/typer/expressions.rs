@@ -1914,6 +1914,7 @@ fn parse_expr_unchecked(
                 )),
             }
         }
+        ast::Expression::BracedInit(ref ty, _) => Err(TyperError::InternalError(ty.get_location())),
         ast::Expression::SizeOf(ref expr_or_ty) => {
             let (ty, loc) = match **expr_or_ty {
                 ast::ExpressionOrType::Type(ref ast_ty) => {
