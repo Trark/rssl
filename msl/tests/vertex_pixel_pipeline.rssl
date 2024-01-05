@@ -4,16 +4,17 @@ const RWTexture2D<float4> g_output : register(space1);
 
 static int s_value = 0;
 
-void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID, out float4 o_pos : SV_Position) {
+void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID, out float4 o_pos : SV_Position, out float2 o_texcoord : TEXCOORD) {
     g_input;
     o_pos = float4(0, 0, 0, 0);
+    o_texcoord = float2(0.5f, 0.5f);
     s_value = 1;
 }
 
-float4 PSMAIN(uint pid : SV_PrimitiveID, out float4 o_target0 : SV_Target0) : SV_Target1 {
+float4 PSMAIN(uint pid : SV_PrimitiveID, float2 i_texcoord : TEXCOORD, out float4 o_target0 : SV_Target0) : SV_Target1 {
     g_input;
     g_output;
-    o_target0 = float4(0, 0, 0, 0);
+    o_target0 = float4(i_texcoord.xy, 0, 0);
     return float4(0, 0, 0, 0);
 }
 

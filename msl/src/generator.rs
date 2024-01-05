@@ -37,6 +37,9 @@ pub enum GenerateError {
     /// Resource subscript usage too complicated to rewrite
     ComplexResourceSubscript,
 
+    /// Stages do not have matching interpolators
+    MissingInterpolator,
+
     /// All constants must be initialized in metal
     UninitializedConstant,
 
@@ -808,9 +811,14 @@ fn generate_semantic_annotation(
                     two_square_brackets: true,
                 }))
             }
-            User(_) => {
-                // TODO: We do not currently implement tagging user semantics
-                return Ok(None);
+            User(name) => {
+                return Ok(Some(ast::Attribute {
+                    name: Vec::from([Located::none(String::from("user"))]),
+                    arguments: Vec::from([Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial(name),
+                    ))]),
+                    two_square_brackets: true,
+                }))
             }
         };
         Ok(Some(ast::Attribute {

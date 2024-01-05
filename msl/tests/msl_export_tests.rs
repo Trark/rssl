@@ -1181,9 +1181,9 @@ void entry() {
         "struct S
 {
     int x;
-    float y;
+    [[user(USER0)]] float y;
     float z[2];
-    float w[3][4];
+    [[user(USER1)]] float w[3][4];
 
     void f(int z) {}
 
@@ -1217,11 +1217,11 @@ fn check_struct_member_interp_modifiers() {
 ",
         "struct S
 {
-    int m0;
-    [[center_perspective]] float m1;
+    [[user(USER0)]] int m0;
+    [[user(USER1)]] [[center_perspective]] float m1;
     [[centroid_perspective]] float m2;
     [[flat]] float m3;
-    [[flat]] float m4;
+    [[user(USER4)]] [[flat]] float m4;
     [[center_no_perspective]] float m5;
     [[sample_perspective]] float m6;
 };

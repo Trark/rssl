@@ -146,7 +146,14 @@ pub(crate) fn generate_pipeline(
         });
     }
 
-    for stage in &def.stages {
+    // Sort stages so vertex is processed before pixel
+    let mut ordered_stages = def.stages.clone();
+    ordered_stages.sort_by(|lhs, rhs| lhs.stage.cmp(&rhs.stage));
+
+    // Maintain a map of the interpolator output names in the vertex stage
+    let mut vertex_outputs = HashMap::<String, String>::new();
+
+    for stage in ordered_stages {
         let mut body = Vec::new();
         let function_name =
             scoped_name_to_identifier(context.get_function_name_full(stage.entry_point).unwrap());
@@ -195,12 +202,33 @@ pub(crate) fn generate_pipeline(
             .unwrap()
             .params;
 
+        let mut requires_vertex_input = false;
         for param in semantic_params {
+            let param_name = String::from(context.get_variable_name(param.id)?);
             if param.param_type.input_modifier == ir::InputModifier::In {
-                entry_params.push(generate_function_param(param, true, context)?);
-                args.push(Located::none(ast::Expression::Identifier(
-                    ast::ScopedIdentifier::trivial(context.get_variable_name(param.id)?),
-                )));
+                match (stage.stage, &param.semantic) {
+                    (ir::ShaderStage::Pixel, Some(ir::Semantic::User(name))) => {
+                        let member_name = match vertex_outputs.get(name) {
+                            Some(member_name) => member_name,
+                            None => return Err(GenerateError::MissingInterpolator),
+                        };
+
+                        args.push(Located::none(ast::Expression::Member(
+                            Box::new(Located::none(ast::Expression::Identifier(
+                                ast::ScopedIdentifier::trivial(STAGE_INPUT_NAME_LOCAL),
+                            ))),
+                            ast::ScopedIdentifier::trivial(member_name),
+                        )));
+
+                        requires_vertex_input = true;
+                    }
+                    _ => {
+                        entry_params.push(generate_function_param(param, true, context)?);
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial(&param_name),
+                        )));
+                    }
+                }
             } else {
                 // There should not be any valid inout parameters
                 if param.param_type.input_modifier != ir::InputModifier::Out {
@@ -232,9 +260,32 @@ pub(crate) fn generate_pipeline(
                     Box::new(Located::none(ast::Expression::Identifier(
                         ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
                     ))),
-                    ast::ScopedIdentifier::trivial(context.get_variable_name(param.id)?),
+                    ast::ScopedIdentifier::trivial(&param_name),
                 )));
+
+                if stage.stage == ir::ShaderStage::Vertex {
+                    if let Some(ir::Semantic::User(name)) = &param.semantic {
+                        vertex_outputs.insert(name.clone(), param_name);
+                    }
+                }
             }
+        }
+
+        if requires_vertex_input {
+            entry_params.push(ast::FunctionParam {
+                param_type: ast::Type::from(STAGE_OUTPUT_NAME_VERTEX),
+                declarator: ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial(STAGE_INPUT_NAME_LOCAL),
+                    Vec::from([ast::Attribute {
+                        name: Vec::from([Located::none(String::from("stage_in"))]),
+                        arguments: Vec::new(),
+                        two_square_brackets: true,
+                    }]),
+                ),
+
+                location_annotations: Vec::new(),
+                default_expr: None,
+            });
         }
 
         entry_params.extend_from_slice(&binding_params);

@@ -32,7 +32,7 @@ pub struct PipelineStage {
 }
 
 /// Identifier for the kind of shader in a stage of the pipeline
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum ShaderStage {
     /// Vertex shader
     Vertex,
