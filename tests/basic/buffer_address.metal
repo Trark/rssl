@@ -22,7 +22,7 @@ struct RWByteAddressBuffer
     }
 
     template<typename T>
-    T Store(uint offset, T value) const {
+    void Store(uint offset, T value) const {
         *reinterpret_cast<device T*>(address + offset) = value;
     }
 };

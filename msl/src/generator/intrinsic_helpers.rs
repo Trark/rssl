@@ -1127,7 +1127,7 @@ fn build_address_store() -> Result<ast::FunctionDefinition, GenerateError> {
     Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Store")),
         returntype: ast::FunctionReturn {
-            return_type: ast::Type::from("T"),
+            return_type: ast::Type::from("void"),
             location_annotations: Vec::new(),
         },
         template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
