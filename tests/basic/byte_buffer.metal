@@ -75,22 +75,22 @@ struct MyStruct
 
 void test(const helper::ByteAddressBuffer g_input, const helper::RWByteAddressBuffer g_output) {
     const uint x1 = g_input.Load<uint>(0u);
-    const uint2 x2 = g_input.Load<uint2>(0u);
-    const uint3 x3 = g_input.Load<uint3>(0u);
+    const uint2 x2 = (uint2)g_input.Load<packed_uint2>(0u);
+    const uint3 x3 = (uint3)g_input.Load<packed_uint3>(0u);
     const uint4 x4 = g_input.Load<uint4>(0u);
     const MyStruct x5 = g_input.Load<MyStruct>(0u);
     const uint y1 = g_output.Load<uint>(0u);
-    const uint2 y2 = g_output.Load<uint2>(0u);
-    const uint3 y3 = g_output.Load<uint3>(0u);
+    const uint2 y2 = (uint2)g_output.Load<packed_uint2>(0u);
+    const uint3 y3 = (uint3)g_output.Load<packed_uint3>(0u);
     const uint4 y4 = g_output.Load<uint4>(0u);
     const MyStruct y5 = g_output.Load<MyStruct>(0u);
     g_output.Store<uint>(0u, (uint)x1);
-    g_output.Store<uint2>(0u, (uint2)x2);
-    g_output.Store<uint3>(0u, (uint3)x3);
+    g_output.Store<packed_uint2>(0u, (packed_uint2)(uint2)x2);
+    g_output.Store<packed_uint3>(0u, (packed_uint3)(uint3)x3);
     g_output.Store<uint4>(0u, (uint4)x4);
     g_output.Store<float>(0u, 0.0f);
-    g_output.Store<uint2>(0u, (uint2)0.0);
-    g_output.Store<uint3>(0u, (uint3)0.0);
+    g_output.Store<packed_uint2>(0u, (packed_uint2)(uint2)0.0);
+    g_output.Store<packed_uint3>(0u, (packed_uint3)(uint3)0.0);
     g_output.Store<uint4>(0u, (uint4)0.0);
     uint outInt;
     g_input.GetDimensions(outInt);

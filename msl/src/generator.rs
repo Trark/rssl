@@ -2279,6 +2279,11 @@ fn generate_intrinsic_function(
                 ByteAddressBufferLoad4 | RWByteAddressBufferLoad4 => "uint4",
                 _ => unreachable!(),
             };
+            let packed_type_name = match intrinsic {
+                ByteAddressBufferLoad2 | RWByteAddressBufferLoad2 => Some("packed_uint2"),
+                ByteAddressBufferLoad3 | RWByteAddressBufferLoad3 => Some("packed_uint3"),
+                _ => None,
+            };
             let object = match intrinsic {
                 ByteAddressBufferLoad
                 | ByteAddressBufferLoad2
@@ -2290,7 +2295,13 @@ fn generate_intrinsic_function(
                 | RWByteAddressBufferLoad4 => IntrinsicObject::RWByteAddressBuffer,
                 _ => unreachable!(),
             };
-            generate_byte_buffer_load(object, ast::TypeId::from(type_name), exprs, context)
+            generate_byte_buffer_load(
+                object,
+                ast::TypeId::from(type_name),
+                packed_type_name.map(ast::TypeId::from),
+                exprs,
+                context,
+            )
         }
         ByteAddressBufferLoadT
         | RWByteAddressBufferLoadT
@@ -2308,7 +2319,7 @@ fn generate_intrinsic_function(
                         } else {
                             IntrinsicObject::ByteAddressBuffer
                         };
-                    generate_byte_buffer_load(object, ty, exprs, context)
+                    generate_byte_buffer_load(object, ty, None, exprs, context)
                 }
                 ir::TypeOrConstant::Constant(_) => Err(GenerateError::InvalidModule),
             }
@@ -2331,6 +2342,7 @@ fn generate_intrinsic_function(
                     generate_byte_buffer_store(
                         IntrinsicObject::RWByteAddressBuffer,
                         ty,
+                        None,
                         exprs,
                         context,
                     )
@@ -2345,6 +2357,7 @@ fn generate_intrinsic_function(
             generate_byte_buffer_store(
                 IntrinsicObject::RWByteAddressBuffer,
                 ast::TypeId::from("uint2"),
+                Some(ast::TypeId::from("packed_uint2")),
                 exprs,
                 context,
             )
@@ -2356,6 +2369,7 @@ fn generate_intrinsic_function(
             generate_byte_buffer_store(
                 IntrinsicObject::RWByteAddressBuffer,
                 ast::TypeId::from("uint3"),
+                Some(ast::TypeId::from("packed_uint3")),
                 exprs,
                 context,
             )
@@ -2367,6 +2381,7 @@ fn generate_intrinsic_function(
             generate_byte_buffer_store(
                 IntrinsicObject::RWByteAddressBuffer,
                 ast::TypeId::from("uint4"),
+                None,
                 exprs,
                 context,
             )
@@ -2909,6 +2924,7 @@ fn vector_n_to_vector_4(
 fn generate_byte_buffer_load(
     object_ty: IntrinsicObject,
     target: ast::TypeId,
+    packed_target: Option<ast::TypeId>,
     exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
@@ -2921,20 +2937,34 @@ fn generate_byte_buffer_load(
 
     let function = require_helper_method(object_ty, IntrinsicHelper::AddressLoad, context)?;
 
-    Ok(ast::Expression::Call(
+    let (load_ty, cast_ty) = match packed_target {
+        Some(packed) => (packed, Some(target)),
+        None => (target, None),
+    };
+
+    let call = ast::Expression::Call(
         Box::new(Located::none(ast::Expression::Member(
             Box::new(Located::none(object)),
             function,
         ))),
-        Vec::from([ast::ExpressionOrType::Type(target)]),
+        Vec::from([ast::ExpressionOrType::Type(load_ty)]),
         Vec::from([Located::none(offset)]),
-    ))
+    );
+
+    let expr = if let Some(cast_ty) = cast_ty {
+        ast::Expression::Cast(Box::new(cast_ty), Box::new(Located::none(call)))
+    } else {
+        call
+    };
+
+    Ok(expr)
 }
 
 /// Create a Store / Store2 / Store3 / Store4 for a byte buffer
 fn generate_byte_buffer_store(
     object_ty: IntrinsicObject,
     target: ast::TypeId,
+    packed_target: Option<ast::TypeId>,
     exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
@@ -2948,12 +2978,23 @@ fn generate_byte_buffer_store(
 
     let function = require_helper_method(object_ty, IntrinsicHelper::AddressStore, context)?;
 
+    let (store_ty, cast_ty) = match packed_target {
+        Some(packed) => (packed.clone(), Some(packed)),
+        None => (target, None),
+    };
+
+    let value = if let Some(cast_ty) = cast_ty {
+        ast::Expression::Cast(Box::new(cast_ty), Box::new(Located::none(value)))
+    } else {
+        value
+    };
+
     Ok(ast::Expression::Call(
         Box::new(Located::none(ast::Expression::Member(
             Box::new(Located::none(object)),
             function,
         ))),
-        Vec::from([ast::ExpressionOrType::Type(target)]),
+        Vec::from([ast::ExpressionOrType::Type(store_ty)]),
         Vec::from([Located::none(offset), Located::none(value)]),
     ))
 }
