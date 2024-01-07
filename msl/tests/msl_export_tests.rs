@@ -1422,7 +1422,7 @@ struct StructuredBuffer
     uint64_t size;
 
     T Load(int location) const {
-        return address[location];
+        return location < size ? address[location] : T {};
     }
 };
 

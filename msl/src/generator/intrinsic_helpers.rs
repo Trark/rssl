@@ -1030,6 +1030,14 @@ fn build_address_load() -> Result<ast::FunctionDefinition, GenerateError> {
         Box::new(Located::none(typed_address)),
     );
 
+    let protect_cond = build_address_out_of_bounds_condition();
+    let default_value = build_out_of_bounds_default_value();
+    let protected = ast::Expression::TernaryConditional(
+        Box::new(Located::none(protect_cond)),
+        Box::new(Located::none(deref)),
+        Box::new(Located::none(default_value)),
+    );
+
     Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Load")),
         returntype: ast::FunctionReturn {
@@ -1046,7 +1054,7 @@ fn build_address_load() -> Result<ast::FunctionDefinition, GenerateError> {
         is_const: true,
         is_volatile: false,
         body: Some(Vec::from([ast::Statement {
-            kind: ast::StatementKind::Return(Some(Located::none(deref))),
+            kind: ast::StatementKind::Return(Some(Located::none(protected))),
             location: SourceLocation::UNKNOWN,
             attributes: Vec::new(),
         }])),
@@ -1124,6 +1132,8 @@ fn build_address_store() -> Result<ast::FunctionDefinition, GenerateError> {
         ))),
     );
 
+    let protect_cond = build_address_out_of_bounds_condition();
+
     Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Store")),
         returntype: ast::FunctionReturn {
@@ -1139,13 +1149,60 @@ fn build_address_store() -> Result<ast::FunctionDefinition, GenerateError> {
         params,
         is_const: true,
         is_volatile: false,
-        body: Some(Vec::from([ast::Statement {
-            kind: ast::StatementKind::Expression(assign),
-            location: SourceLocation::UNKNOWN,
-            attributes: Vec::new(),
-        }])),
+        body: Some(Vec::from([build_if_block(
+            protect_cond,
+            Vec::from([ast::Statement {
+                kind: ast::StatementKind::Expression(assign),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            }]),
+        )])),
         attributes: Vec::new(),
     })
+}
+
+fn build_address_out_of_bounds_condition() -> ast::Expression {
+    ast::Expression::BinaryOperation(
+        ast::BinOp::LessEqual,
+        Box::new(Located::none(ast::Expression::BinaryOperation(
+            ast::BinOp::Add,
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("offset"),
+            ))),
+            Box::new(Located::none(ast::Expression::SizeOf(Box::new(
+                ast::ExpressionOrType::Type(ast::TypeId::from("T")),
+            )))),
+        ))),
+        Box::new(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("static_cast"),
+            ))),
+            Vec::from([ast::ExpressionOrType::Type(ast::TypeId::from("uint"))]),
+            Vec::from([Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("size"),
+            ))]),
+        ))),
+    )
+}
+
+fn build_out_of_bounds_default_value() -> ast::Expression {
+    // We would ideally want to initialise to all zero bits but we instead use value initialization
+    ast::Expression::BracedInit(Box::new(ast::TypeId::from("T")), Vec::new())
+}
+
+fn build_if_block(cond: ast::Expression, statements: Vec<ast::Statement>) -> ast::Statement {
+    ast::Statement {
+        kind: ast::StatementKind::If(
+            Located::none(cond),
+            Box::new(ast::Statement {
+                kind: ast::StatementKind::Block(statements),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            }),
+        ),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1372,6 +1429,14 @@ fn build_structured_buffer_load() -> Result<ast::FunctionDefinition, GenerateErr
         ))),
     );
 
+    let protect_cond = build_structured_buffer_out_of_bounds_condition();
+    let default_value = build_out_of_bounds_default_value();
+    let protected = ast::Expression::TernaryConditional(
+        Box::new(Located::none(protect_cond)),
+        Box::new(Located::none(access)),
+        Box::new(Located::none(default_value)),
+    );
+
     Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Load")),
         returntype: ast::FunctionReturn {
@@ -1383,7 +1448,7 @@ fn build_structured_buffer_load() -> Result<ast::FunctionDefinition, GenerateErr
         is_const: true,
         is_volatile: false,
         body: Some(Vec::from([ast::Statement {
-            kind: ast::StatementKind::Return(Some(Located::none(access))),
+            kind: ast::StatementKind::Return(Some(Located::none(protected))),
             location: SourceLocation::UNKNOWN,
             attributes: Vec::new(),
         }])),
@@ -1431,6 +1496,15 @@ fn build_structured_buffer_store() -> Result<ast::FunctionDefinition, GenerateEr
         ))),
     );
 
+    let protect_cond = build_structured_buffer_out_of_bounds_condition();
+    let protected = ast::Expression::TernaryConditional(
+        Box::new(Located::none(protect_cond)),
+        Box::new(Located::none(assign)),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("value"),
+        ))),
+    );
+
     Ok(ast::FunctionDefinition {
         name: Located::none(String::from("Store")),
         returntype: ast::FunctionReturn {
@@ -1442,7 +1516,7 @@ fn build_structured_buffer_store() -> Result<ast::FunctionDefinition, GenerateEr
         is_const: true,
         is_volatile: false,
         body: Some(Vec::from([ast::Statement {
-            kind: ast::StatementKind::Return(Some(Located::none(assign))),
+            kind: ast::StatementKind::Return(Some(Located::none(protected))),
             location: SourceLocation::UNKNOWN,
             attributes: Vec::new(),
         }])),
@@ -1510,6 +1584,18 @@ fn build_structured_buffer_get_dimensions() -> Result<ast::FunctionDefinition, G
         body: Some(body),
         attributes: Vec::new(),
     })
+}
+
+fn build_structured_buffer_out_of_bounds_condition() -> ast::Expression {
+    ast::Expression::BinaryOperation(
+        ast::BinOp::LessThan,
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("location"),
+        ))),
+        Box::new(Located::none(ast::Expression::Identifier(
+            ast::ScopedIdentifier::trivial("size"),
+        ))),
+    )
 }
 
 /// Build a helper function to turn a scalar or smaller vector into a 4 component vector

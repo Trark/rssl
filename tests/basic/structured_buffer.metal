@@ -12,7 +12,7 @@ struct StructuredBuffer
     }
 
     T Load(int location) const {
-        return address[location];
+        return location < size ? address[location] : T {};
     }
 };
 
@@ -28,11 +28,11 @@ struct RWStructuredBuffer
     }
 
     T Load(int location) const {
-        return address[location];
+        return location < size ? address[location] : T {};
     }
 
     T Store(uint location, T value) const {
-        return address[location] = value;
+        return location < size ? address[location] = value : value;
     }
 };
 

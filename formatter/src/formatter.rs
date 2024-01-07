@@ -935,14 +935,17 @@ fn format_subexpression(
         }
         ast::Expression::BracedInit(ty, inits) => {
             format_type_id(ty, output, context)?;
-            output.push_str(" { ");
-            let (head, tail) = inits.split_first().unwrap();
-            format_initializer_inner(head, output, context)?;
-            for expr in tail {
-                output.push_str(", ");
-                format_initializer_inner(expr, output, context)?;
+            output.push_str(" {");
+            if let Some((head, tail)) = inits.split_first() {
+                output.push(' ');
+                format_initializer_inner(head, output, context)?;
+                for expr in tail {
+                    output.push_str(", ");
+                    format_initializer_inner(expr, output, context)?;
+                }
+                output.push(' ');
             }
-            output.push_str(" }");
+            output.push('}');
         }
         ast::Expression::SizeOf(expr) => {
             output.push_str("sizeof(");

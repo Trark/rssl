@@ -12,7 +12,7 @@ struct ByteAddressBuffer
 
     template<typename T>
     T Load(uint offset) const {
-        return *reinterpret_cast<device const T*>(address + offset);
+        return offset + sizeof(T) <= static_cast<uint>(size) ? *reinterpret_cast<device const T*>(address + offset) : T {};
     }
 };
 
