@@ -2059,7 +2059,7 @@ fn parse_expr_constructor(
     context: &mut Context,
 ) -> TyperResult<TypedExpression> {
     let error_location = args
-        .get(0)
+        .first()
         .map(|e| e.location)
         .unwrap_or(SourceLocation::UNKNOWN);
     let ty_nomod = context.module.type_registry.remove_modifier(ty);
