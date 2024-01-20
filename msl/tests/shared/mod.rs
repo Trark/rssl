@@ -1,7 +1,7 @@
 use rssl_msl::ExportError;
 use rssl_text::*;
 
-pub use rssl_msl::{FormatError, GenerateError};
+pub use rssl_msl::GenerateError;
 
 /// Turn an rssl string into ir
 #[track_caller]
