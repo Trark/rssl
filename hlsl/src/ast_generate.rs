@@ -22,6 +22,9 @@ pub enum GenerateError {
 
     /// Unable to generate a valid ast for a type with an array modifier in this position
     ComplexTypeBind,
+
+    /// Object type has no known descriptor type mapping
+    UnsupportedObjectType,
 }
 
 /// Generate HLSL ast from ir module
@@ -154,6 +157,11 @@ fn analyse_bindings(
                 ir::TypeLayer::Object(ir::ObjectType::RaytracingAccelerationStructure) => {
                     DescriptorType::RaytracingAccelerationStructure
                 }
+                ir::TypeLayer::Object(ir::ObjectType::SamplerState) => DescriptorType::SamplerState,
+                ir::TypeLayer::Object(ir::ObjectType::SamplerComparisonState) => {
+                    DescriptorType::SamplerComparisonState
+                }
+                ir::TypeLayer::Object(_) => return Err(GenerateError::UnsupportedObjectType),
                 _ => DescriptorType::PushConstants,
             };
 

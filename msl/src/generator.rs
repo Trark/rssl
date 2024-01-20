@@ -70,6 +70,9 @@ pub enum GenerateError {
     /// Cast not supported
     UnsupportedCast,
 
+    /// Object type has no known descriptor type mapping
+    UnsupportedObjectType,
+
     /// Metal does not have a native matrix swizzle so we would need to decompose into components to reconstruct the same behaviour
     UnimplementedMatrixSwizzle,
 

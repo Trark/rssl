@@ -100,6 +100,12 @@ pub enum DescriptorType {
 
     /// An acceleration structure for raytracing
     RaytracingAccelerationStructure,
+
+    /// A sampler state object
+    SamplerState,
+
+    /// A sampler comparison state object
+    SamplerComparisonState,
 }
 
 /// A definition of a constant buffer that serves other bindings

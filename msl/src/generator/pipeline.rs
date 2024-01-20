@@ -621,6 +621,11 @@ fn analyse_bindings(
                 ir::TypeLayer::Object(ir::ObjectType::RaytracingAccelerationStructure) => {
                     DescriptorType::RaytracingAccelerationStructure
                 }
+                ir::TypeLayer::Object(ir::ObjectType::SamplerState) => DescriptorType::SamplerState,
+                ir::TypeLayer::Object(ir::ObjectType::SamplerComparisonState) => {
+                    DescriptorType::SamplerComparisonState
+                }
+                ir::TypeLayer::Object(_) => return Err(GenerateError::UnsupportedObjectType),
                 _ => DescriptorType::PushConstants,
             };
 
