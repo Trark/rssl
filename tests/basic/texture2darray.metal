@@ -80,6 +80,23 @@ metal::vec<T, 4> Sample(metal::texture2d_array<T> texture, metal::sampler s, flo
 }
 
 template<typename T>
+metal::vec<T, 4> SampleLevel(metal::texture2d_array<T> texture, metal::sampler s, float3 coord, float lod) {
+    return texture.sample(s, coord.xy, uint(coord.z), metal::level(lod));
+}
+
+template<typename T>
+metal::vec<T, 4> SampleLevel(metal::texture2d_array<T> texture, metal::sampler s, float3 coord, float lod, int2 offset) {
+    return texture.sample(s, coord.xy, uint(coord.z), metal::level(lod), offset);
+}
+
+template<typename T>
+metal::vec<T, 4> SampleLevel(metal::texture2d_array<T> texture, metal::sampler s, float3 coord, float lod, int2 offset, thread uint& status) {
+    metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, coord.xy, uint(coord.z), metal::level(lod), offset);
+    status = color.resident();
+    return color.value();
+}
+
+template<typename T>
 metal::vec<T, 4> extend(metal::vec<T, 3> value) {
     return metal::vec<T, 4>(value, 0);
 }
@@ -103,6 +120,9 @@ void test(const metal::texture2d_array<float> g_input, const metal::texture2d_ar
     const float3 sample_offset = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0)).xyz;
     const float3 sample_clamp = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f).xyz;
     const float3 sample_status = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int2(0, 0), 0.0f, outInt).xyz;
+    const float3 sample_level_base = helper::SampleLevel(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), 1.0f).xyz;
+    const float3 sample_level_offset = helper::SampleLevel(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), 1.0f, int2(0, 0)).xyz;
+    const float3 sample_level_status = helper::SampleLevel(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), 1.0f, int2(0, 0), outInt).xyz;
     const float3 load_uav = helper::Load(g_output, int3(0, 0, 0)).xyz;
     const float3 load_uav_status = helper::Load(g_output, int3(0, 0, 0), outInt).xyz;
     helper::Store(g_output, uint3(2u, 2u, 2u), helper::extend(helper::Store(g_output, uint3(1u, 1u, 1u), helper::extend((float3)helper::Load(g_input, helper::make_signed_push_0(uint3(1u, 1u, 1u))).xyz)).xyz)).xyz;

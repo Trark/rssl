@@ -2433,6 +2433,7 @@ fn generate_intrinsic_function(
         Texture2DSample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::Tex2D,
+                has_lod: false,
                 has_offset: exprs.len() >= 4,
                 has_clamp: exprs.len() >= 5,
                 has_status: exprs.len() >= 6,
@@ -2443,7 +2444,16 @@ fn generate_intrinsic_function(
         Texture2DSampleCmp => unimplemented_intrinsic(),
         Texture2DSampleCmpLevelZero => unimplemented_intrinsic(),
         Texture2DSampleGrad => unimplemented_intrinsic(),
-        Texture2DSampleLevel => unimplemented_intrinsic(),
+        Texture2DSampleLevel => invoke_object_read_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::Tex2D,
+                has_lod: true,
+                has_offset: exprs.len() >= 5,
+                has_clamp: false,
+                has_status: exprs.len() >= 6,
+            }),
+            context,
+        ),
         Texture2DGatherRed => unimplemented_intrinsic(),
         Texture2DGatherGreen => unimplemented_intrinsic(),
         Texture2DGatherBlue => unimplemented_intrinsic(),
@@ -2473,6 +2483,7 @@ fn generate_intrinsic_function(
         Texture2DArraySample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::Tex2DArray,
+                has_lod: false,
                 has_offset: exprs.len() >= 4,
                 has_clamp: exprs.len() >= 5,
                 has_status: exprs.len() >= 6,
@@ -2483,7 +2494,16 @@ fn generate_intrinsic_function(
         Texture2DArraySampleCmp => unimplemented_intrinsic(),
         Texture2DArraySampleCmpLevelZero => unimplemented_intrinsic(),
         Texture2DArraySampleGrad => unimplemented_intrinsic(),
-        Texture2DArraySampleLevel => unimplemented_intrinsic(),
+        Texture2DArraySampleLevel => invoke_object_read_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::Tex2DArray,
+                has_lod: true,
+                has_offset: exprs.len() >= 5,
+                has_clamp: false,
+                has_status: exprs.len() >= 6,
+            }),
+            context,
+        ),
         Texture2DArrayGatherRed => unimplemented_intrinsic(),
         Texture2DArrayGatherGreen => unimplemented_intrinsic(),
         Texture2DArrayGatherBlue => unimplemented_intrinsic(),
@@ -2544,24 +2564,44 @@ fn generate_intrinsic_function(
         TextureCubeSample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::TexCube,
+                has_lod: false,
                 has_offset: false,
                 has_clamp: exprs.len() >= 4,
                 has_status: exprs.len() >= 5,
             }),
             context,
         ),
-        TextureCubeSampleLevel => unimplemented_intrinsic(),
+        TextureCubeSampleLevel => invoke_object_read_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::TexCube,
+                has_lod: true,
+                has_offset: false,
+                has_clamp: false,
+                has_status: exprs.len() >= 5,
+            }),
+            context,
+        ),
 
         TextureCubeArraySample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::TexCubeArray,
+                has_lod: false,
                 has_offset: false,
                 has_clamp: exprs.len() >= 4,
                 has_status: exprs.len() >= 5,
             }),
             context,
         ),
-        TextureCubeArraySampleLevel => unimplemented_intrinsic(),
+        TextureCubeArraySampleLevel => invoke_object_read_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::TexCubeArray,
+                has_lod: true,
+                has_offset: false,
+                has_clamp: false,
+                has_status: exprs.len() >= 5,
+            }),
+            context,
+        ),
 
         Texture3DGetDimensions => invoke_helper(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {
@@ -2583,6 +2623,7 @@ fn generate_intrinsic_function(
         Texture3DSample => invoke_object_read_helper(
             IntrinsicHelper::Sample(SampleHelper {
                 dim: Dim::Tex3D,
+                has_lod: false,
                 has_offset: exprs.len() >= 4,
                 has_clamp: exprs.len() >= 5,
                 has_status: exprs.len() >= 6,
@@ -2591,7 +2632,16 @@ fn generate_intrinsic_function(
         ),
         Texture3DSampleBias => unimplemented_intrinsic(),
         Texture3DSampleGrad => unimplemented_intrinsic(),
-        Texture3DSampleLevel => unimplemented_intrinsic(),
+        Texture3DSampleLevel => invoke_object_read_helper(
+            IntrinsicHelper::Sample(SampleHelper {
+                dim: Dim::Tex3D,
+                has_lod: true,
+                has_offset: exprs.len() >= 5,
+                has_clamp: false,
+                has_status: exprs.len() >= 6,
+            }),
+            context,
+        ),
 
         RWTexture3DGetDimensions => invoke_helper(
             IntrinsicHelper::GetDimensions(GetDimensionsHelper {

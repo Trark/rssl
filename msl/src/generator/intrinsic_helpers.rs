@@ -44,7 +44,13 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::GetDimensions(_) => "GetDimensions",
         IntrinsicHelper::Load(_) => "Load",
         IntrinsicHelper::Store(_) => "Store",
-        IntrinsicHelper::Sample(_) => "Sample",
+        IntrinsicHelper::Sample(config) => {
+            if config.has_lod {
+                "SampleLevel"
+            } else {
+                "Sample"
+            }
+        }
         IntrinsicHelper::AddressLoad => "Load",
         IntrinsicHelper::AddressStore => "Store",
         IntrinsicHelper::AddressAtomic(op) => op.get_helper_name(),
@@ -786,6 +792,7 @@ fn build_texture_store(dim: Dim) -> Result<ast::FunctionDefinition, GenerateErro
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SampleHelper {
     pub dim: Dim,
+    pub has_lod: bool,
     pub has_offset: bool,
     pub has_clamp: bool,
     pub has_status: bool,
@@ -834,6 +841,9 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::FunctionDefinition,
     ));
     params.push(build_param(build_sampler(), "s"));
     params.push(build_param(ast::Type::trivial(coord_type), "coord"));
+    if config.has_lod {
+        params.push(build_param(ast::Type::trivial("float"), "lod"));
+    }
     if config.has_offset() {
         params.push(build_param(ast::Type::trivial(offset_type), "offset"));
     }
@@ -867,6 +877,17 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::FunctionDefinition,
             ))),
             Vec::new(),
             Vec::from([build_expr_member("coord", "z")]),
+        )));
+    }
+    if config.has_lod {
+        sample_args.push(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                metal_lib_identifier("level"),
+            ))),
+            Vec::new(),
+            Vec::from([Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("lod"),
+            ))]),
         )));
     }
     if config.has_clamp() {
@@ -955,8 +976,14 @@ fn build_texture_sample(config: SampleHelper) -> Result<ast::FunctionDefinition,
         }])
     };
 
+    let name = if config.has_lod {
+        "SampleLevel"
+    } else {
+        "Sample"
+    };
+
     Ok(ast::FunctionDefinition {
-        name: Located::none(String::from("Sample")),
+        name: Located::none(String::from(name)),
         returntype: ast::FunctionReturn {
             return_type: build_vec("T", 4),
             location_annotations: Vec::new(),

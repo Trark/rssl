@@ -14,6 +14,9 @@ void test() {
     const float4 sample_offset = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int3(0, 0, 0));
     const float4 sample_clamp = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int3(0, 0, 0), 0.0);
     const float4 sample_status = g_input.Sample(g_sampler, float3(0.0, 0.0, 0.0), int3(0, 0, 0), 0.0, outInt);
+    const float4 sample_level_base = g_input.SampleLevel(g_sampler, float3(0.0, 0.0, 0.0), 1);
+    const float4 sample_level_offset = g_input.SampleLevel(g_sampler, float3(0.0, 0.0, 0.0), 1, int3(0, 0, 0));
+    const float4 sample_level_status = g_input.SampleLevel(g_sampler, float3(0.0, 0.0, 0.0), 1, int3(0, 0, 0), outInt);
 #if !RSSL_TARGET_MSL
     const float4 sample_bias_base = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0);
     const float4 sample_bias_offset = g_input.SampleBias(g_sampler, float3(0.0, 0.0, 0.0), 0.0, int3(0, 0, 0));

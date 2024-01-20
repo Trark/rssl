@@ -79,6 +79,23 @@ metal::vec<T, 4> Sample(metal::texture3d<T> texture, metal::sampler s, float3 co
     return color.value();
 }
 
+template<typename T>
+metal::vec<T, 4> SampleLevel(metal::texture3d<T> texture, metal::sampler s, float3 coord, float lod) {
+    return texture.sample(s, coord, metal::level(lod));
+}
+
+template<typename T>
+metal::vec<T, 4> SampleLevel(metal::texture3d<T> texture, metal::sampler s, float3 coord, float lod, int3 offset) {
+    return texture.sample(s, coord, metal::level(lod), offset);
+}
+
+template<typename T>
+metal::vec<T, 4> SampleLevel(metal::texture3d<T> texture, metal::sampler s, float3 coord, float lod, int3 offset, thread uint& status) {
+    metal::sparse_color<metal::vec<T, 4>> color = texture.sparse_sample(s, coord, metal::level(lod), offset);
+    status = color.resident();
+    return color.value();
+}
+
 template<size_t N>
 metal::vec<int, N + 1> make_signed_push_0(metal::vec<uint, N> coord) {
     return metal::vec<int, N + 1>(metal::vec<int, N>(coord), 0u);
@@ -98,6 +115,9 @@ void test(const metal::texture3d<float> g_input, const metal::texture3d<float, m
     const float4 sample_offset = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int3(0, 0, 0));
     const float4 sample_clamp = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int3(0, 0, 0), 0.0f);
     const float4 sample_status = helper::Sample(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), int3(0, 0, 0), 0.0f, outInt);
+    const float4 sample_level_base = helper::SampleLevel(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), 1.0f);
+    const float4 sample_level_offset = helper::SampleLevel(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), 1.0f, int3(0, 0, 0));
+    const float4 sample_level_status = helper::SampleLevel(g_input, (metal::sampler)g_sampler, float3(0.0f, 0.0f, 0.0f), 1.0f, int3(0, 0, 0), outInt);
     const float4 load_uav = helper::Load(g_output, int3(0, 0, 0));
     const float4 load_uav_status = helper::Load(g_output, int3(0, 0, 0), outInt);
     helper::Store(g_output, uint3(2u, 2u, 2u), helper::Store(g_output, uint3(1u, 1u, 1u), (float4)helper::Load(g_input, helper::make_signed_push_0(uint3(1u, 1u, 1u)))));
