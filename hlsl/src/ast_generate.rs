@@ -1469,8 +1469,8 @@ fn generate_expression(
                 &context.module.struct_registry[id.0 as usize].members[*member_index as usize];
             ast::Expression::Identifier(ast::ScopedIdentifier::trivial(&member_def.name))
         }
-        ir::Expression::Global(v) => ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
-            context.get_global_name(*v)?,
+        ir::Expression::Global(v) => ast::Expression::Identifier(scoped_name_to_identifier(
+            context.get_global_name_full(*v)?,
         )),
         ir::Expression::ConstantVariable(id) => {
             let def = &context.module.cbuffer_registry[id.0 .0 as usize].members[id.1 as usize];
@@ -2362,6 +2362,18 @@ impl<'m> GenerateContext<'m> {
             Ok(&def.name.node)
         } else {
             Ok(self.name_map.get_name_leaf(NameSymbol::GlobalVariable(id)))
+        }
+    }
+
+    /// Get the full name of a global variable
+    fn get_global_name_full(&self, id: ir::GlobalId) -> Result<ScopedName, GenerateError> {
+        let def = &self.module.global_registry[id.0 as usize];
+        if def.is_intrinsic {
+            Ok(ScopedName(Vec::from([def.name.node.clone()])))
+        } else {
+            Ok(self
+                .name_map
+                .get_name_qualified(NameSymbol::GlobalVariable(id)))
         }
     }
 
