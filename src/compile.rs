@@ -95,7 +95,13 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
     let mut output_pipelines = Vec::new();
 
     if args.no_pipeline_mode {
-        output_pipelines.push(build_pipeline(&args, &ir, &binding_params, None)?);
+        output_pipelines.push(build_pipeline(
+            &args,
+            &ir,
+            &binding_params,
+            None,
+            args.source_info,
+        )?);
     } else {
         for pipeline in &ir.pipelines {
             if let Some(name) = args.pipeline_name {
@@ -104,7 +110,13 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
                 }
             }
 
-            output_pipelines.push(build_pipeline(&args, &ir, &binding_params, Some(pipeline))?);
+            output_pipelines.push(build_pipeline(
+                &args,
+                &ir,
+                &binding_params,
+                Some(pipeline),
+                args.source_info,
+            )?);
         }
     }
 
@@ -134,6 +146,7 @@ fn build_pipeline(
     ir: &ir::Module,
     binding_params: &AssignBindingsParams,
     pipeline: Option<&ir::PipelineDefinition>,
+    source_info: bool,
 ) -> Result<CompiledPipeline, CompileError> {
     // Clone the ir to process the selected pipeline independently
     // The original ir is still references for pipeline metadata - which we do not expect to change
@@ -215,10 +228,22 @@ fn build_pipeline(
                     Err(err) => return Err(CompileError::MetalCompilerNotFound(err)),
                 };
 
-                let execute_result = native_compiler.execute(
-                    &exported_source.source,
-                    &["-std=metal3.1", "-include", "metal_stdlib"],
-                );
+                let mut source = exported_source.source;
+                let mut args = Vec::from(["-std=metal3.1"]);
+
+                if source_info {
+                    // Keep source information in the file so Xcode shader debugger can work
+                    args.push("-frecord-sources");
+
+                    // Include the metal standard library in source which improves the chance Xcode will work
+                    source = String::from("#include <metal_stdlib>\n\n") + &source;
+                } else {
+                    // Include the metal standard library the easy way
+                    args.push("-include");
+                    args.push("metal_stdlib");
+                }
+
+                let execute_result = native_compiler.execute(&source, &args);
 
                 match execute_result {
                     Ok(data) => data,
@@ -286,6 +311,7 @@ pub struct CompileArgs<'a> {
     support_buffer_address: bool,
     pipeline_name: Option<&'a str>,
     no_pipeline_mode: bool,
+    source_info: bool,
 }
 
 impl<'a> CompileArgs<'a> {
@@ -303,6 +329,7 @@ impl<'a> CompileArgs<'a> {
             support_buffer_address: false,
             pipeline_name: None,
             no_pipeline_mode: false,
+            source_info: false,
         }
     }
 
@@ -327,6 +354,12 @@ impl<'a> CompileArgs<'a> {
     /// Enable mode where shader sources can be generated without any pipeline definitions for testing
     pub fn no_pipeline_mode(mut self) -> Self {
         self.no_pipeline_mode = true;
+        self
+    }
+
+    // Ensure source information is preserved to assist shader debuggers
+    pub fn source_info(mut self, enabled: bool) -> Self {
+        self.source_info = enabled;
         self
     }
 }
