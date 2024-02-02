@@ -73,5 +73,13 @@ void test() {
     float2 saturate_2 = saturate(float2(0.0f, 0.0f));
     float3 saturate_3 = saturate(float3(0.0f, 0.0f, 0.0f));
     float4 saturate_4 = saturate(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float sqrt_1 = sqrt(0.0f);
+    float2 sqrt_2 = sqrt(float2(0.0f, 0.0f));
+    float3 sqrt_3 = sqrt(float3(0.0f, 0.0f, 0.0f));
+    float4 sqrt_4 = sqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float rsqrt_1 = rsqrt(0.0f);
+    float2 rsqrt_2 = rsqrt(float2(0.0f, 0.0f));
+    float3 rsqrt_3 = rsqrt(float3(0.0f, 0.0f, 0.0f));
+    float4 rsqrt_4 = rsqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
     uint non_uniform_resource_index = NonUniformResourceIndex(0u);
 }

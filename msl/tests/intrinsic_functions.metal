@@ -73,5 +73,13 @@ void test() {
     float2 saturate_2 = metal::saturate(float2(0.0f, 0.0f));
     float3 saturate_3 = metal::saturate(float3(0.0f, 0.0f, 0.0f));
     float4 saturate_4 = metal::saturate(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float sqrt_1 = metal::sqrt(0.0f);
+    float2 sqrt_2 = metal::sqrt(float2(0.0f, 0.0f));
+    float3 sqrt_3 = metal::sqrt(float3(0.0f, 0.0f, 0.0f));
+    float4 sqrt_4 = metal::sqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float rsqrt_1 = metal::rsqrt(0.0f);
+    float2 rsqrt_2 = metal::rsqrt(float2(0.0f, 0.0f));
+    float3 rsqrt_3 = metal::rsqrt(float3(0.0f, 0.0f, 0.0f));
+    float4 rsqrt_4 = metal::rsqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
     uint non_uniform_resource_index = 0u;
 }
