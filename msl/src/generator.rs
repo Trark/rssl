@@ -2129,17 +2129,17 @@ fn generate_intrinsic_function(
         Min => invoke_simple("min", context),
         Max => invoke_simple("max", context),
 
-        Step => unimplemented_intrinsic(),
+        Step => invoke_simple("step", context),
 
         Clamp => invoke_simple("clamp", context),
         Lerp => {
             // mix is undefined for blend values not in 0-1 range - but lerp is not
             invoke_simple("mix", context)
         }
-        SmoothStep => unimplemented_intrinsic(),
+        SmoothStep => invoke_simple("smoothstep", context),
 
-        Transpose => unimplemented_intrinsic(),
-        Determinant => unimplemented_intrinsic(),
+        Transpose => invoke_simple("transpose", context),
+        Determinant => invoke_simple("determinant", context),
 
         DDX | DDXFine => invoke_simple("dfdx", context),
         DDXCoarse => Err(GenerateError::UnsupportedIntrinsic("ddx_coarse")),

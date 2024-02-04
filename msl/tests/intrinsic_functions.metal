@@ -73,6 +73,10 @@ void test() {
     float2 saturate_2 = metal::saturate(float2(0.0f, 0.0f));
     float3 saturate_3 = metal::saturate(float3(0.0f, 0.0f, 0.0f));
     float4 saturate_4 = metal::saturate(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float smoothstep_f1 = metal::smoothstep(0.0f, 0.0f, 0.0f);
+    float2 smoothstep_f2 = metal::smoothstep(float2(0.0f, 0.0f), float2(0.0f, 0.0f), float2(0.0f, 0.0f));
+    float3 smoothstep_f3 = metal::smoothstep(float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f));
+    float4 smoothstep_f4 = metal::smoothstep(float4(0.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 0.0f, 0.0f));
     float sqrt_1 = metal::sqrt(0.0f);
     float2 sqrt_2 = metal::sqrt(float2(0.0f, 0.0f));
     float3 sqrt_3 = metal::sqrt(float3(0.0f, 0.0f, 0.0f));
@@ -81,6 +85,16 @@ void test() {
     float2 rsqrt_2 = metal::rsqrt(float2(0.0f, 0.0f));
     float3 rsqrt_3 = metal::rsqrt(float3(0.0f, 0.0f, 0.0f));
     float4 rsqrt_4 = metal::rsqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float step_f1 = metal::step(0.0f, 0.0f);
+    float2 step_f2 = metal::step(float2(0.0f, 0.0f), float2(0.0f, 0.0f));
+    float3 step_f3 = metal::step(float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f));
+    float4 step_f4 = metal::step(float4(0.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 0.0f, 0.0f));
+    metal::float2x2 transpose_f2x2 = metal::transpose(metal::float2x2(0.0f, 0.0f, 0.0f, 0.0f));
+    metal::float3x3 transpose_f3x3 = metal::transpose(metal::float3x3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    metal::float4x4 transpose_f4x4 = metal::transpose(metal::float4x4(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    float determinant_f2x2 = metal::determinant(metal::float2x2(0.0f, 0.0f, 0.0f, 0.0f));
+    float determinant_f3x3 = metal::determinant(metal::float3x3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    float determinant_f4x4 = metal::determinant(metal::float4x4(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
     float ddx_f1 = metal::dfdx(0.0f);
     float2 ddx_f2 = metal::dfdx(float2(0.0f, 0.0f));
     float3 ddx_f3 = metal::dfdx(float3(0.0f, 0.0f, 0.0f));
