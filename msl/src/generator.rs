@@ -2074,11 +2074,11 @@ fn generate_intrinsic_function(
             Ok(ast)
         }
 
-        Reflect => unimplemented_intrinsic(),
-        Refract => unimplemented_intrinsic(),
+        Reflect => invoke_simple("reflect", context),
+        Refract => invoke_simple("refract", context),
 
-        CountBits => unimplemented_intrinsic(),
-        ReverseBits => unimplemented_intrinsic(),
+        CountBits => invoke_simple("popcount", context),
+        ReverseBits => invoke_simple("reverse_bits", context),
         FirstBitHigh => unimplemented_intrinsic(),
         FirstBitLow => unimplemented_intrinsic(),
 
