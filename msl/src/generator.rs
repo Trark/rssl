@@ -1995,10 +1995,32 @@ fn generate_intrinsic_function(
         GroupMemoryBarrier => unimplemented_intrinsic(),
         GroupMemoryBarrierWithGroupSync => unimplemented_intrinsic(),
 
-        AsInt => unimplemented_intrinsic(),
-        AsUInt => unimplemented_intrinsic(),
-        AsFloat => unimplemented_intrinsic(),
-        AsDouble => unimplemented_intrinsic(),
+        AsInt | AsUInt | AsFloat => {
+            // Get the target type we will cast to
+            let ety = match exprs[0].get_type(context.module) {
+                Ok(ety) => ety,
+                Err(_) => return Err(GenerateError::InvalidModule),
+            };
+            let ty = context.module.type_registry.remove_modifier(ety.0);
+            let ty = context.module.type_registry.transform_scalar(
+                ty,
+                match intrinsic {
+                    AsInt => ir::ScalarType::Int32,
+                    AsUInt => ir::ScalarType::UInt32,
+                    AsFloat => ir::ScalarType::Float32,
+                    _ => unreachable!(),
+                },
+            );
+            let target = generate_type_id(ty, context)?;
+
+            let object = Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("as_type"),
+            )));
+            let type_args = Vec::from([ast::ExpressionOrType::Type(target)]);
+            let args = generate_invocation_args(exprs, context)?;
+            Ok(ast::Expression::Call(object, type_args, args))
+        }
+        AsDouble => Err(GenerateError::UnsupportedIntrinsic("asdouble")),
 
         All => invoke_simple("all", context),
         Any => invoke_simple("any", context),

@@ -18,6 +18,7 @@ pub const STAGE_INPUT_NAME_LOCAL: &str = "in";
 /// List of names we want to avoid in the generated code
 pub const RESERVED_NAMES: &[&str] = &[
     "and",
+    "as_type",
     "auto",
     "break",
     "case",
