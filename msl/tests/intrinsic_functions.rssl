@@ -222,4 +222,17 @@ void test() {
     float3 ddy_fine_f3 = ddy_fine(float3(0.0f, 0.0f, 0.0f));
     float4 ddy_fine_f4 = ddy_fine(float4(0.0f, 0.0f, 0.0f, 0.0f));
     uint non_uniform_resource_index = NonUniformResourceIndex(0u);
+    bool is_first = WaveIsFirstLane();
+    bool any_true = WaveActiveAnyTrue(true);
+    bool all_true = WaveActiveAllTrue(true);
+    float3 wave_read_lane_first_f3 = WaveReadLaneFirst(float3(0.0f, 0.0f, 0.0f));
+    float3 wave_active_sum_f3 = WaveActiveSum(float3(0.0f, 0.0f, 0.0f));
+    float3 wave_active_product_f3 = WaveActiveProduct(float3(0.0f, 0.0f, 0.0f));
+    uint3 wave_active_bitand_u3 = WaveActiveBitAnd(uint3(0u, 0u, 0u));
+    uint3 wave_active_bitor_u3 = WaveActiveBitOr(uint3(0u, 0u, 0u));
+    uint3 wave_active_bitxor_u3 = WaveActiveBitXor(uint3(0u, 0u, 0u));
+    float3 wave_active_min_f3 = WaveActiveMin(float3(0.0f, 0.0f, 0.0f));
+    float3 wave_active_max_f3 = WaveActiveMax(float3(0.0f, 0.0f, 0.0f));
+    float3 wave_prefix_product_f3 = WavePrefixProduct(float3(0.0f, 0.0f, 0.0f));
+    float3 wave_prefix_sum_f3 = WavePrefixSum(float3(0.0f, 0.0f, 0.0f));
 }
