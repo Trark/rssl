@@ -2045,9 +2045,9 @@ fn generate_intrinsic_function(
         Modf => unimplemented_intrinsic(),
         Fmod => unimplemented_intrinsic(),
 
-        IsNaN => unimplemented_intrinsic(),
-        IsInfinite => unimplemented_intrinsic(),
-        IsFinite => unimplemented_intrinsic(),
+        IsNaN => invoke_simple("isnan", context),
+        IsInfinite => invoke_simple("isinf", context),
+        IsFinite => invoke_simple("isfinite", context),
 
         Length => {
             if !expression_is_vector(&exprs[0], context)? {
