@@ -2084,7 +2084,40 @@ fn generate_intrinsic_function(
 
         Saturate => invoke_simple("saturate", context),
 
-        Sign => unimplemented_intrinsic(),
+        Sign => {
+            let ety = match exprs[0].get_type(context.module) {
+                Ok(ety) => ety,
+                Err(_) => return Err(GenerateError::InvalidModule),
+            };
+            let ty = context.module.type_registry.remove_modifier(ety.0);
+            let scalar = context.module.type_registry.extract_scalar(ty);
+            let expr_float = match scalar {
+                Some(ir::ScalarType::Float32) => invoke_simple("sign", context)?,
+                Some(ir::ScalarType::Int32) => {
+                    let identifier = metal_lib_identifier("sign");
+                    let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+                    let arg = Located::none(generate_expression(&exprs[0], context)?);
+                    let source_type = context
+                        .module
+                        .type_registry
+                        .transform_scalar(ty, ir::ScalarType::Float32);
+                    let source = generate_type_id(source_type, context)?;
+                    let arg = ast::Expression::Cast(Box::new(source), Box::new(arg));
+                    ast::Expression::Call(object, Vec::new(), Vec::from([Located::none(arg)]))
+                }
+                _ => return Err(GenerateError::InvalidModule),
+            };
+
+            let target_type = context
+                .module
+                .type_registry
+                .transform_scalar(ty, ir::ScalarType::Int32);
+            let target = generate_type_id(target_type, context)?;
+            Ok(ast::Expression::Cast(
+                Box::new(target),
+                Box::new(Located::none(expr_float)),
+            ))
+        }
 
         Cross => invoke_simple("cross", context),
         Distance => {

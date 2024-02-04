@@ -73,6 +73,14 @@ void test() {
     float2 saturate_2 = saturate(float2(0.0f, 0.0f));
     float3 saturate_3 = saturate(float3(0.0f, 0.0f, 0.0f));
     float4 saturate_4 = saturate(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    int sign_i1 = sign(0);
+    int2 sign_i2 = sign(int2(0, 0));
+    int3 sign_i3 = sign(int3(0, 0, 0));
+    int4 sign_i4 = sign(int4(0, 0, 0, 0));
+    int sign_f1 = sign(0.0f);
+    int2 sign_f2 = sign(float2(0.0f, 0.0f));
+    int3 sign_f3 = sign(float3(0.0f, 0.0f, 0.0f));
+    int4 sign_f4 = sign(float4(0.0f, 0.0f, 0.0f, 0.0f));
     float smoothstep_f1 = smoothstep(0.0f, 0.0f, 0.0f);
     float2 smoothstep_f2 = smoothstep(float2(0.0f, 0.0f), float2(0.0f, 0.0f), float2(0.0f, 0.0f));
     float3 smoothstep_f3 = smoothstep(float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f));

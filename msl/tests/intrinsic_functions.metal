@@ -73,6 +73,14 @@ void test() {
     float2 saturate_2 = metal::saturate(float2(0.0f, 0.0f));
     float3 saturate_3 = metal::saturate(float3(0.0f, 0.0f, 0.0f));
     float4 saturate_4 = metal::saturate(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    int sign_i1 = (int)metal::sign((float)0);
+    int2 sign_i2 = (int2)metal::sign((float2)int2(0, 0));
+    int3 sign_i3 = (int3)metal::sign((float3)int3(0, 0, 0));
+    int4 sign_i4 = (int4)metal::sign((float4)int4(0, 0, 0, 0));
+    int sign_f1 = (int)metal::sign(0.0f);
+    int2 sign_f2 = (int2)metal::sign(float2(0.0f, 0.0f));
+    int3 sign_f3 = (int3)metal::sign(float3(0.0f, 0.0f, 0.0f));
+    int4 sign_f4 = (int4)metal::sign(float4(0.0f, 0.0f, 0.0f, 0.0f));
     float smoothstep_f1 = metal::smoothstep(0.0f, 0.0f, 0.0f);
     float2 smoothstep_f2 = metal::smoothstep(float2(0.0f, 0.0f), float2(0.0f, 0.0f), float2(0.0f, 0.0f));
     float3 smoothstep_f3 = metal::smoothstep(float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f));
