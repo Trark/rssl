@@ -73,6 +73,9 @@ pub enum GenerateError {
     /// Object type has no known descriptor type mapping
     UnsupportedObjectType,
 
+    /// Intrinsic is not supported is the Metal target
+    UnsupportedIntrinsic(&'static str),
+
     /// Metal does not have a native matrix swizzle so we would need to decompose into components to reconstruct the same behaviour
     UnimplementedMatrixSwizzle,
 
@@ -2138,12 +2141,10 @@ fn generate_intrinsic_function(
         Transpose => unimplemented_intrinsic(),
         Determinant => unimplemented_intrinsic(),
 
-        DDX => unimplemented_intrinsic(),
-        DDXCoarse => unimplemented_intrinsic(),
-        DDXFine => unimplemented_intrinsic(),
-        DDY => unimplemented_intrinsic(),
-        DDYCoarse => unimplemented_intrinsic(),
-        DDYFine => unimplemented_intrinsic(),
+        DDX | DDXFine => invoke_simple("dfdx", context),
+        DDXCoarse => Err(GenerateError::UnsupportedIntrinsic("ddx_coarse")),
+        DDY | DDYFine => invoke_simple("dfdy", context),
+        DDYCoarse => Err(GenerateError::UnsupportedIntrinsic("ddy_coarse")),
 
         InterlockedAdd => unimplemented_intrinsic(),
         InterlockedAnd => unimplemented_intrinsic(),

@@ -81,5 +81,21 @@ void test() {
     float2 rsqrt_2 = rsqrt(float2(0.0f, 0.0f));
     float3 rsqrt_3 = rsqrt(float3(0.0f, 0.0f, 0.0f));
     float4 rsqrt_4 = rsqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddx_f1 = ddx(0.0f);
+    float2 ddx_f2 = ddx(float2(0.0f, 0.0f));
+    float3 ddx_f3 = ddx(float3(0.0f, 0.0f, 0.0f));
+    float4 ddx_f4 = ddx(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddx_fine_f1 = ddx_fine(0.0f);
+    float2 ddx_fine_f2 = ddx_fine(float2(0.0f, 0.0f));
+    float3 ddx_fine_f3 = ddx_fine(float3(0.0f, 0.0f, 0.0f));
+    float4 ddx_fine_f4 = ddx_fine(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddy_f1 = ddy(0.0f);
+    float2 ddy_f2 = ddy(float2(0.0f, 0.0f));
+    float3 ddy_f3 = ddy(float3(0.0f, 0.0f, 0.0f));
+    float4 ddy_f4 = ddy(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddy_fine_f1 = ddy_fine(0.0f);
+    float2 ddy_fine_f2 = ddy_fine(float2(0.0f, 0.0f));
+    float3 ddy_fine_f3 = ddy_fine(float3(0.0f, 0.0f, 0.0f));
+    float4 ddy_fine_f4 = ddy_fine(float4(0.0f, 0.0f, 0.0f, 0.0f));
     uint non_uniform_resource_index = NonUniformResourceIndex(0u);
 }

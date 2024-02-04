@@ -81,5 +81,21 @@ void test() {
     float2 rsqrt_2 = metal::rsqrt(float2(0.0f, 0.0f));
     float3 rsqrt_3 = metal::rsqrt(float3(0.0f, 0.0f, 0.0f));
     float4 rsqrt_4 = metal::rsqrt(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddx_f1 = metal::dfdx(0.0f);
+    float2 ddx_f2 = metal::dfdx(float2(0.0f, 0.0f));
+    float3 ddx_f3 = metal::dfdx(float3(0.0f, 0.0f, 0.0f));
+    float4 ddx_f4 = metal::dfdx(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddx_fine_f1 = metal::dfdx(0.0f);
+    float2 ddx_fine_f2 = metal::dfdx(float2(0.0f, 0.0f));
+    float3 ddx_fine_f3 = metal::dfdx(float3(0.0f, 0.0f, 0.0f));
+    float4 ddx_fine_f4 = metal::dfdx(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddy_f1 = metal::dfdy(0.0f);
+    float2 ddy_f2 = metal::dfdy(float2(0.0f, 0.0f));
+    float3 ddy_f3 = metal::dfdy(float3(0.0f, 0.0f, 0.0f));
+    float4 ddy_f4 = metal::dfdy(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float ddy_fine_f1 = metal::dfdy(0.0f);
+    float2 ddy_fine_f2 = metal::dfdy(float2(0.0f, 0.0f));
+    float3 ddy_fine_f3 = metal::dfdy(float3(0.0f, 0.0f, 0.0f));
+    float4 ddy_fine_f4 = metal::dfdy(float4(0.0f, 0.0f, 0.0f, 0.0f));
     uint non_uniform_resource_index = 0u;
 }
