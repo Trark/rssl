@@ -80,3 +80,11 @@ fn check_bindless() {
         include_str!("basic/bindless.metal"),
     );
 }
+
+#[test]
+fn check_wave_intrinsics() {
+    check_msl(
+        include_str!("basic/wave_intrinsics.rssl"),
+        include_str!("basic/wave_intrinsics.metal"),
+    );
+}

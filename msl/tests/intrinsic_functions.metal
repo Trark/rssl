@@ -254,17 +254,4 @@ void test() {
     float3 ddy_fine_f3 = metal::dfdy(float3(0.0f, 0.0f, 0.0f));
     float4 ddy_fine_f4 = metal::dfdy(float4(0.0f, 0.0f, 0.0f, 0.0f));
     uint non_uniform_resource_index = 0u;
-    bool is_first = metal::simd_is_first();
-    bool any_true = metal::simd_any(true);
-    bool all_true = metal::simd_all(true);
-    float3 wave_read_lane_first_f3 = metal::simd_broadcast_first(float3(0.0f, 0.0f, 0.0f));
-    float3 wave_active_sum_f3 = metal::simd_sum(float3(0.0f, 0.0f, 0.0f));
-    float3 wave_active_product_f3 = metal::simd_product(float3(0.0f, 0.0f, 0.0f));
-    uint3 wave_active_bitand_u3 = metal::simd_and(uint3(0u, 0u, 0u));
-    uint3 wave_active_bitor_u3 = metal::simd_or(uint3(0u, 0u, 0u));
-    uint3 wave_active_bitxor_u3 = metal::simd_xor(uint3(0u, 0u, 0u));
-    float3 wave_active_min_f3 = metal::simd_min(float3(0.0f, 0.0f, 0.0f));
-    float3 wave_active_max_f3 = metal::simd_max(float3(0.0f, 0.0f, 0.0f));
-    float3 wave_prefix_product_f3 = metal::simd_prefix_exclusive_product(float3(0.0f, 0.0f, 0.0f));
-    float3 wave_prefix_sum_f3 = metal::simd_prefix_exclusive_sum(float3(0.0f, 0.0f, 0.0f));
 }

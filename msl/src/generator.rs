@@ -304,7 +304,21 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                     context.global_variable_modes.get(gid).unwrap(),
                     GlobalMode::Constant
                 ) {
-                    required_globals.push(*gid);
+                    required_globals.push(ImplicitFunctionParameter::Global(*gid));
+                }
+            }
+
+            if let ir::usage_analysis::UsageSymbol::Function(id) = symbol {
+                if let Some(intrinsic) = context.module.function_registry.get_intrinsic_data(*id) {
+                    match intrinsic {
+                        ir::Intrinsic::WaveGetLaneCount => {
+                            required_globals.push(ImplicitFunctionParameter::ThreadsPerSimdgroup)
+                        }
+                        ir::Intrinsic::WaveGetLaneIndex => {
+                            required_globals.push(ImplicitFunctionParameter::ThreadIndexInSimdgroup)
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -607,12 +621,34 @@ fn generate_function_inner(
 
     // Parameters for implementing global variables come after the normal parameters
     let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
-    for gid in parameters_for_globals {
-        match context.global_variable_modes.get(gid).unwrap() {
-            GlobalMode::Parameter { param, .. } => {
-                params.push(param.clone());
+    for param in parameters_for_globals {
+        match param {
+            ImplicitFunctionParameter::ThreadIndexInSimdgroup => params.push(ast::FunctionParam {
+                param_type: ast::Type::from("uint"),
+                declarator: ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial("thread_index_in_simdgroup"),
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
+                default_expr: None,
+            }),
+            ImplicitFunctionParameter::ThreadsPerSimdgroup => params.push(ast::FunctionParam {
+                param_type: ast::Type::from("uint"),
+                declarator: ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
+                default_expr: None,
+            }),
+            ImplicitFunctionParameter::Global(gid) => {
+                match context.global_variable_modes.get(gid).unwrap() {
+                    GlobalMode::Parameter { param, .. } => {
+                        params.push(param.clone());
+                    }
+                    GlobalMode::Constant => panic!("global does not require a parameter"),
+                }
             }
-            GlobalMode::Constant => panic!("global does not require a parameter"),
         }
     }
 
@@ -1938,12 +1974,18 @@ fn generate_user_call(
 
     // Add arguments for passing global variable references into subfunctions
     let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
-    for gid in parameters_for_globals {
-        match context.global_variable_modes.get(gid).unwrap() {
-            GlobalMode::Parameter { argument, .. } => {
-                args.push(Located::none(argument.clone()));
+    for param in parameters_for_globals {
+        match param {
+            ImplicitFunctionParameter::ThreadIndexInSimdgroup => todo!(),
+            ImplicitFunctionParameter::ThreadsPerSimdgroup => todo!(),
+            ImplicitFunctionParameter::Global(gid) => {
+                match context.global_variable_modes.get(gid).unwrap() {
+                    GlobalMode::Parameter { argument, .. } => {
+                        args.push(Located::none(argument.clone()));
+                    }
+                    GlobalMode::Constant => panic!("global does not require a parameter"),
+                }
             }
-            GlobalMode::Constant => panic!("global does not require a parameter"),
         }
     }
 
@@ -2219,8 +2261,12 @@ fn generate_intrinsic_function(
             Ok(index)
         }
 
-        WaveGetLaneCount => unimplemented_intrinsic(),
-        WaveGetLaneIndex => unimplemented_intrinsic(),
+        WaveGetLaneCount => Ok(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+            "threads_per_simdgroup",
+        ))),
+        WaveGetLaneIndex => Ok(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+            "thread_index_in_simdgroup",
+        ))),
         WaveIsFirstLane => invoke_simple("simd_is_first", context),
         WaveActiveAnyTrue => invoke_simple("simd_any", context),
         WaveActiveAllTrue => invoke_simple("simd_all", context),
@@ -3453,8 +3499,16 @@ pub(crate) struct GenerateContext<'m> {
     module: &'m ir::Module,
     name_map: NameMap,
     global_variable_modes: HashMap<ir::GlobalId, GlobalMode>,
-    function_required_globals: HashMap<ir::FunctionId, Vec<ir::GlobalId>>,
+    function_required_globals: HashMap<ir::FunctionId, Vec<ImplicitFunctionParameter>>,
     required_helpers: HashMap<Option<IntrinsicObject>, HashSet<IntrinsicHelper>>,
+}
+
+/// A function parameter that is added to supply global state
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ImplicitFunctionParameter {
+    ThreadIndexInSimdgroup,
+    ThreadsPerSimdgroup,
+    Global(ir::GlobalId),
 }
 
 impl<'m> GenerateContext<'m> {

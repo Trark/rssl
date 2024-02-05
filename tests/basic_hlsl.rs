@@ -90,3 +90,11 @@ fn check_bindless() {
         include_str!("basic/bindless.vk.hlsl"),
     );
 }
+
+#[test]
+fn check_wave_intrinsics() {
+    check_hlsl(
+        include_str!("basic/wave_intrinsics.rssl"),
+        include_str!("basic/wave_intrinsics.hlsl"),
+    );
+}

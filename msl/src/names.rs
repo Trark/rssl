@@ -89,6 +89,9 @@ pub const RESERVED_NAMES: &[&str] = &[
     "fragment",
     // Reserve the name of the standard library namespace everywhere
     "metal",
+    // Attributes which we also use as generated variable names
+    "thread_index_in_simdgroup",
+    "threads_per_simdgroup",
     // Names used by symbols generated in the generator
     HELPER_NAMESPACE_NAME,
     // Names used for entry point generation

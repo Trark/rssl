@@ -8,6 +8,7 @@ use rssl_text::{Located, SourceLocation};
 use super::{
     generate_function_param, generate_semantic_annotation, generate_type,
     scoped_name_to_identifier, GenerateContext, GenerateError, GlobalMode,
+    ImplicitFunctionParameter,
 };
 use crate::names::*;
 
@@ -35,7 +36,8 @@ pub(crate) fn generate_pipeline(
     // Mark all bindings as used / unused
     for argument_buffer in &mut binding_layout.0 {
         for argument in &mut argument_buffer.0 {
-            argument.metadata.is_used = all_used_globals.contains(&argument.id);
+            argument.metadata.is_used =
+                all_used_globals.contains(&ImplicitFunctionParameter::Global(argument.id));
         }
     }
 
@@ -295,87 +297,140 @@ pub(crate) fn generate_pipeline(
                 .function_required_globals
                 .get(&stage.entry_point)
                 .unwrap();
-            for gid in parameters_for_globals {
-                match context.module.global_registry[gid.0 as usize].storage_class {
-                    ir::GlobalStorage::Extern => match context
-                        .global_variable_modes
-                        .get(gid)
-                        .unwrap()
-                    {
-                        GlobalMode::Parameter { .. } => {
-                            let set_index = global_to_set_index.get(gid).unwrap();
-                            let member_expr = ast::Expression::Member(
-                                Box::new(Located::none(ast::Expression::Identifier(
-                                    ast::ScopedIdentifier::trivial(&format!("set{}", set_index)),
-                                ))),
-                                ast::ScopedIdentifier::trivial(
-                                    context.get_global_name(*gid).unwrap(),
-                                ),
-                            );
-                            args.push(Located::none(member_expr));
-                        }
-                        GlobalMode::Constant => panic!("global does not require a parameter"),
-                    },
-                    ir::GlobalStorage::Static => {
-                        match context.global_variable_modes.get(gid).unwrap() {
-                            GlobalMode::Parameter {
-                                base_type,
-                                base_declarator,
-                                init,
-                                ..
-                            } => {
-                                let name = context.get_global_name(*gid).unwrap();
+            for param in parameters_for_globals {
+                match param {
+                    ImplicitFunctionParameter::ThreadIndexInSimdgroup => {
+                        entry_params.push(ast::FunctionParam {
+                            param_type: ast::Type::from("uint"),
+                            declarator: ast::Declarator::Identifier(
+                                ast::ScopedIdentifier::trivial("thread_index_in_simdgroup"),
+                                Vec::from([ast::Attribute {
+                                    name: Vec::from([Located::none(String::from(
+                                        "thread_index_in_simdgroup",
+                                    ))]),
+                                    arguments: Vec::new(),
+                                    two_square_brackets: true,
+                                }]),
+                            ),
+                            location_annotations: Vec::new(),
+                            default_expr: None,
+                        });
 
-                                body.push(ast::Statement {
-                                    kind: ast::StatementKind::Var(ast::VarDef {
-                                        local_type: base_type.clone(),
-                                        defs: Vec::from([ast::InitDeclarator {
-                                            declarator: base_declarator.clone(),
-                                            location_annotations: Vec::new(),
-                                            init: init.clone(),
-                                        }]),
-                                    }),
-                                    location: SourceLocation::UNKNOWN,
-                                    attributes: Vec::new(),
-                                });
-
-                                let member_expr = ast::Expression::Identifier(
-                                    ast::ScopedIdentifier::trivial(name),
-                                );
-                                args.push(Located::none(member_expr));
-                            }
-                            GlobalMode::Constant => panic!("static does not require a parameter"),
-                        }
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial("thread_index_in_simdgroup"),
+                        )));
                     }
-                    ir::GlobalStorage::GroupShared => {
-                        match context.global_variable_modes.get(gid).unwrap() {
-                            GlobalMode::Parameter {
-                                base_type,
-                                base_declarator,
-                                init,
-                                ..
-                            } => {
-                                let name = context.get_global_name(*gid).unwrap();
+                    ImplicitFunctionParameter::ThreadsPerSimdgroup => {
+                        entry_params.push(ast::FunctionParam {
+                            param_type: ast::Type::from("uint"),
+                            declarator: ast::Declarator::Identifier(
+                                ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
+                                Vec::from([ast::Attribute {
+                                    name: Vec::from([Located::none(String::from(
+                                        "threads_per_simdgroup",
+                                    ))]),
+                                    arguments: Vec::new(),
+                                    two_square_brackets: true,
+                                }]),
+                            ),
+                            location_annotations: Vec::new(),
+                            default_expr: None,
+                        });
 
-                                body.push(ast::Statement {
-                                    kind: ast::StatementKind::Var(ast::VarDef {
-                                        local_type: base_type.clone(),
-                                        defs: Vec::from([ast::InitDeclarator {
-                                            declarator: base_declarator.clone(),
-                                            location_annotations: Vec::new(),
-                                            init: init.clone(),
-                                        }]),
-                                    }),
-                                    location: SourceLocation::UNKNOWN,
-                                    attributes: Vec::new(),
-                                });
-
-                                let member_expr = ast::Expression::Identifier(
-                                    ast::ScopedIdentifier::trivial(name),
-                                );
-                                args.push(Located::none(member_expr));
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
+                        )));
+                    }
+                    ImplicitFunctionParameter::Global(ref gid) => {
+                        match context.module.global_registry[gid.0 as usize].storage_class {
+                            ir::GlobalStorage::Extern => {
+                                match context.global_variable_modes.get(gid).unwrap() {
+                                    GlobalMode::Parameter { .. } => {
+                                        let set_index = global_to_set_index.get(gid).unwrap();
+                                        let member_expr = ast::Expression::Member(
+                                            Box::new(Located::none(ast::Expression::Identifier(
+                                                ast::ScopedIdentifier::trivial(&format!(
+                                                    "set{}",
+                                                    set_index
+                                                )),
+                                            ))),
+                                            ast::ScopedIdentifier::trivial(
+                                                context.get_global_name(*gid).unwrap(),
+                                            ),
+                                        );
+                                        args.push(Located::none(member_expr));
+                                    }
+                                    GlobalMode::Constant => {
+                                        panic!("global does not require a parameter")
+                                    }
+                                }
                             }
-                            GlobalMode::Constant => panic!("static does not require a parameter"),
+                            ir::GlobalStorage::Static => {
+                                match context.global_variable_modes.get(gid).unwrap() {
+                                    GlobalMode::Parameter {
+                                        base_type,
+                                        base_declarator,
+                                        init,
+                                        ..
+                                    } => {
+                                        let name = context.get_global_name(*gid).unwrap();
+
+                                        body.push(ast::Statement {
+                                            kind: ast::StatementKind::Var(ast::VarDef {
+                                                local_type: base_type.clone(),
+                                                defs: Vec::from([ast::InitDeclarator {
+                                                    declarator: base_declarator.clone(),
+                                                    location_annotations: Vec::new(),
+                                                    init: init.clone(),
+                                                }]),
+                                            }),
+                                            location: SourceLocation::UNKNOWN,
+                                            attributes: Vec::new(),
+                                        });
+
+                                        let member_expr = ast::Expression::Identifier(
+                                            ast::ScopedIdentifier::trivial(name),
+                                        );
+                                        args.push(Located::none(member_expr));
+                                    }
+                                    GlobalMode::Constant => {
+                                        panic!("static does not require a parameter")
+                                    }
+                                }
+                            }
+                            ir::GlobalStorage::GroupShared => {
+                                match context.global_variable_modes.get(gid).unwrap() {
+                                    GlobalMode::Parameter {
+                                        base_type,
+                                        base_declarator,
+                                        init,
+                                        ..
+                                    } => {
+                                        let name = context.get_global_name(*gid).unwrap();
+
+                                        body.push(ast::Statement {
+                                            kind: ast::StatementKind::Var(ast::VarDef {
+                                                local_type: base_type.clone(),
+                                                defs: Vec::from([ast::InitDeclarator {
+                                                    declarator: base_declarator.clone(),
+                                                    location_annotations: Vec::new(),
+                                                    init: init.clone(),
+                                                }]),
+                                            }),
+                                            location: SourceLocation::UNKNOWN,
+                                            attributes: Vec::new(),
+                                        });
+
+                                        let member_expr = ast::Expression::Identifier(
+                                            ast::ScopedIdentifier::trivial(name),
+                                        );
+                                        args.push(Located::none(member_expr));
+                                    }
+                                    GlobalMode::Constant => {
+                                        panic!("static does not require a parameter")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
