@@ -813,7 +813,9 @@ fn generate_semantic_annotation(
             GroupId => "threadgroup_position_in_grid",
             GroupIndex => "thread_index_in_threadgroup",
             GroupThreadId => "thread_position_in_threadgroup",
+            // This will include the base vertex - which is consistent with Vulkan but inconsistent with DirectX
             VertexId => "vertex_id",
+            // This will include the base instance - which is consistent with Vulkan but inconsistent with DirectX
             InstanceId => "instance_id",
             PrimitiveId => "primitive_id",
             Position => "position",
