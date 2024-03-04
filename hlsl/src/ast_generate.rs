@@ -2031,7 +2031,7 @@ fn generate_intrinsic_function(
 /// Write out an intrinsic operator expression
 fn generate_intrinsic_op(
     intrinsic: &ir::IntrinsicOp,
-    exprs: &Vec<ir::Expression>,
+    exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
     enum Form {

@@ -23,7 +23,7 @@ impl From<InputModifier> for ValueType {
 }
 
 /// Reduce value type of a swizzle if it uses the same slot multiple times
-pub fn get_swizzle_value_type(swizzle: &Vec<SwizzleSlot>, vt: ValueType) -> ValueType {
+pub fn get_swizzle_value_type(swizzle: &[SwizzleSlot], vt: ValueType) -> ValueType {
     for i in 0..swizzle.len() {
         for j in 0..i {
             if swizzle[i] == swizzle[j] {
@@ -35,7 +35,7 @@ pub fn get_swizzle_value_type(swizzle: &Vec<SwizzleSlot>, vt: ValueType) -> Valu
 }
 
 /// Reduce value type of a matrix swizzle if it uses the same slot multiple times
-pub fn get_matrix_swizzle_value_type(swizzle: &Vec<MatrixSwizzleSlot>, vt: ValueType) -> ValueType {
+pub fn get_matrix_swizzle_value_type(swizzle: &[MatrixSwizzleSlot], vt: ValueType) -> ValueType {
     for i in 0..swizzle.len() {
         for j in 0..i {
             if swizzle[i] == swizzle[j] {

@@ -1999,7 +1999,7 @@ fn generate_user_call(
 fn generate_intrinsic_function(
     intrinsic: &ir::Intrinsic,
     tys: &[ir::TypeOrConstant],
-    exprs: &Vec<ir::Expression>,
+    exprs: &[ir::Expression],
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
     let unimplemented_intrinsic = || {
@@ -3198,7 +3198,7 @@ fn generate_byte_buffer_atomic(
 /// Write out an intrinsic operator expression
 fn generate_intrinsic_op(
     intrinsic: &ir::IntrinsicOp,
-    exprs: &Vec<ir::Expression>,
+    exprs: &[ir::Expression],
     output_type: ir::TypeId,
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
