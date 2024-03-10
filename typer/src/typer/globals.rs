@@ -192,6 +192,8 @@ pub fn parse_rootdefinition_constantbuffer(
     cb: &ast::ConstantBuffer,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
+    let attribute_result = parse_attributes_for_global(&cb.attributes, context)?;
+
     let cb_name = cb.name.clone();
     let mut members = Vec::new();
     for member in &cb.members {
@@ -298,6 +300,18 @@ pub fn parse_rootdefinition_constantbuffer(
             }
         }
     }
+
+    // Override binding index with value from attribute
+    if let Some(binding_index) = attribute_result.binding_index_override {
+        cb_ir.lang_binding.index = Some(binding_index);
+    }
+
+    // Override binding group with value from attribute
+    if let Some(binding_group) = attribute_result.binding_group_override {
+        cb_ir.lang_binding.set = Some(binding_group);
+    }
+
+    assert!(!attribute_result.is_bindless);
 
     cb_ir.members = members;
 
