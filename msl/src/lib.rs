@@ -53,3 +53,21 @@ pub enum ExportError {
 
 pub use generator::GenerateError;
 pub use rssl_formatter::FormatError;
+
+impl rssl_text::CompileError for ExportError {
+    fn print(&self, w: &mut rssl_text::MessagePrinter) -> std::fmt::Result {
+        use rssl_text::*;
+        match self {
+            ExportError::GenerateError(err) => w.write_message(
+                &|f| write!(f, "metal generate: {:?}", err),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            ExportError::FormatError(err) => w.write_message(
+                &|f| write!(f, "metal format: {:?}", err),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+        }
+    }
+}

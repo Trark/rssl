@@ -98,6 +98,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
         output_pipelines.push(build_pipeline(
             &args,
             &ir,
+            &source_manager,
             &binding_params,
             None,
             args.source_info,
@@ -113,6 +114,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
             output_pipelines.push(build_pipeline(
                 &args,
                 &ir,
+                &source_manager,
                 &binding_params,
                 Some(pipeline),
                 args.source_info,
@@ -144,6 +146,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
 fn build_pipeline(
     args: &CompileArgs,
     ir: &ir::Module,
+    source_manager: &text::SourceManager,
     binding_params: &AssignBindingsParams,
     pipeline: Option<&ir::PipelineDefinition>,
     source_info: bool,
@@ -174,7 +177,12 @@ fn build_pipeline(
         Target::HlslForDirectX | Target::HlslForVulkan => {
             let exported_source = match hlsl::export_to_hlsl(&ir) {
                 Ok(exported_source) => exported_source,
-                Err(err) => panic!("{err:?}"),
+                Err(err) => {
+                    return Err(CompileError::Text(format!(
+                        "{}",
+                        err.display(source_manager)
+                    )))
+                }
             };
 
             let mut stages = Vec::new();
@@ -202,7 +210,12 @@ fn build_pipeline(
         Target::Msl | Target::MetalBytecode => {
             let exported_source = match msl::export_to_msl(&ir) {
                 Ok(exported_source) => exported_source,
-                Err(err) => panic!("{err:?}"),
+                Err(err) => {
+                    return Err(CompileError::Text(format!(
+                        "{}",
+                        err.display(source_manager)
+                    )))
+                }
             };
 
             let mut stages = Vec::new();

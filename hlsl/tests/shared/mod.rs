@@ -39,7 +39,7 @@ pub fn check_rssl_to_hlsl_params(
     expected_hlsl: &str,
     assign_bindings_params: Option<rssl_ir::AssignBindingsParams>,
 ) {
-    let (ir, _) = parse_from_str(source_rssl);
+    let (ir, source_manager) = parse_from_str(source_rssl);
 
     let trivial_bindings = assign_bindings_params.is_none();
 
@@ -72,10 +72,7 @@ pub fn check_rssl_to_hlsl_params(
                 parse_from_str(&output_hlsl);
             }
         }
-        Err(err) => {
-            // TODO: Error printing
-            panic!("{err:?}")
-        }
+        Err(err) => panic!("{}", err.display(&source_manager)),
     }
 }
 

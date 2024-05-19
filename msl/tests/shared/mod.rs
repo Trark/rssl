@@ -60,7 +60,7 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
 pub fn check(source_rssl: &str, expected_msl: &str) {
     validate_metal(expected_msl);
 
-    let (ir, _) = parse_from_str(source_rssl);
+    let (ir, source_manager) = parse_from_str(source_rssl);
 
     match rssl_msl::export_to_msl(&ir) {
         Ok(output) => {
@@ -72,10 +72,7 @@ pub fn check(source_rssl: &str, expected_msl: &str) {
             }
             assert_eq!(output_msl, expected_msl);
         }
-        Err(err) => {
-            // TODO: Error printing
-            panic!("{err:?}")
-        }
+        Err(err) => panic!("{}", err.display(&source_manager)),
     }
 }
 

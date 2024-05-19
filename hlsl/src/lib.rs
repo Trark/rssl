@@ -41,3 +41,21 @@ pub enum ExportError {
     GenerateError(ast_generate::GenerateError),
     FormatError(rssl_formatter::FormatError),
 }
+
+impl rssl_text::CompileError for ExportError {
+    fn print(&self, w: &mut rssl_text::MessagePrinter) -> std::fmt::Result {
+        use rssl_text::*;
+        match self {
+            ExportError::GenerateError(err) => w.write_message(
+                &|f| write!(f, "hlsl generate: {:?}", err),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            ExportError::FormatError(err) => w.write_message(
+                &|f| write!(f, "hlsl format: {:?}", err),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+        }
+    }
+}
