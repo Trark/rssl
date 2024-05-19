@@ -212,7 +212,7 @@ pub(crate) fn generate_pipeline(
                     (ir::ShaderStage::Pixel, Some(ir::Semantic::User(name))) => {
                         let member_name = match vertex_outputs.get(name) {
                             Some(member_name) => member_name,
-                            None => return Err(GenerateError::MissingInterpolator),
+                            None => return Err(GenerateError::MissingInterpolator(name.clone())),
                         };
 
                         args.push(Located::none(ast::Expression::Member(

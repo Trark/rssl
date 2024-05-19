@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::export::*;
-use rssl_text::{Located, SourceLocation};
+use rssl_text::*;
 
 use crate::names::*;
 
@@ -38,7 +38,7 @@ pub enum GenerateError {
     ComplexResourceSubscript,
 
     /// Stages do not have matching interpolators
-    MissingInterpolator,
+    MissingInterpolator(String),
 
     /// All constants must be initialized in metal
     UninitializedConstant,
@@ -144,6 +144,29 @@ pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateErro
         ast_module: ast::Module { root_definitions },
         pipeline_description,
     })
+}
+
+impl CompileError for GenerateError {
+    fn print(&self, w: &mut MessagePrinter) -> std::fmt::Result {
+        match self {
+            GenerateError::MissingInterpolator(name) => w.write_message(
+                &|f| {
+                    write!(
+                        f,
+                        "interpolator required by pixel stage has not been provided: {}",
+                        name
+                    )
+                },
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+            _ => w.write_message(
+                &|f| write!(f, "metal generate: {:?}", self),
+                SourceLocation::UNKNOWN,
+                Severity::Error,
+            ),
+        }
+    }
 }
 
 /// How we will handle generating a global variable
