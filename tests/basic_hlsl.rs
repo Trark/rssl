@@ -98,3 +98,11 @@ fn check_wave_intrinsics() {
         include_str!("basic/wave_intrinsics.hlsl"),
     );
 }
+
+#[test]
+fn check_mesh_pixel_pipeline() {
+    check_hlsl(
+        include_str!("basic/mesh_pixel_pipeline.rssl"),
+        include_str!("basic/mesh_pixel_pipeline.hlsl"),
+    );
+}

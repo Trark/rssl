@@ -1,0 +1,61 @@
+const Texture2D g_input;
+const Texture3D g_unused;
+const RWTexture2D<float4> g_output : register(space1);
+
+static int s_value = 0;
+
+#define MAX_OUTPUT_VERTICES 128
+#define MAX_OUTPUT_PRIMITIVES 64
+#define GROUP_SIZE MAX_OUTPUT_PRIMITIVES
+
+struct VertexAttributes
+{
+    float4 position : SV_Position;
+    float2 texcoord : TEXCOORD;
+};
+
+struct PrimitiveAttributes
+{
+    uint material : MATERIAL;
+};
+
+[numthreads(GROUP_SIZE, 1, 1)]
+[outputtopology("triangle")]
+void MSMAIN(
+    uint3 dtid : SV_DispatchThreadID,
+    out vertices VertexAttributes o_vertices[MAX_OUTPUT_VERTICES],
+    out primitives PrimitiveAttributes o_primitives[MAX_OUTPUT_PRIMITIVES],
+    out indices uint3 o_triangles[MAX_OUTPUT_PRIMITIVES]
+) {
+    g_input;
+    s_value = 1;
+
+    SetMeshOutputCounts(MAX_OUTPUT_VERTICES, MAX_OUTPUT_PRIMITIVES);
+
+    for (uint v = dtid.x; v < MAX_OUTPUT_VERTICES; v += GROUP_SIZE)
+    {
+        VertexAttributes vertex;
+        vertex.position = float4(0, 0, 0, 1);
+        vertex.texcoord = float2(0, 0);
+        o_vertices[v] = vertex;
+    }
+
+    PrimitiveAttributes prim;
+    prim.material = dtid.x % 8;
+
+    o_primitives[dtid.x] = prim;
+    o_triangles[dtid.x] = uint3(0, 1, 2);
+}
+
+float4 PSMAIN(uint pid : SV_PrimitiveID, float2 i_texcoord : TEXCOORD, uint i_material : MATERIAL, out float4 o_target0 : SV_Target0) : SV_Target1 {
+    g_input;
+    g_output;
+    o_target0 = float4(i_texcoord.xy, i_material, 0);
+    return float4(0, 0, 0, 0);
+}
+
+Pipeline GraphicsTest
+{
+    MeshShader = MSMAIN;
+    PixelShader = PSMAIN;
+}
