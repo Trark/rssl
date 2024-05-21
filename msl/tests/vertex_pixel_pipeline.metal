@@ -1,7 +1,15 @@
-void VSMAIN(uint vid, uint iid, thread float4& o_pos, thread float2& o_texcoord, const metal::texture2d<float> g_input, thread int& s_value) {
+struct VertexAttributes
+{
+    [[user(WETNESS)]] float wetness;
+    [[user(MATERIAL)]] uint material;
+};
+
+void VSMAIN(uint vid, uint iid, thread float4& o_pos, thread float2& o_texcoord, thread VertexAttributes& o_vertex, const metal::texture2d<float> g_input, thread int& s_value) {
     g_input;
     o_pos = float4(0.0f, 0.0f, 0.0f, 0.0f);
     o_texcoord = float2(0.5f, 0.5f);
+    o_vertex.wetness = 0.0f;
+    o_vertex.material = 0u;
     s_value = 1;
 }
 
@@ -27,13 +35,14 @@ struct VertexOutput
 {
     float4 o_pos [[position]];
     float2 o_texcoord [[user(TEXCOORD)]];
+    VertexAttributes o_vertex;
 };
 
 [[vertex]]
 VertexOutput VertexShaderEntry(uint vid [[vertex_id]], uint iid [[instance_id]], constant ArgumentBuffer0& set0 [[buffer(0)]], constant ArgumentBuffer1& set1 [[buffer(1)]]) {
     int s_value = 0;
     VertexOutput out;
-    VSMAIN(vid, iid, out.o_pos, out.o_texcoord, set0.g_input, s_value);
+    VSMAIN(vid, iid, out.o_pos, out.o_texcoord, out.o_vertex, set0.g_input, s_value);
     return out;
 }
 

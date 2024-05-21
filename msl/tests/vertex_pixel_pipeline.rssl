@@ -4,10 +4,18 @@ const RWTexture2D<float4> g_output : register(space1);
 
 static int s_value = 0;
 
-void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID, out float4 o_pos : SV_Position, out float2 o_texcoord : TEXCOORD) {
+struct VertexAttributes
+{
+    float wetness : WETNESS;
+    uint material : MATERIAL;
+};
+
+void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID, out float4 o_pos : SV_Position, out float2 o_texcoord : TEXCOORD, out VertexAttributes o_vertex) {
     g_input;
     o_pos = float4(0, 0, 0, 0);
     o_texcoord = float2(0.5f, 0.5f);
+    o_vertex.wetness = 0;
+    o_vertex.material = 0;
     s_value = 1;
 }
 

@@ -153,7 +153,7 @@ pub(crate) fn generate_pipeline(
     ordered_stages.sort_by(|lhs, rhs| lhs.stage.cmp(&rhs.stage));
 
     // Maintain a map of the interpolator output names in the vertex stage
-    let mut vertex_outputs = HashMap::<String, String>::new();
+    let mut vertex_outputs = HashMap::<String, Vec<String>>::new();
 
     for stage in ordered_stages {
         let mut body = Vec::new();
@@ -215,11 +215,9 @@ pub(crate) fn generate_pipeline(
                             None => return Err(GenerateError::MissingInterpolator(name.clone())),
                         };
 
-                        args.push(Located::none(ast::Expression::Member(
-                            Box::new(Located::none(ast::Expression::Identifier(
-                                ast::ScopedIdentifier::trivial(STAGE_INPUT_NAME_LOCAL),
-                            ))),
-                            ast::ScopedIdentifier::trivial(member_name),
+                        args.push(Located::none(build_member_chain(
+                            STAGE_INPUT_NAME_LOCAL,
+                            member_name,
                         )));
 
                         requires_vertex_input = true;
@@ -267,7 +265,27 @@ pub(crate) fn generate_pipeline(
 
                 if stage.stage == ir::ShaderStage::Vertex {
                     if let Some(ir::Semantic::User(name)) = &param.semantic {
-                        vertex_outputs.insert(name.clone(), param_name);
+                        vertex_outputs.insert(name.clone(), Vec::from([param_name]));
+                    } else {
+                        let param_ty = context
+                            .module
+                            .type_registry
+                            .remove_modifier(param.param_type.type_id);
+
+                        if let ir::TypeLayer::Struct(sid) =
+                            context.module.type_registry.get_type_layer(param_ty)
+                        {
+                            let sd = &context.module.struct_registry[sid.0 as usize];
+
+                            for member in &sd.members {
+                                if let Some(ir::Semantic::User(name)) = &member.semantic {
+                                    vertex_outputs.insert(
+                                        name.clone(),
+                                        Vec::from([param_name.clone(), member.name.clone()]),
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -547,6 +565,23 @@ pub(crate) fn generate_pipeline(
 
     let desc = binding_layout.finish();
     Ok((defs, desc))
+}
+
+/// Build a multi level member access from member names
+fn build_member_chain(root: &str, names: &[String]) -> ast::Expression {
+    match names {
+        [start] => ast::Expression::Member(
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(root),
+            ))),
+            ast::ScopedIdentifier::trivial(start),
+        ),
+        [start @ .., end] => ast::Expression::Member(
+            Box::new(Located::none(build_member_chain(root, start))),
+            ast::ScopedIdentifier::trivial(end),
+        ),
+        &[] => panic!("Invalid empty member name chain"),
+    }
 }
 
 #[derive(Default)]
