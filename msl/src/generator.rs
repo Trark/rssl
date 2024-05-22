@@ -758,10 +758,12 @@ fn generate_function_param(
                 ast::AddressSpace::Thread,
             )));
 
-        declarator = ast::Declarator::Reference(ast::ReferenceDeclarator {
-            attributes: Vec::new(),
-            inner: Box::new(declarator),
-        })
+        declarator = declarator.insert_base(|base| {
+            ast::Declarator::Reference(ast::ReferenceDeclarator {
+                attributes: Vec::new(),
+                inner: Box::new(base),
+            })
+        });
     }
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
