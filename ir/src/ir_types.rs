@@ -511,6 +511,14 @@ pub enum InterpolationModifier {
     Payload,
 }
 
+/// Value for outputtopology attribute of a mesh shader
+#[derive(Clone, PartialEq, Debug)]
+pub enum OutputTopology {
+    Point,
+    Line,
+    Triangle,
+}
+
 /// A built in object type
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum ObjectType {

@@ -193,6 +193,9 @@ pub enum TyperError {
     /// Type id with declarator modifiers are not valid for any RSSL types
     InvalidTypeDeclarator(SourceLocation),
 
+    /// [outputtopology] not valid
+    InvalidOutputTopology(SourceLocation, String),
+
     /// assert_type had invalid format
     AssertTypeInvalid(SourceLocation),
 
@@ -904,6 +907,11 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::InvalidTypeDeclarator(loc) => w.write_message(
                 &|f| write!(f, "invalid type declarator modifier"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::InvalidOutputTopology(loc, s) => w.write_message(
+                &|f| write!(f, "invalid topology: \"{}\"", s),
                 *loc,
                 Severity::Error,
             ),

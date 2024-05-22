@@ -92,7 +92,7 @@ pub enum FunctionAttribute {
     NumThreads(Expression, Expression, Expression),
     MaxVertexCount(Expression),
     WaveSize(Expression),
-    OutputTopology(String),
+    OutputTopology(OutputTopology),
 }
 
 impl FunctionRegistry {

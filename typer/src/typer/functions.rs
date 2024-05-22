@@ -543,7 +543,18 @@ fn parse_function_attribute(
             if attribute.arguments.len() == 1 {
                 match &attribute.arguments[0].node {
                     ast::Expression::Literal(ast::Literal::String(s)) => {
-                        Ok(ir::FunctionAttribute::OutputTopology(s.clone()))
+                        let topology = match s.as_str() {
+                            "point" => ir::OutputTopology::Point,
+                            "line" => ir::OutputTopology::Line,
+                            "triangle" => ir::OutputTopology::Triangle,
+                            _ => {
+                                return Err(TyperError::InvalidOutputTopology(
+                                    attribute.arguments[0].location,
+                                    s.clone(),
+                                ))
+                            }
+                        };
+                        Ok(ir::FunctionAttribute::OutputTopology(topology))
                     }
                     _ => Err(TyperError::FunctionAttributeUnexpectedArgumentCount(
                         attribute_name.node,

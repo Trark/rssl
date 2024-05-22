@@ -730,7 +730,11 @@ fn generate_function_attribute(
         ir::FunctionAttribute::OutputTopology(s) => ast::Attribute {
             name: Vec::from([Located::none("outputtopology".to_string())]),
             arguments: Vec::from([Located::none(ast::Expression::Literal(
-                ast::Literal::String(s.clone()),
+                ast::Literal::String(String::from(match s {
+                    ir::OutputTopology::Point => "point",
+                    ir::OutputTopology::Line => "line",
+                    ir::OutputTopology::Triangle => "triangle",
+                })),
             ))]),
             two_square_brackets: false,
         },
