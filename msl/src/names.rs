@@ -11,9 +11,13 @@ pub const ARGUMENT_BUFFER_1_NAME: &str = "ArgumentBuffer1";
 pub const ARGUMENT_BUFFER_2_NAME: &str = "ArgumentBuffer2";
 pub const ARGUMENT_BUFFER_3_NAME: &str = "ArgumentBuffer3";
 pub const STAGE_OUTPUT_NAME_VERTEX: &str = "VertexOutput";
+pub const STAGE_INPUT_NAME_PIXEL: &str = "PixelInput";
 pub const STAGE_OUTPUT_NAME_PIXEL: &str = "PixelOutput";
 pub const STAGE_OUTPUT_NAME_LOCAL: &str = "out";
 pub const STAGE_INPUT_NAME_LOCAL: &str = "in";
+pub const MESH_OUTPUT_NAME: &str = "o_mesh";
+pub const MESH_VERTEX_ATTRIBUTES_MEMBER_NAME: &str = "o_vertices";
+pub const MESH_PRIMITIVE_ATTRIBUTES_MEMBER_NAME: &str = "o_primitives";
 
 /// List of names we want to avoid in the generated code
 pub const RESERVED_NAMES: &[&str] = &[
@@ -105,7 +109,11 @@ pub const RESERVED_NAMES: &[&str] = &[
     ARGUMENT_BUFFER_2_NAME,
     ARGUMENT_BUFFER_3_NAME,
     STAGE_OUTPUT_NAME_VERTEX,
+    STAGE_INPUT_NAME_PIXEL,
     STAGE_OUTPUT_NAME_PIXEL,
     STAGE_OUTPUT_NAME_LOCAL,
     STAGE_INPUT_NAME_LOCAL,
+    MESH_OUTPUT_NAME,
+    MESH_VERTEX_ATTRIBUTES_MEMBER_NAME,
+    MESH_PRIMITIVE_ATTRIBUTES_MEMBER_NAME,
 ];

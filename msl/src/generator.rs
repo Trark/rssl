@@ -6,6 +6,7 @@ use rssl_ir::export::*;
 use rssl_text::*;
 
 use crate::names::*;
+use crate::rewrite_mesh_output::MeshOutputLayout;
 
 mod pipeline;
 use pipeline::*;
@@ -39,6 +40,24 @@ pub enum GenerateError {
 
     /// Stages do not have matching interpolators
     MissingInterpolator(String),
+
+    /// Intrinsic can not be used in the current shader stage
+    InvalidPipelineForMeshIntrinsic,
+
+    /// Failed to build mesh struct from mesh shader entry point function
+    InvalidMeshOutputs,
+
+    /// No topology attribute was found
+    MissingMeshTopology,
+
+    /// Multiple topology attributes were found
+    MultipleMeshTopology,
+
+    /// Mesh shader stages only expect the special mesh outputs
+    UnexpectedOutputFromMeshStage,
+
+    /// Mesh output rewriting failed
+    ComplexMeshOutput,
 
     /// All constants must be initialized in metal
     UninitializedConstant,
@@ -105,12 +124,19 @@ pub enum GenerateError {
 }
 
 /// Generate MSL ast from ir module
-pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateError> {
-    let mut context = GenerateContext::new(module);
+pub fn generate_module(
+    module: &mut ir::Module,
+    mesh_layout: Option<MeshOutputLayout>,
+) -> Result<GeneratedAST, GenerateError> {
+    let mut context = GenerateContext::new(module, mesh_layout);
     let mut root_definitions = Vec::new();
 
     if !module.cbuffer_registry.is_empty() {
         return Err(GenerateError::ConstantBuffersNotSimplified);
+    }
+
+    if context.mesh_layout.is_some() {
+        context.mesh_output_type = Some(build_mesh_output_type(&mut context)?);
     }
 
     analyse_globals(&mut context)?;
@@ -340,6 +366,9 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                         ir::Intrinsic::WaveGetLaneIndex => {
                             required_globals.push(ImplicitFunctionParameter::ThreadIndexInSimdgroup)
                         }
+                        ir::Intrinsic::SetMeshOutputCounts => {
+                            required_globals.push(ImplicitFunctionParameter::MeshOutput)
+                        }
                         _ => {}
                     }
                 }
@@ -356,6 +385,39 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
     }
 
     Ok(())
+}
+
+/// Build type for mesh output from the analysed layout
+fn build_mesh_output_type(context: &mut GenerateContext) -> Result<ast::Type, GenerateError> {
+    let mesh_layout = context.mesh_layout.clone().unwrap();
+    Ok(ast::Type::from(ast::TypeLayout(
+        metal_lib_identifier("mesh"),
+        Vec::from([
+            ast::ExpressionOrType::Type(generate_type(mesh_layout.vertex_type, context)?.into()),
+            ast::ExpressionOrType::Type(generate_type(mesh_layout.primitive_type, context)?.into()),
+            ast::ExpressionOrType::Expression(Located::none(ast::Expression::Literal(
+                ast::Literal::IntUnsigned32(mesh_layout.max_vertex_count),
+            ))),
+            ast::ExpressionOrType::Expression(Located::none(ast::Expression::Literal(
+                ast::Literal::IntUnsigned32(mesh_layout.max_primitive_count),
+            ))),
+            ast::ExpressionOrType::Expression(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier {
+                    base: ast::ScopedIdentifierBase::Relative,
+                    identifiers: Vec::from([
+                        Located::none(String::from("metal")),
+                        Located::none(String::from("topology")),
+                        Located::none(String::from(match mesh_layout.topology {
+                            ir::OutputTopology::Point => "point",
+                            ir::OutputTopology::Line => "line",
+                            ir::OutputTopology::Triangle => "triangle",
+                        })),
+                    ]),
+                },
+            ))),
+        ])
+        .into_boxed_slice(),
+    )))
 }
 
 /// Remove adjacent namespace nodes
@@ -664,6 +726,18 @@ fn generate_function_inner(
                 location_annotations: Vec::new(),
                 default_expr: None,
             }),
+            ImplicitFunctionParameter::MeshOutput => params.push(ast::FunctionParam {
+                param_type: match context.mesh_output_type {
+                    Some(ref ty) => ty.clone(),
+                    None => return Err(GenerateError::InvalidPipelineForMeshIntrinsic),
+                },
+                declarator: ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME),
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
+                default_expr: None,
+            }),
             ImplicitFunctionParameter::Global(gid) => {
                 match context.global_variable_modes.get(gid).unwrap() {
                     GlobalMode::Parameter { param, .. } => {
@@ -717,7 +791,8 @@ fn generate_function_attribute(
             return Err(GenerateError::UnsupportedWaveSize);
         }
         ir::FunctionAttribute::OutputTopology(_) => {
-            return Err(GenerateError::UnimplementedMeshShader)
+            // Not exported as an attribute
+            None
         }
     };
     Ok(ast)
@@ -2005,6 +2080,9 @@ fn generate_user_call(
         match param {
             ImplicitFunctionParameter::ThreadIndexInSimdgroup => todo!(),
             ImplicitFunctionParameter::ThreadsPerSimdgroup => todo!(),
+            ImplicitFunctionParameter::MeshOutput => args.push(Located::none(
+                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME)),
+            )),
             ImplicitFunctionParameter::Global(gid) => {
                 match context.global_variable_modes.get(gid).unwrap() {
                     GlobalMode::Parameter { argument, .. } => {
@@ -2317,7 +2395,26 @@ fn generate_intrinsic_function(
         QuadReadAcrossDiagonal => unimplemented_intrinsic(),
         QuadReadLaneAt => unimplemented_intrinsic(),
 
-        SetMeshOutputCounts => unimplemented_intrinsic(),
+        SetMeshOutputCounts => {
+            assert_eq!(exprs.len(), 2);
+            let vertex_expr = Located::none(generate_expression(&exprs[0], context)?);
+            let primitive_expr = Located::none(generate_expression(&exprs[1], context)?);
+            Ok(ast::Expression::BinaryOperation(
+                ast::BinOp::Sequence,
+                // The vertex count is unused - we emit it for potential side effects
+                Box::new(vertex_expr),
+                Box::new(Located::none(ast::Expression::Call(
+                    Box::new(Located::none(ast::Expression::Member(
+                        Box::new(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME),
+                        ))),
+                        ast::ScopedIdentifier::trivial("set_primitive_count"),
+                    ))),
+                    Vec::new(),
+                    Vec::from([primitive_expr]),
+                ))),
+            ))
+        }
         DispatchMesh => unimplemented_intrinsic(),
 
         BufferGetDimensions => unimplemented_intrinsic(),
@@ -3231,6 +3328,8 @@ fn generate_intrinsic_op(
         Unary(ast::UnaryOp),
         Binary(ast::BinOp),
         Special(IntrinsicHelper),
+        MeshOutputMethod(&'static str),
+        MeshOutputHelper(IntrinsicHelper),
     }
 
     use ir::IntrinsicOp::*;
@@ -3288,6 +3387,12 @@ fn generate_intrinsic_op(
 
         MakeSigned => Form::Special(IntrinsicHelper::MakeSigned),
         MakeSignedPushZero => Form::Special(IntrinsicHelper::MakeSignedPushZero),
+
+        MeshOutputSetVertex => Form::MeshOutputMethod("set_vertex"),
+        MeshOutputSetPrimitive => Form::MeshOutputMethod("set_primitive"),
+        MeshOutputSetIndices => Form::MeshOutputHelper(IntrinsicHelper::MeshOutputSetIndices(
+            context.mesh_layout.as_ref().unwrap().topology,
+        )),
     };
 
     let expr = match form {
@@ -3319,6 +3424,29 @@ fn generate_intrinsic_op(
             }
         }
         Form::Special(helper) => generate_invoke_helper(helper, &[], exprs, context)?,
+        Form::MeshOutputMethod(name) => {
+            let object = Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME),
+            )));
+            let method = Box::new(Located::none(ast::Expression::Member(
+                object,
+                ast::ScopedIdentifier::trivial(name),
+            )));
+            let args = generate_invocation_args(exprs, context)?;
+            ast::Expression::Call(method, Vec::new(), args)
+        }
+        Form::MeshOutputHelper(helper) => {
+            let identifier = require_helper_function(helper, context)?;
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            let mut args = generate_invocation_args(exprs, context)?;
+            args.insert(
+                0,
+                Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                    MESH_OUTPUT_NAME,
+                ))),
+            );
+            ast::Expression::Call(object, Vec::new(), args)
+        }
     };
     Ok(expr)
 }
@@ -3528,6 +3656,9 @@ pub(crate) struct GenerateContext<'m> {
     global_variable_modes: HashMap<ir::GlobalId, GlobalMode>,
     function_required_globals: HashMap<ir::FunctionId, Vec<ImplicitFunctionParameter>>,
     required_helpers: HashMap<Option<IntrinsicObject>, HashSet<IntrinsicHelper>>,
+
+    mesh_layout: Option<MeshOutputLayout>,
+    mesh_output_type: Option<ast::Type>,
 }
 
 /// A function parameter that is added to supply global state
@@ -3535,12 +3666,13 @@ pub(crate) struct GenerateContext<'m> {
 enum ImplicitFunctionParameter {
     ThreadIndexInSimdgroup,
     ThreadsPerSimdgroup,
+    MeshOutput,
     Global(ir::GlobalId),
 }
 
 impl<'m> GenerateContext<'m> {
     /// Start a new generate state
-    fn new(module: &'m ir::Module) -> Self {
+    fn new(module: &'m ir::Module, mesh_layout: Option<MeshOutputLayout>) -> Self {
         let name_map = NameMap::build(module, RESERVED_NAMES, false);
 
         GenerateContext {
@@ -3549,6 +3681,8 @@ impl<'m> GenerateContext<'m> {
             global_variable_modes: HashMap::new(),
             function_required_globals: HashMap::new(),
             required_helpers: HashMap::new(),
+            mesh_layout,
+            mesh_output_type: None,
         }
     }
 

@@ -47,6 +47,11 @@ pub enum IntrinsicOp {
     // Internal operations
     MakeSigned,
     MakeSignedPushZero,
+
+    // MeshOutput methods
+    MeshOutputSetVertex,
+    MeshOutputSetPrimitive,
+    MeshOutputSetIndices,
 }
 
 /// An intrinsic built in function
@@ -495,6 +500,10 @@ impl IntrinsicOp {
                 };
                 output_ty.to_rvalue()
             }
+            MeshOutputSetVertex | MeshOutputSetPrimitive | MeshOutputSetIndices => module
+                .type_registry
+                .register_type(TypeLayer::Void)
+                .to_rvalue(),
         }
     }
 }

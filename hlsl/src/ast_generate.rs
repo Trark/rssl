@@ -2084,7 +2084,11 @@ fn generate_intrinsic_op(
         BitwiseOrAssignment => Form::Binary(ast::BinOp::BitwiseOrAssignment),
         BitwiseXorAssignment => Form::Binary(ast::BinOp::BitwiseXorAssignment),
 
-        MakeSigned | MakeSignedPushZero => panic!("{:?} not expected", intrinsic),
+        MakeSigned
+        | MakeSignedPushZero
+        | MeshOutputSetVertex
+        | MeshOutputSetPrimitive
+        | MeshOutputSetIndices => panic!("{:?} not expected", intrinsic),
     };
 
     let expr = match form {

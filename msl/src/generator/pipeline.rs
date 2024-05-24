@@ -152,8 +152,9 @@ pub(crate) fn generate_pipeline(
     let mut ordered_stages = def.stages.clone();
     ordered_stages.sort_by(|lhs, rhs| lhs.stage.cmp(&rhs.stage));
 
-    // Maintain a map of the interpolator output names in the vertex stage
+    // Maintain a map of the interpolator output names in the vertex / mesh stage
     let mut vertex_outputs = HashMap::<String, Vec<String>>::new();
+    let mut pixel_in: Option<(&str, Option<Vec<(_, String)>>)> = None;
 
     for stage in ordered_stages {
         let mut body = Vec::new();
@@ -205,6 +206,7 @@ pub(crate) fn generate_pipeline(
             .params;
 
         let mut requires_vertex_input = false;
+        let mut pixel_input_members: Vec<(ir::TypeId, String)> = Vec::new();
         for param in semantic_params {
             let param_name = String::from(context.get_variable_name(param.id)?);
             if param.param_type.input_modifier == ir::InputModifier::In {
@@ -235,6 +237,18 @@ pub(crate) fn generate_pipeline(
                     return Err(GenerateError::InvalidModule);
                 }
 
+                if stage.stage == ir::ShaderStage::Vertex || stage.stage == ir::ShaderStage::Mesh {
+                    record_interpolator_location(
+                        &param_name,
+                        param.param_type.type_id,
+                        &param.semantic,
+                        param.interpolation_modifier,
+                        &mut vertex_outputs,
+                        &mut pixel_input_members,
+                        context.module,
+                    );
+                }
+
                 // Reuse function parameter generation to get basic member details
                 let ast_param = {
                     let mut param = param.clone();
@@ -262,38 +276,42 @@ pub(crate) fn generate_pipeline(
                     ))),
                     ast::ScopedIdentifier::trivial(&param_name),
                 )));
-
-                if stage.stage == ir::ShaderStage::Vertex {
-                    if let Some(ir::Semantic::User(name)) = &param.semantic {
-                        vertex_outputs.insert(name.clone(), Vec::from([param_name]));
-                    } else {
-                        let param_ty = context
-                            .module
-                            .type_registry
-                            .remove_modifier(param.param_type.type_id);
-
-                        if let ir::TypeLayer::Struct(sid) =
-                            context.module.type_registry.get_type_layer(param_ty)
-                        {
-                            let sd = &context.module.struct_registry[sid.0 as usize];
-
-                            for member in &sd.members {
-                                if let Some(ir::Semantic::User(name)) = &member.semantic {
-                                    vertex_outputs.insert(
-                                        name.clone(),
-                                        Vec::from([param_name.clone(), member.name.clone()]),
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
 
+        if stage.stage == ir::ShaderStage::Mesh {
+            let mesh_layout = &context.mesh_layout.as_ref().unwrap();
+
+            record_interpolator_location(
+                MESH_VERTEX_ATTRIBUTES_MEMBER_NAME,
+                mesh_layout.vertex_type,
+                &None,
+                Some(ir::InterpolationModifier::Vertices),
+                &mut vertex_outputs,
+                &mut pixel_input_members,
+                context.module,
+            );
+
+            record_interpolator_location(
+                MESH_PRIMITIVE_ATTRIBUTES_MEMBER_NAME,
+                mesh_layout.primitive_type,
+                &None,
+                Some(ir::InterpolationModifier::Primitives),
+                &mut vertex_outputs,
+                &mut pixel_input_members,
+                context.module,
+            );
+        }
+
         if requires_vertex_input {
+            let input_name = match &pixel_in {
+                Some((name, _)) => *name,
+                // Should have triggered an error before setting requires_vertex_input
+                _ => panic!("No interpolator struct name when generating interpolator inputs"),
+            };
+
             entry_params.push(ast::FunctionParam {
-                param_type: ast::Type::from(STAGE_OUTPUT_NAME_VERTEX),
+                param_type: ast::Type::from(input_name),
                 declarator: ast::Declarator::Identifier(
                     ast::ScopedIdentifier::trivial(STAGE_INPUT_NAME_LOCAL),
                     Vec::from([ast::Attribute {
@@ -357,6 +375,21 @@ pub(crate) fn generate_pipeline(
 
                         args.push(Located::none(ast::Expression::Identifier(
                             ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
+                        )));
+                    }
+                    ImplicitFunctionParameter::MeshOutput => {
+                        entry_params.push(ast::FunctionParam {
+                            param_type: match context.mesh_output_type {
+                                Some(ref ty) => ty.clone(),
+                                None => return Err(GenerateError::InvalidPipelineForMeshIntrinsic),
+                            },
+                            declarator: ast::Declarator::from(Located::none(MESH_OUTPUT_NAME)),
+                            location_annotations: Vec::new(),
+                            default_expr: None,
+                        });
+
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME),
                         )));
                     }
                     ImplicitFunctionParameter::Global(ref gid) => {
@@ -455,13 +488,43 @@ pub(crate) fn generate_pipeline(
             }
         }
 
+        // Generate input struct for pixel shader if required
+        if stage.stage == ir::ShaderStage::Pixel {
+            if let Some((name, Some(pixel_in_members))) = &pixel_in {
+                let mut members = Vec::new();
+                for (ty, name) in pixel_in_members {
+                    members.push(ast::StructEntry::Variable(ast::StructMember {
+                        ty: generate_type(*ty, context)?,
+                        defs: Vec::from([ast::InitDeclarator {
+                            declarator: ast::Declarator::Identifier(
+                                ast::ScopedIdentifier::trivial(name),
+                                Default::default(),
+                            ),
+                            location_annotations: Default::default(),
+                            init: None,
+                        }]),
+                        attributes: Default::default(),
+                    }));
+                }
+
+                let entry_point = ast::StructDefinition {
+                    name: Located::none(String::from(*name)),
+                    base_types: Default::default(),
+                    template_params: ast::TemplateParamList(Vec::new()),
+                    members,
+                };
+                defs.push(ast::RootDefinition::Struct(entry_point));
+            }
+        }
+
+        // Generate output struct for stage
         let return_type = if !out_params.is_empty() {
             let stage_out_param_name = match stage.stage {
                 ir::ShaderStage::Vertex => STAGE_OUTPUT_NAME_VERTEX,
                 ir::ShaderStage::Pixel => STAGE_OUTPUT_NAME_PIXEL,
                 ir::ShaderStage::Compute => return Err(GenerateError::InvalidModule),
                 ir::ShaderStage::Task => return Err(GenerateError::UnimplementedMeshShader),
-                ir::ShaderStage::Mesh => return Err(GenerateError::UnimplementedMeshShader),
+                ir::ShaderStage::Mesh => return Err(GenerateError::UnexpectedOutputFromMeshStage),
             };
 
             let sd = ast::StructDefinition {
@@ -485,7 +548,11 @@ pub(crate) fn generate_pipeline(
                 attributes: Vec::new(),
             });
 
-            Some(stage_out_param_name)
+            match stage.stage {
+                ir::ShaderStage::Vertex | ir::ShaderStage::Pixel => Some(stage_out_param_name),
+                ir::ShaderStage::Compute => return Err(GenerateError::InvalidModule),
+                ir::ShaderStage::Task | ir::ShaderStage::Mesh => None,
+            }
         } else {
             None
         };
@@ -561,10 +628,70 @@ pub(crate) fn generate_pipeline(
             }]),
         };
         defs.push(ast::RootDefinition::Function(entry_point));
+
+        match stage.stage {
+            ir::ShaderStage::Vertex => {
+                // Vertex shaders use the same types as the pixel shader
+                // We reuse the vertex output struct for pixel input
+                assert!(pixel_input_members.is_empty());
+                pixel_in = return_type.map(|ty| (ty, None));
+            }
+            ir::ShaderStage::Mesh => {
+                // Mesh shaders use non-array form of output types
+                // We declare a new struct for this form
+                pixel_in = Some((STAGE_INPUT_NAME_PIXEL, Some(pixel_input_members)));
+            }
+            _ => {
+                assert!(pixel_input_members.is_empty());
+            }
+        }
     }
 
     let desc = binding_layout.finish();
     Ok((defs, desc))
+}
+
+/// Track where output parameters are bound
+fn record_interpolator_location(
+    param_name: &str,
+    param_type: ir::TypeId,
+    semantic: &Option<ir::Semantic>,
+    interpolation_modifier: Option<ir::InterpolationModifier>,
+    vertex_outputs: &mut HashMap<String, Vec<String>>,
+    pixel_input_members: &mut Vec<(ir::TypeId, String)>,
+    module: &ir::Module,
+) {
+    if let Some(ir::Semantic::User(name)) = &semantic {
+        vertex_outputs.insert(name.clone(), Vec::from([String::from(param_name)]));
+    } else {
+        let param_ty = module.type_registry.remove_modifier(param_type);
+
+        // Record mesh output types
+        if matches!(
+            interpolation_modifier,
+            Some(ir::InterpolationModifier::Vertices | ir::InterpolationModifier::Primitives,)
+        ) {
+            if !matches!(
+                module.type_registry.get_type_layer(param_ty),
+                ir::TypeLayer::Void
+            ) {
+                pixel_input_members.push((param_ty, String::from(param_name)));
+            }
+        }
+
+        if let ir::TypeLayer::Struct(sid) = module.type_registry.get_type_layer(param_ty) {
+            let sd = &module.struct_registry[sid.0 as usize];
+
+            for member in &sd.members {
+                if let Some(ir::Semantic::User(name)) = &member.semantic {
+                    vertex_outputs.insert(
+                        name.clone(),
+                        Vec::from([String::from(param_name), member.name.clone()]),
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// Build a multi level member access from member names

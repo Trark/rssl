@@ -230,11 +230,6 @@ fn check_function_attributes() {
         "[WaveSize(64)] void Main() {}",
         GenerateError::UnsupportedWaveSize,
     );
-
-    expect_generate_fail(
-        "[outputtopology(\"triangle\")] void Main() {}",
-        GenerateError::UnimplementedMeshShader,
-    );
 }
 
 #[test]

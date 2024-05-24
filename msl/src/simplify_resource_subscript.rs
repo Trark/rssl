@@ -250,7 +250,11 @@ fn process_expression(expr: &mut Expression, is_read_only: bool, reference_modul
                     | IntrinsicOp::BitwiseAndAssignment
                     | IntrinsicOp::BitwiseOrAssignment
                     | IntrinsicOp::BitwiseXorAssignment => true,
-                    IntrinsicOp::MakeSigned | IntrinsicOp::MakeSignedPushZero => {
+                    IntrinsicOp::MakeSigned
+                    | IntrinsicOp::MakeSignedPushZero
+                    | IntrinsicOp::MeshOutputSetVertex
+                    | IntrinsicOp::MeshOutputSetPrimitive
+                    | IntrinsicOp::MeshOutputSetIndices => {
                         panic!("We do not expect to have generated any {:?} yet", op)
                     }
                 }

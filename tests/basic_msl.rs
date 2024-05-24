@@ -88,3 +88,11 @@ fn check_wave_intrinsics() {
         include_str!("basic/wave_intrinsics.metal"),
     );
 }
+
+#[test]
+fn check_mesh_pixel_pipeline() {
+    check_msl(
+        include_str!("basic/mesh_pixel_pipeline.rssl"),
+        include_str!("basic/mesh_pixel_pipeline.metal"),
+    );
+}

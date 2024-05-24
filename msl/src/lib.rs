@@ -4,6 +4,7 @@
 
 mod generator;
 mod names;
+mod rewrite_mesh_output;
 mod simplify_resource_subscript;
 
 /// Export module to Metal Shading Language
@@ -20,8 +21,30 @@ pub fn export_to_msl(module: &rssl_ir::Module) -> Result<ExportedSource, ExportE
     // Attempt to remove access to resources via references
     simplify_resource_subscript::simplify_resource_subscript(&mut module);
 
+    // Attempt to rewrite mesh shader outputs
+    let mut mesh_layout = None;
+    if let Some(selected_pipeline) = module.selected_pipeline {
+        let pipeline = &module.pipelines[selected_pipeline];
+        let mut mesh_index = None;
+        for (stage_index, stage) in &mut pipeline.stages.iter().enumerate() {
+            if let rssl_ir::ShaderStage::Mesh = stage.stage {
+                mesh_index = Some(stage_index);
+            }
+        }
+        if let Some(mesh_index) = mesh_index {
+            match rewrite_mesh_output::process_mesh_entry(
+                &mut module,
+                selected_pipeline,
+                mesh_index,
+            ) {
+                Ok(layout) => mesh_layout = Some(layout),
+                Err(err) => return Err(ExportError::GenerateError(err)),
+            }
+        }
+    };
+
     // Generate MSL in the form of RSSL ast from RSSL ir module
-    let generate_output = match generator::generate_module(&module) {
+    let generate_output = match generator::generate_module(&mut module, mesh_layout) {
         Ok(output) => output,
         Err(err) => return Err(ExportError::GenerateError(err)),
     };

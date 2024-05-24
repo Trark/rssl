@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use rssl_ast as ast;
+use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
 use super::{metal_lib_identifier, GenerateError};
@@ -26,6 +27,8 @@ pub enum IntrinsicHelper {
     MakeSigned,
     /// Transform a uint coordinate to an int coordinate and add a zero on the end
     MakeSignedPushZero,
+    /// Call set_index for each vertex in a primitive
+    MeshOutputSetIndices(ir::OutputTopology),
 }
 
 /// Represents a helper struct that is generated to implement intrinsic operations
@@ -61,6 +64,7 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::Extend(_) => "extend",
         IntrinsicHelper::MakeSigned => "make_signed",
         IntrinsicHelper::MakeSignedPushZero => "make_signed_push_0",
+        IntrinsicHelper::MeshOutputSetIndices(_) => "set_indices",
     }
 }
 
@@ -164,6 +168,7 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, G
         Extend(count) => Ok(build_vector_extend(count)?),
         MakeSigned => Ok(build_unsign(false)?),
         MakeSignedPushZero => Ok(build_unsign(true)?),
+        MeshOutputSetIndices(topology) => Ok(build_mesh_output_set_indices(topology)?),
     }
 }
 
@@ -1776,6 +1781,90 @@ fn build_unsign(push_zero: bool) -> Result<ast::FunctionDefinition, GenerateErro
                 name: Some(Located::none(String::from("N"))),
                 default: None,
                 value_type: ast::Type::from("size_t"),
+            },
+        )])),
+        params,
+        is_const: false,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a helper function to invoke set_index multiple times
+fn build_mesh_output_set_indices(
+    topology: ir::OutputTopology,
+) -> Result<ast::FunctionDefinition, GenerateError> {
+    let mut params = Vec::new();
+    let mut body = Vec::new();
+
+    let n = match topology {
+        ir::OutputTopology::Point => 1,
+        ir::OutputTopology::Line => 2,
+        ir::OutputTopology::Triangle => 3,
+    };
+
+    params.push(build_param(ast::Type::from("Mesh"), "mesh"));
+    params.push(build_param(ast::Type::from("uint"), "index"));
+    params.push(build_param(
+        ast::Type::from(format!("uint{}", n).as_str()),
+        "indices",
+    ));
+
+    for i in 0..n {
+        body.push(ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Member(
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial("mesh"),
+                    ))),
+                    ast::ScopedIdentifier::trivial("set_index"),
+                ))),
+                Vec::new(),
+                Vec::from([
+                    Located::none(ast::Expression::BinaryOperation(
+                        ast::BinOp::Add,
+                        Box::new(Located::none(ast::Expression::BinaryOperation(
+                            ast::BinOp::Multiply,
+                            Box::new(Located::none(ast::Expression::Literal(
+                                ast::Literal::IntUnsigned32(3),
+                            ))),
+                            Box::new(Located::none(ast::Expression::Identifier(
+                                ast::ScopedIdentifier::trivial("index"),
+                            ))),
+                        ))),
+                        Box::new(Located::none(ast::Expression::Literal(
+                            ast::Literal::IntUnsigned32(i as u64),
+                        ))),
+                    )),
+                    Located::none(ast::Expression::Member(
+                        Box::new(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial("indices"),
+                        ))),
+                        ast::ScopedIdentifier::trivial(match i {
+                            0 => "x",
+                            1 => "y",
+                            2 => "z",
+                            _ => unreachable!(),
+                        }),
+                    )),
+                ]),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("set_indices")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from_layout(ast::TypeLayout::trivial("void")),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::from([ast::TemplateParam::Type(
+            ast::TemplateTypeParam {
+                name: Some(Located::none(String::from("Mesh"))),
+                default: None,
             },
         )])),
         params,

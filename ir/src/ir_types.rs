@@ -512,7 +512,7 @@ pub enum InterpolationModifier {
 }
 
 /// Value for outputtopology attribute of a mesh shader
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum OutputTopology {
     Point,
     Line,

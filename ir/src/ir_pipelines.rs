@@ -37,17 +37,17 @@ pub enum ShaderStage {
     /// Vertex shader
     Vertex,
 
-    /// Pixel shader
-    Pixel,
-
-    /// Compute shader
-    Compute,
-
     /// Task shader
     Task,
 
     /// Mesh shader
     Mesh,
+
+    /// Pixel shader
+    Pixel,
+
+    /// Compute shader
+    Compute,
 }
 
 /// Pipeline state for a graphics pipeline

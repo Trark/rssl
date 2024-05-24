@@ -176,6 +176,11 @@ impl FunctionRegistry {
         &self.signatures[id.0 as usize]
     }
 
+    /// Get the signature from a function id
+    pub fn get_function_signature_mut(&mut self, id: FunctionId) -> &mut FunctionSignature {
+        &mut self.signatures[id.0 as usize]
+    }
+
     /// Get the name from a function id
     pub fn get_function_name(&self, id: FunctionId) -> &str {
         &self.names[id.0 as usize].name.node
