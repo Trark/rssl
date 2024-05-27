@@ -665,21 +665,18 @@ fn record_interpolator_location(
         vertex_outputs.insert(name.clone(), Vec::from([String::from(param_name)]));
     } else {
         let param_ty = module.type_registry.remove_modifier(param_type);
+        let param_tyl = module.type_registry.get_type_layer(param_ty);
 
         // Record mesh output types
         if matches!(
             interpolation_modifier,
-            Some(ir::InterpolationModifier::Vertices | ir::InterpolationModifier::Primitives,)
-        ) {
-            if !matches!(
-                module.type_registry.get_type_layer(param_ty),
-                ir::TypeLayer::Void
-            ) {
-                pixel_input_members.push((param_ty, String::from(param_name)));
-            }
+            Some(ir::InterpolationModifier::Vertices | ir::InterpolationModifier::Primitives)
+        ) && !matches!(param_tyl, ir::TypeLayer::Void)
+        {
+            pixel_input_members.push((param_ty, String::from(param_name)));
         }
 
-        if let ir::TypeLayer::Struct(sid) = module.type_registry.get_type_layer(param_ty) {
+        if let ir::TypeLayer::Struct(sid) = param_tyl {
             let sd = &module.struct_registry[sid.0 as usize];
 
             for member in &sd.members {
