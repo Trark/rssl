@@ -153,7 +153,7 @@ pub(crate) fn generate_pipeline(
     ordered_stages.sort_by(|lhs, rhs| lhs.stage.cmp(&rhs.stage));
 
     // Maintain a map of the interpolator output names in the vertex / mesh stage
-    let mut vertex_outputs = HashMap::<String, Vec<String>>::new();
+    let mut vertex_outputs = HashMap::<ir::Semantic, Vec<String>>::new();
     let mut pixel_in: Option<(&str, Option<Vec<(_, String)>>)> = None;
 
     for stage in ordered_stages {
@@ -211,18 +211,33 @@ pub(crate) fn generate_pipeline(
             let param_name = String::from(context.get_variable_name(param.id)?);
             if param.param_type.input_modifier == ir::InputModifier::In {
                 match (stage.stage, &param.semantic) {
-                    (ir::ShaderStage::Pixel, Some(ir::Semantic::User(name))) => {
-                        let member_name = match vertex_outputs.get(name) {
-                            Some(member_name) => member_name,
-                            None => return Err(GenerateError::MissingInterpolator(name.clone())),
-                        };
+                    (ir::ShaderStage::Pixel, Some(semantic)) => {
+                        match vertex_outputs.get(semantic) {
+                            Some(member_name) => {
+                                // User semantic which the previous stage provided
+                                // Or a system semantic where the previous stage wrote the same named semantic
+                                // This does not handle system semantics which have different types in different stages
+                                args.push(Located::none(build_member_chain(
+                                    STAGE_INPUT_NAME_LOCAL,
+                                    member_name,
+                                )));
 
-                        args.push(Located::none(build_member_chain(
-                            STAGE_INPUT_NAME_LOCAL,
-                            member_name,
-                        )));
-
-                        requires_vertex_input = true;
+                                requires_vertex_input = true;
+                            }
+                            None => {
+                                if let ir::Semantic::User(name) = semantic {
+                                    // User semantic which the previous stage did not provide
+                                    return Err(GenerateError::MissingInterpolator(name.clone()));
+                                } else {
+                                    // System semantic where previous stage did not write the same named semantic
+                                    entry_params
+                                        .push(generate_function_param(param, true, context)?);
+                                    args.push(Located::none(ast::Expression::Identifier(
+                                        ast::ScopedIdentifier::trivial(&param_name),
+                                    )));
+                                }
+                            }
+                        }
                     }
                     _ => {
                         entry_params.push(generate_function_param(param, true, context)?);
@@ -657,12 +672,12 @@ fn record_interpolator_location(
     param_type: ir::TypeId,
     semantic: &Option<ir::Semantic>,
     interpolation_modifier: Option<ir::InterpolationModifier>,
-    vertex_outputs: &mut HashMap<String, Vec<String>>,
+    vertex_outputs: &mut HashMap<ir::Semantic, Vec<String>>,
     pixel_input_members: &mut Vec<(ir::TypeId, String)>,
     module: &ir::Module,
 ) {
-    if let Some(ir::Semantic::User(name)) = &semantic {
-        vertex_outputs.insert(name.clone(), Vec::from([String::from(param_name)]));
+    if let Some(semantic) = &semantic {
+        vertex_outputs.insert(semantic.clone(), Vec::from([String::from(param_name)]));
     } else {
         let param_ty = module.type_registry.remove_modifier(param_type);
         let param_tyl = module.type_registry.get_type_layer(param_ty);
@@ -680,9 +695,9 @@ fn record_interpolator_location(
             let sd = &module.struct_registry[sid.0 as usize];
 
             for member in &sd.members {
-                if let Some(ir::Semantic::User(name)) = &member.semantic {
+                if let Some(semantic) = &member.semantic {
                     vertex_outputs.insert(
-                        name.clone(),
+                        semantic.clone(),
                         Vec::from([String::from(param_name), member.name.clone()]),
                     );
                 }

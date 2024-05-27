@@ -153,7 +153,7 @@ pub enum AddressSpace {
 }
 
 /// Semantic identifier for linking inputs / outputs
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub enum Semantic {
     DispatchThreadId,
     GroupId,
