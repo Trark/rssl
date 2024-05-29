@@ -101,12 +101,6 @@ pub enum GenerateError {
     /// Metal matrix indexing first selects the column then row, RSSL - like HLSL - selects the row then column
     UnimplementedMatrixIndex,
 
-    /// Texture type is not implemented yet
-    UnimplementedTexture(&'static str),
-
-    /// RSSL object type is not implemented yet
-    UnimplementedObject(ir::ObjectType),
-
     /// RSSL intrinsic is not implemented yet
     UnimplementedIntrinsic(ir::Intrinsic),
 
