@@ -113,8 +113,8 @@ pub enum GenerateError {
     /// Unbounded arrays are not implemented
     UnimplementedUnboundedArray,
 
-    /// Mesh shaders require more rewriting of inputs than is currently supported
-    UnimplementedMeshShader,
+    /// Task shader generation of object shaders is not implemented
+    UnimplementedTaskShader,
 
     /// Raytracing has not been implemented
     UnimplementedRaytracing,
@@ -1075,7 +1075,7 @@ fn generate_interpolation_modifier(
                 return Err(GenerateError::UnsupportedGeometryShader)
             }
             Vertices | Primitives | Indices | Payload => {
-                return Err(GenerateError::UnimplementedMeshShader)
+                panic!("Mesh shader output modifiers not expected in any place we generate an interpolation modifier")
             }
         }))
     } else {

@@ -539,7 +539,7 @@ pub(crate) fn generate_pipeline(
                 ir::ShaderStage::Vertex => STAGE_OUTPUT_NAME_VERTEX,
                 ir::ShaderStage::Pixel => STAGE_OUTPUT_NAME_PIXEL,
                 ir::ShaderStage::Compute => return Err(GenerateError::InvalidModule),
-                ir::ShaderStage::Task => return Err(GenerateError::UnimplementedMeshShader),
+                ir::ShaderStage::Task => return Err(GenerateError::UnimplementedTaskShader),
                 ir::ShaderStage::Mesh => return Err(GenerateError::UnexpectedOutputFromMeshStage),
             };
 
