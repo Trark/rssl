@@ -193,7 +193,7 @@ pub enum TyperError {
     /// Type id with declarator modifiers are not valid for any RSSL types
     InvalidTypeDeclarator(SourceLocation),
 
-    /// [outputtopology] not valid
+    /// `[outputtopology]` not valid
     InvalidOutputTopology(SourceLocation, String),
 
     /// assert_type had invalid format
