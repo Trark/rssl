@@ -230,8 +230,9 @@ pub(crate) fn generate_pipeline(
                                     return Err(GenerateError::MissingInterpolator(name.clone()));
                                 } else {
                                     // System semantic where previous stage did not write the same named semantic
-                                    entry_params
-                                        .push(generate_function_param(param, true, context)?);
+                                    entry_params.push(generate_function_param(
+                                        param, true, false, context,
+                                    )?);
                                     args.push(Located::none(ast::Expression::Identifier(
                                         ast::ScopedIdentifier::trivial(&param_name),
                                     )));
@@ -240,7 +241,7 @@ pub(crate) fn generate_pipeline(
                         }
                     }
                     _ => {
-                        entry_params.push(generate_function_param(param, true, context)?);
+                        entry_params.push(generate_function_param(param, true, false, context)?);
                         args.push(Located::none(ast::Expression::Identifier(
                             ast::ScopedIdentifier::trivial(&param_name),
                         )));
@@ -269,7 +270,7 @@ pub(crate) fn generate_pipeline(
                     let mut param = param.clone();
                     // With in parameter so it is not a reference
                     param.param_type.input_modifier = ir::InputModifier::In;
-                    generate_function_param(&param, true, context)?
+                    generate_function_param(&param, true, false, context)?
                 };
 
                 out_params.push(ast::StructMember {

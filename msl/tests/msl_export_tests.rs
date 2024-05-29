@@ -221,6 +221,57 @@ void g() {}
 }
 
 #[test]
+fn check_function_out() {
+    check(
+        "void f(out int x, inout uint y, float z = 0) {} void entry() { int x; uint y = 0; f(x, y); }",
+        "void f(thread int& x, thread uint& y, float z, metal::true_type) {}
+
+void f(thread int& x, thread uint& y, float z = 0) {
+    int __x;
+    uint __y = y;
+    f(__x, __y, z, metal::true_type());
+    x = __x;
+    y = __y;
+}
+
+void entry() {
+    int x;
+    uint y = 0u;
+    f(x, y);
+}
+",
+    );
+
+    check(
+        "struct S { float f(out int x, inout uint y, float z = 0) { return 1.0f; } }; void entry() { S s; int x; uint y = 0; s.f(x, y); }",
+        "struct S
+{
+
+    float f(thread int& x, thread uint& y, float z, metal::true_type) {
+        return 1.0f;
+    }
+
+    float f(thread int& x, thread uint& y, float z = 0) {
+        int __x;
+        uint __y = y;
+        float out = f(__x, __y, z, metal::true_type());
+        x = __x;
+        y = __y;
+        return out;
+    }
+};
+
+void entry() {
+    S s;
+    int x;
+    uint y = 0u;
+    s.f(x, y);
+}
+",
+    );
+}
+
+#[test]
 fn check_function_attributes() {
     // Thread count is customisable at runtime
     // TODO: Ensure we have reflection metadata to get the requested thread group size

@@ -101,9 +101,6 @@ pub enum GenerateError {
     /// Metal matrix indexing first selects the column then row, RSSL - like HLSL - selects the row then column
     UnimplementedMatrixIndex,
 
-    /// Function argument passing rules are different and need careful handling
-    UnimplementedOutParameters,
-
     /// Texture type is not implemented yet
     UnimplementedTexture(&'static str),
 
@@ -372,6 +369,8 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                         _ => {}
                     }
                 }
+
+                context.called_functions.insert(*id);
             }
         }
 
@@ -600,23 +599,61 @@ fn generate_function(
                 .get_template_instantiation_data(child_id)
             {
                 if data.parent_id == id {
-                    let def = generate_function_inner(child_id, only_declare, context)?;
-                    fs.push(def);
+                    generate_function_and_trampoline(child_id, only_declare, &mut fs, context)?;
                 }
             }
         }
 
         Ok(fs)
     } else {
-        let def = generate_function_inner(id, only_declare, context)?;
-        Ok(Vec::from([def]))
+        let mut fs = Vec::new();
+        generate_function_and_trampoline(id, only_declare, &mut fs, context)?;
+        Ok(fs)
     }
+}
+
+/// Generate a function and the out/inout trampoline if required
+fn generate_function_and_trampoline(
+    id: ir::FunctionId,
+    only_declare: bool,
+    functions: &mut Vec<ast::FunctionDefinition>,
+    context: &mut GenerateContext,
+) -> Result<(), GenerateError> {
+    let sig = context.module.function_registry.get_function_signature(id);
+    let has_out = sig
+        .param_types
+        .iter()
+        .any(|p| p.input_modifier != ir::InputModifier::In);
+    let needs_trampoline = has_out && context.called_functions.contains(&id);
+
+    if !needs_trampoline || !only_declare {
+        functions.push(generate_function_inner(
+            id,
+            only_declare,
+            needs_trampoline,
+            false,
+            context,
+        )?);
+    }
+    if needs_trampoline {
+        functions.push(generate_function_inner(
+            id,
+            only_declare,
+            false,
+            true,
+            context,
+        )?);
+    }
+
+    Ok(())
 }
 
 /// Generate a function
 fn generate_function_inner(
     id: ir::FunctionId,
     only_declare: bool,
+    trampoline_target: bool,
+    out_trampoline: bool,
     context: &mut GenerateContext,
 ) -> Result<ast::FunctionDefinition, GenerateError> {
     let sig = context.module.function_registry.get_function_signature(id);
@@ -701,7 +738,20 @@ fn generate_function_inner(
 
     let mut params = Vec::new();
     for param in &decl.params {
-        params.push(generate_function_param(param, false, context)?);
+        params.push(generate_function_param(
+            param,
+            false,
+            trampoline_target,
+            context,
+        )?);
+    }
+    if trampoline_target {
+        params.push(ast::FunctionParam {
+            param_type: ast::Type::from(metal_lib_identifier("true_type")),
+            declarator: ast::Declarator::Empty,
+            location_annotations: Vec::new(),
+            default_expr: None,
+        })
     }
 
     // Parameters for implementing global variables come after the normal parameters
@@ -751,6 +801,14 @@ fn generate_function_inner(
 
     let body = if only_declare {
         None
+    } else if out_trampoline {
+        Some(generate_function_out_trampoline_body(
+            &name,
+            sig,
+            decl,
+            &return_type,
+            context,
+        )?)
     } else {
         let mut statements = Vec::new();
         for statement in &decl.scope_block.0 {
@@ -772,6 +830,124 @@ fn generate_function_inner(
         body,
         attributes,
     })
+}
+
+/// Generate the function body for the out/inout trampoline
+fn generate_function_out_trampoline_body(
+    name: &str,
+    sig: &ir::FunctionSignature,
+    decl: &ir::FunctionImplementation,
+    return_type: &ast::Type,
+    context: &mut GenerateContext,
+) -> Result<Vec<ast::Statement>, GenerateError> {
+    let needs_return = !context
+        .module
+        .type_registry
+        .is_void(sig.return_type.return_type);
+
+    let mut statements = Vec::new();
+    let mut statements_after = Vec::new();
+
+    let mut params = Vec::new();
+    for param in &decl.params {
+        let input_name = context.get_variable_name(param.id)?.to_string();
+        if param.param_type.input_modifier != ir::InputModifier::In {
+            // TODO: Non conflicting local name generation
+            let local_name = format!("__{}", input_name);
+            let (ty, declarator) = generate_type_and_declarator(
+                param.param_type.type_id,
+                &local_name,
+                false,
+                context,
+            )?;
+            statements.push(ast::Statement {
+                kind: ast::StatementKind::Var(ast::VarDef {
+                    local_type: ty,
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator,
+                        location_annotations: Vec::new(),
+                        init: if param.param_type.input_modifier == ir::InputModifier::InOut {
+                            Some(ast::Initializer::Expression(Located::none(
+                                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                                    &input_name,
+                                )),
+                            )))
+                        } else {
+                            None
+                        },
+                    }]),
+                }),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            });
+
+            statements_after.push(ast::Statement {
+                kind: ast::StatementKind::Expression(ast::Expression::BinaryOperation(
+                    ast::BinOp::Assignment,
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial(&input_name),
+                    ))),
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial(&local_name),
+                    ))),
+                )),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            });
+
+            params.push(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(&local_name),
+            )));
+        } else {
+            params.push(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(&input_name),
+            )));
+        }
+    }
+
+    {
+        params.push(Located::none(ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                metal_lib_identifier("true_type"),
+            ))),
+            Vec::new(),
+            Vec::new(),
+        )));
+        let expr = ast::Expression::Call(
+            Box::new(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(name),
+            ))),
+            Vec::new(),
+            params,
+        );
+        statements.push(ast::Statement {
+            kind: if needs_return {
+                ast::StatementKind::Var(ast::VarDef::one_with_expr(
+                    Located::none(String::from(STAGE_OUTPUT_NAME_LOCAL)),
+                    return_type.clone(),
+                    Located::none(expr),
+                ))
+            } else {
+                ast::StatementKind::Expression(expr)
+            },
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    statements.extend(statements_after);
+
+    if needs_return {
+        statements.push(ast::Statement {
+            kind: ast::StatementKind::Return(Some(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial(STAGE_OUTPUT_NAME_LOCAL),
+            )))),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        });
+    }
+
+    Ok(statements)
 }
 
 /// Generate output for a function attribute
@@ -802,6 +978,7 @@ fn generate_function_attribute(
 fn generate_function_param(
     param: &ir::FunctionParam,
     include_semantic: bool,
+    disable_default: bool,
     context: &mut GenerateContext,
 ) -> Result<ast::FunctionParam, GenerateError> {
     if param.precise {
@@ -842,7 +1019,11 @@ fn generate_function_param(
     }
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
-        Some(generate_expression(default_expr, context)?)
+        if disable_default {
+            None
+        } else {
+            Some(generate_expression(default_expr, context)?)
+        }
     } else {
         None
     };
@@ -2036,20 +2217,6 @@ fn generate_user_call(
     exprs: &Vec<ir::Expression>,
     context: &mut GenerateContext,
 ) -> Result<ast::Expression, GenerateError> {
-    // inout/out parameters are implemented by copy-in / copy-out
-    // We generated functions with references for those arguments
-    // We need additional setup to maintain the same semantics
-    for param in &context
-        .module
-        .function_registry
-        .get_function_signature(id)
-        .param_types
-    {
-        if param.input_modifier != ir::InputModifier::In {
-            return Err(GenerateError::UnimplementedOutParameters);
-        }
-    }
-
     let (object, arguments) = match ct {
         ir::CallType::FreeFunction => {
             let scoped_name = context.get_function_name_full(id)?;
@@ -3654,6 +3821,7 @@ pub(crate) struct GenerateContext<'m> {
     module: &'m ir::Module,
     name_map: NameMap,
     global_variable_modes: HashMap<ir::GlobalId, GlobalMode>,
+    called_functions: HashSet<ir::FunctionId>,
     function_required_globals: HashMap<ir::FunctionId, Vec<ImplicitFunctionParameter>>,
     required_helpers: HashMap<Option<IntrinsicObject>, HashSet<IntrinsicHelper>>,
 
@@ -3679,6 +3847,7 @@ impl<'m> GenerateContext<'m> {
             module,
             name_map,
             global_variable_modes: HashMap::new(),
+            called_functions: HashSet::new(),
             function_required_globals: HashMap::new(),
             required_helpers: HashMap::new(),
             mesh_layout,
