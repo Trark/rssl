@@ -185,9 +185,11 @@ fn process_expression(expr: &mut Expression, is_read_only: bool, reference_modul
                 .get_function_signature(id);
             let has_object_arg = *call_type == CallType::MethodExternal;
             if has_object_arg {
-                assert_eq!(args.len(), sig.param_types.len() + 1);
+                assert!(args.len() <= sig.param_types.len() + 1);
+                assert!(args.len() > sig.non_default_params);
             } else {
-                assert_eq!(args.len(), sig.param_types.len());
+                assert!(args.len() <= sig.param_types.len());
+                assert!(args.len() >= sig.non_default_params);
             }
             for (i, arg) in args.iter_mut().enumerate() {
                 let is_read_only = if has_object_arg {
