@@ -1,0 +1,44 @@
+
+
+#define MESH_GROUP_SIZE 64
+
+struct Payload
+{
+    uint start_location;
+};
+
+struct VertexAttributes
+{
+    float4 position : SV_Position;
+};
+
+[numthreads(MESH_GROUP_SIZE, 1, 1)]
+void TaskEntry(uint3 dtid : SV_DispatchThreadID) {
+    Payload data;
+    data.start_location = dtid.x;
+
+    DispatchMesh(4u, 1u, 1u, data);
+}
+
+[numthreads(MESH_GROUP_SIZE, 1, 1)]
+[outputtopology("triangle")]
+void MeshEntry(
+    uint3 dtid : SV_DispatchThreadID,
+    in payload Payload data,
+    out vertices VertexAttributes o_vertices[MESH_GROUP_SIZE],
+    out indices uint3 o_triangles[MESH_GROUP_SIZE]
+) {
+    SetMeshOutputCounts(MESH_GROUP_SIZE, MESH_GROUP_SIZE);
+
+    VertexAttributes vertex;
+    vertex.position = float4(data.start_location, 0, 0, 1);
+    o_vertices[dtid.x] = vertex;
+
+    o_triangles[dtid.x] = uint3(0, 1, 2);
+}
+
+Pipeline Test
+{
+    TaskShader = TaskEntry;
+    MeshShader = MeshEntry;
+}
