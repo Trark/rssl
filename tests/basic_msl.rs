@@ -90,6 +90,22 @@ fn check_wave_intrinsics() {
 }
 
 #[test]
+fn check_compute_pipeline() {
+    check_msl(
+        include_str!("basic/compute_pipeline.rssl"),
+        include_str!("basic/compute_pipeline.metal"),
+    );
+}
+
+#[test]
+fn check_vertex_pixel_pipeline() {
+    check_msl(
+        include_str!("basic/vertex_pixel_pipeline.rssl"),
+        include_str!("basic/vertex_pixel_pipeline.metal"),
+    );
+}
+
+#[test]
 fn check_mesh_pixel_pipeline() {
     check_msl(
         include_str!("basic/mesh_pixel_pipeline.rssl"),

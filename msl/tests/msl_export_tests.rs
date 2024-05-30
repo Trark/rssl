@@ -1673,19 +1673,3 @@ fn check_semantics() {
 ",
     );
 }
-
-#[test]
-fn check_compute_pipeline() {
-    check(
-        include_str!("compute_pipeline.rssl"),
-        include_str!("compute_pipeline.metal"),
-    );
-}
-
-#[test]
-fn check_vertex_pixel_pipeline() {
-    check(
-        include_str!("vertex_pixel_pipeline.rssl"),
-        include_str!("vertex_pixel_pipeline.metal"),
-    );
-}
