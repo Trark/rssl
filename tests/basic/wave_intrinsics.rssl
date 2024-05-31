@@ -33,7 +33,11 @@ void test_wave_intrinsics() {
 #endif
 }
 
+void entry() {
+    test_wave_intrinsics();
+}
+
 Pipeline WaveIntrinsics
 {
-    ComputeShader = test_wave_intrinsics;
+    ComputeShader = entry;
 }

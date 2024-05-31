@@ -24,3 +24,7 @@ void test_wave_intrinsics() {
     float3 quad_read_d_f3 = QuadReadAcrossDiagonal(float3(0.0f, 0.0f, 0.0f));
     float3 quad_read_at_f3 = QuadReadLaneAt(float3(0.0f, 0.0f, 0.0f), 0u);
 }
+
+void entry() {
+    test_wave_intrinsics();
+}

@@ -16,7 +16,11 @@ void test_wave_intrinsics(uint thread_index_in_simdgroup, uint threads_per_simdg
     float3 wave_prefix_sum_f3 = metal::simd_prefix_exclusive_sum(float3(0.0f, 0.0f, 0.0f));
 }
 
+void entry(uint thread_index_in_simdgroup, uint threads_per_simdgroup) {
+    test_wave_intrinsics(thread_index_in_simdgroup, threads_per_simdgroup);
+}
+
 [[kernel]]
 void ComputeShaderEntry(uint thread_index_in_simdgroup [[thread_index_in_simdgroup]], uint threads_per_simdgroup [[threads_per_simdgroup]]) {
-    test_wave_intrinsics(thread_index_in_simdgroup, threads_per_simdgroup);
+    entry(thread_index_in_simdgroup, threads_per_simdgroup);
 }

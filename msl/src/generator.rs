@@ -2261,8 +2261,16 @@ fn generate_user_call(
     let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
     for param in parameters_for_globals {
         match param {
-            ImplicitFunctionParameter::ThreadIndexInSimdgroup => todo!(),
-            ImplicitFunctionParameter::ThreadsPerSimdgroup => todo!(),
+            ImplicitFunctionParameter::ThreadIndexInSimdgroup => {
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("thread_index_in_simdgroup"),
+                )))
+            }
+            ImplicitFunctionParameter::ThreadsPerSimdgroup => {
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
+                )))
+            }
             ImplicitFunctionParameter::MeshOutput => args.push(Located::none(
                 ast::Expression::Identifier(ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME)),
             )),
