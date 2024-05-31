@@ -56,6 +56,7 @@ struct ArgumentBuffer1
 };
 
 [[mesh]]
+[[max_total_threads_per_threadgroup(64 * 1 * 1)]]
 void MeshShaderEntry(uint3 dtid [[thread_position_in_grid]], constant ArgumentBuffer0& set0 [[buffer(0)]], constant ArgumentBuffer1& set1 [[buffer(1)]], metal::mesh<VertexAttributes, PrimitiveAttributes, 128u, 64u, metal::topology::triangle> o_mesh) {
     int s_value = 0;
     MSMAIN(dtid, o_mesh, set0.g_input, s_value);

@@ -660,7 +660,7 @@ fn generate_function_inner(
 
     let mut attributes = Vec::new();
     for attribute in &decl.attributes {
-        if let Some(attr) = generate_function_attribute(attribute, context)? {
+        if let Some(attr) = generate_function_attribute(attribute, false, context)? {
             attributes.push(attr);
         }
     }
@@ -947,12 +947,34 @@ fn generate_function_out_trampoline_body(
 /// Generate output for a function attribute
 fn generate_function_attribute(
     attr: &ir::FunctionAttribute,
-    _: &mut GenerateContext,
+    entry_point: bool,
+    context: &mut GenerateContext,
 ) -> Result<Option<ast::Attribute>, GenerateError> {
     let ast = match attr {
-        ir::FunctionAttribute::NumThreads(..) => {
-            // TODO: We need to export the thread group count as metadata
-            None
+        ir::FunctionAttribute::NumThreads(x, y, z) => {
+            if entry_point {
+                let x = generate_expression(x, context)?;
+                let y = generate_expression(y, context)?;
+                let z = generate_expression(z, context)?;
+                let m = ast::Expression::BinaryOperation(
+                    ast::BinOp::Multiply,
+                    Box::new(Located::none(ast::Expression::BinaryOperation(
+                        ast::BinOp::Multiply,
+                        Box::new(Located::none(x)),
+                        Box::new(Located::none(y)),
+                    ))),
+                    Box::new(Located::none(z)),
+                );
+                Some(ast::Attribute {
+                    name: Vec::from([Located::none(
+                        "max_total_threads_per_threadgroup".to_string(),
+                    )]),
+                    arguments: Vec::from([Located::none(m)]),
+                    two_square_brackets: true,
+                })
+            } else {
+                None
+            }
         }
         ir::FunctionAttribute::MaxVertexCount(_) => {
             return Err(GenerateError::UnsupportedGeometryShader);

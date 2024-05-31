@@ -42,6 +42,7 @@ struct ArgumentBuffer2
 };
 
 [[kernel]]
+[[max_total_threads_per_threadgroup(8 * 8 * 1)]]
 void ComputeShaderEntry(constant ArgumentBuffer0& set0 [[buffer(0)]], constant ArgumentBuffer1& set1 [[buffer(1)]], constant ArgumentBuffer2& set2 [[buffer(2)]]) {
     CSMAIN(set1.g_bindlessTexture2d, set1.g_bindlessByteBuffer);
 }

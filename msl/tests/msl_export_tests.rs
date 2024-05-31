@@ -273,8 +273,8 @@ void entry() {
 
 #[test]
 fn check_function_attributes() {
-    // Thread count is customisable at runtime
-    // TODO: Ensure we have reflection metadata to get the requested thread group size
+    // Thread count may be set at runtime. We set this to max size in entry point
+    // Non-entry point functions will not generate the attribute
     check("[numthreads(64, 1, 1)] void Main() {}", "void Main() {}\n");
 
     expect_generate_fail(

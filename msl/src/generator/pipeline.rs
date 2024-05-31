@@ -626,6 +626,25 @@ pub(crate) fn generate_pipeline(
             ir::ShaderStage::Mesh => "mesh",
         };
 
+        let mut attributes = Vec::from([ast::Attribute {
+            name: Vec::from([Located::none(String::from(stage_attribute_name))]),
+            arguments: Vec::new(),
+            two_square_brackets: true,
+        }]);
+
+        for attribute in &context
+            .module
+            .function_registry
+            .get_function_implementation(stage.entry_point)
+            .as_ref()
+            .unwrap()
+            .attributes
+        {
+            if let Some(attr) = super::generate_function_attribute(attribute, true, context)? {
+                attributes.push(attr);
+            }
+        }
+
         let entry_point = ast::FunctionDefinition {
             name: Located::none(String::from(entry_point_name)),
             returntype: ast::FunctionReturn {
@@ -637,11 +656,7 @@ pub(crate) fn generate_pipeline(
             is_const: false,
             is_volatile: false,
             body: Some(body),
-            attributes: Vec::from([ast::Attribute {
-                name: Vec::from([Located::none(String::from(stage_attribute_name))]),
-                arguments: Vec::new(),
-                two_square_brackets: true,
-            }]),
+            attributes,
         };
         defs.push(ast::RootDefinition::Function(entry_point));
 
