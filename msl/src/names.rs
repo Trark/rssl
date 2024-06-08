@@ -18,6 +18,8 @@ pub const STAGE_INPUT_NAME_LOCAL: &str = "in";
 pub const MESH_OUTPUT_NAME: &str = "o_mesh";
 pub const MESH_VERTEX_ATTRIBUTES_MEMBER_NAME: &str = "o_vertices";
 pub const MESH_PRIMITIVE_ATTRIBUTES_MEMBER_NAME: &str = "o_primitives";
+pub const PAYLOAD_OUTPUT_NAME: &str = "o_payload";
+pub const MESH_GRID_PROPERTIES_OUTPUT_NAME: &str = "mesh_grid_properties";
 
 /// List of names we want to avoid in the generated code
 pub const RESERVED_NAMES: &[&str] = &[
@@ -116,4 +118,6 @@ pub const RESERVED_NAMES: &[&str] = &[
     MESH_OUTPUT_NAME,
     MESH_VERTEX_ATTRIBUTES_MEMBER_NAME,
     MESH_PRIMITIVE_ATTRIBUTES_MEMBER_NAME,
+    PAYLOAD_OUTPUT_NAME,
+    MESH_GRID_PROPERTIES_OUTPUT_NAME,
 ];

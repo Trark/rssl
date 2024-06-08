@@ -112,3 +112,11 @@ fn check_mesh_pixel_pipeline() {
         include_str!("basic/mesh_pixel_pipeline.metal"),
     );
 }
+
+#[test]
+fn check_task_mesh_pipeline() {
+    check_msl(
+        include_str!("basic/task_mesh_pipeline.rssl"),
+        include_str!("basic/task_mesh_pipeline.metal"),
+    );
+}

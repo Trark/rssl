@@ -360,6 +360,23 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
                         ir::Intrinsic::SetMeshOutputCounts => {
                             required_globals.push(ImplicitFunctionParameter::MeshOutput)
                         }
+                        ir::Intrinsic::DispatchMesh => {
+                            let template_data = context
+                                .module
+                                .function_registry
+                                .get_template_instantiation_data(*id)
+                                .as_ref()
+                                .unwrap();
+                            assert_eq!(template_data.template_args.len(), 1);
+                            let ty = match template_data.template_args[0] {
+                                rssl_ir::TypeOrConstant::Type(ty) => ty,
+                                rssl_ir::TypeOrConstant::Constant(_) => {
+                                    panic!("Non-type template parameter is DispatchMesh")
+                                }
+                            };
+                            required_globals.push(ImplicitFunctionParameter::PayloadOutput(ty));
+                            required_globals.push(ImplicitFunctionParameter::MeshGridProperties);
+                        }
                         _ => {}
                     }
                 }
@@ -749,7 +766,7 @@ fn generate_function_inner(
     }
 
     // Parameters for implementing global variables come after the normal parameters
-    let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
+    let parameters_for_globals = context.function_required_globals.get(&id).unwrap().clone();
     for param in parameters_for_globals {
         match param {
             ImplicitFunctionParameter::ThreadIndexInSimdgroup => params.push(ast::FunctionParam {
@@ -782,8 +799,37 @@ fn generate_function_inner(
                 location_annotations: Vec::new(),
                 default_expr: None,
             }),
+            ImplicitFunctionParameter::PayloadOutput(ty) => {
+                let mut param_type = generate_type(ty, context)?;
+                param_type
+                    .modifiers
+                    .prepend(Located::none(ast::TypeModifier::AddressSpace(
+                        ast::AddressSpace::ObjectData,
+                    )));
+                params.push(ast::FunctionParam {
+                    param_type,
+                    declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
+                        attributes: Vec::new(),
+                        inner: Box::new(ast::Declarator::Identifier(
+                            ast::ScopedIdentifier::trivial(PAYLOAD_OUTPUT_NAME),
+                            Vec::new(),
+                        )),
+                    }),
+                    location_annotations: Vec::from([]),
+                    default_expr: None,
+                })
+            }
+            ImplicitFunctionParameter::MeshGridProperties => params.push(ast::FunctionParam {
+                param_type: ast::Type::from(metal_lib_identifier("mesh_grid_properties")),
+                declarator: ast::Declarator::Identifier(
+                    ast::ScopedIdentifier::trivial(MESH_GRID_PROPERTIES_OUTPUT_NAME),
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
+                default_expr: None,
+            }),
             ImplicitFunctionParameter::Global(gid) => {
-                match context.global_variable_modes.get(gid).unwrap() {
+                match context.global_variable_modes.get(&gid).unwrap() {
                     GlobalMode::Parameter { param, .. } => {
                         params.push(param.clone());
                     }
@@ -2274,6 +2320,14 @@ fn generate_user_call(
             ImplicitFunctionParameter::MeshOutput => args.push(Located::none(
                 ast::Expression::Identifier(ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME)),
             )),
+            ImplicitFunctionParameter::PayloadOutput(_) => args.push(Located::none(
+                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(PAYLOAD_OUTPUT_NAME)),
+            )),
+            ImplicitFunctionParameter::MeshGridProperties => {
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial(MESH_GRID_PROPERTIES_OUTPUT_NAME),
+                )))
+            }
             ImplicitFunctionParameter::Global(gid) => {
                 match context.global_variable_modes.get(gid).unwrap() {
                     GlobalMode::Parameter { argument, .. } => {
@@ -2606,7 +2660,42 @@ fn generate_intrinsic_function(
                 ))),
             ))
         }
-        DispatchMesh => unimplemented_intrinsic(),
+        DispatchMesh => {
+            assert_eq!(exprs.len(), 4);
+            let x = Located::none(generate_expression(&exprs[0], context)?);
+            let y = Located::none(generate_expression(&exprs[1], context)?);
+            let z = Located::none(generate_expression(&exprs[2], context)?);
+            let dim = Located::none(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("uint3"),
+                ))),
+                Vec::new(),
+                Vec::from([x, y, z]),
+            ));
+            let payload = Located::none(generate_expression(&exprs[3], context)?);
+            let assign_dims = ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Member(
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial(MESH_GRID_PROPERTIES_OUTPUT_NAME),
+                    ))),
+                    ast::ScopedIdentifier::trivial("set_threadgroups_per_grid"),
+                ))),
+                Vec::new(),
+                Vec::from([dim]),
+            );
+            let assign_payload = ast::Expression::BinaryOperation(
+                ast::BinOp::Assignment,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial(PAYLOAD_OUTPUT_NAME),
+                ))),
+                Box::new(payload),
+            );
+            Ok(ast::Expression::BinaryOperation(
+                ast::BinOp::Sequence,
+                Box::new(Located::none(assign_dims)),
+                Box::new(Located::none(assign_payload)),
+            ))
+        }
 
         BufferGetDimensions => unimplemented_intrinsic(),
         BufferLoad | RWBufferLoad => {
@@ -3859,6 +3948,15 @@ enum ImplicitFunctionParameter {
     ThreadIndexInSimdgroup,
     ThreadsPerSimdgroup,
     MeshOutput,
+
+    /// Payload value that is written by DispatchMesh calls
+    ///
+    /// Only one invocation and one type is valid in a shader but multiple calls may exist in source
+    PayloadOutput(ir::TypeId),
+
+    /// Grid dimensions that is written by DispatchMesh calls
+    MeshGridProperties,
+
     Global(ir::GlobalId),
 }
 

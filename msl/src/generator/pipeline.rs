@@ -240,6 +240,36 @@ pub(crate) fn generate_pipeline(
                             }
                         }
                     }
+                    _ if param.interpolation_modifier
+                        == Some(ir::InterpolationModifier::Payload) =>
+                    {
+                        let mut param_type = generate_type(param.param_type.type_id, context)?;
+                        param_type
+                            .modifiers
+                            .prepend(Located::none(ast::TypeModifier::Const));
+                        param_type.modifiers.prepend(Located::none(
+                            ast::TypeModifier::AddressSpace(ast::AddressSpace::ObjectData),
+                        ));
+                        entry_params.push(ast::FunctionParam {
+                            param_type,
+                            declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
+                                attributes: Vec::new(),
+                                inner: Box::new(ast::Declarator::Identifier(
+                                    Located::none(param_name.as_str()).into(),
+                                    Vec::from([ast::Attribute {
+                                        name: Vec::from([Located::none(String::from("payload"))]),
+                                        arguments: Vec::new(),
+                                        two_square_brackets: true,
+                                    }]),
+                                )),
+                            }),
+                            location_annotations: Vec::new(),
+                            default_expr: None,
+                        });
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial(&param_name),
+                        )));
+                    }
                     _ => {
                         entry_params.push(generate_function_param(param, true, false, context)?);
                         args.push(Located::none(ast::Expression::Identifier(
@@ -348,7 +378,8 @@ pub(crate) fn generate_pipeline(
             let parameters_for_globals = context
                 .function_required_globals
                 .get(&stage.entry_point)
-                .unwrap();
+                .unwrap()
+                .clone();
             for param in parameters_for_globals {
                 match param {
                     ImplicitFunctionParameter::ThreadIndexInSimdgroup => {
@@ -406,6 +437,48 @@ pub(crate) fn generate_pipeline(
 
                         args.push(Located::none(ast::Expression::Identifier(
                             ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME),
+                        )));
+                    }
+                    ImplicitFunctionParameter::PayloadOutput(ty) => {
+                        let mut param_type = generate_type(ty, context)?;
+                        param_type.modifiers.prepend(Located::none(
+                            ast::TypeModifier::AddressSpace(ast::AddressSpace::ObjectData),
+                        ));
+                        entry_params.push(ast::FunctionParam {
+                            param_type,
+                            declarator: ast::Declarator::Reference(ast::ReferenceDeclarator {
+                                attributes: Vec::new(),
+                                inner: Box::new(ast::Declarator::Identifier(
+                                    Located::none(PAYLOAD_OUTPUT_NAME).into(),
+                                    Vec::from([ast::Attribute {
+                                        name: Vec::from([Located::none(String::from("payload"))]),
+                                        arguments: Vec::new(),
+                                        two_square_brackets: true,
+                                    }]),
+                                )),
+                            }),
+                            location_annotations: Vec::new(),
+                            default_expr: None,
+                        });
+
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial(PAYLOAD_OUTPUT_NAME),
+                        )));
+                    }
+                    ImplicitFunctionParameter::MeshGridProperties => {
+                        entry_params.push(ast::FunctionParam {
+                            param_type: ast::Type::from(super::metal_lib_identifier(
+                                "mesh_grid_properties",
+                            )),
+                            declarator: ast::Declarator::from(Located::none(
+                                MESH_GRID_PROPERTIES_OUTPUT_NAME,
+                            )),
+                            location_annotations: Vec::new(),
+                            default_expr: None,
+                        });
+
+                        args.push(Located::none(ast::Expression::Identifier(
+                            ast::ScopedIdentifier::trivial(MESH_GRID_PROPERTIES_OUTPUT_NAME),
                         )));
                     }
                     ImplicitFunctionParameter::Global(ref gid) => {
