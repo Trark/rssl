@@ -171,8 +171,6 @@ fn build_pipeline(
         None
     };
 
-    let thread_group_size = pipeline.and_then(|pipeline| pipeline.thread_group_size);
-
     let compiled = match args.target {
         Target::HlslForDirectX | Target::HlslForVulkan => {
             let exported_source = match hlsl::export_to_hlsl(&ir) {
@@ -195,6 +193,7 @@ fn build_pipeline(
                             .function_registry
                             .get_function_name(stage.entry_point)
                             .to_string(),
+                        thread_group_size: stage.thread_group_size,
                     });
                 }
             }
@@ -204,7 +203,6 @@ fn build_pipeline(
                 stages,
                 metadata: exported_source.pipeline_description,
                 graphics_pipeline_state,
-                thread_group_size,
             }
         }
         Target::Msl | Target::MetalBytecode => {
@@ -231,6 +229,7 @@ fn build_pipeline(
                             ShaderStage::Mesh => "MeshShaderEntry",
                             ShaderStage::Task => "TaskShaderEntry",
                         }),
+                        thread_group_size: stage.thread_group_size,
                     });
                 }
             }
@@ -271,7 +270,6 @@ fn build_pipeline(
                 stages,
                 metadata: exported_source.pipeline_description,
                 graphics_pipeline_state,
-                thread_group_size,
             }
         }
     };
@@ -292,9 +290,6 @@ pub struct CompiledPipeline {
 
     /// State for graphics pipelines
     pub graphics_pipeline_state: Option<ir::GraphicsPipelineState>,
-
-    /// The number of threads per thread group if the shader has a set size
-    pub thread_group_size: Option<(u32, u32, u32)>,
 }
 
 /// Output for a shader stage in a compiled shader pipeline
@@ -304,6 +299,9 @@ pub struct CompiledPipelineStage {
 
     /// Name of the entry point
     pub entry_point: String,
+
+    /// The number of threads per thread group if the stage has a set size
+    pub thread_group_size: Option<(u32, u32, u32)>,
 }
 
 /// Error for [compile()]

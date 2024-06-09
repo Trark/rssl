@@ -15,9 +15,6 @@ pub struct PipelineDefinition {
 
     /// State for graphics pipelines
     pub graphics_pipeline_state: Option<GraphicsPipelineState>,
-
-    /// The number of threads per thread group if the shader has a set size
-    pub thread_group_size: Option<(u32, u32, u32)>,
 }
 
 /// A definition for a shader pipeline
@@ -29,6 +26,9 @@ pub struct PipelineStage {
 
     /// Entry point function
     pub entry_point: FunctionId,
+
+    /// The number of threads per thread group if the stage has a set size
+    pub thread_group_size: Option<(u32, u32, u32)>,
 }
 
 /// Identifier for the kind of shader in a stage of the pipeline

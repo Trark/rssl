@@ -12,7 +12,6 @@ pub fn parse_pipeline(def: &ast::PipelineDefinition, context: &mut Context) -> T
         default_bind_group_index: 0,
         stages: Vec::new(),
         graphics_pipeline_state: None,
-        thread_group_size: None,
     };
 
     // Check for duplicate properties
@@ -202,15 +201,12 @@ fn add_stage(
         }
     }
 
+    let mut thread_group_size = None;
+
     let func_id = match func_id {
         Some(id) => id,
         None => return Err(TyperError::PipelineEntryPointFunctionUnknown(location)),
     };
-
-    def.stages.push(ir::PipelineStage {
-        stage,
-        entry_point: func_id,
-    });
 
     let function_impl = context
         .module
@@ -243,9 +239,15 @@ fn add_stage(
             let x = evaluate(x)?;
             let y = evaluate(y)?;
             let z = evaluate(z)?;
-            def.thread_group_size = Some((x, y, z));
+            thread_group_size = Some((x, y, z));
         }
     }
+
+    def.stages.push(ir::PipelineStage {
+        stage,
+        entry_point: func_id,
+        thread_group_size,
+    });
 
     Ok(())
 }
