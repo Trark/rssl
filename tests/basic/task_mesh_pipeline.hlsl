@@ -8,11 +8,12 @@ struct VertexAttributes
     float4 position : SV_Position;
 };
 
+groupshared Payload lds_data;
+
 [numthreads(64, 1, 1)]
 void TaskEntry(uint3 dtid : SV_DispatchThreadID) {
-    Payload data;
-    data.start_location = dtid.x;
-    DispatchMesh(4u, 1u, 1u, data);
+    lds_data.start_location = dtid.x;
+    DispatchMesh(4u, 1u, 1u, lds_data);
 }
 
 [numthreads(64, 1, 1)]

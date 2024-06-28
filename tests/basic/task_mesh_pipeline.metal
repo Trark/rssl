@@ -19,10 +19,9 @@ struct VertexAttributes
     [[position]] float4 position;
 };
 
-void TaskEntry(uint3 dtid, object_data Payload& o_payload, metal::mesh_grid_properties mesh_grid_properties) {
-    Payload data;
-    data.start_location = dtid.x;
-    mesh_grid_properties.set_threadgroups_per_grid(uint3(4u, 1u, 1u)), o_payload = data;
+void TaskEntry(uint3 dtid, object_data Payload& o_payload, metal::mesh_grid_properties mesh_grid_properties, threadgroup Payload& lds_data) {
+    lds_data.start_location = dtid.x;
+    mesh_grid_properties.set_threadgroups_per_grid(uint3(4u, 1u, 1u)), o_payload = lds_data;
 }
 
 void MeshEntry(uint3 dtid, Payload data, metal::mesh<VertexAttributes, void, 64u, 64u, metal::topology::triangle> o_mesh) {
@@ -36,7 +35,8 @@ void MeshEntry(uint3 dtid, Payload data, metal::mesh<VertexAttributes, void, 64u
 [[object]]
 [[max_total_threads_per_threadgroup(64 * 1 * 1)]]
 void TaskShaderEntry(uint3 dtid [[thread_position_in_grid]], object_data Payload& o_payload [[payload]], metal::mesh_grid_properties mesh_grid_properties) {
-    TaskEntry(dtid, o_payload, mesh_grid_properties);
+    threadgroup Payload lds_data;
+    TaskEntry(dtid, o_payload, mesh_grid_properties, lds_data);
 }
 
 [[mesh]]

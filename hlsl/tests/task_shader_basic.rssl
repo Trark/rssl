@@ -3,14 +3,12 @@ struct Payload
     uint start_location;
 };
 
+groupshared Payload lds_data;
+
 [numthreads(64, 1, 1)]
 void TaskShader(uint thread_id : SV_DispatchThreadID)
 {
-    Payload data;
-    data.start_location = thread_id.x;
+    lds_data.start_location = thread_id.x;
 
-    // We implement DispatchMesh as a templated function
-    // The lack of argument deduction means we have to specify the type
-    // The HLSL DispatchMesh intrinsic is not templated and must not have the type argument
-    DispatchMesh(4u, 1u, 1u, data);
+    DispatchMesh(4u, 1u, 1u, lds_data);
 }
