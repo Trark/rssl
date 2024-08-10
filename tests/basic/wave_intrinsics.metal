@@ -14,6 +14,10 @@ void test_wave_intrinsics(uint thread_index_in_simdgroup, uint threads_per_simdg
     float3 wave_active_max_f3 = metal::simd_max(float3(0.0f, 0.0f, 0.0f));
     float3 wave_prefix_product_f3 = metal::simd_prefix_exclusive_product(float3(0.0f, 0.0f, 0.0f));
     float3 wave_prefix_sum_f3 = metal::simd_prefix_exclusive_sum(float3(0.0f, 0.0f, 0.0f));
+    float3 quad_read_x_f3 = metal::quad_shuffle_xor(float3(0.0f, 0.0f, 0.0f), 1u);
+    float3 quad_read_y_f3 = metal::quad_shuffle_xor(float3(0.0f, 0.0f, 0.0f), 2u);
+    float3 quad_read_d_f3 = metal::quad_shuffle_xor(float3(0.0f, 0.0f, 0.0f), 3u);
+    float3 quad_read_at_f3 = metal::quad_shuffle(float3(0.0f, 0.0f, 0.0f), 0u);
 }
 
 void entry(uint thread_index_in_simdgroup, uint threads_per_simdgroup) {

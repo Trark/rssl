@@ -2635,10 +2635,22 @@ fn generate_intrinsic_function(
         WavePrefixCountBits => unimplemented_intrinsic(),
         WavePrefixProduct => invoke_simple("simd_prefix_exclusive_product", context),
         WavePrefixSum => invoke_simple("simd_prefix_exclusive_sum", context),
-        QuadReadAcrossX => unimplemented_intrinsic(),
-        QuadReadAcrossY => unimplemented_intrinsic(),
-        QuadReadAcrossDiagonal => unimplemented_intrinsic(),
-        QuadReadLaneAt => unimplemented_intrinsic(),
+        QuadReadAcrossX | QuadReadAcrossY | QuadReadAcrossDiagonal => {
+            let identifier = metal_lib_identifier("quad_shuffle_xor");
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            let mut args = generate_invocation_args(exprs, context)?;
+            let mask = match intrinsic {
+                QuadReadAcrossX => 0b01,
+                QuadReadAcrossY => 0b10,
+                QuadReadAcrossDiagonal => 0b11,
+                _ => unreachable!(),
+            };
+            args.push(Located::none(ast::Expression::Literal(
+                ast::Literal::IntUnsigned32(mask),
+            )));
+            Ok(ast::Expression::Call(object, Vec::new(), args))
+        }
+        QuadReadLaneAt => invoke_simple("quad_shuffle", context),
 
         SetMeshOutputCounts => {
             assert_eq!(exprs.len(), 2);

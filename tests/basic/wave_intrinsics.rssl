@@ -25,12 +25,10 @@ void test_wave_intrinsics() {
 #endif
     float3 wave_prefix_product_f3 = WavePrefixProduct(float3(0.0f, 0.0f, 0.0f));
     float3 wave_prefix_sum_f3 = WavePrefixSum(float3(0.0f, 0.0f, 0.0f));
-#if !RSSL_TARGET_MSL
     float3 quad_read_x_f3 = QuadReadAcrossX(float3(0.0f, 0.0f, 0.0f));
     float3 quad_read_y_f3 = QuadReadAcrossY(float3(0.0f, 0.0f, 0.0f));
     float3 quad_read_d_f3 = QuadReadAcrossDiagonal(float3(0.0f, 0.0f, 0.0f));
     float3 quad_read_at_f3 = QuadReadLaneAt(float3(0.0f, 0.0f, 0.0f), 0u);
-#endif
 }
 
 void entry() {
