@@ -845,13 +845,7 @@ fn format_expression(
     output: &mut String,
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
-    format_subexpression(
-        expr,
-        u32::max_value(),
-        OperatorSide::Middle,
-        output,
-        context,
-    )
+    format_subexpression(expr, u32::MAX, OperatorSide::Middle, output, context)
 }
 
 enum OperatorSide {
