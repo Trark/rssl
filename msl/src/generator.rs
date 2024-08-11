@@ -1460,15 +1460,11 @@ fn generate_type_impl(
 
                 TriangleStream(_) => return Err(GenerateError::UnsupportedGeometryShader),
 
-                RaytracingAccelerationStructure => ast::Type::from(ast::ScopedIdentifier {
-                    base: ast::ScopedIdentifierBase::Relative,
-                    identifiers: Vec::from([
-                        Located::none(String::from("metal")),
-                        Located::none(String::from("raytracing")),
-                        Located::none(String::from("instance_acceleration_structure")),
-                    ]),
-                }),
-                RayQuery(_) | RayDesc => return Err(GenerateError::UnimplementedRaytracing),
+                RaytracingAccelerationStructure => ast::Type::from(metal_raytracing_identifier(
+                    "instance_acceleration_structure",
+                )),
+                RayQuery(_) => return Err(GenerateError::UnimplementedRaytracing),
+                RayDesc => ast::Type::from(metal_raytracing_identifier("ray")),
             }
         }
         ir::TypeLayer::Array(ty, len) => {
@@ -2247,6 +2243,16 @@ fn generate_expression(
         ir::Expression::ObjectMember(expr, name) => {
             let object = generate_expression(expr, context)?;
             let object = Box::new(Located::none(object));
+            // Remap RayDesc names
+            // We only remember object member names via strings so can not currently do a more safe conversion
+            // The names on RayDesc do not overlap with any other builtins
+            let name = match name.as_str() {
+                "Origin" => "origin",
+                "TMin" => "min_distance",
+                "Direction" => "direction",
+                "TMax" => "max_distance",
+                _ => name,
+            };
             ast::Expression::Member(object, ast::ScopedIdentifier::trivial(name))
         }
         ir::Expression::Call(id, ct, exprs) => {
@@ -3906,6 +3912,19 @@ fn metal_lib_identifier(name: &str) -> ast::ScopedIdentifier {
         base: ast::ScopedIdentifierBase::Relative,
         identifiers: Vec::from([
             Located::none(String::from("metal")),
+            Located::none(String::from(name)),
+        ]),
+    }
+}
+
+/// Construct an ast scoped identifier from a name from the metal standard library raytracing namespace
+fn metal_raytracing_identifier(name: &str) -> ast::ScopedIdentifier {
+    ast::ScopedIdentifier {
+        // metal is a reserved name so we can drop the leading ::
+        base: ast::ScopedIdentifierBase::Relative,
+        identifiers: Vec::from([
+            Located::none(String::from("metal")),
+            Located::none(String::from("raytracing")),
             Located::none(String::from(name)),
         ]),
     }

@@ -1,4 +1,10 @@
-void entry() {}
+void entry() {
+    metal::raytracing::ray ray;
+    ray.origin = float3(0.0f, 0.0f, 0.0f);
+    ray.min_distance = 0.0f;
+    ray.direction = float3(1.0f, 0.0f, 0.0f);
+    ray.max_distance = 1.0f;
+}
 
 struct ArgumentBuffer0
 {
