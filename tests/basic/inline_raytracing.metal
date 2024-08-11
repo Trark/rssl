@@ -1,4 +1,5 @@
 void entry() {
+    metal::raytracing::intersection_query<metal::raytracing::instancing, metal::raytracing::triangle_data> query;
     metal::raytracing::ray ray;
     ray.origin = float3(0.0f, 0.0f, 0.0f);
     ray.min_distance = 0.0f;

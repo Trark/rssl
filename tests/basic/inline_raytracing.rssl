@@ -1,9 +1,7 @@
 const RaytracingAccelerationStructure g_bvh : register(t0);
 
 void entry() {
-#if !RSSL_TARGET_MSL
     RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > query;
-#endif
     RayDesc ray;
     ray.Origin = float3(0.0f, 0.0f, 0.0f);
     ray.TMin = 0.0f;

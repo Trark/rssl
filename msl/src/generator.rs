@@ -1463,7 +1463,26 @@ fn generate_type_impl(
                 RaytracingAccelerationStructure => ast::Type::from(metal_raytracing_identifier(
                     "instance_acceleration_structure",
                 )),
-                RayQuery(_) => return Err(GenerateError::UnimplementedRaytracing),
+                RayQuery(_) => {
+                    // All HLSL flags are ignored in type arguments
+                    // These must be applied to the ray query calls
+
+                    let flags_parts = ["instancing", "triangle_data"];
+                    let flags = flags_parts
+                        .into_iter()
+                        .map(|flag| {
+                            ast::ExpressionOrType::Type(ast::TypeId::from(
+                                metal_raytracing_identifier(flag),
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice();
+
+                    ast::Type::from(ast::TypeLayout(
+                        metal_raytracing_identifier("intersection_query"),
+                        flags,
+                    ))
+                }
                 RayDesc => ast::Type::from(metal_raytracing_identifier("ray")),
             }
         }
