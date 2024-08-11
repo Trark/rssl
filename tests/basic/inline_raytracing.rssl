@@ -7,8 +7,8 @@ void entry() {
     ray.TMin = 0.0f;
     ray.Direction = float3(1.0f, 0.0f, 0.0f);
     ray.TMax = 1.0f;
-#if !RSSL_TARGET_MSL
     query.TraceRayInline(g_bvh, 0u, 0u, ray);
+#if !RSSL_TARGET_MSL
     bool c = query.Proceed();
     query.Abort();
     uint committed_status = query.CommittedStatus();

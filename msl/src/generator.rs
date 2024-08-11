@@ -3220,8 +3220,45 @@ fn generate_intrinsic_function(
             Err(GenerateError::UnsupportedGeometryShader)
         }
 
-        RayQueryTraceRayInline
-        | RayQueryProceed
+        RayQueryTraceRayInline => {
+            assert_eq!(exprs.len(), 5);
+            let object = generate_expression(&exprs[0], context)?;
+            let arg_ray = Located::none(generate_expression(&exprs[4], context)?);
+            let arg_bvh = Located::none(generate_expression(&exprs[1], context)?);
+            let arg_mask = Located::none(generate_expression(&exprs[3], context)?);
+
+            let arg_flags = Located::none(generate_expression(&exprs[2], context)?);
+            let query_type = exprs[0].get_type(context.module)?;
+            let query_type = context.module.type_registry.remove_modifier(query_type.0);
+            let static_flags = match context.module.type_registry.get_type_layer(query_type) {
+                ir::TypeLayer::Object(ir::ObjectType::RayQuery(static_flags)) => static_flags,
+                _ => panic!("Invalid object type for TraceRayInline"),
+            };
+            let arg_flags = Located::none(ast::Expression::BinaryOperation(
+                ast::BinOp::BitwiseOr,
+                Box::new(Located::none(ast::Expression::Literal(
+                    ast::Literal::IntUnsigned32(static_flags as u64),
+                ))),
+                Box::new(arg_flags),
+            ));
+            let params = require_helper_function(IntrinsicHelper::IntersectionParams, context)?;
+            let params = Located::none(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(params))),
+                Vec::new(),
+                Vec::from([arg_flags]),
+            ));
+
+            Ok(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Member(
+                    Box::new(Located::none(object)),
+                    ast::ScopedIdentifier::trivial("reset"),
+                ))),
+                Vec::new(),
+                Vec::from([arg_ray, arg_bvh, arg_mask, params]),
+            ))
+        }
+
+        RayQueryProceed
         | RayQueryAbort
         | RayQueryCommittedStatus
         | RayQueryCandidateType

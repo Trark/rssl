@@ -4,7 +4,7 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
-use super::{metal_lib_identifier, GenerateError};
+use super::{metal_lib_identifier, metal_raytracing_identifier, GenerateError};
 use crate::names::HELPER_NAMESPACE_NAME;
 
 /// Represents a helper function that is generated to implement intrinsic operations
@@ -29,6 +29,8 @@ pub enum IntrinsicHelper {
     MakeSignedPushZero,
     /// Call set_index for each vertex in a primitive
     MeshOutputSetIndices(ir::OutputTopology),
+    /// Setup intersection_params for a raytracing call
+    IntersectionParams,
 }
 
 /// Represents a helper struct that is generated to implement intrinsic operations
@@ -65,6 +67,7 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::MakeSigned => "make_signed",
         IntrinsicHelper::MakeSignedPushZero => "make_signed_push_0",
         IntrinsicHelper::MeshOutputSetIndices(_) => "set_indices",
+        IntrinsicHelper::IntersectionParams => "intersection_params",
     }
 }
 
@@ -169,6 +172,7 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, G
         MakeSigned => Ok(build_unsign(false)?),
         MakeSignedPushZero => Ok(build_unsign(true)?),
         MeshOutputSetIndices(topology) => Ok(build_mesh_output_set_indices(topology)?),
+        IntersectionParams => Ok(build_intersection_params()?),
     }
 }
 
@@ -1867,6 +1871,170 @@ fn build_mesh_output_set_indices(
                 default: None,
             },
         )])),
+        params,
+        is_const: false,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a helper function to create intersection_params
+fn build_intersection_params() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params_ty = metal_raytracing_identifier("intersection_params");
+    let params = Vec::from([ast::FunctionParam {
+        param_type: ast::Type::from("uint"),
+        declarator: ast::Declarator::Identifier(
+            ast::ScopedIdentifier::trivial("flags"),
+            Vec::new(),
+        ),
+        location_annotations: Vec::new(),
+        default_expr: None,
+    }]);
+    fn enum_identifier(ty: &str, val: &str) -> ast::Expression {
+        ast::Expression::Identifier(ast::ScopedIdentifier {
+            // metal is a reserved name so we can drop the leading ::
+            base: ast::ScopedIdentifierBase::Relative,
+            identifiers: Vec::from([
+                Located::none(String::from("metal")),
+                Located::none(String::from("raytracing")),
+                Located::none(String::from(ty)),
+                Located::none(String::from(val)),
+            ]),
+        })
+    }
+    fn flag_cond(bit: u32, left: ast::Expression, right: ast::Expression) -> ast::Expression {
+        ast::Expression::TernaryConditional(
+            Box::new(Located::none(ast::Expression::BinaryOperation(
+                ast::BinOp::BitwiseAnd,
+                Box::new(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("flags"),
+                ))),
+                Box::new(Located::none(ast::Expression::Literal(
+                    ast::Literal::IntUnsigned32(bit as u64),
+                ))),
+            ))),
+            Box::new(Located::none(left)),
+            Box::new(Located::none(right)),
+        )
+    }
+    let body = Vec::from([
+        ast::Statement {
+            kind: ast::StatementKind::Var(ast::VarDef {
+                local_type: ast::Type::from(params_ty.clone()),
+                defs: Vec::from([ast::InitDeclarator {
+                    declarator: ast::Declarator::from(Located::none("params")),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
+            }),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::Call(
+                Box::new(build_expr_member("params", "force_opacity")),
+                Vec::new(),
+                Vec::from([Located::none(flag_cond(
+                    0x01,
+                    enum_identifier("forced_opacity", "opaque"),
+                    flag_cond(
+                        0x02,
+                        enum_identifier("forced_opacity", "non_opaque"),
+                        enum_identifier("forced_opacity", "none"),
+                    ),
+                ))]),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::Call(
+                Box::new(build_expr_member("params", "accept_any_intersection")),
+                Vec::new(),
+                Vec::from([Located::none(ast::Expression::BinaryOperation(
+                    ast::BinOp::BitwiseAnd,
+                    Box::new(Located::none(ast::Expression::Identifier(
+                        ast::ScopedIdentifier::trivial("flags"),
+                    ))),
+                    Box::new(Located::none(ast::Expression::Literal(
+                        ast::Literal::IntUnsigned32(0x04),
+                    ))),
+                ))]),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::Call(
+                Box::new(build_expr_member("params", "set_triangle_cull_mode")),
+                Vec::new(),
+                Vec::from([Located::none(flag_cond(
+                    0x10,
+                    enum_identifier("triangle_cull_mode", "back"),
+                    flag_cond(
+                        0x20,
+                        enum_identifier("triangle_cull_mode", "front"),
+                        enum_identifier("triangle_cull_mode", "none"),
+                    ),
+                ))]),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::Call(
+                Box::new(build_expr_member("params", "set_opacity_cull_mode")),
+                Vec::new(),
+                Vec::from([Located::none(flag_cond(
+                    0x40,
+                    enum_identifier("opacity_cull_mode", "opaque"),
+                    flag_cond(
+                        0x80,
+                        enum_identifier("opacity_cull_mode", "non_opaque"),
+                        enum_identifier("opacity_cull_mode", "none"),
+                    ),
+                ))]),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Expression(ast::Expression::Call(
+                Box::new(build_expr_member("params", "set_geometry_cull_mode")),
+                Vec::new(),
+                Vec::from([Located::none(ast::Expression::BinaryOperation(
+                    ast::BinOp::BitwiseOr,
+                    Box::new(Located::none(flag_cond(
+                        0x100,
+                        enum_identifier("geometry_cull_mode", "triangle"),
+                        enum_identifier("geometry_cull_mode", "none"),
+                    ))),
+                    Box::new(Located::none(flag_cond(
+                        0x200,
+                        enum_identifier("geometry_cull_mode", "bounding_box"),
+                        enum_identifier("geometry_cull_mode", "none"),
+                    ))),
+                ))]),
+            )),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+        ast::Statement {
+            kind: ast::StatementKind::Return(Some(Located::none(ast::Expression::Identifier(
+                ast::ScopedIdentifier::trivial("params"),
+            )))),
+            location: SourceLocation::UNKNOWN,
+            attributes: Vec::new(),
+        },
+    ]);
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("intersection_params")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from(params_ty),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
         params,
         is_const: false,
         is_volatile: false,
