@@ -1,6 +1,7 @@
 const RaytracingAccelerationStructure g_bvh : register(t0);
 
 void entry() {
+#if !RSSL_TARGET_MSL
     RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > query;
     RayDesc ray;
     ray.Origin = float3(0.0f, 0.0f, 0.0f);
@@ -47,6 +48,7 @@ void entry() {
     bool candidate_triangle_front_face = query.CandidateTriangleFrontFace();
     float2 committed_triangle_barycentrics = query.CommittedTriangleBarycentrics();
     bool committed_triangle_front_face = query.CommittedTriangleFrontFace();
+#endif
 }
 
 Pipeline InlineRaytracing

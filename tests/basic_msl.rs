@@ -120,3 +120,11 @@ fn check_task_mesh_pipeline() {
         include_str!("basic/task_mesh_pipeline.metal"),
     );
 }
+
+#[test]
+fn check_inline_raytracing() {
+    check_msl(
+        include_str!("basic/inline_raytracing.rssl"),
+        include_str!("basic/inline_raytracing.metal"),
+    );
+}

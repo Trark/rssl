@@ -1460,9 +1460,15 @@ fn generate_type_impl(
 
                 TriangleStream(_) => return Err(GenerateError::UnsupportedGeometryShader),
 
-                RaytracingAccelerationStructure | RayQuery(_) | RayDesc => {
-                    return Err(GenerateError::UnimplementedRaytracing)
-                }
+                RaytracingAccelerationStructure => ast::Type::from(ast::ScopedIdentifier {
+                    base: ast::ScopedIdentifierBase::Relative,
+                    identifiers: Vec::from([
+                        Located::none(String::from("metal")),
+                        Located::none(String::from("raytracing")),
+                        Located::none(String::from("instance_acceleration_structure")),
+                    ]),
+                }),
+                RayQuery(_) | RayDesc => return Err(GenerateError::UnimplementedRaytracing),
             }
         }
         ir::TypeLayer::Array(ty, len) => {
