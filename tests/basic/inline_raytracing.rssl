@@ -1,6 +1,6 @@
 const RaytracingAccelerationStructure g_bvh : register(t0);
 
-void test() {
+void entry() {
     RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > query;
     RayDesc ray;
     ray.Origin = float3(0.0f, 0.0f, 0.0f);
@@ -47,4 +47,9 @@ void test() {
     bool candidate_triangle_front_face = query.CandidateTriangleFrontFace();
     float2 committed_triangle_barycentrics = query.CommittedTriangleBarycentrics();
     bool committed_triangle_front_face = query.CommittedTriangleFrontFace();
+}
+
+Pipeline InlineRaytracing
+{
+    ComputeShader = entry;
 }

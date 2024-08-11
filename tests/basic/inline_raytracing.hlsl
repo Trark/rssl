@@ -1,6 +1,6 @@
 RaytracingAccelerationStructure g_bvh : register(t0);
 
-void test() {
+void entry() {
     RayQuery<513> query;
     RayDesc ray;
     ray.Origin = float3(0.0f, 0.0f, 0.0f);

@@ -1374,14 +1374,6 @@ void f() {
 }
 
 #[test]
-fn check_raytracing() {
-    check_rssl_to_hlsl_dx(
-        include_str!("raytracing.rssl"),
-        include_str!("raytracing.hlsl"),
-    );
-}
-
-#[test]
 fn check_semantics() {
     check_rssl_to_hlsl(
         "float4 main(uint id : SV_VertexID) : SV_Position { return 0; }",
