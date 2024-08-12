@@ -3257,46 +3257,191 @@ fn generate_intrinsic_function(
                 Vec::from([arg_ray, arg_bvh, arg_mask, params]),
             ))
         }
+        RayQueryProceed => generate_invoke_simple_method("next", tys, exprs, context),
+        RayQueryAbort => generate_invoke_simple_method("abort", tys, exprs, context),
 
-        RayQueryProceed
-        | RayQueryAbort
-        | RayQueryCommittedStatus
-        | RayQueryCandidateType
-        | RayQueryCandidateProceduralPrimitiveNonOpaque
-        | RayQueryCommitNonOpaqueTriangleHit
-        | RayQueryCommitProceduralPrimitiveHit
-        | RayQueryRayFlags
-        | RayQueryWorldRayOrigin
-        | RayQueryWorldRayDirection
-        | RayQueryRayTMin
-        | RayQueryCandidateTriangleRayT
-        | RayQueryCommittedRayT
-        | RayQueryCandidateInstanceIndex
-        | RayQueryCandidateInstanceID
-        | RayQueryCandidateInstanceContributionToHitGroupIndex
-        | RayQueryCandidateGeometryIndex
-        | RayQueryCandidatePrimitiveIndex
-        | RayQueryCandidateObjectRayOrigin
-        | RayQueryCandidateObjectRayDirection
-        | RayQueryCandidateObjectToWorld3x4
-        | RayQueryCandidateObjectToWorld4x3
-        | RayQueryCandidateWorldToObject3x4
-        | RayQueryCandidateWorldToObject4x3
-        | RayQueryCommittedInstanceIndex
-        | RayQueryCommittedInstanceID
-        | RayQueryCommittedInstanceContributionToHitGroupIndex
-        | RayQueryCommittedGeometryIndex
-        | RayQueryCommittedPrimitiveIndex
-        | RayQueryCommittedObjectRayOrigin
-        | RayQueryCommittedObjectRayDirection
-        | RayQueryCommittedObjectToWorld3x4
-        | RayQueryCommittedObjectToWorld4x3
-        | RayQueryCommittedWorldToObject3x4
-        | RayQueryCommittedWorldToObject4x3
-        | RayQueryCandidateTriangleBarycentrics
-        | RayQueryCandidateTriangleFrontFace
-        | RayQueryCommittedTriangleBarycentrics
-        | RayQueryCommittedTriangleFrontFace => Err(GenerateError::UnimplementedRaytracing),
+        RayQueryCommittedStatus | RayQueryCandidateType => {
+            Err(GenerateError::UnimplementedRaytracing)
+        }
+
+        RayQueryCandidateProceduralPrimitiveNonOpaque => generate_invoke_simple_method(
+            "is_candidate_non_opaque_bounding_box",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCommitNonOpaqueTriangleHit => {
+            generate_invoke_simple_method("commit_triangle_intersection", tys, exprs, context)
+        }
+        RayQueryCommitProceduralPrimitiveHit => {
+            generate_invoke_simple_method("commit_bounding_box_intersection", tys, exprs, context)
+        }
+
+        RayQueryRayFlags => Err(GenerateError::UnimplementedRaytracing),
+
+        RayQueryWorldRayOrigin => {
+            generate_invoke_simple_method("get_world_space_ray_origin", tys, exprs, context)
+        }
+        RayQueryWorldRayDirection => {
+            generate_invoke_simple_method("get_world_space_ray_direction", tys, exprs, context)
+        }
+        RayQueryRayTMin => {
+            generate_invoke_simple_method("get_ray_min_distance", tys, exprs, context)
+        }
+        RayQueryCandidateTriangleRayT => {
+            generate_invoke_simple_method("get_candidate_triangle_distance", tys, exprs, context)
+        }
+        RayQueryCommittedRayT => {
+            generate_invoke_simple_method("get_committed_distance", tys, exprs, context)
+        }
+        RayQueryCandidateInstanceIndex => {
+            generate_invoke_simple_method("get_candidate_instance_id", tys, exprs, context)
+        }
+        RayQueryCandidateInstanceID => {
+            generate_invoke_simple_method("get_candidate_user_instance_id", tys, exprs, context)
+        }
+
+        RayQueryCandidateInstanceContributionToHitGroupIndex => {
+            Err(GenerateError::UnimplementedRaytracing)
+        }
+
+        RayQueryCandidateGeometryIndex => {
+            generate_invoke_simple_method("get_candidate_geometry_id", tys, exprs, context)
+        }
+        RayQueryCandidatePrimitiveIndex => {
+            generate_invoke_simple_method("get_candidate_primitive_id", tys, exprs, context)
+        }
+        RayQueryCandidateObjectRayOrigin => {
+            generate_invoke_simple_method("get_candidate_ray_origin", tys, exprs, context)
+        }
+        RayQueryCandidateObjectRayDirection => {
+            generate_invoke_simple_method("get_candidate_ray_direction", tys, exprs, context)
+        }
+        RayQueryCandidateObjectToWorld3x4 => generate_invoke_simple_method(
+            "get_candidate_object_to_world_transform",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCandidateObjectToWorld4x3 => {
+            let matrix = generate_invoke_simple_method(
+                "get_candidate_object_to_world_transform",
+                tys,
+                exprs,
+                context,
+            )?;
+            let identifier = metal_lib_identifier("transpose");
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            Ok(ast::Expression::Call(
+                object,
+                Vec::new(),
+                Vec::from([Located::none(matrix)]),
+            ))
+        }
+        RayQueryCandidateWorldToObject3x4 => generate_invoke_simple_method(
+            "get_candidate_world_to_object_transform",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCandidateWorldToObject4x3 => {
+            let matrix = generate_invoke_simple_method(
+                "get_candidate_world_to_object_transform",
+                tys,
+                exprs,
+                context,
+            )?;
+            let identifier = metal_lib_identifier("transpose");
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            Ok(ast::Expression::Call(
+                object,
+                Vec::new(),
+                Vec::from([Located::none(matrix)]),
+            ))
+        }
+        RayQueryCommittedInstanceIndex => {
+            generate_invoke_simple_method("get_committed_instance_id", tys, exprs, context)
+        }
+        RayQueryCommittedInstanceID => {
+            generate_invoke_simple_method("get_committed_user_instance_id", tys, exprs, context)
+        }
+
+        RayQueryCommittedInstanceContributionToHitGroupIndex => {
+            Err(GenerateError::UnimplementedRaytracing)
+        }
+
+        RayQueryCommittedGeometryIndex => {
+            generate_invoke_simple_method("get_committed_geometry_id", tys, exprs, context)
+        }
+        RayQueryCommittedPrimitiveIndex => {
+            generate_invoke_simple_method("get_committed_primitive_id", tys, exprs, context)
+        }
+        RayQueryCommittedObjectRayOrigin => {
+            generate_invoke_simple_method("get_committed_ray_origin", tys, exprs, context)
+        }
+        RayQueryCommittedObjectRayDirection => {
+            generate_invoke_simple_method("get_committed_ray_direction", tys, exprs, context)
+        }
+        RayQueryCommittedObjectToWorld3x4 => generate_invoke_simple_method(
+            "get_committed_object_to_world_transform",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCommittedObjectToWorld4x3 => {
+            let matrix = generate_invoke_simple_method(
+                "get_committed_object_to_world_transform",
+                tys,
+                exprs,
+                context,
+            )?;
+            let identifier = metal_lib_identifier("transpose");
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            Ok(ast::Expression::Call(
+                object,
+                Vec::new(),
+                Vec::from([Located::none(matrix)]),
+            ))
+        }
+        RayQueryCommittedWorldToObject3x4 => generate_invoke_simple_method(
+            "get_committed_world_to_object_transform",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCommittedWorldToObject4x3 => {
+            let matrix = generate_invoke_simple_method(
+                "get_committed_world_to_object_transform",
+                tys,
+                exprs,
+                context,
+            )?;
+            let identifier = metal_lib_identifier("transpose");
+            let object = Box::new(Located::none(ast::Expression::Identifier(identifier)));
+            Ok(ast::Expression::Call(
+                object,
+                Vec::new(),
+                Vec::from([Located::none(matrix)]),
+            ))
+        }
+        RayQueryCandidateTriangleBarycentrics => generate_invoke_simple_method(
+            "get_candidate_triangle_barycentric_coord",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCandidateTriangleFrontFace => {
+            generate_invoke_simple_method("is_candidate_triangle_front_facing", tys, exprs, context)
+        }
+        RayQueryCommittedTriangleBarycentrics => generate_invoke_simple_method(
+            "get_committed_triangle_barycentric_coord",
+            tys,
+            exprs,
+            context,
+        ),
+        RayQueryCommittedTriangleFrontFace => {
+            generate_invoke_simple_method("is_committed_triangle_front_facing", tys, exprs, context)
+        }
     }
 }
 
@@ -3326,6 +3471,27 @@ fn generate_invoke_helper(
     let type_args = generate_template_type_args(tys, context)?;
     let args = generate_invocation_args(exprs, context)?;
     Ok(ast::Expression::Call(object, type_args, args))
+}
+
+/// Invoke a simple method
+fn generate_invoke_simple_method(
+    name: &str,
+    tys: &[ir::TypeOrConstant],
+    exprs: &[ir::Expression],
+    context: &mut GenerateContext,
+) -> Result<ast::Expression, GenerateError> {
+    let identifier = ast::ScopedIdentifier::trivial(name);
+    let type_args = generate_template_type_args(tys, context)?;
+    let object = generate_expression(&exprs[0], context)?;
+    let args = generate_invocation_args(&exprs[1..], context)?;
+    Ok(ast::Expression::Call(
+        Box::new(Located::none(ast::Expression::Member(
+            Box::new(Located::none(object)),
+            identifier,
+        ))),
+        type_args,
+        args,
+    ))
 }
 
 /// Invoke a helper method

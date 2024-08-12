@@ -8,15 +8,18 @@ void entry() {
     ray.Direction = float3(1.0f, 0.0f, 0.0f);
     ray.TMax = 1.0f;
     query.TraceRayInline(g_bvh, 0u, 0u, ray);
-#if !RSSL_TARGET_MSL
     bool c = query.Proceed();
     query.Abort();
+#if !RSSL_TARGET_MSL
     uint committed_status = query.CommittedStatus();
     uint candidate_type = query.CandidateType();
+#endif
     bool candidate_procedural_primitive_non_opaque = query.CandidateProceduralPrimitiveNonOpaque();
     query.CommitNonOpaqueTriangleHit();
     query.CommitProceduralPrimitiveHit(2.0f);
+#if !RSSL_TARGET_MSL
     uint ray_flags = query.RayFlags();
+#endif
     float3 world_ray_origin = query.WorldRayOrigin();
     float3 world_ray_direction = query.WorldRayDirection();
     float ray_t_min = query.RayTMin();
@@ -24,7 +27,9 @@ void entry() {
     float committed_ray_t = query.CommittedRayT();
     uint candidate_instance_index = query.CandidateInstanceIndex();
     uint candidate_instance_id = query.CandidateInstanceID();
+#if !RSSL_TARGET_MSL
     uint candidate_instance_contribution_to_hit_group_index = query.CandidateInstanceContributionToHitGroupIndex();
+#endif
     uint candidate_geometry_index = query.CandidateGeometryIndex();
     uint candidate_primitive_index = query.CandidatePrimitiveIndex();
     float3 candidate_object_ray_origin = query.CandidateObjectRayOrigin();
@@ -35,7 +40,9 @@ void entry() {
     float4x3 candidate_world_to_object_4x3 = query.CandidateWorldToObject4x3();
     uint committed_instance_index = query.CommittedInstanceIndex();
     uint committed_instance_id = query.CommittedInstanceID();
+#if !RSSL_TARGET_MSL
     uint committed_instance_contribution_to_hit_group_index = query.CommittedInstanceContributionToHitGroupIndex();
+#endif
     uint committed_geometry_index = query.CommittedGeometryIndex();
     uint committed_primitive_index = query.CommittedPrimitiveIndex();
     float3 committed_object_ray_origin = query.CommittedObjectRayOrigin();
@@ -48,7 +55,6 @@ void entry() {
     bool candidate_triangle_front_face = query.CandidateTriangleFrontFace();
     float2 committed_triangle_barycentrics = query.CommittedTriangleBarycentrics();
     bool committed_triangle_front_face = query.CommittedTriangleFrontFace();
-#endif
 }
 
 Pipeline InlineRaytracing

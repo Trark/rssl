@@ -20,6 +20,40 @@ void entry(const metal::raytracing::instance_acceleration_structure g_bvh) {
     ray.direction = float3(1.0f, 0.0f, 0.0f);
     ray.max_distance = 1.0f;
     query.reset(ray, (metal::raytracing::instance_acceleration_structure)g_bvh, 0u, helper::intersection_params(513u | 0u));
+    bool c = query.next();
+    query.abort();
+    bool candidate_procedural_primitive_non_opaque = query.is_candidate_non_opaque_bounding_box();
+    query.commit_triangle_intersection();
+    query.commit_bounding_box_intersection(2.0f);
+    float3 world_ray_origin = query.get_world_space_ray_origin();
+    float3 world_ray_direction = query.get_world_space_ray_direction();
+    float ray_t_min = query.get_ray_min_distance();
+    float candidate_triangle_ray_t = query.get_candidate_triangle_distance();
+    float committed_ray_t = query.get_committed_distance();
+    uint candidate_instance_index = query.get_candidate_instance_id();
+    uint candidate_instance_id = query.get_candidate_user_instance_id();
+    uint candidate_geometry_index = query.get_candidate_geometry_id();
+    uint candidate_primitive_index = query.get_candidate_primitive_id();
+    float3 candidate_object_ray_origin = query.get_candidate_ray_origin();
+    float3 candidate_object_ray_direction = query.get_candidate_ray_direction();
+    metal::float4x3 candidate_object_to_world_3x4 = query.get_candidate_object_to_world_transform();
+    metal::float3x4 candidate_object_to_world_4x3 = metal::transpose(query.get_candidate_object_to_world_transform());
+    metal::float4x3 candidate_world_to_object_3x4 = query.get_candidate_world_to_object_transform();
+    metal::float3x4 candidate_world_to_object_4x3 = metal::transpose(query.get_candidate_world_to_object_transform());
+    uint committed_instance_index = query.get_committed_instance_id();
+    uint committed_instance_id = query.get_committed_user_instance_id();
+    uint committed_geometry_index = query.get_committed_geometry_id();
+    uint committed_primitive_index = query.get_committed_primitive_id();
+    float3 committed_object_ray_origin = query.get_committed_ray_origin();
+    float3 committed_object_ray_direction = query.get_committed_ray_direction();
+    metal::float4x3 committed_object_to_world_3x4 = query.get_committed_object_to_world_transform();
+    metal::float3x4 committed_object_to_world_4x3 = metal::transpose(query.get_committed_object_to_world_transform());
+    metal::float4x3 committed_world_to_object_3x4 = query.get_committed_world_to_object_transform();
+    metal::float3x4 committed_world_to_object_4x3 = metal::transpose(query.get_committed_world_to_object_transform());
+    float2 candidate_triangle_barycentrics = query.get_candidate_triangle_barycentric_coord();
+    bool candidate_triangle_front_face = query.is_candidate_triangle_front_facing();
+    float2 committed_triangle_barycentrics = query.get_committed_triangle_barycentric_coord();
+    bool committed_triangle_front_face = query.is_committed_triangle_front_facing();
 }
 
 struct ArgumentBuffer0
