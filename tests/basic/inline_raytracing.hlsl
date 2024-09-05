@@ -10,7 +10,12 @@ void entry() {
     query.TraceRayInline((RaytracingAccelerationStructure)g_bvh, 0u, 0u, ray);
     bool c = query.Proceed();
     query.Abort();
+    COMMITTED_NOTHING;
+    COMMITTED_TRIANGLE_HIT;
+    COMMITTED_PROCEDURAL_PRIMITIVE_HIT;
     uint committed_status = query.CommittedStatus();
+    CANDIDATE_NON_OPAQUE_TRIANGLE;
+    CANDIDATE_PROCEDURAL_PRIMITIVE;
     uint candidate_type = query.CandidateType();
     bool candidate_procedural_primitive_non_opaque = query.CandidateProceduralPrimitiveNonOpaque();
     query.CommitNonOpaqueTriangleHit();

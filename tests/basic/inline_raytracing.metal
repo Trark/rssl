@@ -22,6 +22,11 @@ void entry(const metal::raytracing::instance_acceleration_structure g_bvh) {
     query.reset(ray, (metal::raytracing::instance_acceleration_structure)g_bvh, 0u, helper::intersection_params(513u | 0u));
     bool c = query.next();
     query.abort();
+    0u;
+    1u;
+    2u;
+    0u;
+    1u;
     bool candidate_procedural_primitive_non_opaque = query.is_candidate_non_opaque_bounding_box();
     query.commit_triangle_intersection();
     query.commit_bounding_box_intersection(2.0f);

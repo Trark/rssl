@@ -10,8 +10,15 @@ void entry() {
     query.TraceRayInline(g_bvh, 0u, 0u, ray);
     bool c = query.Proceed();
     query.Abort();
+    COMMITTED_NOTHING;
+    COMMITTED_TRIANGLE_HIT;
+    COMMITTED_PROCEDURAL_PRIMITIVE_HIT;
 #if !RSSL_TARGET_MSL
     uint committed_status = query.CommittedStatus();
+#endif
+    CANDIDATE_NON_OPAQUE_TRIANGLE;
+    CANDIDATE_PROCEDURAL_PRIMITIVE;
+#if !RSSL_TARGET_MSL
     uint candidate_type = query.CandidateType();
 #endif
     bool candidate_procedural_primitive_non_opaque = query.CandidateProceduralPrimitiveNonOpaque();

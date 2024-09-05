@@ -340,6 +340,12 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
         let mut required_globals = Vec::new();
         for symbol in global_usage.get_usage_for_function(id) {
             if let ir::usage_analysis::UsageSymbol::GlobalVariable(gid) = symbol {
+                // Intrinsic globals do not need parameters
+                if context.module.global_registry[gid.0 as usize].is_intrinsic {
+                    assert!(!context.global_variable_modes.contains_key(gid));
+                    continue;
+                }
+
                 if !matches!(
                     context.global_variable_modes.get(gid).unwrap(),
                     GlobalMode::Constant
@@ -2000,9 +2006,31 @@ fn generate_expression(
                 &context.module.struct_registry[id.0 as usize].members[*member_index as usize];
             ast::Expression::Identifier(ast::ScopedIdentifier::trivial(&member_def.name))
         }
-        ir::Expression::Global(v) => ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
-            context.get_global_name(*v)?,
-        )),
+        ir::Expression::Global(v) => {
+            let def = &context.module.global_registry[v.0 as usize];
+            if def.is_intrinsic {
+                match def.name.node.as_str() {
+                    "COMMITTED_NOTHING" => ast::Expression::Literal(ast::Literal::IntUnsigned32(0)),
+                    "COMMITTED_TRIANGLE_HIT" => {
+                        ast::Expression::Literal(ast::Literal::IntUnsigned32(1))
+                    }
+                    "COMMITTED_PROCEDURAL_PRIMITIVE_HIT" => {
+                        ast::Expression::Literal(ast::Literal::IntUnsigned32(2))
+                    }
+                    "CANDIDATE_NON_OPAQUE_TRIANGLE" => {
+                        ast::Expression::Literal(ast::Literal::IntUnsigned32(0))
+                    }
+                    "CANDIDATE_PROCEDURAL_PRIMITIVE" => {
+                        ast::Expression::Literal(ast::Literal::IntUnsigned32(1))
+                    }
+                    name => panic!("Unimplemented global intrinsic: {}", name),
+                }
+            } else {
+                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                    context.get_global_name(*v)?,
+                ))
+            }
+        }
         ir::Expression::ConstantVariable(_) => {
             return Err(GenerateError::ConstantBuffersNotSimplified);
         }
@@ -4238,6 +4266,7 @@ impl<'m> GenerateContext<'m> {
 
     /// Get the name of a global variable
     fn get_global_name(&self, id: ir::GlobalId) -> Result<&str, GenerateError> {
+        assert!(!self.module.global_registry[id.0 as usize].is_intrinsic);
         Ok(self.name_map.get_name_leaf(NameSymbol::GlobalVariable(id)))
     }
 
