@@ -4156,28 +4156,28 @@ fn scoped_name_to_identifier(scoped_name: ScopedName) -> ast::ScopedIdentifier {
 }
 
 /// Construct an ast scoped identifier from a name from the metal standard library
-fn metal_lib_identifier(name: &str) -> ast::ScopedIdentifier {
+fn metal_lib_identifier_complex(names: &[&str]) -> ast::ScopedIdentifier {
+    let mut identifiers = Vec::new();
+    identifiers.push("metal");
+    identifiers.extend(names);
     ast::ScopedIdentifier {
         // metal is a reserved name so we can drop the leading ::
         base: ast::ScopedIdentifierBase::Relative,
-        identifiers: Vec::from([
-            Located::none(String::from("metal")),
-            Located::none(String::from(name)),
-        ]),
+        identifiers: identifiers
+            .into_iter()
+            .map(|name| Located::none(String::from(name)))
+            .collect(),
     }
+}
+
+/// Construct an ast scoped identifier from a name from the metal standard library
+fn metal_lib_identifier(name: &str) -> ast::ScopedIdentifier {
+    metal_lib_identifier_complex(&[name])
 }
 
 /// Construct an ast scoped identifier from a name from the metal standard library raytracing namespace
 fn metal_raytracing_identifier(name: &str) -> ast::ScopedIdentifier {
-    ast::ScopedIdentifier {
-        // metal is a reserved name so we can drop the leading ::
-        base: ast::ScopedIdentifierBase::Relative,
-        identifiers: Vec::from([
-            Located::none(String::from("metal")),
-            Located::none(String::from("raytracing")),
-            Located::none(String::from(name)),
-        ]),
-    }
+    metal_lib_identifier_complex(&["raytracing", name])
 }
 
 /// Add additional modifiers to a type
