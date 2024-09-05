@@ -10,6 +10,28 @@ metal::raytracing::intersection_params intersection_params(uint flags) {
     return params;
 }
 
+uint to_committed_status(metal::raytracing::intersection_type value) {
+    switch (value)
+    {
+        case metal::raytracing::intersection_type::none:
+        return 0u;
+        case metal::raytracing::intersection_type::triangle:
+        return 1u;
+        case metal::raytracing::intersection_type::bounding_box:
+        return 2u;
+    }
+}
+
+uint to_candidate_type(metal::raytracing::intersection_type value) {
+    switch (value)
+    {
+        case metal::raytracing::intersection_type::triangle:
+        return 0u;
+        case metal::raytracing::intersection_type::bounding_box:
+        return 1u;
+    }
+}
+
 } // namespace helper
 
 void entry(const metal::raytracing::instance_acceleration_structure g_bvh) {
@@ -25,8 +47,10 @@ void entry(const metal::raytracing::instance_acceleration_structure g_bvh) {
     0u;
     1u;
     2u;
+    uint committed_status = helper::to_committed_status(query.get_committed_intersection_type());
     0u;
     1u;
+    uint candidate_type = helper::to_candidate_type(query.get_candidate_intersection_type());
     bool candidate_procedural_primitive_non_opaque = query.is_candidate_non_opaque_bounding_box();
     query.commit_triangle_intersection();
     query.commit_bounding_box_intersection(2.0f);

@@ -3287,9 +3287,33 @@ fn generate_intrinsic_function(
         }
         RayQueryProceed => generate_invoke_simple_method("next", tys, exprs, context),
         RayQueryAbort => generate_invoke_simple_method("abort", tys, exprs, context),
-
-        RayQueryCommittedStatus | RayQueryCandidateType => {
-            Err(GenerateError::UnimplementedRaytracing)
+        RayQueryCommittedStatus => {
+            let primary = generate_invoke_simple_method(
+                "get_committed_intersection_type",
+                tys,
+                exprs,
+                context,
+            )?;
+            let convert = require_helper_function(IntrinsicHelper::ToCommittedStatus, context)?;
+            Ok(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(convert))),
+                Vec::new(),
+                Vec::from([Located::none(primary)]),
+            ))
+        }
+        RayQueryCandidateType => {
+            let primary = generate_invoke_simple_method(
+                "get_candidate_intersection_type",
+                tys,
+                exprs,
+                context,
+            )?;
+            let convert = require_helper_function(IntrinsicHelper::ToCandidateType, context)?;
+            Ok(ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(convert))),
+                Vec::new(),
+                Vec::from([Located::none(primary)]),
+            ))
         }
 
         RayQueryCandidateProceduralPrimitiveNonOpaque => generate_invoke_simple_method(

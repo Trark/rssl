@@ -4,7 +4,9 @@ use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
-use super::{metal_lib_identifier, metal_raytracing_identifier, GenerateError};
+use super::{
+    metal_lib_identifier, metal_lib_identifier_complex, metal_raytracing_identifier, GenerateError,
+};
 use crate::names::HELPER_NAMESPACE_NAME;
 
 /// Represents a helper function that is generated to implement intrinsic operations
@@ -31,6 +33,10 @@ pub enum IntrinsicHelper {
     MeshOutputSetIndices(ir::OutputTopology),
     /// Setup intersection_params for a raytracing call
     IntersectionParams,
+    /// Convert intersection_type to COMMITTED_STATUS uint
+    ToCommittedStatus,
+    /// Convert intersection_type to CANDIDATE_TYPE uint
+    ToCandidateType,
 }
 
 /// Represents a helper struct that is generated to implement intrinsic operations
@@ -68,6 +74,8 @@ pub fn get_intrinsic_helper_name(intrinsic: IntrinsicHelper) -> &'static str {
         IntrinsicHelper::MakeSignedPushZero => "make_signed_push_0",
         IntrinsicHelper::MeshOutputSetIndices(_) => "set_indices",
         IntrinsicHelper::IntersectionParams => "intersection_params",
+        IntrinsicHelper::ToCommittedStatus => "to_committed_status",
+        IntrinsicHelper::ToCandidateType => "to_candidate_type",
     }
 }
 
@@ -173,6 +181,8 @@ fn generate_helper(helper: IntrinsicHelper) -> Result<ast::FunctionDefinition, G
         MakeSignedPushZero => Ok(build_unsign(true)?),
         MeshOutputSetIndices(topology) => Ok(build_mesh_output_set_indices(topology)?),
         IntersectionParams => Ok(build_intersection_params()?),
+        ToCommittedStatus => Ok(build_to_committed_status()?),
+        ToCandidateType => Ok(build_to_candidate_type()?),
     }
 }
 
@@ -2032,6 +2042,192 @@ fn build_intersection_params() -> Result<ast::FunctionDefinition, GenerateError>
         name: Located::none(String::from("intersection_params")),
         returntype: ast::FunctionReturn {
             return_type: ast::Type::from(params_ty),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: false,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a helper function for [IntrinsicHelper::ToCommittedStatus]
+fn build_to_committed_status() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([ast::FunctionParam {
+        param_type: ast::Type::from(metal_raytracing_identifier("intersection_type")),
+        declarator: ast::Declarator::Identifier(
+            ast::ScopedIdentifier::trivial("value"),
+            Vec::new(),
+        ),
+        location_annotations: Vec::new(),
+        default_expr: None,
+    }]);
+
+    let body = Vec::from([ast::Statement {
+        kind: ast::StatementKind::Switch(
+            Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                "value",
+            ))),
+            Box::new(ast::Statement {
+                kind: ast::StatementKind::Block(Vec::from([
+                    ast::Statement {
+                        kind: ast::StatementKind::CaseLabel(
+                            Located::none(ast::Expression::Identifier(
+                                metal_lib_identifier_complex(&[
+                                    "raytracing",
+                                    "intersection_type",
+                                    "none",
+                                ]),
+                            )),
+                            Box::new(ast::Statement {
+                                kind: ast::StatementKind::Return(Some(Located::none(
+                                    ast::Expression::Literal(ast::Literal::IntUnsigned32(0)),
+                                ))),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            }),
+                        ),
+                        location: SourceLocation::UNKNOWN,
+                        attributes: Vec::new(),
+                    },
+                    ast::Statement {
+                        kind: ast::StatementKind::CaseLabel(
+                            Located::none(ast::Expression::Identifier(
+                                metal_lib_identifier_complex(&[
+                                    "raytracing",
+                                    "intersection_type",
+                                    "triangle",
+                                ]),
+                            )),
+                            Box::new(ast::Statement {
+                                kind: ast::StatementKind::Return(Some(Located::none(
+                                    ast::Expression::Literal(ast::Literal::IntUnsigned32(1)),
+                                ))),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            }),
+                        ),
+                        location: SourceLocation::UNKNOWN,
+                        attributes: Vec::new(),
+                    },
+                    ast::Statement {
+                        kind: ast::StatementKind::CaseLabel(
+                            Located::none(ast::Expression::Identifier(
+                                metal_lib_identifier_complex(&[
+                                    "raytracing",
+                                    "intersection_type",
+                                    "bounding_box",
+                                ]),
+                            )),
+                            Box::new(ast::Statement {
+                                kind: ast::StatementKind::Return(Some(Located::none(
+                                    ast::Expression::Literal(ast::Literal::IntUnsigned32(2)),
+                                ))),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            }),
+                        ),
+                        location: SourceLocation::UNKNOWN,
+                        attributes: Vec::new(),
+                    },
+                ])),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            }),
+        ),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    }]);
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("to_committed_status")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("uint"),
+            location_annotations: Vec::new(),
+        },
+        template_params: ast::TemplateParamList(Vec::new()),
+        params,
+        is_const: false,
+        is_volatile: false,
+        body: Some(body),
+        attributes: Vec::new(),
+    })
+}
+
+/// Build a helper function for [IntrinsicHelper::ToCandidateType]
+fn build_to_candidate_type() -> Result<ast::FunctionDefinition, GenerateError> {
+    let params = Vec::from([ast::FunctionParam {
+        param_type: ast::Type::from(metal_raytracing_identifier("intersection_type")),
+        declarator: ast::Declarator::Identifier(
+            ast::ScopedIdentifier::trivial("value"),
+            Vec::new(),
+        ),
+        location_annotations: Vec::new(),
+        default_expr: None,
+    }]);
+
+    let body = Vec::from([ast::Statement {
+        kind: ast::StatementKind::Switch(
+            Located::none(ast::Expression::Identifier(ast::ScopedIdentifier::trivial(
+                "value",
+            ))),
+            Box::new(ast::Statement {
+                kind: ast::StatementKind::Block(Vec::from([
+                    ast::Statement {
+                        kind: ast::StatementKind::CaseLabel(
+                            Located::none(ast::Expression::Identifier(
+                                metal_lib_identifier_complex(&[
+                                    "raytracing",
+                                    "intersection_type",
+                                    "triangle",
+                                ]),
+                            )),
+                            Box::new(ast::Statement {
+                                kind: ast::StatementKind::Return(Some(Located::none(
+                                    ast::Expression::Literal(ast::Literal::IntUnsigned32(0)),
+                                ))),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            }),
+                        ),
+                        location: SourceLocation::UNKNOWN,
+                        attributes: Vec::new(),
+                    },
+                    ast::Statement {
+                        kind: ast::StatementKind::CaseLabel(
+                            Located::none(ast::Expression::Identifier(
+                                metal_lib_identifier_complex(&[
+                                    "raytracing",
+                                    "intersection_type",
+                                    "bounding_box",
+                                ]),
+                            )),
+                            Box::new(ast::Statement {
+                                kind: ast::StatementKind::Return(Some(Located::none(
+                                    ast::Expression::Literal(ast::Literal::IntUnsigned32(1)),
+                                ))),
+                                location: SourceLocation::UNKNOWN,
+                                attributes: Vec::new(),
+                            }),
+                        ),
+                        location: SourceLocation::UNKNOWN,
+                        attributes: Vec::new(),
+                    },
+                ])),
+                location: SourceLocation::UNKNOWN,
+                attributes: Vec::new(),
+            }),
+        ),
+        location: SourceLocation::UNKNOWN,
+        attributes: Vec::new(),
+    }]);
+
+    Ok(ast::FunctionDefinition {
+        name: Located::none(String::from("to_candidate_type")),
+        returntype: ast::FunctionReturn {
+            return_type: ast::Type::from("uint"),
             location_annotations: Vec::new(),
         },
         template_params: ast::TemplateParamList(Vec::new()),
