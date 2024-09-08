@@ -747,6 +747,23 @@ void f() {
 }
 ",
     );
+
+    check(
+        "void f() {
+    float3 x;
+    float y;
+    x = y;
+    y = x;
+}
+",
+        "void f() {
+    float3 x;
+    float y;
+    x = (float3)y;
+    y = (float)x.x;
+}
+",
+    );
 }
 
 #[test]

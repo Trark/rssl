@@ -2190,6 +2190,10 @@ fn generate_expression(
             let unmod_id = context.module.type_registry.remove_modifier(*type_id);
             let unmod_tyl = context.module.type_registry.get_type_layer(unmod_id);
 
+            let input_ety = expr.get_type(context.module)?;
+            let input_ty = context.module.type_registry.remove_modifier(input_ety.0);
+            let input_tyl = context.module.type_registry.get_type_layer(input_ty);
+
             // Check if we are casting to a literal type
             // We can not emits such a cast as the type can not be named
             // These occur only where they would get implicitly converted so we can drop them
@@ -2204,10 +2208,6 @@ fn generate_expression(
             let to_struct = matches!(unmod_tyl, ir::TypeLayer::Struct(_));
 
             if to_struct {
-                let input_ety = expr.get_type(context.module)?;
-                let input_ty = context.module.type_registry.remove_modifier(input_ety.0);
-                let input_tyl = context.module.type_registry.get_type_layer(input_ty);
-
                 let from_cb =
                     if let ir::TypeLayer::Object(ir::ObjectType::ConstantBuffer(cb_inner)) =
                         input_tyl
@@ -2270,6 +2270,19 @@ fn generate_expression(
                     }
                 }
             } else if !to_literal {
+                // We may have cast from vectors to scalars but Metal does not support vector to scalar casts
+                let inner = if matches!(input_tyl, ir::TypeLayer::Vector(..))
+                    && matches!(unmod_tyl, ir::TypeLayer::Scalar(_))
+                {
+                    // Insert swizzle to select the scalar channel
+                    ast::Expression::Member(
+                        Box::new(Located::none(inner)),
+                        ast::ScopedIdentifier::trivial("x"),
+                    )
+                } else {
+                    inner
+                };
+
                 let ty = generate_type_id(*type_id, context)?;
                 ast::Expression::Cast(Box::new(ty), Box::new(Located::none(inner)))
             } else {
