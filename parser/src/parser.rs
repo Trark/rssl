@@ -40,8 +40,8 @@ fn contextual<'t, 's, T>(
 
 /// Augment a parser with location information
 fn locate<'t, T>(
-    parser: impl Fn(&'t [LexToken]) -> ParseResult<T>,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Located<T>> {
+    parser: impl Fn(&'t [LexToken]) -> ParseResult<'t, T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, Located<T>> {
     move |input: &'t [LexToken]| match parser(input) {
         Ok((after, value)) => {
             assert_ne!(
@@ -58,10 +58,10 @@ fn locate<'t, T>(
 
 /// Parse a list of elements separated with the given separator
 fn parse_list_base<'t, T, G>(
-    mut parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<G>,
-    mut parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
+    mut parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<'t, G>,
+    mut parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<'t, T>,
     allow_empty: bool,
-) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<'t, Vec<T>> {
     move |input: &'t [LexToken]| {
         match parse_element(input) {
             Ok((rest, element)) => {
@@ -98,31 +98,31 @@ fn parse_list_base<'t, T, G>(
 
 /// Parse a list of zero or more elements separated with the given separator
 fn parse_list<'t, T, G>(
-    parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<G>,
-    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
-) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<'t, G>,
+    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<'t, T>,
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<'t, Vec<T>> {
     parse_list_base(parse_separator, parse_element, true)
 }
 
 /// Parse a list of one or more elements separated with the given separator
 fn parse_list_nonempty<'t, T, G>(
-    parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<G>,
-    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
-) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_separator: impl FnMut(&'t [LexToken]) -> ParseResult<'t, G>,
+    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<'t, T>,
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<'t, Vec<T>> {
     parse_list_base(parse_separator, parse_element, false)
 }
 
 /// Parse a list of zero or more elements with no separator
 fn parse_multiple<'t, T>(
-    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<T>,
-) -> impl FnMut(&'t [LexToken]) -> ParseResult<Vec<T>> {
+    parse_element: impl FnMut(&'t [LexToken]) -> ParseResult<'t, T>,
+) -> impl FnMut(&'t [LexToken]) -> ParseResult<'t, Vec<T>> {
     parse_list_base(|i| Ok((i, ())), parse_element, true)
 }
 
 /// Parse an element or nothing
 fn parse_optional<'t, T>(
-    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<T>,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<Option<T>> {
+    parse_element: impl Fn(&'t [LexToken]) -> ParseResult<'t, T>,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, Option<T>> {
     move |input: &'t [LexToken]| {
         match parse_element(input) {
             // If we succeeded then return the element
@@ -136,7 +136,7 @@ fn parse_optional<'t, T>(
 }
 
 /// Parse an exact token from the start of the stream
-fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<LexToken> {
+fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, LexToken> {
     move |input: &'t [LexToken]| match input {
         [tok @ LexToken(ref t, _), rest @ ..] if *t == token => Ok((rest, tok.clone())),
         _ => ParseErrorReason::wrong_token(input),

@@ -119,7 +119,7 @@ pub trait ParseResultExt {
     fn rebase_fail_point(self, base_input: &[LexToken]) -> Self;
 }
 
-impl<'t, T> ParseResultExt for ParseResult<'t, T> {
+impl<T> ParseResultExt for ParseResult<'_, T> {
     fn select(self, next: Self) -> Self {
         get_most_relevant_result(self, next)
     }

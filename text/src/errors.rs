@@ -17,7 +17,7 @@ pub enum Severity {
     Note,
 }
 
-impl<'s, 'f> MessagePrinter<'s, 'f> {
+impl MessagePrinter<'_, '_> {
     pub fn write_message(
         &mut self,
         write: &dyn Fn(&mut std::fmt::Formatter) -> std::fmt::Result,
@@ -70,7 +70,7 @@ pub struct CompileErrorPrinter<'p> {
     source_manager: &'p SourceManager,
 }
 
-impl<'a> std::fmt::Display for CompileErrorPrinter<'a> {
+impl std::fmt::Display for CompileErrorPrinter<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut message_printer = MessagePrinter {
             source_manager: self.source_manager,

@@ -1297,7 +1297,7 @@ impl FormatContext {
         }
 
         // Remove previous indentation on empty lines - or trailing whitespace
-        let trimmed = output.trim_end_matches(|c| c == ' ');
+        let trimmed = output.trim_end_matches(' ');
         if output.len() != trimmed.len() {
             output.truncate(trimmed.len());
         }

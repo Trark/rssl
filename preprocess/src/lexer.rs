@@ -394,7 +394,7 @@ fn int_type(input: &[u8]) -> LexResult<IntType> {
         [b'l' | b'L', b'u' | b'U', rest @ ..] => Ok((rest, IntType::Unsigned64)),
         [b'u' | b'U', rest @ ..] => Ok((rest, IntType::Unsigned32)),
         [b'l' | b'L', rest @ ..] => Ok((rest, IntType::Signed64)),
-        _ => return wrong_chars(input),
+        _ => wrong_chars(input),
     }
 }
 
