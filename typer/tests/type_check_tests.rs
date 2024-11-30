@@ -1359,6 +1359,21 @@ fn check_struct_templates() {
 }
 
 #[test]
+fn check_struct_templates_non_type() {
+    // Check basic templated struct
+    check_types("template<uint T> struct S { uint f() { return T; } };");
+
+    // Check we can create an instance of a templated struct
+    check_types("template<uint T> struct S { uint f() { return T; } }; S<0> s;");
+
+    // Check that the same template arguments give the same type
+    check_types("template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<4> s2; s1 = s2; }");
+
+    // Check that different template arguments give different types
+    check_fail("template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<5> s2; s1 = s2; }");
+}
+
+#[test]
 fn check_enums() {
     // Check basic usage of empty enums
     check_types("enum S {}; S value;");

@@ -1007,6 +1007,28 @@ impl Context {
         Ok(())
     }
 
+    /// Register a new valuedef
+    pub fn register_valuedef(
+        &mut self,
+        name: Located<String>,
+        value: ir::Constant,
+    ) -> TyperResult<()> {
+        let existing_symbols = self.scopes[self.current_scope]
+            .symbols
+            .entry(name.to_string())
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::Type(id) = symbol {
+                return Err(TyperError::TypeAlreadyDefined(name, *id));
+            }
+        }
+
+        existing_symbols.push(ScopeSymbol::Constant(value));
+        Ok(())
+    }
+
     /// Register a new template type parameter
     pub fn insert_template_type(&mut self, id: ir::TemplateTypeId) -> TyperResult<()> {
         let name = self

@@ -87,8 +87,10 @@ fn parse_struct_internal(
                         context.register_typedef(name.clone(), *ty)?
                     }
                 }
-                (ast::TemplateParam::Value(_), ir::TypeOrConstant::Constant(_)) => {
-                    todo!("Non-type template arguments")
+                (ast::TemplateParam::Value(val_param), ir::TypeOrConstant::Constant(value)) => {
+                    if let Some(name) = &val_param.name {
+                        context.register_valuedef(name.clone(), value.clone().unrestrict())?
+                    }
                 }
                 _ => todo!("Inconsistent type/non-type parameter error handling"),
             }
