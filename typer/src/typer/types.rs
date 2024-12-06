@@ -29,6 +29,9 @@ pub enum TypePosition {
 
     /// Type is for a member of a constant buffer
     ConstantBufferMember,
+
+    /// Type is an argument to a template
+    TemplateArgument,
 }
 
 /// Attempt to get an ir type from an ast type
@@ -875,7 +878,7 @@ pub fn apply_template_type_substitution(
 }
 
 /// Attempt to get an ir expression from an ast expression then evaluate it as a constant expression
-fn parse_and_evaluate_constant_expression(
+pub fn parse_and_evaluate_constant_expression(
     expr: &Located<ast::Expression>,
     context: &mut Context,
 ) -> TyperResult<ir::RestrictedConstant> {

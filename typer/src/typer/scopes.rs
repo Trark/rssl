@@ -3,6 +3,7 @@ use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use super::functions::{parse_function_body, ApplyTemplates};
 use super::structs::build_struct_from_template;
+use super::types::{parse_and_evaluate_constant_expression, parse_type_for_usage, TypePosition};
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -253,6 +254,7 @@ impl Context {
         name: &ast::ScopedIdentifier,
         template_args: &[ir::TypeOrConstant],
     ) -> TyperResult<ir::TypeId> {
+        let loc = name.get_location();
         let ty = match self.find_identifier(name) {
             Ok(VariableExpression::Type(ty)) => ty,
             Ok(_) => return Err(TyperError::ExpectedTypeReceivedExpression(name.clone())),
@@ -265,55 +267,7 @@ impl Context {
         // Match template argument counts with type
         match tyl_unmodified {
             ir::TypeLayer::StructTemplate(id) => {
-                // Templated type definitions require template arguments
-                // We do not currently support default arguments
-                if template_args.is_empty() {
-                    // Generic error for now
-                    Err(TyperError::UnknownType(name.into(), name.get_location()))
-                } else {
-                    let struct_template_data = &self.struct_template_data[id.0 as usize];
-                    let struct_template_def = &self.module.struct_template_registry[id.0 as usize];
-                    let ast = &struct_template_def.ast.clone();
-
-                    if let Some(id) = struct_template_data.instantiations.get(template_args) {
-                        let unmodified_id = self
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Struct(*id));
-                        let id = self
-                            .module
-                            .type_registry
-                            .combine_modifier(unmodified_id, modifier);
-                        Ok(id)
-                    } else {
-                        // Return to scope of the struct definition to build the template
-                        let current_scope = self.current_scope;
-                        self.current_scope = struct_template_data.scope;
-
-                        let sid_res = build_struct_from_template(ast, template_args, self);
-
-                        // Back to calling scope
-                        self.current_scope = current_scope;
-
-                        let sid = sid_res?;
-
-                        // Register the instantiation
-                        let struct_template_data = &mut self.struct_template_data[id.0 as usize];
-                        struct_template_data
-                            .instantiations
-                            .insert(template_args.to_vec(), sid);
-
-                        let unmodified_id = self
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Struct(sid));
-                        let id = self
-                            .module
-                            .type_registry
-                            .combine_modifier(unmodified_id, modifier);
-                        Ok(id)
-                    }
-                }
+                self.ensure_struct_template(id, template_args, modifier, loc)
             }
             _ => {
                 // Normal types do not expect any template arguments
@@ -324,6 +278,159 @@ impl Context {
                     Err(TyperError::UnknownType(name.into(), name.get_location()))
                 }
             }
+        }
+    }
+
+    /// Find or create the type id for a struct template with the given arguments
+    fn ensure_struct_template(
+        &mut self,
+        id: ir::StructTemplateId,
+        template_args: &[ir::TypeOrConstant],
+        modifier: ir::TypeModifier,
+        error_loc: SourceLocation,
+    ) -> TyperResult<ir::TypeId> {
+        let struct_template_data = &self.struct_template_data[id.0 as usize];
+        let struct_template_def = &self.module.struct_template_registry[id.0 as usize];
+
+        if let Some(id) = struct_template_data.instantiations.get(template_args) {
+            let unmodified_id = self
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Struct(*id));
+            let id = self
+                .module
+                .type_registry
+                .combine_modifier(unmodified_id, modifier);
+            Ok(id)
+        } else {
+            let ast = &struct_template_def.ast.clone();
+
+            // Return to scope of the struct definition to build the template
+            let current_scope = self.current_scope;
+            self.current_scope = struct_template_data.scope;
+
+            // Make a scope for the struct to first generate template arguments
+            // If this then is a duplicate of another struct this will be unused
+            let inst_scope = self.push_scope_with_name(&ast.name);
+
+            // Fail if we are given more arguments than we support
+            if template_args.len() > ast.template_params.0.len() {
+                return Err(TyperError::TooManyTemplateArguments(error_loc));
+            }
+
+            // Register template arguments
+            let mut final_params = Vec::with_capacity(ast.template_params.0.len());
+            for (i, template_param) in ast.template_params.0.iter().enumerate() {
+                let provided_value = if i < template_args.len() {
+                    Some(&template_args[i])
+                } else {
+                    None
+                };
+
+                match template_param {
+                    ast::TemplateParam::Type(ty_param) => {
+                        let value_backing;
+                        let value = match (provided_value, &ty_param.default) {
+                            (None, Some(default)) => {
+                                let ty = parse_type_for_usage(
+                                    default,
+                                    TypePosition::TemplateArgument,
+                                    self,
+                                )?;
+                                value_backing = ir::TypeOrConstant::Type(ty);
+                                Some(&value_backing)
+                            }
+                            (value, _) => value,
+                        };
+
+                        match value {
+                            Some(ir::TypeOrConstant::Type(ty)) => {
+                                final_params.push(ir::TypeOrConstant::Type(*ty));
+                                if let Some(name) = &ty_param.name {
+                                    self.register_typedef(name.clone(), *ty)?
+                                }
+                            }
+                            None => {
+                                return Err(TyperError::TemplateArgumentMissing(
+                                    error_loc,
+                                    ty_param.name.clone(),
+                                ));
+                            }
+                            Some(_) => {
+                                return Err(TyperError::TemplateArgumentExpectedType(
+                                    error_loc,
+                                    ty_param.name.clone(),
+                                ))
+                            }
+                        }
+                    }
+                    ast::TemplateParam::Value(val_param) => {
+                        let value_backing;
+                        let value = match (provided_value, &val_param.default) {
+                            (None, Some(default)) => {
+                                let val = parse_and_evaluate_constant_expression(default, self)?;
+                                value_backing = ir::TypeOrConstant::Constant(val);
+                                Some(&value_backing)
+                            }
+                            (value, _) => value,
+                        };
+
+                        match value {
+                            Some(ir::TypeOrConstant::Constant(value)) => {
+                                final_params.push(ir::TypeOrConstant::Constant(value.clone()));
+                                if let Some(name) = &val_param.name {
+                                    self.register_valuedef(
+                                        name.clone(),
+                                        value.clone().unrestrict(),
+                                    )?
+                                }
+                            }
+                            None => {
+                                return Err(TyperError::TemplateArgumentMissing(
+                                    error_loc,
+                                    val_param.name.clone(),
+                                ));
+                            }
+
+                            Some(_) => {
+                                return Err(TyperError::TemplateArgumentExpectedNonType(
+                                    error_loc,
+                                    val_param.name.clone(),
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+
+            self.pop_scope();
+
+            let struct_template_data = &mut self.struct_template_data[id.0 as usize];
+            let sid_res = match struct_template_data.instantiations.get(&final_params) {
+                Some(sid) => Ok(*sid),
+                None => build_struct_from_template(ast, inst_scope, self),
+            };
+
+            // Back to calling scope
+            self.current_scope = current_scope;
+
+            let sid = sid_res?;
+
+            // Register the instantiation
+            let struct_template_data = &mut self.struct_template_data[id.0 as usize];
+            struct_template_data
+                .instantiations
+                .insert(template_args.to_vec(), sid);
+
+            let unmodified_id = self
+                .module
+                .type_registry
+                .register_type(ir::TypeLayer::Struct(sid));
+            let id = self
+                .module
+                .type_registry
+                .combine_modifier(unmodified_id, modifier);
+            Ok(id)
         }
     }
 

@@ -1356,6 +1356,17 @@ fn check_struct_templates() {
     check_fail(
         "template<typename T> struct S {}; void main() { S<int> s1; S<float> s2; s1 = s2; }",
     );
+
+    // Check template arguments can have default values
+    check_types("template<typename T = float> struct S { T f() { return 0; } }; void main() { S<float> s1; S<> s2; S s3; s1 = s2; s2 = s3; }");
+
+    // Check a non-default parameter can not appear after a default parameter
+    check_fail("template<typename X = uint, typename T> struct S {};");
+
+    // Check too many template arguments are rejected
+    check_fail(
+        "template<typename T, typename G> struct S {}; void main() { S<float, float, float> s1; }",
+    );
 }
 
 #[test]
@@ -1371,6 +1382,15 @@ fn check_struct_templates_non_type() {
 
     // Check that different template arguments give different types
     check_fail("template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<5> s2; s1 = s2; }");
+
+    // Check template arguments can have default values
+    check_types("template<uint T = 4> struct S { uint f() { return T; } }; void main() { S<4> s1; S<> s2; S s3; s1 = s2; s2 = s3; }");
+
+    // Check a non-default parameter can not appear after a default parameter
+    check_fail("template<uint X = 4, uint Y> struct S {};");
+
+    // Check too many template arguments are rejected
+    check_fail("template<uint T, uint G> struct S {}; void main() { S<4, 5, 6> s1; }");
 }
 
 #[test]

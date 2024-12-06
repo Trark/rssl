@@ -24,6 +24,26 @@ pub fn parse_rootdefinition_struct(
     }
 
     if !sd.template_params.0.is_empty() {
+        // Check template arguments
+        let mut seen_default = false;
+        for template_param in &sd.template_params.0 {
+            let (has_default, name) = match template_param {
+                ast::TemplateParam::Type(ty_param) => (ty_param.default.is_some(), &ty_param.name),
+                ast::TemplateParam::Value(val_param) => {
+                    (val_param.default.is_some(), &val_param.name)
+                }
+            };
+
+            if seen_default && !has_default {
+                return Err(TyperError::DefaultTemplateArgumentMissing(match name {
+                    Some(name) => name.get_location(),
+                    None => sd.name.get_location(),
+                }));
+            }
+
+            seen_default = seen_default || has_default;
+        }
+
         // Register the struct template
         let name = &sd.name;
         let id = match context.register_struct_template(name.clone(), sd.clone()) {
@@ -33,7 +53,7 @@ pub fn parse_rootdefinition_struct(
 
         Ok(ir::RootDefinition::StructTemplate(id))
     } else {
-        let struct_def = parse_struct_internal(sd, &[], context)?;
+        let struct_def = parse_struct_internal(sd, None, context)?;
         Ok(ir::RootDefinition::Struct(struct_def))
     }
 }
@@ -41,22 +61,23 @@ pub fn parse_rootdefinition_struct(
 /// Build a struct from a struct template
 pub fn build_struct_from_template(
     sd: &ast::StructDefinition,
-    template_args: &[ir::TypeOrConstant],
+    scope_index: ScopeIndex,
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
-    let struct_def = parse_struct_internal(sd, template_args, context)?;
+    let struct_def = parse_struct_internal(sd, Some(scope_index), context)?;
     Ok(struct_def)
 }
 
 /// Process a struct internals
 fn parse_struct_internal(
     sd: &ast::StructDefinition,
-    template_args: &[ir::TypeOrConstant],
+    scope_index: Option<ScopeIndex>,
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
     // Register the struct
     let name = &sd.name;
-    let id = match context.begin_struct(name.clone(), template_args.is_empty()) {
+    let is_template = !sd.template_params.0.is_empty();
+    let id = match context.begin_struct(name.clone(), !is_template) {
         Ok(id) => id,
         Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
     };
@@ -74,26 +95,15 @@ fn parse_struct_internal(
         }
     }
 
-    context.push_scope_with_name(name);
-    if !template_args.is_empty() {
-        // Inconsistent number of args not gracefully handled
-        assert_eq!(template_args.len(), sd.template_params.0.len());
-
-        // Register template arguments
-        for (template_param, template_arg) in sd.template_params.0.iter().zip(template_args) {
-            match (template_param, template_arg) {
-                (ast::TemplateParam::Type(ty_param), ir::TypeOrConstant::Type(ty)) => {
-                    if let Some(name) = &ty_param.name {
-                        context.register_typedef(name.clone(), *ty)?
-                    }
-                }
-                (ast::TemplateParam::Value(val_param), ir::TypeOrConstant::Constant(value)) => {
-                    if let Some(name) = &val_param.name {
-                        context.register_valuedef(name.clone(), value.clone().unrestrict())?
-                    }
-                }
-                _ => todo!("Inconsistent type/non-type parameter error handling"),
-            }
+    match scope_index {
+        Some(index) => {
+            assert!(is_template);
+            // The scope will already have template parameters applied
+            context.revisit_scope(index);
+        }
+        None => {
+            assert!(!is_template);
+            context.push_scope_with_name(name);
         }
     }
 

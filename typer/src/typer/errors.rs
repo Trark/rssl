@@ -190,6 +190,21 @@ pub enum TyperError {
     /// Function has a parameter which must have a default argument
     DefaultArgumentMissing(SourceLocation),
 
+    /// A template argument was expecting a default value
+    DefaultTemplateArgumentMissing(SourceLocation),
+
+    /// A template argument was required but was not provided
+    TemplateArgumentMissing(SourceLocation, Option<Located<String>>),
+
+    /// A template argument was required to be a type
+    TemplateArgumentExpectedType(SourceLocation, Option<Located<String>>),
+
+    /// A template argument was required to be a value
+    TemplateArgumentExpectedNonType(SourceLocation, Option<Located<String>>),
+
+    /// A template was given more arguments than it expects
+    TooManyTemplateArguments(SourceLocation),
+
     /// Type id with declarator modifiers are not valid for any RSSL types
     InvalidTypeDeclarator(SourceLocation),
 
@@ -797,6 +812,7 @@ impl CompileError for TyperExternalError {
                             TypePosition::StructMember => "on a field",
                             TypePosition::Global => "on a global variable",
                             TypePosition::ConstantBufferMember => "on a cbuffer member",
+                            TypePosition::TemplateArgument => "on a template argument",
                         }
                     )
                 },
@@ -902,6 +918,73 @@ impl CompileError for TyperExternalError {
             ),
             TyperError::DefaultArgumentMissing(loc) => w.write_message(
                 &|f| write!(f, "missing default argument"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::DefaultTemplateArgumentMissing(loc) => w.write_message(
+                &|f| write!(f, "default template value required"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::TemplateArgumentMissing(loc, name) => match name {
+                Some(name) => {
+                    w.write_message(
+                        &|f| write!(f, "template argument {} missing", name.node),
+                        *loc,
+                        Severity::Error,
+                    )?;
+                    w.write_message(
+                        &|f| write!(f, "parameter defined here"),
+                        name.get_location(),
+                        Severity::Note,
+                    )
+                }
+                None => w.write_message(
+                    &|f| write!(f, "template argument missing"),
+                    *loc,
+                    Severity::Error,
+                ),
+            },
+            TyperError::TemplateArgumentExpectedType(loc, name) => match name {
+                Some(name) => {
+                    w.write_message(
+                        &|f| write!(f, "template argument {} expected a type", name.node),
+                        *loc,
+                        Severity::Error,
+                    )?;
+                    w.write_message(
+                        &|f| write!(f, "parameter defined here"),
+                        name.get_location(),
+                        Severity::Note,
+                    )
+                }
+                None => w.write_message(
+                    &|f| write!(f, "template argument expected a type"),
+                    *loc,
+                    Severity::Error,
+                ),
+            },
+            TyperError::TemplateArgumentExpectedNonType(loc, name) => match name {
+                Some(name) => {
+                    w.write_message(
+                        &|f| write!(f, "template argument {} expected a value", name.node),
+                        *loc,
+                        Severity::Error,
+                    )?;
+                    w.write_message(
+                        &|f| write!(f, "parameter defined here"),
+                        name.get_location(),
+                        Severity::Note,
+                    )
+                }
+                None => w.write_message(
+                    &|f| write!(f, "template argument expected a value"),
+                    *loc,
+                    Severity::Error,
+                ),
+            },
+            TyperError::TooManyTemplateArguments(loc) => w.write_message(
+                &|f| write!(f, "too many template arguments"),
                 *loc,
                 Severity::Error,
             ),
