@@ -307,6 +307,22 @@ fn check_ambiguous_init_or_expr() {
 }
 
 #[test]
+fn check_declare_with_expr_ambiguity() {
+    check_types(
+        "
+static const uint a = 1;
+static const uint b = 2; 
+template<bool T> struct S {};
+void f() { S < a && b > c; }",
+    );
+}
+
+#[test]
+fn check_expr_with_declare_ambiguity() {
+    check_types("void f() { uint S, a, b, c; S < a && b > c; }");
+}
+
+#[test]
 fn check_return() {
     check_types("void f() { return; }");
     check_types("float f() { return 0.0; }");
