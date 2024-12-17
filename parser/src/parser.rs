@@ -10,6 +10,9 @@ pub struct Parser {
 
     /// Current position
     current: usize,
+
+    /// Number of namespaces deep the current position is at
+    namespace_depth: usize,
 }
 
 /// Callback to provide contextual state for the parser
@@ -34,37 +37,57 @@ impl SymbolResolver for NullResolver {
 impl Parser {
     /// Create a new parser object
     pub fn new(tokens: Vec<LexToken>) -> Self {
-        Parser { tokens, current: 0 }
+        Parser {
+            tokens,
+            current: 0,
+            namespace_depth: 0,
+        }
     }
 
     /// Parse then next top level item
-    pub fn parse_item(
-        &mut self,
-        resolver: &dyn SymbolResolver,
-    ) -> Result<Option<RootDefinition>, ParseError> {
+    pub fn parse_item(&mut self, resolver: &dyn SymbolResolver) -> Result<ParserItem, ParseError> {
+        fn try_parse_item(input: &[LexToken]) -> ParseResult<ParserItem> {
+            if let Ok((rest, _)) = parse_token(Token::Semicolon)(input) {
+                return Ok((rest, ParserItem::Empty));
+            }
+
+            if let Ok((rest, _)) = parse_token(Token::Namespace)(input) {
+                return Ok(parse_namespace_enter(rest)?);
+            }
+
+            if let Ok((rest, _)) = parse_token(Token::RightBrace)(input) {
+                return Ok((rest, ParserItem::NamespaceExit));
+            }
+
+            let (input, def) = parse_root_definition(input)?;
+            Ok((input, ParserItem::Definition(def)))
+        }
+
         let rest = &self.tokens[self.current..];
-        match parse_root_definition_with_semicolon(rest) {
+        match try_parse_item(rest) {
             Ok((remaining, root)) => {
                 assert!(self.current < self.tokens.len() - remaining.len());
                 self.current = self.tokens.len() - remaining.len();
-                Ok(Some(root))
+                Ok(root)
             }
-            Err(_) if rest.len() == 1 && rest[0].0 == Token::Eof => Ok(None),
+            Err(_) if rest.len() == 1 && rest[0].0 == Token::Eof => {
+                if self.namespace_depth != 0 {
+                    Err(ParseError(ParseErrorReason::UnexpectedEndOfStream, None))
+                } else {
+                    Ok(ParserItem::EndOfFile)
+                }
+            }
             Err(err) => Err(ParseError::from(err)),
         }
     }
 }
 
-/// TODO
+/// Individual top level items that can be encountered during parsing
 pub enum ParserItem {
-    Struct(StructDefinition),
-    Enum(EnumDefinition),
-    Typedef(Typedef),
-    ConstantBuffer(ConstantBuffer),
-    GlobalVariable(GlobalVariable),
-    Function(FunctionDefinition),
-    Namespace(Located<String>, Vec<RootDefinition>),
-    Pipeline(PipelineDefinition),
+    Definition(RootDefinition),
+    NamespaceEnter(Located<String>),
+    NamespaceExit,
+    Empty,
     EndOfFile,
 }
 
@@ -297,18 +320,45 @@ mod pipelines;
 
 // Implement parsing for root definitions
 mod root_definitions;
-use root_definitions::parse_root_definition_with_semicolon;
+use root_definitions::{parse_namespace_enter, parse_root_definition};
 
 /// Parse a stream of lex tokens into an abstract syntax tree
 pub fn parse(source: &[LexToken]) -> Result<Module, ParseError> {
     let mut parser = Parser::new(source.to_vec());
     let mut root_definitions = Vec::new();
+    let mut namespace_depth = 0;
     loop {
         match parser.parse_item(&NullResolver) {
-            Ok(Some(item)) => {
-                root_definitions.push(item);
+            Ok(ParserItem::Definition(item)) => {
+                let mut defs = &mut root_definitions;
+                for _ in 0..namespace_depth {
+                    match defs.last_mut().unwrap() {
+                        RootDefinition::Namespace(_, next_defs) => {
+                            defs = next_defs;
+                        }
+                        _ => panic!(),
+                    }
+                }
+                defs.push(item);
             }
-            Ok(None) => return Ok(Module { root_definitions }),
+            Ok(ParserItem::NamespaceEnter(name)) => {
+                let mut defs = &mut root_definitions;
+                for _ in 0..namespace_depth {
+                    match defs.last_mut().unwrap() {
+                        RootDefinition::Namespace(_, next_defs) => {
+                            defs = next_defs;
+                        }
+                        _ => panic!(),
+                    }
+                }
+                defs.push(RootDefinition::Namespace(name, Vec::new()));
+                namespace_depth += 1;
+            }
+            Ok(ParserItem::NamespaceExit) => {
+                namespace_depth -= 1;
+            }
+            Ok(ParserItem::Empty) => {}
+            Ok(ParserItem::EndOfFile) => return Ok(Module { root_definitions }),
             Err(err) => return Err(err),
         }
     }

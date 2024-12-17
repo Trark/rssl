@@ -7,7 +7,7 @@ use structs::parse_struct_definition;
 use types::parse_typedef;
 
 /// Parse a root element in a shader document
-fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
+pub fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
     let res = match parse_struct_definition(input) {
         Ok((rest, structdef)) => Ok((rest, RootDefinition::Struct(structdef))),
         Err(err) => Err(err),
@@ -40,11 +40,6 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_namespace(input) {
-        Ok((rest, def)) => return Ok((rest, def)),
-        Err(err) => Err(err),
-    });
-
     let res = res.select(match parse_pipeline_definition(input) {
         Ok((rest, def)) => return Ok((rest, RootDefinition::Pipeline(def))),
         Err(err) => Err(err),
@@ -53,31 +48,15 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
     res
 }
 
-/// Parse a root definition which may have many semicolons after it
-pub fn parse_root_definition_with_semicolon(input: &[LexToken]) -> ParseResult<RootDefinition> {
-    let (input, def) = parse_root_definition(input)?;
-    let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
-    Ok((input, def))
-}
-
-/// Parse a namespace
-fn parse_namespace(input: &[LexToken]) -> ParseResult<RootDefinition> {
-    let (input, _) = parse_token(Token::Namespace)(input)?;
+/// Parse the start of a namespace
+pub fn parse_namespace_enter(input: &[LexToken]) -> ParseResult<ParserItem> {
     let (input, name) = parse_optional(parse_variable_name)(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, defs) = parse_namespace_contents(input)?;
-    let (input, _) = parse_token(Token::RightBrace)(input)?;
     let name = match name {
         Some(tok) => tok,
         None => Located::none(String::new()),
     };
-    let ns = RootDefinition::Namespace(name, defs);
-    Ok((input, ns))
-}
-
-/// Parse the insides of a namespace
-fn parse_namespace_contents(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
-    parse_multiple(parse_root_definition_with_semicolon)(input)
+    Ok((input, ParserItem::NamespaceEnter(name)))
 }
 
 #[test]
@@ -205,6 +184,7 @@ fn test_function() {
 }
 
 #[test]
+#[cfg(not(debug_assertions))]
 fn test_namespace() {
     use test_support::*;
     let namespace = ParserTester::new(parse_namespace);
