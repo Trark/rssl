@@ -273,6 +273,7 @@ fn parse_statement(ast: &ast::Statement, context: &mut Context) -> TyperResult<V
             );
             Ok(next)
         }
+        ast::StatementKind::UnparsedStatementOrDeclaration(_) => todo!(),
     }
 }
 

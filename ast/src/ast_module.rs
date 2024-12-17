@@ -26,3 +26,7 @@ pub enum RootDefinition {
     Namespace(Located<String>, Vec<RootDefinition>),
     Pipeline(PipelineDefinition),
 }
+
+/// Range of tokens in a token stream for an unparsed section of source
+#[derive(PartialEq, Debug, Clone)]
+pub struct TokenRange(usize, usize);

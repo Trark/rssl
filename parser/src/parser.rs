@@ -3,6 +3,71 @@ use rssl_text::tokens::*;
 use rssl_text::*;
 use std::collections::HashSet;
 
+/// Parser state for a compilation unit
+pub struct Parser {
+    /// All input tokens
+    tokens: Vec<LexToken>,
+
+    /// Current position
+    current: usize,
+}
+
+/// Callback to provide contextual state for the parser
+pub trait SymbolResolver {
+    fn is_type(&self, ty: TypeLayout) -> bool;
+    fn is_function(&self, ty: TypeLayout) -> bool;
+}
+
+/// [SymbolResolver] that returns false for all checks
+struct NullResolver;
+
+impl SymbolResolver for NullResolver {
+    fn is_type(&self, _: TypeLayout) -> bool {
+        false
+    }
+
+    fn is_function(&self, _: TypeLayout) -> bool {
+        false
+    }
+}
+
+impl Parser {
+    /// Create a new parser object
+    pub fn new(tokens: Vec<LexToken>) -> Self {
+        Parser { tokens, current: 0 }
+    }
+
+    /// Parse then next top level item
+    pub fn parse_item(
+        &mut self,
+        resolver: &dyn SymbolResolver,
+    ) -> Result<Option<RootDefinition>, ParseError> {
+        let rest = &self.tokens[self.current..];
+        match parse_root_definition_with_semicolon(rest) {
+            Ok((remaining, root)) => {
+                assert!(self.current < self.tokens.len() - remaining.len());
+                self.current = self.tokens.len() - remaining.len();
+                Ok(Some(root))
+            }
+            Err(_) if rest.len() == 1 && rest[0].0 == Token::Eof => Ok(None),
+            Err(err) => Err(ParseError::from(err)),
+        }
+    }
+}
+
+/// TODO
+pub enum ParserItem {
+    Struct(StructDefinition),
+    Enum(EnumDefinition),
+    Typedef(Typedef),
+    ConstantBuffer(ConstantBuffer),
+    GlobalVariable(GlobalVariable),
+    Function(FunctionDefinition),
+    Namespace(Located<String>, Vec<RootDefinition>),
+    Pipeline(PipelineDefinition),
+    EndOfFile,
+}
+
 /// Failure cases
 mod errors;
 pub use errors::{ParseError, ParseResultExt};
@@ -234,34 +299,18 @@ mod pipelines;
 mod root_definitions;
 use root_definitions::parse_root_definition_with_semicolon;
 
-fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
-    let mut roots = Vec::new();
-    let mut rest = input;
-    loop {
-        let last_def = parse_root_definition_with_semicolon(rest);
-        if let Ok((remaining, root)) = last_def {
-            roots.push(root);
-            rest = remaining;
-        } else {
-            return match rest {
-                a if a.len() == 1 && a[0].0 == Token::Eof => Ok((&[], roots)),
-                _ => match last_def {
-                    Ok(_) => unreachable!(),
-                    Err(err) => Err(err),
-                },
-            };
-        }
-    }
-}
-
 /// Parse a stream of lex tokens into an abstract syntax tree
 pub fn parse(source: &[LexToken]) -> Result<Module, ParseError> {
-    match parse_internal(source) {
-        Ok((rest, _)) if !rest.is_empty() => Err(ParseError::from_tokens_remaining(rest)),
-        Ok((_, hlsl)) => Ok(Module {
-            root_definitions: hlsl,
-        }),
-        Err(err) => Err(ParseError::from(err)),
+    let mut parser = Parser::new(source.to_vec());
+    let mut root_definitions = Vec::new();
+    loop {
+        match parser.parse_item(&NullResolver) {
+            Ok(Some(item)) => {
+                root_definitions.push(item);
+            }
+            Ok(None) => return Ok(Module { root_definitions }),
+            Err(err) => return Err(err),
+        }
     }
 }
 

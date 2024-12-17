@@ -19,6 +19,9 @@ pub enum Target {
 pub enum FormatError {
     /// Encountered an AmbiguousParseBranch expression
     AmbiguousParseBranch,
+
+    /// Encountered an unparsed set of tokens
+    RawTokens,
 }
 
 /// Format ast module as text
@@ -809,6 +812,9 @@ fn format_statement(
         ast::StatementKind::DefaultLabel(next) => {
             output.push_str("default:");
             format_statement(next, output, context)?
+        }
+        ast::StatementKind::UnparsedStatementOrDeclaration(_) => {
+            return Err(FormatError::RawTokens);
         }
     }
     Ok(())
