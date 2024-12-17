@@ -1,8 +1,9 @@
+use rssl_text::tokens::*;
 use rssl_text::*;
 
 /// Turn a string into parse tree for a test
 #[track_caller]
-fn parse_from_str(source: &str) -> (rssl_ast::Module, SourceManager) {
+fn parse_from_str(source: &str) -> (Vec<LexToken>, SourceManager) {
     // Create source manager to store the source into
     let mut source_manager = SourceManager::new();
 
@@ -18,20 +19,14 @@ fn parse_from_str(source: &str) -> (rssl_ast::Module, SourceManager) {
 
     let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
-    // Run the parser
-    let tree = match rssl_parser::parse(&tokens) {
-        Ok(tree) => tree,
-        Err(err) => panic!("{}", err.display(&source_manager)),
-    };
-
-    (tree, source_manager)
+    (tokens, source_manager)
 }
 
 #[track_caller]
 pub fn check_types(source: &str) {
-    let (tree, source_manager) = parse_from_str(source);
+    let (tokens, source_manager) = parse_from_str(source);
 
-    match rssl_typer::type_check(&tree) {
+    match rssl_typer::parse(tokens) {
         Ok(_) => {}
         Err(err) => panic!("{}", err.display(&source_manager)),
     }
@@ -40,9 +35,9 @@ pub fn check_types(source: &str) {
 #[allow(unused)]
 #[track_caller]
 pub fn check_fail(source: &str) {
-    let (tree, _) = parse_from_str(source);
+    let (tokens, _) = parse_from_str(source);
 
-    if rssl_typer::type_check(&tree).is_ok() {
+    if rssl_typer::parse(tokens).is_ok() {
         panic!("Expected type check to fail: {source}");
     }
 }
@@ -50,9 +45,9 @@ pub fn check_fail(source: &str) {
 #[allow(unused)]
 #[track_caller]
 pub fn check_fail_message(source: &str, expected_message: &str) {
-    let (tree, source_manager) = parse_from_str(source);
+    let (tokens, source_manager) = parse_from_str(source);
 
-    match rssl_typer::type_check(&tree) {
+    match rssl_typer::parse(tokens) {
         Ok(_) => panic!("Expected type check to fail: {source}"),
         Err(err) => {
             let error_print = err.display(&source_manager).to_string();

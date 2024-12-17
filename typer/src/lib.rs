@@ -6,5 +6,5 @@ mod casting;
 mod evaluator;
 mod typer;
 
-pub use typer::type_check;
+pub use typer::parse;
 pub use typer::TyperError;

@@ -14,6 +14,9 @@ pub enum TyperError {
     /// An internal error occured in the type checker
     InternalError(SourceLocation),
 
+    /// Invalid syntax
+    ParseError(rssl_parser::ParseError),
+
     ValueAlreadyDefined(Located<String>, ErrorType, ErrorType),
     TypeAlreadyDefined(Located<String>, ir::TypeId),
     ConstantBufferAlreadyDefined(Located<String>, ir::ConstantBufferId),
@@ -289,6 +292,7 @@ impl CompileError for TyperExternalError {
             TyperError::InternalError(loc) => {
                 w.write_message(&|f| write!(f, "internal error"), *loc, Severity::Error)
             }
+            TyperError::ParseError(err) => err.print(w),
             TyperError::ValueAlreadyDefined(name, _, _) => w.write_message(
                 &|f| write!(f, "redefinition of '{}'", name.node),
                 name.location,

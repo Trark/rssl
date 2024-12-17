@@ -54,19 +54,8 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
 
     let tokens = preprocess::prepare_tokens(&tokens);
 
-    // Turn proprocessor tokens into AST
-    let pl = match parser::parse(&tokens) {
-        Ok(pl) => pl,
-        Err(err) => {
-            return Err(CompileError::Text(format!(
-                "{}",
-                err.display(&source_manager)
-            )))
-        }
-    };
-
-    // Turn untyped AST into typed IR
-    let ir = match typer::type_check(&pl) {
+    // Turn proprocessor tokens into typed IR
+    let ir = match typer::parse(tokens) {
         Ok(ir) => ir,
         Err(err) => {
             return Err(CompileError::Text(format!(

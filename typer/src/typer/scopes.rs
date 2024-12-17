@@ -1713,6 +1713,16 @@ impl Context {
     }
 }
 
+impl rssl_parser::SymbolResolver for Context {
+    fn is_type(&self, ty: rssl_ast::TypeLayout) -> bool {
+        todo!()
+    }
+
+    fn is_function(&self, ty: rssl_ast::TypeLayout) -> bool {
+        todo!()
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 struct VariableBlock {
     pub variables: HashMap<String, ir::VariableId>,

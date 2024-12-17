@@ -18,14 +18,8 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
 
     let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
-    // Run the parser
-    let tree = match rssl_parser::parse(&tokens) {
-        Ok(tree) => tree,
-        Err(err) => panic!("{}", err.display(&source_manager)),
-    };
-
-    // Run the type checker
-    let ir = match rssl_typer::type_check(&tree) {
+    // Run the parser & type checker
+    let ir = match rssl_typer::parse(tokens) {
         Ok(ir) => ir,
         Err(err) => panic!("{}", err.display(&source_manager)),
     };

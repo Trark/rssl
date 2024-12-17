@@ -120,14 +120,8 @@ fn compile_file(entry_file: &str, files: &'static [(&'static str, &'static str)]
 
         let tokens = rssl_preprocess::prepare_tokens(&tokens);
 
-        // Run the parser
-        let tree = match rssl_parser::parse(&tokens) {
-            Ok(tree) => tree,
-            Err(err) => panic!("{}", err.display(&source_manager)),
-        };
-
-        // Run the type checker
-        if let Err(err) = rssl_typer::type_check(&tree) {
+        // Run the parser & type checker
+        if let Err(err) = rssl_typer::parse(tokens) {
             panic!("{}", err.display(&source_manager))
         }
     }

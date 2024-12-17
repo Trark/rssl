@@ -16,29 +16,45 @@ mod types;
 pub use errors::{TyperError, TyperExternalError};
 
 use errors::TyperResult;
+use rssl_text::tokens::*;
 use scopes::Context;
 
-/// Convert abstract syntax tree into internal typed representation
-pub fn type_check(ast: &ast::Module) -> Result<ir::Module, TyperExternalError> {
+/// Convert input into internal typed representation
+pub fn parse(tokens: Vec<LexToken>) -> Result<ir::Module, TyperExternalError> {
     let mut context = Context::new();
 
-    if let Err(err) = type_check_internal(ast, &mut context) {
+    if let Err(err) = parse_internal(tokens, &mut context) {
         return Err(TyperExternalError(err, context));
     };
 
     Ok(context.module)
 }
 
-/// Internal version of type_check when the context is created
-fn type_check_internal(ast: &ast::Module, context: &mut Context) -> TyperResult<()> {
-    // Convert each root definition in order
-    for def in &ast.root_definitions {
-        let mut def_ir = parse_rootdefinition(def, context)?;
-        context.module.root_definitions.append(&mut def_ir);
-    }
+/// Internal version of parse when the context is created
+fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<()> {
+    use rssl_parser::{Parser, ParserItem};
+    let mut parser = Parser::new(tokens);
 
-    assert!(context.is_at_root());
-    Ok(())
+    loop {
+        match parser.parse_item(context) {
+            Ok(ParserItem::Definition(item)) => {
+                let mut def_ir = parse_rootdefinition(&item, context)?;
+                context.module.root_definitions.append(&mut def_ir);
+            }
+            Ok(ParserItem::NamespaceEnter(name)) => {
+                context.enter_namespace(&name)?;
+            }
+            Ok(ParserItem::NamespaceExit) => {
+                context.exit_namespace();
+            }
+            Ok(ParserItem::Empty) => {}
+            Ok(ParserItem::EndOfFile) => {
+                assert!(context.is_at_root());
+                return Ok(());
+            }
+            Err(err) => return Err(TyperError::ParseError(err)),
+        }
+    }
 }
 
 /// Type check a single root definition
