@@ -184,22 +184,20 @@ fn test_function() {
 }
 
 #[test]
-#[cfg(not(debug_assertions))]
 fn test_namespace() {
     use test_support::*;
-    let namespace = ParserTester::new(parse_namespace);
 
-    namespace.check(
+    check_root(
         "namespace A {}",
         RootDefinition::Namespace("A".to_string().loc(10), Vec::new()),
     );
 
-    namespace.check(
+    check_root(
         "namespace {}",
         RootDefinition::Namespace(Located::none(String::new()), Vec::new()),
     );
 
-    namespace.check(
+    check_root(
         "namespace A { struct S {}; }",
         RootDefinition::Namespace(
             "A".to_string().loc(10),
@@ -212,7 +210,7 @@ fn test_namespace() {
         ),
     );
 
-    namespace.check(
+    check_root(
         "namespace A { namespace B { struct S {}; } namespace C { void f() {} } }",
         RootDefinition::Namespace(
             "A".to_string().loc(10),

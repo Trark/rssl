@@ -156,3 +156,21 @@ impl<
         }
     }
 }
+
+/// Check that a source string parses into the given set of root definitions
+#[track_caller]
+pub fn check_roots(input: &str, value: &[RootDefinition]) {
+    let (tokens, source_manager) = lex_from_str(input);
+    match super::parse(&tokens) {
+        Ok(module) => {
+            assert_eq!(module.root_definitions, value);
+        }
+        Err(err) => panic!("{}", err.display(&source_manager)),
+    }
+}
+
+/// Check that a source string parses into the given root definition
+#[track_caller]
+pub fn check_root(input: &str, value: RootDefinition) {
+    check_roots(input, &[value]);
+}

@@ -52,7 +52,7 @@ impl Parser {
             }
 
             if let Ok((rest, _)) = parse_token(Token::Namespace)(input) {
-                return Ok(parse_namespace_enter(rest)?);
+                return parse_namespace_enter(rest);
             }
 
             if let Ok((rest, _)) = parse_token(Token::RightBrace)(input) {
