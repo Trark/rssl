@@ -37,7 +37,6 @@ pub enum StatementKind {
     Return(Option<Located<Expression>>),
     CaseLabel(Located<Expression>, Box<Statement>),
     DefaultLabel(Box<Statement>),
-    UnparsedStatementOrDeclaration(TokenRange),
 }
 
 /// An initialiser for a for loop variable

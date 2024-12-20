@@ -813,9 +813,6 @@ fn format_statement(
             output.push_str("default:");
             format_statement(next, output, context)?
         }
-        ast::StatementKind::UnparsedStatementOrDeclaration(_) => {
-            return Err(FormatError::RawTokens);
-        }
     }
     Ok(())
 }
