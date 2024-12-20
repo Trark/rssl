@@ -1,29 +1,42 @@
 use super::*;
 
 /// Parse an initializer statement for a variable
-pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>> {
-    fn init_expr(input: &[LexToken]) -> ParseResult<Initializer> {
-        let (input, expr) = parse_expression_no_seq(input)?;
+pub fn parse_initializer<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Option<Initializer>> {
+    fn init_expr<'t>(
+        input: &'t [LexToken],
+        resolver: &dyn SymbolResolver,
+    ) -> ParseResult<'t, Initializer> {
+        let (input, expr) = parse_expression_no_seq(input, resolver)?;
         Ok((input, Initializer::Expression(expr)))
     }
 
-    fn init_aggregate(input: &[LexToken]) -> ParseResult<Initializer> {
+    fn init_aggregate<'t>(
+        input: &'t [LexToken],
+        resolver: &dyn SymbolResolver,
+    ) -> ParseResult<'t, Initializer> {
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
-        let (input, exprs) = parse_list(parse_token(Token::Comma), init_any)(input)?;
+        let (input, exprs) =
+            parse_list(parse_token(Token::Comma), contextual2(init_any, resolver))(input)?;
         let (input, _) = parse_optional(parse_token(Token::Comma))(input)?;
         let (input, _) = parse_token(Token::RightBrace)(input)?;
         Ok((input, Initializer::Aggregate(exprs)))
     }
 
-    fn init_any(input: &[LexToken]) -> ParseResult<Initializer> {
-        init_expr(input).select(init_aggregate(input))
+    fn init_any<'t>(
+        input: &'t [LexToken],
+        resolver: &dyn SymbolResolver,
+    ) -> ParseResult<'t, Initializer> {
+        init_expr(input, resolver).select(init_aggregate(input, resolver))
     }
 
     if input.is_empty() {
         ParseErrorReason::end_of_stream()
     } else {
         match input[0].0 {
-            Token::Equals => match init_any(&input[1..]) {
+            Token::Equals => match init_any(&input[1..], resolver) {
                 Ok((input, init)) => Ok((input, Some(init))),
                 Err(err) => Err(err),
             },
@@ -35,7 +48,7 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
 #[test]
 fn test_initializer() {
     fn initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>> {
-        parse_initializer(input)
+        parse_initializer(input, &NullResolver)
     }
 
     assert_eq!(initializer(&[]), ParseErrorReason::end_of_stream());
@@ -142,9 +155,12 @@ fn test_initializer() {
 }
 
 /// Parse a local variable definition
-fn parse_vardef(input: &[LexToken]) -> ParseResult<VarDef> {
-    let (input, typename) = parse_type(input)?;
-    let (input, defs) = parse_init_declarators(input)?;
+fn parse_vardef<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, VarDef> {
+    let (input, typename) = parse_type(input, resolver)?;
+    let (input, defs) = parse_init_declarators(input, resolver)?;
     let defs = VarDef {
         local_type: typename,
         defs,
@@ -164,13 +180,16 @@ fn test_vardef() {
 }
 
 /// Parse the init statement for a for loop
-fn parse_init_statement(input: &[LexToken]) -> ParseResult<InitStatement> {
-    let res_expr = match parse_expression(input) {
+fn parse_init_statement<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, InitStatement> {
+    let res_expr = match parse_expression(input, resolver) {
         Ok((input, vd)) => Ok((input, InitStatement::Expression(vd))),
         Err(err) => Err(err),
     };
 
-    let res_vardef = match parse_vardef(input) {
+    let res_vardef = match parse_vardef(input, resolver) {
         Ok((input, vd)) => Ok((input, InitStatement::Declaration(vd))),
         Err(err) => Err(err),
     };
@@ -204,17 +223,27 @@ fn test_init_statement() {
 }
 
 /// Parse an attribute with either [ ] or [[ ]]
-pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
-    parse_attribute_base(input, true)
+pub fn parse_attribute<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Attribute> {
+    parse_attribute_base(input, resolver, true)
 }
 
 /// Parse an attribute with [[ ]]
-pub fn parse_attribute_double_only(input: &[LexToken]) -> ParseResult<Attribute> {
-    parse_attribute_base(input, false)
+pub fn parse_attribute_double_only<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Attribute> {
+    parse_attribute_base(input, resolver, false)
 }
 
 /// Parse an attribute
-fn parse_attribute_base(input: &[LexToken], allow_single: bool) -> ParseResult<Attribute> {
+fn parse_attribute_base<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+    allow_single: bool,
+) -> ParseResult<'t, Attribute> {
     let original = input;
 
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
@@ -241,7 +270,7 @@ fn parse_attribute_base(input: &[LexToken], allow_single: bool) -> ParseResult<A
         let mut args = Vec::new();
         if parse_token(Token::RightParen)(input).is_err() {
             loop {
-                let (rest, arg) = parse_expression_no_seq(input)?;
+                let (rest, arg) = parse_expression_no_seq(input, resolver)?;
 
                 args.push(arg);
                 input = rest;
@@ -280,11 +309,14 @@ fn parse_attribute_base(input: &[LexToken], allow_single: bool) -> ParseResult<A
 #[test]
 fn test_attribute() {
     assert_eq!(
-        parse_attribute(&[
-            LexToken::with_no_loc(Token::LeftSquareBracket),
-            LexToken::with_no_loc(Token::Id(Identifier("fastopt".to_string()))),
-            LexToken::with_no_loc(Token::RightSquareBracket),
-        ]),
+        parse_attribute(
+            &[
+                LexToken::with_no_loc(Token::LeftSquareBracket),
+                LexToken::with_no_loc(Token::Id(Identifier("fastopt".to_string()))),
+                LexToken::with_no_loc(Token::RightSquareBracket),
+            ],
+            &NullResolver
+        ),
         Ok((
             &[][..],
             Attribute {
@@ -296,11 +328,14 @@ fn test_attribute() {
     );
 
     assert_eq!(
-        parse_attribute(&[
-            LexToken::with_no_loc(Token::LeftSquareBracket),
-            LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
-            LexToken::with_no_loc(Token::RightSquareBracket),
-        ]),
+        parse_attribute(
+            &[
+                LexToken::with_no_loc(Token::LeftSquareBracket),
+                LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
+                LexToken::with_no_loc(Token::RightSquareBracket),
+            ],
+            &NullResolver
+        ),
         Ok((
             &[][..],
             Attribute {
@@ -312,14 +347,17 @@ fn test_attribute() {
     );
 
     assert_eq!(
-        parse_attribute(&[
-            LexToken::with_no_loc(Token::LeftSquareBracket),
-            LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
-            LexToken::with_no_loc(Token::LeftParen),
-            LexToken::with_no_loc(Token::LiteralInt(4)),
-            LexToken::with_no_loc(Token::RightParen),
-            LexToken::with_no_loc(Token::RightSquareBracket),
-        ]),
+        parse_attribute(
+            &[
+                LexToken::with_no_loc(Token::LeftSquareBracket),
+                LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
+                LexToken::with_no_loc(Token::LeftParen),
+                LexToken::with_no_loc(Token::LiteralInt(4)),
+                LexToken::with_no_loc(Token::RightParen),
+                LexToken::with_no_loc(Token::RightSquareBracket),
+            ],
+            &NullResolver
+        ),
         Ok((
             &[][..],
             Attribute {
@@ -331,14 +369,17 @@ fn test_attribute() {
     );
 
     assert_eq!(
-        parse_attribute(&[
-            LexToken::with_no_loc(Token::LeftSquareBracket),
-            LexToken::with_no_loc(Token::Id(Identifier("outputtopology".to_string()))),
-            LexToken::with_no_loc(Token::LeftParen),
-            LexToken::with_no_loc(Token::LiteralString("triangle".to_string())),
-            LexToken::with_no_loc(Token::RightParen),
-            LexToken::with_no_loc(Token::RightSquareBracket),
-        ]),
+        parse_attribute(
+            &[
+                LexToken::with_no_loc(Token::LeftSquareBracket),
+                LexToken::with_no_loc(Token::Id(Identifier("outputtopology".to_string()))),
+                LexToken::with_no_loc(Token::LeftParen),
+                LexToken::with_no_loc(Token::LiteralString("triangle".to_string())),
+                LexToken::with_no_loc(Token::RightParen),
+                LexToken::with_no_loc(Token::RightSquareBracket),
+            ],
+            &NullResolver
+        ),
         Ok((
             &[][..],
             Attribute {
@@ -353,15 +394,18 @@ fn test_attribute() {
 }
 
 /// Parse a single statement
-fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
+fn parse_statement<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Statement> {
     // Parse attributes before a statement
-    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
+    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
 
     // Locate the statement at the start of the main statement part
     // This may be empty now but can not be after parse_statement_kind
     let location_stream = input;
 
-    let (input, kind) = parse_statement_kind(input)?;
+    let (input, kind) = parse_statement_kind(input, resolver)?;
 
     let statement = Statement {
         kind,
@@ -373,7 +417,10 @@ fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
 }
 
 /// Parse the main part of a statement
-fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
+fn parse_statement_kind<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, StatementKind> {
     if input.is_empty() {
         return ParseErrorReason::end_of_stream();
     }
@@ -382,16 +429,16 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
         LexToken(Token::Semicolon, _) => Ok((tail, StatementKind::Empty)),
         LexToken(Token::If, _) => {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
-            let (input, cond) = parse_expression(input)?;
+            let (input, cond) = parse_expression(input, resolver)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
-            let (input, inner_statement) = parse_statement(input)?;
+            let (input, inner_statement) = parse_statement(input, resolver)?;
             let inner_statement = Box::new(inner_statement);
             if input.is_empty() {
                 return ParseErrorReason::end_of_stream();
             }
             let (head, tail) = (input[0].clone(), &input[1..]);
             match head {
-                LexToken(Token::Else, _) => match parse_statement(tail) {
+                LexToken(Token::Else, _) => match parse_statement(tail, resolver) {
                     Err(err) => Err(err),
                     Ok((tail, else_part)) => {
                         let s = StatementKind::IfElse(cond, inner_statement, Box::new(else_part));
@@ -403,36 +450,36 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
         }
         LexToken(Token::For, _) => {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
-            let (input, init) = parse_init_statement(input)?;
+            let (input, init) = parse_init_statement(input, resolver)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
-            let (input, cond) = parse_optional(parse_expression)(input)?;
+            let (input, cond) = parse_optional(contextual2(parse_expression, resolver))(input)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
-            let (input, inc) = parse_optional(parse_expression)(input)?;
+            let (input, inc) = parse_optional(contextual2(parse_expression, resolver))(input)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
-            let (input, inner) = parse_statement(input)?;
+            let (input, inner) = parse_statement(input, resolver)?;
             Ok((input, StatementKind::For(init, cond, inc, Box::new(inner))))
         }
         LexToken(Token::While, _) => {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
-            let (input, cond) = parse_expression(input)?;
+            let (input, cond) = parse_expression(input, resolver)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
-            let (input, inner) = parse_statement(input)?;
+            let (input, inner) = parse_statement(input, resolver)?;
             Ok((input, StatementKind::While(cond, Box::new(inner))))
         }
         LexToken(Token::Do, _) => {
-            let (input, inner) = parse_statement(tail)?;
+            let (input, inner) = parse_statement(tail, resolver)?;
             let (input, _) = parse_token(Token::While)(input)?;
             let (input, _) = parse_token(Token::LeftParen)(input)?;
-            let (input, cond) = parse_expression(input)?;
+            let (input, cond) = parse_expression(input, resolver)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
             Ok((input, StatementKind::DoWhile(Box::new(inner), cond)))
         }
         LexToken(Token::Switch, _) => {
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
-            let (input, cond) = parse_expression(input)?;
+            let (input, cond) = parse_expression(input, resolver)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
-            let (input, inner) = parse_statement(input)?;
+            let (input, inner) = parse_statement(input, resolver)?;
             Ok((input, StatementKind::Switch(cond, Box::new(inner))))
         }
         LexToken(Token::Break, _) => {
@@ -447,7 +494,7 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
             let (input, _) = parse_token(Token::Semicolon)(tail)?;
             Ok((input, StatementKind::Discard))
         }
-        LexToken(Token::Return, _) => match parse_expression(tail) {
+        LexToken(Token::Return, _) => match parse_expression(tail, resolver) {
             Ok((input, expression_statement)) => {
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, StatementKind::Return(Some(expression_statement))))
@@ -458,37 +505,43 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
             }
         },
         LexToken(Token::Case, _) => {
-            let (input, cond) = parse_expression(tail)?;
+            let (input, cond) = parse_expression(tail, resolver)?;
             let (input, _) = parse_token(Token::Colon)(input)?;
-            let (input, next) = parse_statement(input)?;
+            let (input, next) = parse_statement(input, resolver)?;
             Ok((input, StatementKind::CaseLabel(cond, Box::new(next))))
         }
         LexToken(Token::Default, _) => {
             let (input, _) = parse_token(Token::Colon)(tail)?;
-            let (input, next) = parse_statement(input)?;
+            let (input, next) = parse_statement(input, resolver)?;
             Ok((input, StatementKind::DefaultLabel(Box::new(next))))
         }
         LexToken(Token::LeftBrace, _) => {
-            let (input, s) = statement_block(input)?;
+            let (input, s) = statement_block(input, resolver)?;
             Ok((input, StatementKind::Block(s)))
         }
         _ => {
             // Try parsing a variable definition
-            fn variable_def(input: &[LexToken]) -> ParseResult<VarDef> {
-                let (input, var) = parse_vardef(input)?;
+            fn variable_def<'t>(
+                input: &'t [LexToken],
+                resolver: &dyn SymbolResolver,
+            ) -> ParseResult<'t, VarDef> {
+                let (input, var) = parse_vardef(input, resolver)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, var))
             }
 
             // Try parsing an expression statement
-            fn expr_statement(input: &[LexToken]) -> ParseResult<Expression> {
-                let (input, expression_statement) = parse_expression(input)?;
+            fn expr_statement<'t>(
+                input: &'t [LexToken],
+                resolver: &dyn SymbolResolver,
+            ) -> ParseResult<'t, Expression> {
+                let (input, expression_statement) = parse_expression(input, resolver)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, expression_statement.node))
             }
 
             // Attempt to parse as a declaration first
-            let declaration_result = variable_def(input);
+            let declaration_result = variable_def(input, resolver);
 
             // Declarations defeat expressions - but we do not have type information yet
             // We need to parse both and let the type check pick the correct branch
@@ -497,7 +550,7 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
 
             // Try to parse as an expression
             // TODO: Skip expressions that are only valid if the declaration is valid to simplify the final tree
-            let expression_result = expr_statement(input);
+            let expression_result = expr_statement(input, resolver);
 
             match (declaration_result, expression_result) {
                 (Ok((decl_rem, decl)), Ok((expr_rem, expr))) => {
@@ -523,14 +576,17 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
 }
 
 /// Parse a block of statements
-pub fn statement_block(input: &[LexToken]) -> ParseResult<Vec<Statement>> {
+pub fn statement_block<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Vec<Statement>> {
     let mut statements = Vec::new();
     let mut rest = match parse_token(Token::LeftBrace)(input) {
         Ok((rest, _)) => rest,
         Err(err) => return Err(err),
     };
     loop {
-        let last_def = parse_statement(rest);
+        let last_def = parse_statement(rest, resolver);
         match last_def {
             Ok((remaining, root)) => {
                 statements.push(root);

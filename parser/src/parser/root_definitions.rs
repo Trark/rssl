@@ -7,40 +7,43 @@ use structs::parse_struct_definition;
 use types::parse_typedef;
 
 /// Parse a root element in a shader document
-pub fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
-    let res = match parse_struct_definition(input) {
+pub fn parse_root_definition<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, RootDefinition> {
+    let res = match parse_struct_definition(input, resolver) {
         Ok((rest, structdef)) => Ok((rest, RootDefinition::Struct(structdef))),
         Err(err) => Err(err),
     };
 
-    let res = res.select(match parse_enum_definition(input) {
+    let res = res.select(match parse_enum_definition(input, resolver) {
         Ok((rest, enumdef)) => Ok((rest, RootDefinition::Enum(enumdef))),
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_typedef(input) {
+    let res = res.select(match parse_typedef(input, resolver) {
         Ok((rest, typedef)) => Ok((rest, RootDefinition::Typedef(typedef))),
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_constant_buffer(input) {
+    let res = res.select(match parse_constant_buffer(input, resolver) {
         Ok((rest, cbuffer)) => Ok((rest, RootDefinition::ConstantBuffer(cbuffer))),
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_global_variable(input) {
+    let res = res.select(match parse_global_variable(input, resolver) {
         Ok((rest, globalvariable)) => {
             return Ok((rest, RootDefinition::GlobalVariable(globalvariable)))
         }
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_function_definition(input) {
+    let res = res.select(match parse_function_definition(input, resolver) {
         Ok((rest, funcdef)) => return Ok((rest, RootDefinition::Function(funcdef))),
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_pipeline_definition(input) {
+    let res = res.select(match parse_pipeline_definition(input, resolver) {
         Ok((rest, def)) => return Ok((rest, RootDefinition::Pipeline(def))),
         Err(err) => Err(err),
     });
@@ -62,8 +65,6 @@ pub fn parse_namespace_enter(input: &[LexToken]) -> ParseResult<ParserItem> {
 #[test]
 fn test_struct() {
     use test_support::*;
-    let rootdefinition = ParserTester::new(parse_root_definition);
-    let structdefinition = ParserTester::new(parse_struct_definition);
 
     let test_struct_str = "struct MyStruct { uint a; float b; };";
     let test_struct_ast = StructDefinition {
@@ -91,15 +92,12 @@ fn test_struct() {
             }),
         ],
     };
-    structdefinition.check(test_struct_str, test_struct_ast.clone());
-    rootdefinition.check(test_struct_str, RootDefinition::Struct(test_struct_ast));
+    check_root(test_struct_str, RootDefinition::Struct(test_struct_ast));
 }
 
 #[test]
 fn test_function() {
     use test_support::*;
-    let rootdefinition = ParserTester::new(parse_root_definition);
-    let functiondefinition = ParserTester::new(parse_function_definition);
 
     let test_func_str = "float func(float x) : SV_Depth { }";
     let test_func_ast = FunctionDefinition {
@@ -126,10 +124,9 @@ fn test_function() {
         body: Some(Vec::new()),
         attributes: Vec::new(),
     };
-    functiondefinition.check(test_func_str, test_func_ast.clone());
-    rootdefinition.check(test_func_str, RootDefinition::Function(test_func_ast));
+    check_root(test_func_str, RootDefinition::Function(test_func_ast));
 
-    rootdefinition.check(
+    check_root(
         "[numthreads(16, 16, 1)] void func(float x) { if (x < 0) { return; } }",
         RootDefinition::Function(FunctionDefinition {
             name: "func".to_string().loc(29),

@@ -89,7 +89,7 @@ pub struct ParserTester<F, T>(F, std::marker::PhantomData<T>);
 
 impl<
         T: std::cmp::PartialEq + std::fmt::Debug,
-        F: for<'t> Fn(&'t [LexToken]) -> ParseResult<'t, T>,
+        F: for<'t> Fn(&'t [LexToken], &dyn SymbolResolver) -> ParseResult<'t, T>,
     > ParserTester<F, T>
 {
     /// Create a new tester object from a parse function
@@ -101,7 +101,7 @@ impl<
     #[track_caller]
     pub fn check(&self, input: &str, value: T) {
         let (tokens, source_manager) = lex_from_str(input);
-        match (self.0)(&tokens) {
+        match (self.0)(&tokens, &NullResolver) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     assert_eq!(exp, value);
@@ -119,7 +119,7 @@ impl<
     /// Check that a list of tokens parses into the given value
     #[track_caller]
     pub fn check_from_tokens(&self, input: &[LexToken], used_tokens: usize, value: T) {
-        match (self.0)(input) {
+        match (self.0)(input, &NullResolver) {
             Ok((rem, exp)) if rem == &input[used_tokens..] => {
                 assert_eq!(exp, value);
             }
@@ -133,7 +133,7 @@ impl<
     #[track_caller]
     pub fn expect_fail(&self, input: &str, error_reason: ParseErrorReason, offset: u32) {
         let (tokens, _) = lex_from_str(input);
-        match (self.0)(&tokens) {
+        match (self.0)(&tokens, &NullResolver) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     panic!("{exp:?}");

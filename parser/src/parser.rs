@@ -46,7 +46,10 @@ impl Parser {
 
     /// Parse then next top level item
     pub fn parse_item(&mut self, resolver: &dyn SymbolResolver) -> Result<ParserItem, ParseError> {
-        fn try_parse_item(input: &[LexToken]) -> ParseResult<ParserItem> {
+        fn try_parse_item<'t>(
+            input: &'t [LexToken],
+            resolver: &dyn SymbolResolver,
+        ) -> ParseResult<'t, ParserItem> {
             if let Ok((rest, _)) = parse_token(Token::Semicolon)(input) {
                 return Ok((rest, ParserItem::Empty));
             }
@@ -59,12 +62,12 @@ impl Parser {
                 return Ok((rest, ParserItem::NamespaceExit));
             }
 
-            let (input, def) = parse_root_definition(input)?;
+            let (input, def) = parse_root_definition(input, resolver)?;
             Ok((input, ParserItem::Definition(def)))
         }
 
         let rest = &self.tokens[self.current..];
-        match try_parse_item(rest) {
+        match try_parse_item(rest, resolver) {
             Ok((remaining, root)) => {
                 assert!(self.current < self.tokens.len() - remaining.len());
                 self.current = self.tokens.len() - remaining.len();
@@ -120,10 +123,20 @@ pub enum Terminator {
 
 /// Provide symbol table to another parser
 fn contextual<'t, 's, T>(
-    parse_fn: impl Fn(&'t [LexToken], &'s SymbolTable) -> ParseResult<'t, T> + 's,
+    parse_fn: impl Fn(&'t [LexToken], &'s SymbolTable, &'s dyn SymbolResolver) -> ParseResult<'t, T>
+        + 's,
     st: &'s SymbolTable,
+    resolver: &'s dyn SymbolResolver,
 ) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, T> + 's {
-    move |input: &'t [LexToken]| parse_fn(input, st)
+    move |input: &'t [LexToken]| parse_fn(input, st, resolver)
+}
+
+/// Provide symbol resolver to another parser
+fn contextual2<'t, 's, T>(
+    parse_fn: impl Fn(&'t [LexToken], &'s dyn SymbolResolver) -> ParseResult<'t, T> + 's,
+    resolver: &'s dyn SymbolResolver,
+) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, T> + 's {
+    move |input: &'t [LexToken]| parse_fn(input, resolver)
 }
 
 /// Augment a parser with location information
@@ -280,9 +293,12 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 mod types;
 use types::{parse_template_params, parse_type};
 
-fn parse_arraydim(input: &[LexToken]) -> ParseResult<Option<Box<Located<Expression>>>> {
+fn parse_arraydim<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Option<Box<Located<Expression>>>> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
-    let (input, constant_expression) = match parse_expression_no_seq(input) {
+    let (input, constant_expression) = match parse_expression_no_seq(input, resolver) {
         Ok((rest, constant_expression)) => (rest, Some(Box::new(constant_expression))),
         _ => (input, None),
     };

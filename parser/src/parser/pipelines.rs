@@ -1,11 +1,15 @@
 use super::*;
 
 /// Parse a pipeline definition
-pub fn parse_pipeline_definition(input: &[LexToken]) -> ParseResult<PipelineDefinition> {
+pub fn parse_pipeline_definition<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, PipelineDefinition> {
     let (input, _) = match_named_identifier("Pipeline", input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, properties) = parse_multiple(parse_pipeline_property)(input)?;
+    let (input, properties) =
+        parse_multiple(contextual2(parse_pipeline_property, resolver))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
 
     let sd = PipelineDefinition { name, properties };
@@ -13,10 +17,13 @@ pub fn parse_pipeline_definition(input: &[LexToken]) -> ParseResult<PipelineDefi
 }
 
 /// Parse a struct member variable or method
-fn parse_pipeline_property(input: &[LexToken]) -> ParseResult<PipelineProperty> {
+fn parse_pipeline_property<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, PipelineProperty> {
     let (input, property) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::Equals)(input)?;
-    let (input, value) = parse_expression(input)?;
+    let (input, value) = parse_expression(input, resolver)?;
 
     // Property ends with a single semicolon - multiple or zero are forbidden
     let (input, _) = parse_token(Token::Semicolon)(input)?;

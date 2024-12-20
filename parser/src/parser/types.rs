@@ -4,6 +4,7 @@ use super::*;
 /// Parse a type layout
 fn parse_type_layout_internal<'t>(
     input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, TypeLayout> {
     // Attempt to read a scoped identifier
@@ -20,7 +21,7 @@ fn parse_type_layout_internal<'t>(
             if reject {
                 ParseErrorReason::SymbolIsNotAType.into_result(input)
             } else {
-                let (input, args) = expressions::parse_template_args(input)?;
+                let (input, args) = expressions::parse_template_args(input, resolver)?;
                 Ok((input, TypeLayout(name, args.into_boxed_slice())))
             }
         }
@@ -31,13 +32,14 @@ fn parse_type_layout_internal<'t>(
 /// Parse a type
 fn parse_type_internal<'t>(
     input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, Type> {
     let original_input = input;
 
     let mut modifiers = TypeModifierSet::default();
     let input = parse_type_modifiers_before(input, &mut modifiers);
-    let (input, tl) = parse_type_layout_internal(input, st)?;
+    let (input, tl) = parse_type_layout_internal(input, resolver, st)?;
     let input = parse_type_modifiers_after(input, &mut modifiers);
 
     assert_ne!(original_input.len(), input.len());
@@ -128,31 +130,39 @@ pub fn parse_type_modifiers_after<'t>(
 }
 
 /// Parse a type
-pub fn parse_type(input: &[LexToken]) -> ParseResult<Type> {
-    parse_type_internal(input, None)
+pub fn parse_type<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Type> {
+    parse_type_internal(input, resolver, None)
 }
 
 /// Parse a type id
 pub fn parse_type_id_with_symbols<'t>(
     input: &'t [LexToken],
     st: &SymbolTable,
+    resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, TypeId> {
-    parse_type_id_internal(input, Some(st))
+    parse_type_id_internal(input, resolver, Some(st))
 }
 
 /// Parse a type id
-pub fn parse_type_id(input: &[LexToken]) -> ParseResult<TypeId> {
-    parse_type_id_internal(input, None)
+pub fn parse_type_id<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, TypeId> {
+    parse_type_id_internal(input, resolver, None)
 }
 
 /// Parse a type id
 fn parse_type_id_internal<'t>(
     input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, TypeId> {
-    let (input, base) = parse_type_internal(input, st)?;
+    let (input, base) = parse_type_internal(input, resolver, st)?;
 
-    let (input, abstract_declarator) = parse_abstract_declarator(input)?;
+    let (input, abstract_declarator) = parse_abstract_declarator(input, resolver)?;
 
     let ty = TypeId {
         base,
@@ -309,7 +319,10 @@ fn test_type() {
 }
 
 /// Parse a list of template parameters or no template parameters
-pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamList> {
+pub fn parse_template_params<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, TemplateParamList> {
     let input = match parse_token(Token::Template)(input) {
         Ok((input, _)) => input,
         Err(_) => return Ok((input, TemplateParamList(Vec::new()))),
@@ -343,7 +356,7 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
 
                 // Read the default value. This also may be missing.
                 let (input, default) = match parse_token(Token::Equals)(input) {
-                    Ok((input, _)) => match parse_type(input) {
+                    Ok((input, _)) => match parse_type(input, resolver) {
                         Ok((input, expr)) => (input, Some(expr)),
                         Err(err) => return Err(err),
                     },
@@ -355,7 +368,7 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
             }
             _ => {
                 // Process a value argument
-                let (input, value_type) = parse_type(next)?;
+                let (input, value_type) = parse_type(next, resolver)?;
 
                 // Read the name of the argument. This may be missing - if it is there still may be a default.
                 let unnamed = !input.is_empty()
@@ -375,6 +388,7 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
                         // Parse an expression where both , and > will end the expression
                         let expr_res = expressions::parse_expression_resolve_symbols(
                             input,
+                            resolver,
                             Terminator::TypeList,
                         );
                         match expr_res {
@@ -407,10 +421,13 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
 }
 
 /// Parse a typedef
-pub fn parse_typedef(input: &[LexToken]) -> ParseResult<Typedef> {
+pub fn parse_typedef<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Typedef> {
     let (input, _) = parse_token(Token::Typedef)(input)?;
-    let (input, ty) = parse_type(input)?;
-    let (input, declarator) = parse_declarator(input)?;
+    let (input, ty) = parse_type(input, resolver)?;
+    let (input, declarator) = parse_declarator(input, resolver)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let td = Typedef {
         source: ty,

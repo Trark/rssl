@@ -3,15 +3,24 @@ use super::*;
 use crate::parser::types::parse_type_modifiers_after;
 
 /// Parse multiple declarators on a declaration
-pub fn parse_init_declarators(input: &[LexToken]) -> ParseResult<Vec<InitDeclarator>> {
-    parse_list_nonempty(parse_token(Token::Comma), parse_init_declarator)(input)
+pub fn parse_init_declarators<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Vec<InitDeclarator>> {
+    parse_list_nonempty(
+        parse_token(Token::Comma),
+        contextual2(parse_init_declarator, resolver),
+    )(input)
 }
 
 /// Parse the declarator and initialiser of a declaration
-fn parse_init_declarator(input: &[LexToken]) -> ParseResult<InitDeclarator> {
-    let (input, declarator) = parse_declarator(input)?;
+fn parse_init_declarator<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, InitDeclarator> {
+    let (input, declarator) = parse_declarator(input, resolver)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
-    let (input, init) = parse_initializer(input)?;
+    let (input, init) = parse_initializer(input, resolver)?;
     let init_decl = InitDeclarator {
         declarator,
         location_annotations,
@@ -21,27 +30,34 @@ fn parse_init_declarator(input: &[LexToken]) -> ParseResult<InitDeclarator> {
 }
 
 /// Parse the declarator part of a declaration
-pub fn parse_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
-    parse_declarator_internal(input, false)
+pub fn parse_declarator<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Declarator> {
+    parse_declarator_internal(input, resolver, false)
 }
 
 /// Parse the declarator part of a type id
-pub fn parse_abstract_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
-    parse_declarator_internal(input, true)
+pub fn parse_abstract_declarator<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Declarator> {
+    parse_declarator_internal(input, resolver, true)
 }
 
 /// Parse the declarator part of a declaration or type id
-fn parse_declarator_internal(
-    input: &[LexToken],
+fn parse_declarator_internal<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
     abstract_declarator: bool,
-) -> ParseResult<Declarator> {
+) -> ParseResult<'t, Declarator> {
     if let Ok((input, _)) = parse_token(Token::Asterix)(input) {
-        let (input, attributes) = parse_multiple(parse_attribute)(input)?;
+        let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
 
         let mut modifiers = TypeModifierSet::default();
         let input = parse_type_modifiers_after(input, &mut modifiers);
 
-        let (input, inner) = parse_declarator_internal(input, abstract_declarator)?;
+        let (input, inner) = parse_declarator_internal(input, resolver, abstract_declarator)?;
 
         let decl = Declarator::Pointer(PointerDeclarator {
             attributes,
@@ -52,8 +68,8 @@ fn parse_declarator_internal(
     };
 
     if let Ok((input, _)) = parse_token(Token::Ampersand)(input) {
-        let (input, attributes) = parse_multiple(parse_attribute)(input)?;
-        let (input, inner) = parse_declarator_internal(input, abstract_declarator)?;
+        let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+        let (input, inner) = parse_declarator_internal(input, resolver, abstract_declarator)?;
 
         let decl = Declarator::Reference(ReferenceDeclarator {
             attributes,
@@ -66,7 +82,8 @@ fn parse_declarator_internal(
         (input, Declarator::Empty)
     } else {
         let (input, identifier) = parse_variable_name(input)?;
-        let (input, identifier_attributes) = parse_multiple(parse_attribute_double_only)(input)?;
+        let (input, identifier_attributes) =
+            parse_multiple(contextual2(parse_attribute_double_only, resolver))(input)?;
 
         let decl = Declarator::Identifier(
             ScopedIdentifier::unqualified(identifier),
@@ -77,8 +94,9 @@ fn parse_declarator_internal(
     };
 
     let mut input = input;
-    while let Ok((next, array_size)) = parse_arraydim(input) {
-        let (next, array_attributes) = parse_multiple(parse_attribute_double_only)(next)?;
+    while let Ok((next, array_size)) = parse_arraydim(input, resolver) {
+        let (next, array_attributes) =
+            parse_multiple(contextual2(parse_attribute_double_only, resolver))(next)?;
 
         decl = Declarator::Array(ArrayDeclarator {
             inner: Box::new(decl),
@@ -248,7 +266,7 @@ pub fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
 #[test]
 fn test_register() {
     use test_support::*;
-    let register = ParserTester::new(parse_register);
+    let register = ParserTester::new(|input, _| parse_register(input));
 
     register.check(
         "register(t0)",

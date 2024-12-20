@@ -1,11 +1,14 @@
 use super::*;
 
 /// Parse a declaration of a value inside an enum
-fn parse_enum_value(input: &[LexToken]) -> ParseResult<EnumValue> {
+fn parse_enum_value<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, EnumValue> {
     let (input, name) = parse_variable_name(input)?;
     let (input, value) = match parse_token(Token::Equals)(input) {
         Ok((input, _)) => {
-            let (input, expr) = parse_expression_no_seq(input)?;
+            let (input, expr) = parse_expression_no_seq(input, resolver)?;
             (input, Some(expr))
         }
         Err(_) => (input, None),
@@ -15,11 +18,17 @@ fn parse_enum_value(input: &[LexToken]) -> ParseResult<EnumValue> {
 }
 
 /// Parse an enum definition
-pub fn parse_enum_definition(input: &[LexToken]) -> ParseResult<EnumDefinition> {
+pub fn parse_enum_definition<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, EnumDefinition> {
     let (input, _) = parse_token(Token::Enum)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, values) = parse_list(parse_token(Token::Comma), parse_enum_value)(input)?;
+    let (input, values) = parse_list(
+        parse_token(Token::Comma),
+        contextual2(parse_enum_value, resolver),
+    )(input)?;
     // Read optional trailing comma on last element
     let input = if !values.is_empty() {
         match parse_token(Token::Comma)(input) {

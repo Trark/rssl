@@ -3,10 +3,13 @@ use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a struct member variable - with potentially multiple members per line
-fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
-    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
-    let (input, typename) = parse_type(input)?;
-    let (input, defs) = parse_init_declarators(input)?;
+fn parse_struct_member<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, StructMember> {
+    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, typename) = parse_type(input, resolver)?;
+    let (input, defs) = parse_init_declarators(input, resolver)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let sm = StructMember {
         ty: typename,
@@ -17,30 +20,39 @@ fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
 }
 
 /// Parse a struct member variable or method
-fn parse_struct_entry(input: &[LexToken]) -> ParseResult<StructEntry> {
-    let variable_res =
-        parse_struct_member(input).map(|(input, def)| (input, StructEntry::Variable(def)));
-    let method_res =
-        parse_function_definition(input).map(|(input, def)| (input, StructEntry::Method(def)));
+fn parse_struct_entry<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, StructEntry> {
+    let variable_res = parse_struct_member(input, resolver)
+        .map(|(input, def)| (input, StructEntry::Variable(def)));
+    let method_res = parse_function_definition(input, resolver)
+        .map(|(input, def)| (input, StructEntry::Method(def)));
     let (input, value) = variable_res.select(method_res)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, value))
 }
 
 /// Parse a full struct definition
-pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefinition> {
-    let (input, template_params) = parse_template_params(input)?;
+pub fn parse_struct_definition<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, StructDefinition> {
+    let (input, template_params) = parse_template_params(input, resolver)?;
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;
 
     // Parse list of base types if present
     let (input, base_types) = match parse_token(Token::Colon)(input) {
-        Ok((input, _)) => parse_list_nonempty(parse_token(Token::Comma), parse_type)(input)?,
+        Ok((input, _)) => parse_list_nonempty(
+            parse_token(Token::Comma),
+            contextual2(parse_type, resolver),
+        )(input)?,
         Err(_) => (input, Vec::new()),
     };
 
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, members) = parse_multiple(parse_struct_entry)(input)?;
+    let (input, members) = parse_multiple(contextual2(parse_struct_entry, resolver))(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;

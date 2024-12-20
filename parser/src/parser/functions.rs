@@ -3,14 +3,17 @@ use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a parameter for a function
-fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
-    let (input, param_type) = parse_type(input)?;
-    let (input, declarator) = parse_declarator(input)?;
+fn parse_function_param<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, FunctionParam> {
+    let (input, param_type) = parse_type(input, resolver)?;
+    let (input, declarator) = parse_declarator(input, resolver)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
 
     // Parse default value if present
     let (input, default_expr) = match parse_token(Token::Equals)(input) {
-        Ok((input, _)) => match parse_expression_no_seq(input) {
+        Ok((input, _)) => match parse_expression_no_seq(input, resolver) {
             Ok((input, expr)) => (input, Some(expr.node)),
             Err(err) => return Err(err),
         },
@@ -165,22 +168,28 @@ fn test_function_param() {
 }
 
 /// Parse a function definition
-pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<FunctionDefinition> {
+pub fn parse_function_definition<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, FunctionDefinition> {
     // Not clear on ordering of template args and attributes
     // Attributes are used on entry points which can not be template functions
-    let (input, template_params) = parse_template_params(input)?;
-    let (input, attributes) = parse_multiple(parse_attribute)(input)?;
-    let (input, ret) = parse_type(input)?;
+    let (input, template_params) = parse_template_params(input, resolver)?;
+    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, ret) = parse_type(input, resolver)?;
     let (input, func_name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
-    let (input, params) = parse_list(parse_token(Token::Comma), parse_function_param)(input)?;
+    let (input, params) = parse_list(
+        parse_token(Token::Comma),
+        contextual2(parse_function_param, resolver),
+    )(input)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
 
     let (input, body) = match parse_token(Token::Semicolon)(input) {
         Ok((input, _)) => (input, None),
         _ => {
-            let (input, body) = statement_block(input)?;
+            let (input, body) = statement_block(input, resolver)?;
             (input, Some(body))
         }
     };
@@ -204,11 +213,10 @@ pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<FunctionDefi
 #[test]
 fn test_template_function() {
     use test_support::*;
-    let functiondefinition = ParserTester::new(parse_function_definition);
 
-    functiondefinition.check(
+    check_root(
         "template<typename T> void f(T arg) {}",
-        FunctionDefinition {
+        RootDefinition::Function(FunctionDefinition {
             name: "f".to_string().loc(26),
             returntype: FunctionReturn {
                 return_type: Type::from("void".loc(21)),
@@ -236,12 +244,12 @@ fn test_template_function() {
             is_volatile: false,
             body: Some(Vec::new()),
             attributes: Vec::new(),
-        },
+        }),
     );
 
-    functiondefinition.check(
+    check_root(
         "template<uint L = 3> void f() {}",
-        FunctionDefinition {
+        RootDefinition::Function(FunctionDefinition {
             name: "f".to_string().loc(26),
             returntype: FunctionReturn {
                 return_type: Type::from("void".loc(21)),
@@ -260,12 +268,12 @@ fn test_template_function() {
             is_volatile: false,
             body: Some(Vec::new()),
             attributes: Vec::new(),
-        },
+        }),
     );
 
-    functiondefinition.check(
+    check_root(
         "template<> void f() {}",
-        FunctionDefinition {
+        RootDefinition::Function(FunctionDefinition {
             name: "f".to_string().loc(16),
             returntype: FunctionReturn {
                 return_type: Type::from("void".loc(11)),
@@ -277,12 +285,12 @@ fn test_template_function() {
             is_volatile: false,
             body: Some(Vec::new()),
             attributes: Vec::new(),
-        },
+        }),
     );
 
-    functiondefinition.check(
+    check_root(
         "template<typename T, typename G> void f() {}",
-        FunctionDefinition {
+        RootDefinition::Function(FunctionDefinition {
             name: "f".to_string().loc(38),
             returntype: FunctionReturn {
                 return_type: Type::from("void".loc(33)),
@@ -303,6 +311,6 @@ fn test_template_function() {
             is_volatile: false,
             body: Some(Vec::new()),
             attributes: Vec::new(),
-        },
+        }),
     );
 }
