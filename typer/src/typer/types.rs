@@ -153,17 +153,6 @@ pub fn parse_expression_or_type(
             let ir_const = parse_and_evaluate_constant_expression(ast_expr, context)?;
             Ok(ir::TypeOrConstant::Constant(ir_const))
         }
-        ast::ExpressionOrType::Either(ast_expr, ast_ty) => {
-            if ast_ty.abstract_declarator != ast::Declarator::Empty {
-                return Err(TyperError::InvalidTypeDeclarator(ast_ty.get_location()));
-            }
-            if let Ok(ir_ty) = parse_type(&ast_ty.base, context) {
-                Ok(ir::TypeOrConstant::Type(ir_ty))
-            } else {
-                let ir_const = parse_and_evaluate_constant_expression(ast_expr, context)?;
-                Ok(ir::TypeOrConstant::Constant(ir_const))
-            }
-        }
     }
 }
 

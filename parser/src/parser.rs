@@ -1,7 +1,6 @@
 use rssl_ast::*;
 use rssl_text::tokens::*;
 use rssl_text::*;
-use std::collections::HashSet;
 
 /// Parser state for a compilation unit
 pub struct Parser {
@@ -89,8 +88,6 @@ use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 /// Stores current context of active symbols while parsing
 #[derive(Debug)]
 pub struct SymbolTable {
-    reject_symbols: HashSet<ScopedIdentifier>,
-    assumed_symbols: Vec<ScopedIdentifier>,
     terminator: Terminator,
 }
 

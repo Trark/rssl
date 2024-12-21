@@ -18,7 +18,6 @@ pub enum StatementKind {
     Empty,
     Expression(Expression),
     Var(VarDef),
-    AmbiguousDeclarationOrExpression(VarDef, Expression),
     Block(Vec<Statement>),
     If(Located<Expression>, Box<Statement>),
     IfElse(Located<Expression>, Box<Statement>, Box<Statement>),

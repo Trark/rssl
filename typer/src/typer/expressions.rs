@@ -1,6 +1,6 @@
 use super::errors::*;
 use super::scopes::*;
-use super::types::{parse_expression_or_type, parse_type, parse_typelayout};
+use super::types::{parse_expression_or_type, parse_type};
 use crate::casting::{ConversionPriority, ImplicitConversion};
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
@@ -1928,18 +1928,6 @@ fn parse_expr_unchecked(
                     let ty = parse_expr(ast_expr, context)?.1 .0;
                     (ty, ast_expr.get_location())
                 }
-                ast::ExpressionOrType::Either(ref ast_expr, ref ast_ty) => {
-                    // TODO: Only try the path that should succeed based on known types
-                    if ast_ty.abstract_declarator != ast::Declarator::Empty {
-                        return Err(TyperError::InvalidTypeDeclarator(ast_ty.get_location()));
-                    }
-                    if let Ok(ir_ty) = parse_type(&ast_ty.base, context) {
-                        (ir_ty, ast_ty.get_location())
-                    } else {
-                        let ty = parse_expr(ast_expr, context)?.1 .0;
-                        (ty, ast_expr.get_location())
-                    }
-                }
             };
 
             // Forbid sizeof() on untyped literals
@@ -1958,30 +1946,6 @@ fn parse_expr_unchecked(
                 ir::Expression::SizeOf(ty),
                 uint_ty.to_rvalue(),
             ))
-        }
-        ast::Expression::AmbiguousParseBranch(ref constrained_exprs) => {
-            let (last, main) = constrained_exprs
-                .split_last()
-                .expect("AmbiguousParseBranch should not be empty");
-            // Try to take each path in turn if the names are types
-            for constrained_expr in main {
-                let mut valid = true;
-                for type_name in &constrained_expr.expected_type_names {
-                    // Unfortunate copy to resolve the type name
-                    // Moving the registered types into a more central location and including built ins
-                    // should make this simpler
-                    let ast_tyl = ast::TypeLayout(type_name.clone(), Default::default());
-                    if parse_typelayout(&ast_tyl, context).is_err() {
-                        valid = false;
-                    }
-                }
-                if valid {
-                    return parse_expr_internal(&constrained_expr.expr, context);
-                }
-            }
-            // Always fall back to last expression even if it has a type requirement
-            // We should then fail to parse and return an error with a hopefully more accurate location
-            parse_expr_internal(&last.expr, context)
         }
     }
 }

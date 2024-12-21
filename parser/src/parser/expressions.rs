@@ -1,4 +1,3 @@
-use super::errors::get_result_significance;
 use super::types::{parse_type_id, parse_type_id_with_symbols};
 use super::*;
 
@@ -392,8 +391,6 @@ fn expr_p2<'t>(
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
         let (input, cast) = contextual(parse_type_id_with_symbols, st, resolver)(input)?;
-        st.assumed_symbols
-            .push(cast.base.layout.0.clone().unlocate());
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, st, resolver)?;
         Ok((
@@ -859,162 +856,17 @@ fn parse_expression_internal<'t>(
     result
 }
 
-struct SymbolQueue {
-    added_symbols: Vec<ScopedIdentifier>,
-    added_symbols_expanded: Vec<Vec<ScopedIdentifier>>,
-    queue: Vec<Vec<ScopedIdentifier>>,
-}
-
-impl SymbolQueue {
-    fn add_to_queue(&mut self, s: &ScopedIdentifier) {
-        if !self.added_symbols.contains(s) {
-            self.added_symbols.push(s.clone());
-
-            // Low quality all combinations creation
-            let mut new_expanded = self.added_symbols_expanded.clone();
-            for l in &self.added_symbols_expanded {
-                let mut with_new = l.clone();
-                with_new.push(s.clone());
-                new_expanded.push(with_new.clone());
-                self.queue.push(with_new);
-            }
-            self.added_symbols_expanded = new_expanded;
-        }
-    }
-}
-
 /// Parse an expression with all possible combinations of type vs non-type symbols
 pub fn parse_expression_resolve_symbols<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
     terminator: Terminator,
 ) -> ParseResult<'t, Located<Expression>> {
-    // Assume any symbol may be a type on the first pass
-    let mut st = SymbolTable {
-        reject_symbols: HashSet::new(),
-        assumed_symbols: Vec::new(),
-        terminator,
-    };
+    // Legacy symbol table purely exists as a place to store the terminator currently
+    let mut st = SymbolTable { terminator };
 
     // Run the parser
-    let first_result = expr_p15(input, &mut st, resolver);
-
-    // Early out if there were no types to be ambiguous over
-    if st.assumed_symbols.is_empty() {
-        return first_result;
-    }
-
-    // For all the seen symbols try again but assuming they are not a type
-    let mut queue = SymbolQueue {
-        added_symbols: Vec::new(),
-        added_symbols_expanded: Vec::from([Vec::new()]),
-        queue: Vec::new(),
-    };
-
-    // Start by adding the symbols seen in the first run
-    for symbol in &st.assumed_symbols {
-        queue.add_to_queue(symbol);
-    }
-
-    let mut highest_significance = get_result_significance(&first_result);
-    let mut results = Vec::from([(first_result, st.assumed_symbols, highest_significance)]);
-
-    while let Some(symbols) = queue.queue.pop() {
-        let mut st = SymbolTable {
-            reject_symbols: HashSet::new(),
-            assumed_symbols: Vec::new(),
-            terminator,
-        };
-        for s in symbols {
-            st.reject_symbols.insert(s);
-        }
-
-        let next_result = expr_p15(input, &mut st, resolver);
-
-        // Add any symbols that only appeared in later runs
-        for s in &st.assumed_symbols {
-            queue.add_to_queue(s);
-        }
-
-        let significance = get_result_significance(&next_result);
-        highest_significance = std::cmp::min(highest_significance, significance);
-        results.push((next_result, st.assumed_symbols, significance));
-    }
-
-    // Remove parses that do not reach the end of the expression region
-    let mut results = results
-        .into_iter()
-        .filter(|(_, _, s)| *s == highest_significance)
-        .collect::<Vec<_>>();
-
-    assert!(!results.is_empty());
-
-    // If there were no successful chains then return the first as the error
-    let all_fail = results.iter().all(|(r, _, _)| r.is_err());
-    if all_fail {
-        return results.pop().unwrap().0;
-    }
-
-    // Filter to just the successful results - and remove significance values
-    let mut results = results
-        .into_iter()
-        .filter_map(|(r, t, _)| match r {
-            Ok(r) => Some((r, t)),
-            Err(_) => None,
-        })
-        .collect::<Vec<_>>();
-
-    // Order results so shorter symbol lists come first
-    results.sort_by(|(_, t1), (_, t2)| match t1.len().cmp(&t2.len()) {
-        std::cmp::Ordering::Equal => t1.cmp(t2),
-        other => other,
-    });
-
-    let mut reduced_results = Vec::<((&[LexToken], _), _)>::with_capacity(results.len());
-    for result in results {
-        // Check for redundancy with previous expression
-        // If the expression is the same and has a more restrictive symbol requirement then discard it
-        let mut same = false;
-        for selected_result in &reduced_results {
-            if selected_result.0 .1 == result.0 .1 {
-                assert_eq!(selected_result.0 .0.len(), result.0 .0.len());
-                let mut symbol_not_covered = false;
-                for s in &selected_result.1 {
-                    if !result.1.contains(s) {
-                        symbol_not_covered = true;
-                    }
-                }
-                if !symbol_not_covered {
-                    same = true;
-                }
-            }
-        }
-
-        if !same {
-            reduced_results.push((result.0, result.1));
-        }
-    }
-    let mut results = reduced_results;
-
-    assert!(!results.is_empty());
-    if results.len() == 1 {
-        Ok(results.pop().unwrap().0)
-    } else {
-        let mut output_expressions = Vec::new();
-        let tokens = results[0].0 .0;
-        for next_result in results.into_iter().rev() {
-            assert_eq!(tokens, next_result.0 .0);
-            output_expressions.push(ConstrainedExpression {
-                expr: next_result.0 .1,
-                expected_type_names: next_result.1,
-            })
-        }
-
-        Ok((
-            tokens,
-            Located::none(Expression::AmbiguousParseBranch(output_expressions)),
-        ))
-    }
+    expr_p15(input, &mut st, resolver)
 }
 
 /// Parse an expression

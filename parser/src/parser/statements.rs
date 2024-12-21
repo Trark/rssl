@@ -541,32 +541,18 @@ fn parse_statement_kind<'t>(
             }
 
             // Attempt to parse as a declaration first
-            let declaration_result = variable_def(input, resolver);
-
-            // Declarations defeat expressions - but we do not have type information yet
-            // We need to parse both and let the type check pick the correct branch
-            // The expression parsing can resolve ambiguity within an expression already
-            // This is separate to that - we generate an ambiguous statement between the declaration and the (potentially ambiguous set of) expressions(s)
+            let decl_err = match variable_def(input, resolver) {
+                Ok((rest, decl)) => return Ok((rest, StatementKind::Var(decl))),
+                Err(err) => err,
+            };
 
             // Try to parse as an expression
-            // TODO: Skip expressions that are only valid if the declaration is valid to simplify the final tree
-            let expression_result = expr_statement(input, resolver);
-
-            match (declaration_result, expression_result) {
-                (Ok((decl_rem, decl)), Ok((expr_rem, expr))) => {
-                    assert_eq!(decl_rem.len(), expr_rem.len());
-                    let statement = StatementKind::AmbiguousDeclarationOrExpression(decl, expr);
-                    Ok((decl_rem, statement))
-                }
-                (Ok((input, decl)), Err(_)) => {
-                    // Only valid as a declaration - return the declaration
-                    Ok((input, StatementKind::Var(decl)))
-                }
-                (Err(_), Ok((input, expr))) => {
+            match expr_statement(input, resolver) {
+                Ok((input, expr)) => {
                     // Only valid as an expression - return the expression
                     Ok((input, StatementKind::Expression(expr)))
                 }
-                (Err(decl_err), Err(expr_err)) => {
+                Err(expr_err) => {
                     // Both are errors - pick the error that is further into the stream
                     Err(decl_err).select(Err(expr_err))
                 }
@@ -741,24 +727,34 @@ fn test_local_variables() {
     statement.check(
         "uint * x;",
         Statement {
-            kind: StatementKind::AmbiguousDeclarationOrExpression(
-                VarDef {
-                    local_type: Type::from("uint".loc(0)),
-                    defs: Vec::from([InitDeclarator {
-                        declarator: Declarator::Pointer(PointerDeclarator {
-                            attributes: Vec::new(),
-                            qualifiers: TypeModifierSet::default(),
-                            inner: Box::new(Declarator::Identifier(
-                                ScopedIdentifier::unqualified("x".to_string().loc(7)),
-                                Vec::new(),
-                            )),
-                        }),
-                        location_annotations: Vec::new(),
-                        init: None,
-                    }]),
-                },
-                Expression::BinaryOperation(BinOp::Multiply, "uint".as_bvar(0), "x".as_bvar(7)),
-            ),
+            kind: StatementKind::Var(VarDef {
+                local_type: Type::from("uint".loc(0)),
+                defs: Vec::from([InitDeclarator {
+                    declarator: Declarator::Pointer(PointerDeclarator {
+                        attributes: Vec::new(),
+                        qualifiers: TypeModifierSet::default(),
+                        inner: Box::new(Declarator::Identifier(
+                            ScopedIdentifier::unqualified("x".to_string().loc(7)),
+                            Vec::new(),
+                        )),
+                    }),
+                    location_annotations: Vec::new(),
+                    init: None,
+                }]),
+            }),
+            location: SourceLocation::first(),
+            attributes: Vec::new(),
+        },
+    );
+
+    statement.check(
+        "unit * x;",
+        Statement {
+            kind: StatementKind::Expression(Expression::BinaryOperation(
+                BinOp::Multiply,
+                "unit".as_bvar(0),
+                "x".as_bvar(7),
+            )),
             location: SourceLocation::first(),
             attributes: Vec::new(),
         },

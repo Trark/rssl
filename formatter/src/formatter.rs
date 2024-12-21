@@ -17,9 +17,6 @@ pub enum Target {
 /// Error result when formatting fails
 #[derive(PartialEq, Debug)]
 pub enum FormatError {
-    /// Encountered an AmbiguousParseBranch expression
-    AmbiguousParseBranch,
-
     /// Encountered an unparsed set of tokens
     RawTokens,
 }
@@ -597,9 +594,7 @@ fn format_expression_or_type(
     context: &mut FormatContext,
 ) -> Result<(), FormatError> {
     match value {
-        ast::ExpressionOrType::Expression(expr) | ast::ExpressionOrType::Either(expr, _) => {
-            format_expression(expr, output, context)
-        }
+        ast::ExpressionOrType::Expression(expr) => format_expression(expr, output, context),
         ast::ExpressionOrType::Type(ty) => format_type_id(ty, output, context),
     }
 }
@@ -720,9 +715,6 @@ fn format_statement(
         ast::StatementKind::Var(def) => {
             format_variable_definition(def, output, context)?;
             output.push(';');
-        }
-        ast::StatementKind::AmbiguousDeclarationOrExpression(..) => {
-            return Err(FormatError::AmbiguousParseBranch);
         }
         ast::StatementKind::Block(block) => {
             output.push('{');
@@ -967,7 +959,6 @@ fn format_subexpression(
             }
             output.push(')');
         }
-        ast::Expression::AmbiguousParseBranch(_) => return Err(FormatError::AmbiguousParseBranch),
     }
     if requires_paren {
         output.push(')')
@@ -1038,7 +1029,6 @@ fn get_expression_precedence(expr: &ast::Expression) -> Result<u32, FormatError>
         ast::Expression::Cast(_, _) => 3,
         ast::Expression::BracedInit(_, _) => 0,
         ast::Expression::SizeOf(_) => 3,
-        ast::Expression::AmbiguousParseBranch(_) => return Err(FormatError::AmbiguousParseBranch),
     };
     Ok(prec)
 }

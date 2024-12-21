@@ -1,4 +1,4 @@
-use crate::ast_types::{Type, TypeId};
+use crate::ast_types::TypeId;
 use crate::Initializer;
 use rssl_text::{Locate, Located, SourceLocation};
 
@@ -32,8 +32,6 @@ pub enum Expression {
     BracedInit(Box<TypeId>, Vec<Initializer>),
     /// sizeof() an expression or a direct type
     SizeOf(Box<ExpressionOrType>),
-    /// Set of expressions which may be selected depending on known type names
-    AmbiguousParseBranch(Vec<ConstrainedExpression>),
 }
 
 /// A literal value for any primitive type
@@ -126,9 +124,6 @@ pub enum ExpressionOrType {
 
     /// Fragment must be a type
     Type(TypeId),
-
-    /// Fragment may be a type or an expression depending on context
-    Either(Located<Expression>, TypeId),
 }
 
 /// Expression which can only be activated when certain symbols are types
@@ -188,7 +183,6 @@ impl Locate for ExpressionOrType {
         match self {
             ExpressionOrType::Expression(expr) => expr.get_location(),
             ExpressionOrType::Type(ty) => ty.get_location(),
-            ExpressionOrType::Either(ty, _) => ty.get_location(),
         }
     }
 }
@@ -202,20 +196,6 @@ impl From<Located<&str>> for ScopedIdentifier {
                 unscoped_name.location,
             )]),
         }
-    }
-}
-
-impl From<Located<&str>> for ExpressionOrType {
-    fn from(name: Located<&str>) -> Self {
-        let location = name.location;
-        ExpressionOrType::Either(
-            Located::new(Expression::Identifier(name.clone().into()), name.location),
-            TypeId::from(Type {
-                layout: name.into(),
-                modifiers: Default::default(),
-                location,
-            }),
-        )
     }
 }
 
@@ -250,7 +230,6 @@ impl std::fmt::Debug for ExpressionOrType {
         match self {
             ExpressionOrType::Type(ty) => write!(f, "{ty:?}"),
             ExpressionOrType::Expression(expr) => write!(f, "{expr:?}"),
-            ExpressionOrType::Either(expr, ty) => write!(f, "[{expr:?} | {ty:?}]"),
         }
     }
 }
