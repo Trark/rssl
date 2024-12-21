@@ -5,27 +5,14 @@ use super::*;
 fn parse_type_layout_internal<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
-    st: Option<&SymbolTable>,
 ) -> ParseResult<'t, TypeLayout> {
-    // Attempt to read a scoped identifier
-    // All identifier paths are potential types - but we may reject paths when reparsing ambiguous parse trees
-    match expressions::parse_scoped_identifier(input) {
-        Ok((input, name)) => {
-            let reject = if let Some(st) = st {
-                let name_unlocated = name.clone().unlocate();
-                st.reject_symbols.contains(&name_unlocated)
-            } else {
-                false
-            };
-
-            if reject {
-                ParseErrorReason::SymbolIsNotAType.into_result(input)
-            } else {
-                let (input, args) = expressions::parse_template_args(input, resolver)?;
-                Ok((input, TypeLayout(name, args.into_boxed_slice())))
-            }
-        }
-        Err(err) => Err(err),
+    let (input, name) = expressions::parse_scoped_identifier(input)?;
+    let (input, args) = expressions::parse_template_args(input, resolver)?;
+    let tyl = TypeLayout(name, args.into_boxed_slice());
+    if resolver.is_type(&tyl) {
+        Ok((input, tyl))
+    } else {
+        ParseErrorReason::SymbolIsNotAType.into_result(input)
     }
 }
 
@@ -33,13 +20,12 @@ fn parse_type_layout_internal<'t>(
 fn parse_type_internal<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
-    st: Option<&SymbolTable>,
 ) -> ParseResult<'t, Type> {
     let original_input = input;
 
     let mut modifiers = TypeModifierSet::default();
     let input = parse_type_modifiers_before(input, &mut modifiers);
-    let (input, tl) = parse_type_layout_internal(input, resolver, st)?;
+    let (input, tl) = parse_type_layout_internal(input, resolver)?;
     let input = parse_type_modifiers_after(input, &mut modifiers);
 
     assert_ne!(original_input.len(), input.len());
@@ -134,7 +120,7 @@ pub fn parse_type<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, Type> {
-    parse_type_internal(input, resolver, None)
+    parse_type_internal(input, resolver)
 }
 
 /// Parse a type id
@@ -143,7 +129,7 @@ pub fn parse_type_id_with_symbols<'t>(
     st: &SymbolTable,
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, TypeId> {
-    parse_type_id_internal(input, resolver, Some(st))
+    parse_type_id(input, resolver)
 }
 
 /// Parse a type id
@@ -151,16 +137,7 @@ pub fn parse_type_id<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, TypeId> {
-    parse_type_id_internal(input, resolver, None)
-}
-
-/// Parse a type id
-fn parse_type_id_internal<'t>(
-    input: &'t [LexToken],
-    resolver: &dyn SymbolResolver,
-    st: Option<&SymbolTable>,
-) -> ParseResult<'t, TypeId> {
-    let (input, base) = parse_type_internal(input, resolver, st)?;
+    let (input, base) = parse_type_internal(input, resolver)?;
 
     let (input, abstract_declarator) = parse_abstract_declarator(input, resolver)?;
 

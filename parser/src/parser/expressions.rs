@@ -87,22 +87,12 @@ fn parse_expression_or_type_with_or_without_symbols<'t>(
     resolver: &dyn SymbolResolver,
     st: Option<&SymbolTable>,
 ) -> ParseResult<'t, ExpressionOrType> {
-    let type_result = match st {
-        Some(st) => parse_type_id_with_symbols(input, st, resolver),
-        None => parse_type_id(input, resolver),
-    };
-    let expr_result = parse_expression_resolve_symbols(input, resolver, Terminator::TypeList);
-
-    match (type_result, expr_result) {
-        (Ok((rest_ty, ty)), Ok((rest_expr, expr))) => match rest_ty.len().cmp(&rest_expr.len()) {
-            std::cmp::Ordering::Less => Ok((rest_ty, ExpressionOrType::Type(ty))),
-            std::cmp::Ordering::Equal => Ok((rest_ty, ExpressionOrType::Either(expr, ty))),
-            std::cmp::Ordering::Greater => Ok((rest_expr, ExpressionOrType::Expression(expr))),
-        },
-        (Ok((rest, ty)), Err(_)) => Ok((rest, ExpressionOrType::Type(ty))),
-        (Err(_), Ok((rest, expr))) => Ok((rest, ExpressionOrType::Expression(expr))),
-        (Err(err), Err(_)) => Err(err),
+    if let Ok((rest, ty)) = parse_type_id(input, resolver) {
+        return Ok((rest, ExpressionOrType::Type(ty)));
     }
+
+    let (rest, expr) = parse_expression_resolve_symbols(input, resolver, Terminator::TypeList)?;
+    Ok((rest, ExpressionOrType::Expression(expr)))
 }
 
 /// Parse either an expression or a type
@@ -1362,26 +1352,22 @@ fn test_cast() {
     // Else it may be a function call if float2 happened to be a function call
     expr.check(
         "(float2)(x, y)",
-        Located::none(Expression::AmbiguousParseBranch(Vec::from([
-            ConstrainedExpression {
-                expr: Expression::Cast(
-                    Box::new(TypeId::from("float2".loc(1))),
-                    Expression::BinaryOperation(BinOp::Sequence, "x".as_bvar(9), "y".as_bvar(12))
-                        .bloc(8),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([ScopedIdentifier::trivial("float2")]),
-            },
-            ConstrainedExpression {
-                expr: Expression::Call(
-                    Expression::Identifier("float2".loc(1).into()).loc(0).into(),
-                    Vec::new(),
-                    Vec::from(["x".as_var(9), "y".as_var(12)]),
-                )
-                .loc(0),
-                expected_type_names: Vec::new(),
-            },
-        ]))),
+        Expression::Cast(
+            Box::new(TypeId::from("float2".loc(1))),
+            Expression::BinaryOperation(BinOp::Sequence, "x".as_bvar(9), "y".as_bvar(12)).bloc(8),
+        )
+        .loc(0),
+    );
+
+    // Use flaot2 as an example for not being a type
+    expr.check(
+        "(flaot2)(x, y)",
+        Expression::Call(
+            Expression::Identifier("flaot2".loc(1).into()).loc(0).into(),
+            Vec::new(),
+            Vec::from(["x".as_var(9), "y".as_var(12)]),
+        )
+        .loc(0),
     );
 }
 
@@ -1390,91 +1376,28 @@ fn test_ambiguous() {
     use test_support::*;
     let expr = ParserTester::new(parse_expression);
 
-    let ambiguous_sum_or_cast = "(a) + (b)";
     expr.check(
-        ambiguous_sum_or_cast,
-        Located::none(Expression::AmbiguousParseBranch(Vec::from([
-            ConstrainedExpression {
-                expr: Expression::Cast(
-                    Box::new(TypeId::from("a".loc(1))),
-                    Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([ScopedIdentifier::trivial("a")]),
-            },
-            ConstrainedExpression {
-                expr: Expression::BinaryOperation(
-                    BinOp::Add,
-                    "a".as_bvar2(1, 0),
-                    "b".as_bvar2(7, 6),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([]),
-            },
-        ]))),
+        "(a) + (b)",
+        Expression::BinaryOperation(BinOp::Add, "a".as_bvar2(1, 0), "b".as_bvar2(7, 6)).loc(0),
     );
 
-    let ambiguous_3 = "(a) + (b) + (c)";
     expr.check(
-        ambiguous_3,
-        Located::none(Expression::AmbiguousParseBranch(Vec::from([
-            ConstrainedExpression {
-                expr: Expression::Cast(
-                    Box::new(TypeId::from("a".loc(1))),
-                    Expression::UnaryOperation(
-                        UnaryOp::Plus,
-                        Expression::Cast(
-                            Box::new(TypeId::from("b".loc(7))),
-                            Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12))
-                                .bloc(10),
-                        )
-                        .bloc(6),
-                    )
-                    .bloc(4),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([
-                    ScopedIdentifier::trivial("a"),
-                    ScopedIdentifier::trivial("b"),
-                ]),
-            },
-            ConstrainedExpression {
-                expr: Expression::BinaryOperation(
-                    BinOp::Add,
-                    "a".as_bvar2(1, 0),
-                    Expression::Cast(
-                        Box::new(TypeId::from("b".loc(7))),
-                        Expression::UnaryOperation(UnaryOp::Plus, "c".as_bvar2(13, 12)).bloc(10),
-                    )
-                    .bloc(6),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([ScopedIdentifier::trivial("b")]),
-            },
-            ConstrainedExpression {
-                expr: Expression::BinaryOperation(
-                    BinOp::Add,
-                    Expression::Cast(
-                        Box::new(TypeId::from("a".loc(1))),
-                        Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(7, 6)).bloc(4),
-                    )
-                    .bloc(0),
-                    "c".as_bvar2(13, 12),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([ScopedIdentifier::trivial("a")]),
-            },
-            ConstrainedExpression {
-                expr: Expression::BinaryOperation(
-                    BinOp::Add,
-                    Expression::BinaryOperation(BinOp::Add, "a".as_bvar2(1, 0), "b".as_bvar2(7, 6))
-                        .bloc(0),
-                    "c".as_bvar2(13, 12),
-                )
-                .loc(0),
-                expected_type_names: Vec::from([]),
-            },
-        ]))),
+        "(float) + (b)",
+        Expression::Cast(
+            Box::new(TypeId::from("float".loc(1))),
+            Box::new(Expression::UnaryOperation(UnaryOp::Plus, "b".as_bvar2(11, 10)).loc(8)),
+        )
+        .loc(0),
+    );
+
+    expr.check(
+        "(a) + (b) + (c)",
+        Expression::BinaryOperation(
+            BinOp::Add,
+            Expression::BinaryOperation(BinOp::Add, "a".as_bvar2(1, 0), "b".as_bvar2(7, 6)).bloc(0),
+            "c".as_bvar2(13, 12),
+        )
+        .loc(0),
     );
 }
 
@@ -1522,9 +1445,16 @@ fn test_sizeof() {
 
     expr.check(
         " sizeof ( float4 ) ",
-        Expression::SizeOf(Box::new(ExpressionOrType::Either(
-            Expression::Identifier("float4".loc(10).into()).loc(10),
-            TypeId::from("float4".loc(10)),
+        Expression::SizeOf(Box::new(ExpressionOrType::Type(TypeId::from(
+            "float4".loc(10),
+        ))))
+        .loc(1),
+    );
+
+    expr.check(
+        " sizeof ( flaot4 ) ",
+        Expression::SizeOf(Box::new(ExpressionOrType::Expression(
+            Expression::Identifier("flaot4".loc(10).into()).loc(10),
         )))
         .loc(1),
     );
@@ -1659,14 +1589,13 @@ fn test_method_call() {
         "array.Load<float4>(i * sizeof(float4))",
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
-            vec![ExpressionOrType::from("float4".loc(11))],
+            vec![ExpressionOrType::Type(TypeId::from("float4".loc(11)))],
             vec![Expression::BinaryOperation(
                 BinOp::Multiply,
                 "i".as_bvar(19),
-                Expression::SizeOf(Box::new(ExpressionOrType::Either(
-                    Expression::Identifier("float4".loc(30).into()).loc(30),
-                    TypeId::from("float4".loc(30)),
-                )))
+                Expression::SizeOf(Box::new(ExpressionOrType::Type(TypeId::from(
+                    "float4".loc(30),
+                ))))
                 .bloc(23),
             )
             .loc(19)],

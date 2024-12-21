@@ -4,9 +4,7 @@
 
 mod parser;
 
-pub use parser::parse;
 pub use parser::ParseError;
-
 pub use parser::Parser;
 pub use parser::ParserItem;
 pub use parser::SymbolResolver;

@@ -1714,11 +1714,11 @@ impl Context {
 }
 
 impl rssl_parser::SymbolResolver for Context {
-    fn is_type(&self, ty: rssl_ast::TypeLayout) -> bool {
+    fn is_type(&self, ty: &rssl_ast::TypeLayout) -> bool {
         todo!()
     }
 
-    fn is_function(&self, ty: rssl_ast::TypeLayout) -> bool {
+    fn is_function(&self, ty: &rssl_ast::TypeLayout) -> bool {
         todo!()
     }
 }

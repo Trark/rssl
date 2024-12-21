@@ -110,7 +110,7 @@ fn test_global_variable() {
         GlobalVariable {
             global_type: Type::from_layout(TypeLayout::with_template_types(
                 "Buffer".loc(0),
-                &[ExpressionOrType::from("uint4".loc(7))],
+                &[ExpressionOrType::Type(TypeId::from("uint4".loc(7)))],
             )),
             defs: Vec::from([InitDeclarator {
                 declarator: Declarator::Identifier(
@@ -142,7 +142,7 @@ fn test_global_variable() {
                     TypeLayout::with_template_types(
                         "vector".loc(7),
                         &[
-                            ExpressionOrType::from("int".loc(14)),
+                            ExpressionOrType::Type(TypeId::from("int".loc(14))),
                             ExpressionOrType::Expression(
                                 Expression::Literal(Literal::IntUntyped(4)).loc(19),
                             ),
@@ -176,7 +176,7 @@ fn test_global_variable() {
         GlobalVariable {
             global_type: Type::from_layout(TypeLayout::with_template_types(
                 "StructuredBuffer".loc(0),
-                &[ExpressionOrType::from("CustomType".loc(17))],
+                &[ExpressionOrType::Type(TypeId::from("CustomType".loc(17)))],
             )),
             defs: Vec::from([InitDeclarator {
                 declarator: Declarator::Identifier(

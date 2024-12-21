@@ -101,7 +101,7 @@ impl<
     #[track_caller]
     pub fn check(&self, input: &str, value: T) {
         let (tokens, source_manager) = lex_from_str(input);
-        match (self.0)(&tokens, &NullResolver) {
+        match (self.0)(&tokens, &TestResolver) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     assert_eq!(exp, value);
@@ -119,7 +119,7 @@ impl<
     /// Check that a list of tokens parses into the given value
     #[track_caller]
     pub fn check_from_tokens(&self, input: &[LexToken], used_tokens: usize, value: T) {
-        match (self.0)(input, &NullResolver) {
+        match (self.0)(input, &TestResolver) {
             Ok((rem, exp)) if rem == &input[used_tokens..] => {
                 assert_eq!(exp, value);
             }
@@ -133,7 +133,7 @@ impl<
     #[track_caller]
     pub fn expect_fail(&self, input: &str, error_reason: ParseErrorReason, offset: u32) {
         let (tokens, _) = lex_from_str(input);
-        match (self.0)(&tokens, &NullResolver) {
+        match (self.0)(&tokens, &TestResolver) {
             Ok((rem, exp)) => {
                 if rem.len() == 1 && rem[0].0 == Token::Eof {
                     panic!("{exp:?}");
@@ -157,11 +157,103 @@ impl<
     }
 }
 
+/// Symbol resolver for use with tests
+pub struct TestResolver;
+
+impl SymbolResolver for TestResolver {
+    fn is_type(&self, ty: &TypeLayout) -> bool {
+        match ty.0.identifiers.as_slice() {
+            [name] => {
+                return matches!(
+                    name.as_str(),
+                    // Standard types
+                    "void"
+                        | "uint"
+                        | "uint4"
+                        | "int"
+                        | "float"
+                        | "float2"
+                        | "float3"
+                        | "float4"
+                        | "float4x4"
+                        | "half"
+                        | "vector"
+                        | "Buffer"
+                        | "StructuredBuffer"
+                        // Test common type argument names
+                        | "T"
+                        // Test common struct names
+                        | "S"
+                        | "MyStruct"
+                        | "CustomType"
+                        | "Parent"
+                );
+            }
+            [ns, name] => {
+                return matches!(
+                    (ns.as_str(), name.as_str()),
+                    // Test common struct names
+                    ("My", "Type")
+                );
+            }
+            _ => {}
+        }
+
+        false
+    }
+
+    fn is_function(&self, _: &TypeLayout) -> bool {
+        false
+    }
+}
+
+/// Parse all root level items
+fn parse_for_test(source: &[LexToken]) -> Result<Module, ParseError> {
+    let mut parser = Parser::new(source.to_vec());
+    let mut root_definitions = Vec::new();
+    let mut namespace_depth = 0;
+    loop {
+        match parser.parse_item(&TestResolver) {
+            Ok(ParserItem::Definition(item)) => {
+                let mut defs = &mut root_definitions;
+                for _ in 0..namespace_depth {
+                    match defs.last_mut().unwrap() {
+                        RootDefinition::Namespace(_, next_defs) => {
+                            defs = next_defs;
+                        }
+                        _ => panic!(),
+                    }
+                }
+                defs.push(item);
+            }
+            Ok(ParserItem::NamespaceEnter(name)) => {
+                let mut defs = &mut root_definitions;
+                for _ in 0..namespace_depth {
+                    match defs.last_mut().unwrap() {
+                        RootDefinition::Namespace(_, next_defs) => {
+                            defs = next_defs;
+                        }
+                        _ => panic!(),
+                    }
+                }
+                defs.push(RootDefinition::Namespace(name, Vec::new()));
+                namespace_depth += 1;
+            }
+            Ok(ParserItem::NamespaceExit) => {
+                namespace_depth -= 1;
+            }
+            Ok(ParserItem::Empty) => {}
+            Ok(ParserItem::EndOfFile) => return Ok(Module { root_definitions }),
+            Err(err) => return Err(err),
+        }
+    }
+}
+
 /// Check that a source string parses into the given set of root definitions
 #[track_caller]
 pub fn check_roots(input: &str, value: &[RootDefinition]) {
     let (tokens, source_manager) = lex_from_str(input);
-    match super::parse(&tokens) {
+    match parse_for_test(&tokens) {
         Ok(module) => {
             assert_eq!(module.root_definitions, value);
         }

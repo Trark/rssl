@@ -48,7 +48,7 @@ pub fn parse_initializer<'t>(
 #[test]
 fn test_initializer() {
     fn initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>> {
-        parse_initializer(input, &NullResolver)
+        parse_initializer(input, &test_support::TestResolver)
     }
 
     assert_eq!(initializer(&[]), ParseErrorReason::end_of_stream());
@@ -315,7 +315,7 @@ fn test_attribute() {
                 LexToken::with_no_loc(Token::Id(Identifier("fastopt".to_string()))),
                 LexToken::with_no_loc(Token::RightSquareBracket),
             ],
-            &NullResolver
+            &test_support::TestResolver
         ),
         Ok((
             &[][..],
@@ -334,7 +334,7 @@ fn test_attribute() {
                 LexToken::with_no_loc(Token::Id(Identifier("unroll".to_string()))),
                 LexToken::with_no_loc(Token::RightSquareBracket),
             ],
-            &NullResolver
+            &test_support::TestResolver
         ),
         Ok((
             &[][..],
@@ -356,7 +356,7 @@ fn test_attribute() {
                 LexToken::with_no_loc(Token::RightParen),
                 LexToken::with_no_loc(Token::RightSquareBracket),
             ],
-            &NullResolver
+            &test_support::TestResolver
         ),
         Ok((
             &[][..],
@@ -378,7 +378,7 @@ fn test_attribute() {
                 LexToken::with_no_loc(Token::RightParen),
                 LexToken::with_no_loc(Token::RightSquareBracket),
             ],
-            &NullResolver
+            &test_support::TestResolver
         ),
         Ok((
             &[][..],

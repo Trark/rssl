@@ -17,21 +17,8 @@ pub struct Parser {
 
 /// Callback to provide contextual state for the parser
 pub trait SymbolResolver {
-    fn is_type(&self, ty: TypeLayout) -> bool;
-    fn is_function(&self, ty: TypeLayout) -> bool;
-}
-
-/// [SymbolResolver] that returns false for all checks
-struct NullResolver;
-
-impl SymbolResolver for NullResolver {
-    fn is_type(&self, _: TypeLayout) -> bool {
-        false
-    }
-
-    fn is_function(&self, _: TypeLayout) -> bool {
-        false
-    }
+    fn is_type(&self, ty: &TypeLayout) -> bool;
+    fn is_function(&self, ty: &TypeLayout) -> bool;
 }
 
 impl Parser {
@@ -337,48 +324,6 @@ mod pipelines;
 // Implement parsing for root definitions
 mod root_definitions;
 use root_definitions::{parse_namespace_enter, parse_root_definition};
-
-/// Parse a stream of lex tokens into an abstract syntax tree
-pub fn parse(source: &[LexToken]) -> Result<Module, ParseError> {
-    let mut parser = Parser::new(source.to_vec());
-    let mut root_definitions = Vec::new();
-    let mut namespace_depth = 0;
-    loop {
-        match parser.parse_item(&NullResolver) {
-            Ok(ParserItem::Definition(item)) => {
-                let mut defs = &mut root_definitions;
-                for _ in 0..namespace_depth {
-                    match defs.last_mut().unwrap() {
-                        RootDefinition::Namespace(_, next_defs) => {
-                            defs = next_defs;
-                        }
-                        _ => panic!(),
-                    }
-                }
-                defs.push(item);
-            }
-            Ok(ParserItem::NamespaceEnter(name)) => {
-                let mut defs = &mut root_definitions;
-                for _ in 0..namespace_depth {
-                    match defs.last_mut().unwrap() {
-                        RootDefinition::Namespace(_, next_defs) => {
-                            defs = next_defs;
-                        }
-                        _ => panic!(),
-                    }
-                }
-                defs.push(RootDefinition::Namespace(name, Vec::new()));
-                namespace_depth += 1;
-            }
-            Ok(ParserItem::NamespaceExit) => {
-                namespace_depth -= 1;
-            }
-            Ok(ParserItem::Empty) => {}
-            Ok(ParserItem::EndOfFile) => return Ok(Module { root_definitions }),
-            Err(err) => return Err(err),
-        }
-    }
-}
 
 #[cfg(test)]
 mod test_support;
