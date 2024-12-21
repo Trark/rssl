@@ -27,7 +27,7 @@ pub fn parse_enum_definition<'t>(
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
     let (input, values) = parse_list(
         parse_token(Token::Comma),
-        contextual2(parse_enum_value, resolver),
+        contextual(parse_enum_value, resolver),
     )(input)?;
     // Read optional trailing comma on last element
     let input = if !values.is_empty() {

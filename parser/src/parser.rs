@@ -100,7 +100,7 @@ pub enum Terminator {
 }
 
 /// Provide symbol resolver to another parser
-fn contextual2<'t, 's, T>(
+fn contextual<'t, 's, T>(
     parse_fn: impl Fn(&'t [LexToken], &'s dyn SymbolResolver) -> ParseResult<'t, T> + 's,
     resolver: &'s dyn SymbolResolver,
 ) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, T> + 's {

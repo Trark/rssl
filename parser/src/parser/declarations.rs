@@ -9,7 +9,7 @@ pub fn parse_init_declarators<'t>(
 ) -> ParseResult<'t, Vec<InitDeclarator>> {
     parse_list_nonempty(
         parse_token(Token::Comma),
-        contextual2(parse_init_declarator, resolver),
+        contextual(parse_init_declarator, resolver),
     )(input)
 }
 
@@ -52,7 +52,7 @@ fn parse_declarator_internal<'t>(
     abstract_declarator: bool,
 ) -> ParseResult<'t, Declarator> {
     if let Ok((input, _)) = parse_token(Token::Asterix)(input) {
-        let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+        let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
 
         let mut modifiers = TypeModifierSet::default();
         let input = parse_type_modifiers_after(input, &mut modifiers);
@@ -68,7 +68,7 @@ fn parse_declarator_internal<'t>(
     };
 
     if let Ok((input, _)) = parse_token(Token::Ampersand)(input) {
-        let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+        let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
         let (input, inner) = parse_declarator_internal(input, resolver, abstract_declarator)?;
 
         let decl = Declarator::Reference(ReferenceDeclarator {
@@ -83,7 +83,7 @@ fn parse_declarator_internal<'t>(
     } else {
         let (input, identifier) = parse_variable_name(input)?;
         let (input, identifier_attributes) =
-            parse_multiple(contextual2(parse_attribute_double_only, resolver))(input)?;
+            parse_multiple(contextual(parse_attribute_double_only, resolver))(input)?;
 
         let decl = Declarator::Identifier(
             ScopedIdentifier::unqualified(identifier),
@@ -96,7 +96,7 @@ fn parse_declarator_internal<'t>(
     let mut input = input;
     while let Ok((next, array_size)) = parse_arraydim(input, resolver) {
         let (next, array_attributes) =
-            parse_multiple(contextual2(parse_attribute_double_only, resolver))(next)?;
+            parse_multiple(contextual(parse_attribute_double_only, resolver))(next)?;
 
         decl = Declarator::Array(ArrayDeclarator {
             inner: Box::new(decl),

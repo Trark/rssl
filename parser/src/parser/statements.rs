@@ -19,7 +19,7 @@ pub fn parse_initializer<'t>(
     ) -> ParseResult<'t, Initializer> {
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
         let (input, exprs) =
-            parse_list(parse_token(Token::Comma), contextual2(init_any, resolver))(input)?;
+            parse_list(parse_token(Token::Comma), contextual(init_any, resolver))(input)?;
         let (input, _) = parse_optional(parse_token(Token::Comma))(input)?;
         let (input, _) = parse_token(Token::RightBrace)(input)?;
         Ok((input, Initializer::Aggregate(exprs)))
@@ -399,7 +399,7 @@ fn parse_statement<'t>(
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, Statement> {
     // Parse attributes before a statement
-    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
 
     // Locate the statement at the start of the main statement part
     // This may be empty now but can not be after parse_statement_kind
@@ -452,9 +452,9 @@ fn parse_statement_kind<'t>(
             let (input, _) = parse_token(Token::LeftParen)(tail)?;
             let (input, init) = parse_init_statement(input, resolver)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
-            let (input, cond) = parse_optional(contextual2(parse_expression, resolver))(input)?;
+            let (input, cond) = parse_optional(contextual(parse_expression, resolver))(input)?;
             let (input, _) = parse_token(Token::Semicolon)(input)?;
-            let (input, inc) = parse_optional(contextual2(parse_expression, resolver))(input)?;
+            let (input, inc) = parse_optional(contextual(parse_expression, resolver))(input)?;
             let (input, _) = parse_token(Token::RightParen)(input)?;
             let (input, inner) = parse_statement(input, resolver)?;
             Ok((input, StatementKind::For(init, cond, inc, Box::new(inner))))

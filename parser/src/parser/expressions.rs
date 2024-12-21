@@ -99,7 +99,7 @@ fn parse_template_args_req<'t>(
     let (input, _) = match_left_angle_bracket(input)?;
     let (input, type_args) = parse_list(
         parse_token(Token::Comma),
-        contextual2(parse_expression_or_type, resolver),
+        contextual(parse_expression_or_type, resolver),
     )(input)?;
     let (input, _) = match_right_angle_bracket(input)?;
     Ok((input, type_args))
@@ -364,7 +364,7 @@ fn expr_p2<'t>(
         terminator: Terminator,
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::LeftParen)(input)?;
-        let (input, cast) = contextual2(parse_type_id, resolver)(input)?;
+        let (input, cast) = contextual(parse_type_id, resolver)(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         let (input, expr) = expr_p2(input, resolver, terminator)?;
         Ok((
@@ -382,7 +382,7 @@ fn expr_p2<'t>(
     ) -> ParseResult<'t, Located<Expression>> {
         let (input, start) = parse_token(Token::SizeOf)(input)?;
         let (input, _) = parse_token(Token::LeftParen)(input)?;
-        let (input, ty) = contextual2(parse_expression_or_type, resolver)(input)?;
+        let (input, ty) = contextual(parse_expression_or_type, resolver)(input)?;
         let (input, _) = parse_token(Token::RightParen)(input)?;
         Ok((
             input,

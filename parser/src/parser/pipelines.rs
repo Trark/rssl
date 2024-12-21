@@ -8,8 +8,7 @@ pub fn parse_pipeline_definition<'t>(
     let (input, _) = match_named_identifier("Pipeline", input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, properties) =
-        parse_multiple(contextual2(parse_pipeline_property, resolver))(input)?;
+    let (input, properties) = parse_multiple(contextual(parse_pipeline_property, resolver))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
 
     let sd = PipelineDefinition { name, properties };

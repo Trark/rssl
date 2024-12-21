@@ -7,7 +7,7 @@ fn parse_struct_member<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, StructMember> {
-    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
     let (input, typename) = parse_type(input, resolver)?;
     let (input, defs) = parse_init_declarators(input, resolver)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
@@ -44,15 +44,14 @@ pub fn parse_struct_definition<'t>(
 
     // Parse list of base types if present
     let (input, base_types) = match parse_token(Token::Colon)(input) {
-        Ok((input, _)) => parse_list_nonempty(
-            parse_token(Token::Comma),
-            contextual2(parse_type, resolver),
-        )(input)?,
+        Ok((input, _)) => {
+            parse_list_nonempty(parse_token(Token::Comma), contextual(parse_type, resolver))(input)?
+        }
         Err(_) => (input, Vec::new()),
     };
 
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, members) = parse_multiple(contextual2(parse_struct_entry, resolver))(input)?;
+    let (input, members) = parse_multiple(contextual(parse_struct_entry, resolver))(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;

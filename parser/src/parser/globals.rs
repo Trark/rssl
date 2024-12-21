@@ -42,12 +42,12 @@ pub fn parse_constant_buffer<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, ConstantBuffer> {
-    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
     let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
-    let (input, members) = parse_multiple(contextual2(parse_constant_variable, resolver))(input)?;
+    let (input, members) = parse_multiple(contextual(parse_constant_variable, resolver))(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let cb = ConstantBuffer {
         name,
@@ -63,7 +63,7 @@ pub fn parse_global_variable<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, GlobalVariable> {
-    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
     let (input, typename) = parse_type(input, resolver)?;
     let (input, defs) = parse_init_declarators(input, resolver)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;

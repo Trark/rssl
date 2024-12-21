@@ -175,13 +175,13 @@ pub fn parse_function_definition<'t>(
     // Not clear on ordering of template args and attributes
     // Attributes are used on entry points which can not be template functions
     let (input, template_params) = parse_template_params(input, resolver)?;
-    let (input, attributes) = parse_multiple(contextual2(parse_attribute, resolver))(input)?;
+    let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
     let (input, ret) = parse_type(input, resolver)?;
     let (input, func_name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
     let (input, params) = parse_list(
         parse_token(Token::Comma),
-        contextual2(parse_function_param, resolver),
+        contextual(parse_function_param, resolver),
     )(input)?;
     let (input, _) = parse_token(Token::RightParen)(input)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
