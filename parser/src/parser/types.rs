@@ -124,15 +124,6 @@ pub fn parse_type<'t>(
 }
 
 /// Parse a type id
-pub fn parse_type_id_with_symbols<'t>(
-    input: &'t [LexToken],
-    st: &SymbolTable,
-    resolver: &dyn SymbolResolver,
-) -> ParseResult<'t, TypeId> {
-    parse_type_id(input, resolver)
-}
-
-/// Parse a type id
 pub fn parse_type_id<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
@@ -363,7 +354,7 @@ pub fn parse_template_params<'t>(
                 let (input, default) = match parse_token(Token::Equals)(input) {
                     Ok((input, _)) => {
                         // Parse an expression where both , and > will end the expression
-                        let expr_res = expressions::parse_expression_resolve_symbols(
+                        let expr_res = expressions::parse_expression_internal(
                             input,
                             resolver,
                             Terminator::TypeList,

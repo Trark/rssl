@@ -85,12 +85,6 @@ mod errors;
 pub use errors::{ParseError, ParseResultExt};
 use errors::{ParseErrorContext, ParseErrorReason, ParseResult};
 
-/// Stores current context of active symbols while parsing
-#[derive(Debug)]
-pub struct SymbolTable {
-    terminator: Terminator,
-}
-
 /// When the expression parsing has to end
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Terminator {
@@ -103,16 +97,6 @@ pub enum Terminator {
 
     /// Expression is in a type list so must move to next expression on comma or right angle bracket
     TypeList,
-}
-
-/// Provide symbol table to another parser
-fn contextual<'t, 's, T>(
-    parse_fn: impl Fn(&'t [LexToken], &'s SymbolTable, &'s dyn SymbolResolver) -> ParseResult<'t, T>
-        + 's,
-    st: &'s SymbolTable,
-    resolver: &'s dyn SymbolResolver,
-) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, T> + 's {
-    move |input: &'t [LexToken]| parse_fn(input, st, resolver)
 }
 
 /// Provide symbol resolver to another parser
