@@ -3,7 +3,9 @@ use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
 use super::functions::{parse_function_body, ApplyTemplates};
 use super::structs::build_struct_from_template;
-use super::types::{parse_and_evaluate_constant_expression, parse_type_for_usage, TypePosition};
+use super::types::{
+    parse_and_evaluate_constant_expression, parse_type_for_usage, parse_typelayout, TypePosition,
+};
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -1713,12 +1715,21 @@ impl Context {
     }
 }
 
-impl rssl_parser::SymbolResolver for Context {
+/// Symbol resolver for syntax parser
+pub struct ParserSymbolResolver<'c>(std::cell::RefCell<&'c mut Context>);
+
+impl<'c> ParserSymbolResolver<'c> {
+    pub fn new(context: &'c mut Context) -> Self {
+        ParserSymbolResolver(std::cell::RefCell::new(context))
+    }
+}
+
+impl rssl_parser::SymbolResolver for ParserSymbolResolver<'_> {
     fn is_type(&self, ty: &rssl_ast::TypeLayout) -> bool {
-        todo!()
+        parse_typelayout(ty, &mut self.0.borrow_mut()).is_ok()
     }
 
-    fn is_function(&self, ty: &rssl_ast::TypeLayout) -> bool {
+    fn is_function(&self, _: &rssl_ast::TypeLayout) -> bool {
         todo!()
     }
 }

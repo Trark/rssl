@@ -17,7 +17,7 @@ pub use errors::{TyperError, TyperExternalError};
 
 use errors::TyperResult;
 use rssl_text::tokens::*;
-use scopes::Context;
+use scopes::{Context, ParserSymbolResolver};
 
 /// Convert input into internal typed representation
 pub fn parse(tokens: Vec<LexToken>) -> Result<ir::Module, TyperExternalError> {
@@ -36,7 +36,7 @@ fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<(
     let mut parser = Parser::new(tokens);
 
     loop {
-        match parser.parse_item(context) {
+        match parser.parse_item(&ParserSymbolResolver::new(context)) {
             Ok(ParserItem::Definition(item)) => {
                 let mut def_ir = parse_rootdefinition(&item, context)?;
                 context.module.root_definitions.append(&mut def_ir);
