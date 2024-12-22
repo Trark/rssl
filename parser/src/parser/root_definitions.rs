@@ -10,6 +10,38 @@ use types::parse_typedef;
 pub fn parse_root_definition<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
+    template_params: Option<TemplateParamList>,
+) -> ParseResult<'t, RootDefinition> {
+    let (rest, mut root) = parse_root_definition_no_template(input, resolver)?;
+
+    // Apply template arguments ontop of the definition
+    if let Some(template_params) = template_params {
+        match &mut root {
+            RootDefinition::Struct(struct_definition) => {
+                assert!(struct_definition.template_params.0.is_empty());
+                struct_definition.template_params = template_params;
+            }
+            RootDefinition::Function(function_definition) => {
+                assert!(function_definition.template_params.0.is_empty());
+                function_definition.template_params = template_params;
+            }
+            _ => {
+                return Err(ParseErrorContext(
+                    rest,
+                    rest.len(),
+                    ParseErrorReason::UnexpectedTemplateParams,
+                ))
+            }
+        }
+    }
+
+    Ok((rest, root))
+}
+
+/// Parse a root element in a shader document
+pub fn parse_root_definition_no_template<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, RootDefinition> {
     let res = match parse_struct_definition(input, resolver) {
         Ok((rest, structdef)) => Ok((rest, RootDefinition::Struct(structdef))),

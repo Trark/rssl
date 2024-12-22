@@ -38,7 +38,6 @@ pub fn parse_struct_definition<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, StructDefinition> {
-    let (input, template_params) = parse_template_params(input, resolver)?;
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;
 
@@ -58,7 +57,7 @@ pub fn parse_struct_definition<'t>(
     let sd = StructDefinition {
         name,
         base_types,
-        template_params,
+        template_params: TemplateParamList(Vec::new()),
         members,
     };
     Ok((input, sd))
@@ -205,9 +204,9 @@ fn test_struct() {
         },
     );
 
-    structdefinition.check(
+    check_root(
         "template<typename T> struct MyStruct { T a, b; };",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(28),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::from([TemplateParam::Type(
@@ -232,7 +231,7 @@ fn test_struct() {
                 ]),
                 attributes: Vec::new(),
             })],
-        },
+        }),
     );
 
     structdefinition.check(

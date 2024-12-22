@@ -209,11 +209,12 @@ impl SymbolResolver for TestResolver {
 
 /// Parse all root level items
 fn parse_for_test(source: &[LexToken]) -> Result<Module, ParseError> {
+    let resolver = TestResolver;
     let mut parser = Parser::new(source.to_vec());
     let mut root_definitions = Vec::new();
     let mut namespace_depth = 0;
     loop {
-        match parser.parse_item(&TestResolver) {
+        match parser.parse_item(&resolver) {
             Ok(ParserItem::Definition(item)) => {
                 let mut defs = &mut root_definitions;
                 for _ in 0..namespace_depth {
@@ -226,6 +227,11 @@ fn parse_for_test(source: &[LexToken]) -> Result<Module, ParseError> {
                 }
                 defs.push(item);
             }
+            Ok(ParserItem::Template) => loop {
+                if let Ok(None) = parser.parse_template_parameter(&resolver) {
+                    break;
+                }
+            },
             Ok(ParserItem::NamespaceEnter(name)) => {
                 let mut defs = &mut root_definitions;
                 for _ in 0..namespace_depth {

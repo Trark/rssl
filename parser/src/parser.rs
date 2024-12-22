@@ -12,6 +12,12 @@ pub struct Parser {
 
     /// Number of namespaces deep the current position is at
     namespace_depth: usize,
+
+    /// If inside a template parameter list
+    processing_template: Option<TemplateParamList>,
+
+    /// If we have just left parsing of a template parameter list
+    processed_template: Option<TemplateParamList>,
 }
 
 /// Callback to provide contextual state for the parser
@@ -27,56 +33,184 @@ impl Parser {
             tokens,
             current: 0,
             namespace_depth: 0,
+            processing_template: None,
+            processed_template: None,
         }
     }
 
-    /// Parse then next top level item
+    /// Set the stream position
+    pub fn set_remaining(&mut self, remaining: usize) {
+        assert!(self.current < self.tokens.len() - remaining);
+        self.current = self.tokens.len() - remaining;
+    }
+
+    /// Parse the next top level item
     pub fn parse_item(&mut self, resolver: &dyn SymbolResolver) -> Result<ParserItem, ParseError> {
-        fn try_parse_item<'t>(
-            input: &'t [LexToken],
-            resolver: &dyn SymbolResolver,
-        ) -> ParseResult<'t, ParserItem> {
-            if let Ok((rest, _)) = parse_token(Token::Semicolon)(input) {
-                return Ok((rest, ParserItem::Empty));
-            }
+        assert!(self.processing_template.is_none());
 
-            if let Ok((rest, _)) = parse_token(Token::Namespace)(input) {
-                return parse_namespace_enter(rest);
-            }
+        let (remaining, item) = match self.parse_item_internal(resolver) {
+            Ok((remaining, item)) => (remaining.len(), item),
+            Err(err) => return Err(ParseError::from(err)),
+        };
 
-            if let Ok((rest, _)) = parse_token(Token::RightBrace)(input) {
-                return Ok((rest, ParserItem::NamespaceExit));
-            }
+        self.set_remaining(remaining);
+        Ok(item)
+    }
 
-            let (input, def) = parse_root_definition(input, resolver)?;
-            Ok((input, ParserItem::Definition(def)))
-        }
-
-        let rest = &self.tokens[self.current..];
-        match try_parse_item(rest, resolver) {
-            Ok((remaining, root)) => {
-                assert!(self.current < self.tokens.len() - remaining.len());
-                self.current = self.tokens.len() - remaining.len();
-                Ok(root)
-            }
-            Err(_) if rest.len() == 1 && rest[0].0 == Token::Eof => {
-                if self.namespace_depth != 0 {
-                    Err(ParseError(ParseErrorReason::UnexpectedEndOfStream, None))
-                } else {
-                    Ok(ParserItem::EndOfFile)
+    /// Parse the next top level item
+    fn parse_item_internal(&mut self, resolver: &dyn SymbolResolver) -> ParseResult<ParserItem> {
+        assert!(self.processing_template.is_none());
+        let input = &self.tokens[self.current..];
+        match input {
+            [LexToken(ref t, _), rest @ ..] => match t {
+                Token::Semicolon => Ok((rest, ParserItem::Empty)),
+                Token::Namespace => parse_namespace_enter(rest),
+                Token::RightBrace => Ok((rest, ParserItem::NamespaceExit)),
+                Token::Template => {
+                    let (rest, _) = match_left_angle_bracket(rest)?;
+                    self.processing_template = Some(TemplateParamList(Vec::new()));
+                    Ok((rest, ParserItem::Template))
                 }
-            }
-            Err(err) => Err(ParseError::from(err)),
+                Token::Eof => {
+                    if self.namespace_depth != 0 || self.processed_template.is_some() {
+                        ParseErrorReason::end_of_stream()
+                    } else {
+                        Ok((rest, ParserItem::EndOfFile))
+                    }
+                }
+                _ => {
+                    let (input, def) = parse_root_definition(
+                        input,
+                        resolver,
+                        std::mem::take(&mut self.processed_template),
+                    )?;
+                    Ok((input, ParserItem::Definition(def)))
+                }
+            },
+            _ => ParseErrorReason::wrong_token(input),
         }
+    }
+
+    /// Parse the next part of a template parameter list
+    pub fn parse_template_parameter(
+        &mut self,
+        resolver: &dyn SymbolResolver,
+    ) -> Result<Option<TemplateParam>, ParseError> {
+        assert!(self.processing_template.is_some());
+        assert!(self.processed_template.is_none());
+        let next = &self.tokens[self.current..];
+        let (next, param) = match next {
+            [LexToken(Token::RightAngleBracket(_), _), rest @ ..] => {
+                std::mem::swap(&mut self.processing_template, &mut self.processed_template);
+                self.set_remaining(rest.len());
+                return Ok(None);
+            }
+            [LexToken(Token::Typename, _), rest @ ..] => {
+                // Process a type argument
+
+                // Read the name of the argument. This may be missing - if it is there still may be a default.
+                let unnamed = !rest.is_empty()
+                    && matches!(
+                        rest[0].0,
+                        Token::Comma | Token::RightAngleBracket(_) | Token::Equals
+                    );
+                let (input, name) = if unnamed {
+                    (rest, None)
+                } else {
+                    let (input, name) = parse_variable_name(rest)?;
+                    (input, Some(name))
+                };
+
+                // Read the default value. This also may be missing.
+                let (input, default) = match parse_token(Token::Equals)(input) {
+                    Ok((input, _)) => match parse_type(input, resolver) {
+                        Ok((input, expr)) => (input, Some(expr)),
+                        Err(err) => return Err(err.into()),
+                    },
+                    Err(_) => (input, None),
+                };
+
+                let param = TemplateParam::Type(TemplateTypeParam { name, default });
+                (input, param)
+            }
+            _ => {
+                // Process a value argument
+                let (input, value_type) = parse_type(next, resolver)?;
+
+                // Read the name of the argument. This may be missing - if it is there still may be a default.
+                let unnamed = !input.is_empty()
+                    && matches!(
+                        input[0].0,
+                        Token::Comma | Token::RightAngleBracket(_) | Token::Equals
+                    );
+                let (input, name) = if unnamed {
+                    (input, None)
+                } else {
+                    let (input, name) = parse_variable_name(input)?;
+                    (input, Some(name))
+                };
+
+                let (input, default) = match parse_token(Token::Equals)(input) {
+                    Ok((input, _)) => {
+                        // Parse an expression where both , and > will end the expression
+                        let expr_res = expressions::parse_expression_internal(
+                            input,
+                            resolver,
+                            Terminator::TypeList,
+                        );
+                        match expr_res {
+                            Ok((input, expr)) => (input, Some(expr)),
+                            Err(err) => return Err(err.into()),
+                        }
+                    }
+                    Err(_) => (input, None),
+                };
+
+                let param = TemplateParam::Value(TemplateValueParam {
+                    value_type,
+                    name,
+                    default,
+                });
+                (input, param)
+            }
+        };
+
+        // If we encounter a comma then read past it
+        let next = match parse_token(Token::Comma)(next) {
+            Ok((rest, _)) => rest,
+            Err(_) => next,
+        };
+
+        // Remember the template
+        self.processing_template
+            .as_mut()
+            .unwrap()
+            .0
+            .push(param.clone());
+
+        self.set_remaining(next.len());
+        Ok(Some(param))
     }
 }
 
 /// Individual top level items that can be encountered during parsing
 pub enum ParserItem {
+    /// Full definition
     Definition(RootDefinition),
+
+    /// Start of a template
+    Template,
+
+    /// Enter a namespace
     NamespaceEnter(Located<String>),
+
+    /// Leave a namespace
     NamespaceExit,
+
+    /// Unnecessary ;
     Empty,
+
+    /// End of file
     EndOfFile,
 }
 
@@ -259,7 +393,7 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 
 // Implement parsing for type names
 mod types;
-use types::{parse_template_params, parse_type};
+use types::parse_type;
 
 fn parse_arraydim<'t>(
     input: &'t [LexToken],

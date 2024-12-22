@@ -83,6 +83,7 @@ pub enum ParseErrorReason {
     InvalidSlotIndex(String),
     InvalidSpaceIdentifier(String),
     UnexpectedAttribute(String),
+    UnexpectedTemplateParams,
 }
 
 impl ParseErrorReason {

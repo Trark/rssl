@@ -41,6 +41,9 @@ fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<(
                 let mut def_ir = parse_rootdefinition(&item, context)?;
                 context.module.root_definitions.append(&mut def_ir);
             }
+            Ok(ParserItem::Template) => {
+                todo!();
+            }
             Ok(ParserItem::NamespaceEnter(name)) => {
                 context.enter_namespace(&name)?;
             }

@@ -172,9 +172,6 @@ pub fn parse_function_definition<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, FunctionDefinition> {
-    // Not clear on ordering of template args and attributes
-    // Attributes are used on entry points which can not be template functions
-    let (input, template_params) = parse_template_params(input, resolver)?;
     let (input, attributes) = parse_multiple(contextual(parse_attribute, resolver))(input)?;
     let (input, ret) = parse_type(input, resolver)?;
     let (input, func_name) = parse_variable_name(input)?;
@@ -200,7 +197,7 @@ pub fn parse_function_definition<'t>(
             return_type: ret,
             location_annotations,
         },
-        template_params,
+        template_params: TemplateParamList(Vec::new()),
         params,
         is_const: false,
         is_volatile: false,
