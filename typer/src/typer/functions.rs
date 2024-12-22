@@ -63,49 +63,20 @@ pub fn parse_function_signature(
         return Err(TyperError::IllegalFunctionName(fd.name.location));
     }
 
-    // We being the scope now so we can use template arguments inside parameter types
-    let scope = context.push_scope();
+    let (scope, template_params) = match context.get_next_template_params() {
+        Some((scope, template_params)) => {
+            // We already made a scope for template arguments and we are in it
+            (scope, template_params)
+        }
+        None => {
+            // Create a new scope for the function
+            let scope = context.push_scope();
+            (scope, Vec::new())
+        }
+    };
 
     if let Some(id) = object_type {
         context.set_owning_struct(id);
-    }
-
-    let mut template_params = Vec::with_capacity(fd.template_params.0.len());
-    for (i, template_param) in fd.template_params.0.iter().enumerate() {
-        let param = match template_param {
-            ast::TemplateParam::Type(ty_param) => {
-                if ty_param.default.is_some() {
-                    todo!("default template arguments not implemented");
-                }
-                let id = context
-                    .module
-                    .type_registry
-                    .register_template_type(ty_param.name.clone(), i as u32);
-                if ty_param.name.is_some() {
-                    context.insert_template_type(id)?;
-                }
-                ir::TemplateParam::Type(id)
-            }
-            ast::TemplateParam::Value(ty_param) => {
-                if ty_param.default.is_some() {
-                    todo!("default template arguments not implemented");
-                }
-                // TODO: Ensure allowed type modifiers are as expected
-                let ty = parse_type_for_usage(&ty_param.value_type, TypePosition::Free, context)?;
-                let id = context.module.variable_registry.register_template_value(
-                    ir::TemplateParamValue {
-                        name: ty_param.name.clone(),
-                        type_id: ty,
-                        positional_index: i as u32,
-                    },
-                );
-                if ty_param.name.is_some() {
-                    context.insert_template_value(id)?;
-                }
-                ir::TemplateParam::Value(id)
-            }
-        };
-        template_params.push(param);
     }
 
     let return_type = parse_returntype(&fd.returntype, context)?;

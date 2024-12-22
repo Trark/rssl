@@ -18,6 +18,7 @@ pub use errors::{TyperError, TyperExternalError};
 use errors::TyperResult;
 use rssl_text::tokens::*;
 use scopes::{Context, ParserSymbolResolver};
+use types::{parse_type_for_usage, TypePosition};
 
 /// Convert input into internal typed representation
 pub fn parse(tokens: Vec<LexToken>) -> Result<ir::Module, TyperExternalError> {
@@ -39,20 +40,75 @@ fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<(
         match parser.parse_item(&ParserSymbolResolver::new(context)) {
             Ok(ParserItem::Definition(item)) => {
                 let mut def_ir = parse_rootdefinition(&item, context)?;
+                assert!(context.get_next_template_params().is_none());
                 context.module.root_definitions.append(&mut def_ir);
             }
             Ok(ParserItem::Template) => {
-                todo!();
+                let scope = context.push_scope();
+                let mut template_params = Vec::new();
+                loop {
+                    match parser.parse_template_parameter(&ParserSymbolResolver::new(context)) {
+                        Ok(Some(template_param)) => {
+                            let param = match template_param {
+                                ast::TemplateParam::Type(ty_param) => {
+                                    if ty_param.default.is_some() {
+                                        todo!("default template arguments not implemented");
+                                    }
+                                    let id = context.module.type_registry.register_template_type(
+                                        ty_param.name.clone(),
+                                        template_params.len() as u32,
+                                    );
+                                    if ty_param.name.is_some() {
+                                        context.insert_template_type(id)?;
+                                    }
+                                    ir::TemplateParam::Type(id)
+                                }
+                                ast::TemplateParam::Value(ty_param) => {
+                                    if ty_param.default.is_some() {
+                                        todo!("default template arguments not implemented");
+                                    }
+                                    // TODO: Ensure allowed type modifiers are as expected
+                                    let ty = parse_type_for_usage(
+                                        &ty_param.value_type,
+                                        TypePosition::Free,
+                                        context,
+                                    )?;
+                                    let id = context
+                                        .module
+                                        .variable_registry
+                                        .register_template_value(ir::TemplateParamValue {
+                                            name: ty_param.name.clone(),
+                                            type_id: ty,
+                                            positional_index: template_params.len() as u32,
+                                        });
+                                    if ty_param.name.is_some() {
+                                        context.insert_template_value(id)?;
+                                    }
+                                    ir::TemplateParam::Value(id)
+                                }
+                            };
+                            template_params.push(param);
+                        }
+                        Ok(None) => break,
+                        Err(err) => return Err(TyperError::ParseError(err)),
+                    }
+                }
+                context.set_next_template_params(scope, template_params);
             }
             Ok(ParserItem::NamespaceEnter(name)) => {
+                assert!(context.get_next_template_params().is_none());
                 context.enter_namespace(&name)?;
             }
             Ok(ParserItem::NamespaceExit) => {
+                assert!(context.get_next_template_params().is_none());
                 context.exit_namespace();
             }
-            Ok(ParserItem::Empty) => {}
+            Ok(ParserItem::Empty) => {
+                assert!(context.get_next_template_params().is_none());
+            }
             Ok(ParserItem::EndOfFile) => {
                 assert!(context.is_at_root());
+                assert!(context.get_next_template_params().is_none());
                 return Ok(());
             }
             Err(err) => return Err(TyperError::ParseError(err)),

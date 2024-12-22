@@ -23,6 +23,7 @@ pub struct Context {
 
     function_to_scope: HashMap<ir::FunctionId, ScopeIndex>,
     struct_template_data: Vec<StructTemplateData>,
+    next_template_scope: Option<(ScopeIndex, Vec<ir::TemplateParam>)>,
 }
 
 pub type ScopeIndex = usize;
@@ -88,6 +89,7 @@ impl Context {
             current_scope: 0,
             function_to_scope: HashMap::new(),
             struct_template_data: Vec::new(),
+            next_template_scope: None,
         };
 
         // For each builtin global value
@@ -220,6 +222,21 @@ impl Context {
             Some(ret) => ret,
             None => panic!("Not inside function"),
         }
+    }
+
+    /// Set the [ScopeIndex] to use for the next processed item
+    pub fn set_next_template_params(
+        &mut self,
+        scope_index: ScopeIndex,
+        template_params: Vec<ir::TemplateParam>,
+    ) {
+        assert!(self.next_template_scope.is_none());
+        self.next_template_scope = Some((scope_index, template_params));
+    }
+
+    /// Retrieve the [ScopeIndex] for the next item
+    pub fn get_next_template_params(&mut self) -> Option<(ScopeIndex, Vec<ir::TemplateParam>)> {
+        std::mem::take(&mut self.next_template_scope)
     }
 
     /// Find a variable with a given name in the current scope
