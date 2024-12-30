@@ -38,9 +38,6 @@ pub fn parse_struct_definition<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, StructDefinition> {
-    let (input, _) = parse_token(Token::Struct)(input)?;
-    let (input, name) = parse_variable_name(input)?;
-
     // Parse list of base types if present
     let (input, base_types) = match parse_token(Token::Colon)(input) {
         Ok((input, _)) => {
@@ -68,29 +65,29 @@ fn test_struct() {
     use test_support::*;
     let structdefinition = ParserTester::new(parse_struct_definition);
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct {};",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: Vec::new(),
-        },
+        }),
     );
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct {;;;};",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
             members: Vec::new(),
-        },
+        }),
     );
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct { uint a; };",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
@@ -103,12 +100,12 @@ fn test_struct() {
                 }]),
                 attributes: Vec::new(),
             })],
-        },
+        }),
     );
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct { uint a, b; };",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
@@ -128,12 +125,12 @@ fn test_struct() {
                 ]),
                 attributes: Vec::new(),
             })],
-        },
+        }),
     );
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct { uint a[2], b[3][4]; };",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
@@ -167,12 +164,12 @@ fn test_struct() {
                 ]),
                 attributes: Vec::new(),
             })],
-        },
+        }),
     );
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct : Parent { [[vk::offset(8)]] uint a; void f() {} };",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::from([Type::from("Parent".loc(18))]),
             template_params: TemplateParamList(Vec::new()),
@@ -201,7 +198,7 @@ fn test_struct() {
                     attributes: Vec::new(),
                 }),
             ],
-        },
+        }),
     );
 
     check_root(
@@ -234,9 +231,9 @@ fn test_struct() {
         }),
     );
 
-    structdefinition.check(
+    check_root(
         "struct MyStruct { uint a[2] : USER0, b[3][4] : USER1; };",
-        StructDefinition {
+        RootDefinition::Struct(StructDefinition {
             name: "MyStruct".to_string().loc(7),
             base_types: Vec::new(),
             template_params: TemplateParamList(Vec::new()),
@@ -274,6 +271,6 @@ fn test_struct() {
                 ]),
                 attributes: Vec::new(),
             })]),
-        },
+        }),
     );
 }

@@ -71,6 +71,10 @@ impl Parser {
                     self.processing_template = Some(TemplateParamList(Vec::new()));
                     Ok((rest, ParserItem::Template))
                 }
+                Token::Struct => {
+                    let (rest, name) = parse_variable_name(rest)?;
+                    Ok((rest, ParserItem::Struct(name)))
+                }
                 Token::Eof => {
                     if self.namespace_depth != 0 || self.processed_template.is_some() {
                         ParseErrorReason::end_of_stream()
@@ -89,6 +93,17 @@ impl Parser {
             },
             _ => ParseErrorReason::wrong_token(input),
         }
+    }
+
+    /// Parse the rest of a struct
+    pub fn parse_struct(
+        &mut self,
+        resolver: &dyn SymbolResolver,
+    ) -> Result<StructDefinition, ParseError> {
+        let rest = &self.tokens[self.current..];
+        let (rest, sd) = structs::parse_struct_definition(rest, resolver)?;
+        self.set_remaining(rest.len());
+        Ok(sd)
     }
 
     /// Parse the next part of a template parameter list
@@ -200,6 +215,9 @@ pub enum ParserItem {
 
     /// Start of a template
     Template,
+
+    /// Start of a struct
+    Struct(Located<String>),
 
     /// Enter a namespace
     NamespaceEnter(Located<String>),

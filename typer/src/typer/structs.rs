@@ -8,79 +8,126 @@ use super::types::{
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
+use rssl_parser::Parser;
 use rssl_text::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+enum StructOrTemplate {
+    Struct(ir::StructId),
+    Template(ir::StructTemplateId),
+}
+
 /// Process a struct definition
 pub fn parse_rootdefinition_struct(
-    sd: &ast::StructDefinition,
+    name: Located<String>,
+    parser: &mut Parser,
     context: &mut Context,
 ) -> TyperResult<ir::RootDefinition> {
     // Deny restricted non-keyword names
-    if is_illegal_type_name(&sd.name) {
-        return Err(TyperError::IllegalStructName(sd.name.location));
+    if is_illegal_type_name(&name) {
+        return Err(TyperError::IllegalStructName(name.location));
     }
 
-    if !sd.template_params.0.is_empty() {
-        // Check template arguments
-        let mut seen_default = false;
-        for template_param in &sd.template_params.0 {
-            let (has_default, name) = match template_param {
-                ast::TemplateParam::Type(ty_param) => (ty_param.default.is_some(), &ty_param.name),
-                ast::TemplateParam::Value(val_param) => {
-                    (val_param.default.is_some(), &val_param.name)
-                }
+    let id = match context.get_next_template_params() {
+        Some((scope, _)) => {
+            // Enter scope of template parameters as the struct scope
+            context.set_scope_name(scope, &name);
+            context.assert_in_scope(scope);
+
+            let id = match context.register_struct_template_name(name.clone()) {
+                Ok(id) => id,
+                Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
             };
 
-            if seen_default && !has_default {
-                return Err(TyperError::DefaultTemplateArgumentMissing(match name {
-                    Some(name) => name.get_location(),
-                    None => sd.name.get_location(),
-                }));
+            StructOrTemplate::Template(id)
+        }
+        None => {
+            // Enter new scope for struct
+            context.push_scope_with_name(&name);
+
+            let id = match context.register_struct_name(name.clone()) {
+                Ok(id) => id,
+                Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
+            };
+
+            StructOrTemplate::Struct(id)
+        }
+    };
+
+    let sd = match parser.parse_struct(&ParserSymbolResolver::new(context)) {
+        Ok(sd) => sd,
+        Err(err) => return Err(TyperError::ParseError(err)),
+    };
+    let def = match id {
+        StructOrTemplate::Template(id) => {
+            // Check template arguments
+            let mut seen_default = false;
+            for template_param in &sd.template_params.0 {
+                let (has_default, name) = match template_param {
+                    ast::TemplateParam::Type(ty_param) => {
+                        (ty_param.default.is_some(), &ty_param.name)
+                    }
+                    ast::TemplateParam::Value(val_param) => {
+                        (val_param.default.is_some(), &val_param.name)
+                    }
+                };
+
+                if seen_default && !has_default {
+                    return Err(TyperError::DefaultTemplateArgumentMissing(match name {
+                        Some(name) => name.get_location(),
+                        None => sd.name.get_location(),
+                    }));
+                }
+
+                seen_default = seen_default || has_default;
             }
 
-            seen_default = seen_default || has_default;
+            // Register the struct template ast
+            context.register_struct_template(id, sd.clone());
+
+            ir::RootDefinition::StructTemplate(id)
         }
+        StructOrTemplate::Struct(id) => {
+            let struct_def = parse_struct_internal(&sd, id, context)?;
 
-        // Register the struct template
-        let name = &sd.name;
-        let id = match context.register_struct_template(name.clone(), sd.clone()) {
-            Ok(id) => id,
-            Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
-        };
+            ir::RootDefinition::Struct(struct_def)
+        }
+    };
 
-        Ok(ir::RootDefinition::StructTemplate(id))
-    } else {
-        let struct_def = parse_struct_internal(sd, None, context)?;
-        Ok(ir::RootDefinition::Struct(struct_def))
-    }
+    context.pop_scope();
+
+    Ok(def)
 }
 
 /// Build a struct from a struct template
 pub fn build_struct_from_template(
     sd: &ast::StructDefinition,
+    id: ir::StructTemplateId,
     scope_index: ScopeIndex,
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
-    let struct_def = parse_struct_internal(sd, Some(scope_index), context)?;
+    // The scope will already have template parameters applied
+    context.revisit_scope(scope_index);
+
+    // Register the new instance as a struct
+    let sid = context.begin_struct_template_instance(sd.name.clone());
+
+    let struct_def = parse_struct_internal(sd, sid, context)?;
+
+    context.pop_scope();
+
     Ok(struct_def)
 }
 
 /// Process a struct internals
 fn parse_struct_internal(
     sd: &ast::StructDefinition,
-    scope_index: Option<ScopeIndex>,
+    id: ir::StructId,
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
-    // Register the struct
     let name = &sd.name;
-    let is_template = !sd.template_params.0.is_empty();
-    let id = match context.begin_struct(name.clone(), !is_template) {
-        Ok(id) => id,
-        Err(id) => return Err(TyperError::TypeAlreadyDefined(name.clone(), id)),
-    };
 
     let mut base_structs = Vec::new();
     for parent in &sd.base_types {
@@ -92,18 +139,6 @@ fn parse_struct_internal(
             base_structs.push(parent_sid);
         } else {
             return Err(TyperError::IllegalStructBaseType(parent.location));
-        }
-    }
-
-    match scope_index {
-        Some(index) => {
-            assert!(is_template);
-            // The scope will already have template parameters applied
-            context.revisit_scope(index);
-        }
-        None => {
-            assert!(!is_template);
-            context.push_scope_with_name(name);
         }
     }
 
@@ -309,8 +344,6 @@ fn parse_struct_internal(
             // TODO: Template methods in the final output
         }
     }
-
-    context.pop_scope();
 
     Ok(id)
 }

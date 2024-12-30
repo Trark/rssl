@@ -95,6 +95,11 @@ fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<(
                 }
                 context.set_next_template_params(scope, template_params);
             }
+            Ok(ParserItem::Struct(name)) => {
+                let def_ir = structs::parse_rootdefinition_struct(name, &mut parser, context)?;
+                assert!(context.get_next_template_params().is_none());
+                context.module.root_definitions.push(def_ir);
+            }
             Ok(ParserItem::NamespaceEnter(name)) => {
                 assert!(context.get_next_template_params().is_none());
                 context.enter_namespace(&name)?;
@@ -122,10 +127,7 @@ fn parse_rootdefinition(
     context: &mut Context,
 ) -> TyperResult<Vec<ir::RootDefinition>> {
     match ast {
-        ast::RootDefinition::Struct(ref sd) => {
-            let def = structs::parse_rootdefinition_struct(sd, context)?;
-            Ok(Vec::from([def]))
-        }
+        ast::RootDefinition::Struct(_) => unreachable!(),
         ast::RootDefinition::Enum(ref ed) => {
             let def = enums::parse_rootdefinition_enum(ed, context)?;
             Ok(Vec::from([def]))

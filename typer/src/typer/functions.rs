@@ -70,7 +70,7 @@ pub fn parse_function_signature(
         }
         None => {
             // Create a new scope for the function
-            let scope = context.push_scope();
+            let scope = context.push_scope_with_name(&fd.name);
             (scope, Vec::new())
         }
     };

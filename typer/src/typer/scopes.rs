@@ -42,6 +42,8 @@ struct StructTemplateData {
 #[derive(Debug, Clone)]
 struct ScopeData {
     parent_scope: usize,
+
+    /// Name of the scope for debugging
     scope_name: Option<String>,
 
     variables: VariableBlock,
@@ -78,7 +80,7 @@ impl Context {
             module: ir::Module::create(),
             scopes: Vec::from([ScopeData {
                 parent_scope: usize::MAX,
-                scope_name: None,
+                scope_name: Some(String::from("Root")),
                 variables: VariableBlock::new(),
                 symbols: HashMap::with_capacity(1024),
                 namespace: None,
@@ -156,7 +158,7 @@ impl Context {
     /// Add a new scope with a name
     pub fn push_scope_with_name(&mut self, name: &str) -> ScopeIndex {
         self.current_scope = self.push_scope();
-        self.scopes[self.current_scope].scope_name = Some(name.to_string());
+        self.set_scope_name(self.current_scope, name);
         self.current_scope
     }
 
@@ -183,11 +185,53 @@ impl Context {
         locals
     }
 
+    /// Set the current scope name
+    pub fn set_scope_name(&mut self, scope: ScopeIndex, name: &str) {
+        assert_eq!(self.scopes[scope].scope_name, None);
+        self.scopes[scope].scope_name = Some(String::from(name));
+    }
+
+    /// Get the name of a scope
+    pub fn get_scope_name(&self, scope: ScopeIndex) -> String {
+        let mut count = 0;
+        let mut current = scope;
+        loop {
+            if let Some(name) = &self.scopes[current].scope_name {
+                return if count == 0 {
+                    name.clone()
+                } else {
+                    format!("{}->{}:{}", name, count, scope)
+                };
+            } else {
+                assert_ne!(current, 0);
+                current = self.scopes[current].parent_scope;
+            }
+            count += 1;
+        }
+    }
+
     /// Enter a scope again
     /// We must be in the same parent scope as before when calling this function
     pub fn revisit_scope(&mut self, scope: ScopeIndex) {
-        assert_eq!(self.scopes[scope].parent_scope, self.current_scope);
+        assert_eq!(
+            self.scopes[scope].parent_scope,
+            self.current_scope,
+            "left: {:?} | right: {:?}",
+            self.get_scope_name(self.scopes[scope].parent_scope),
+            self.get_scope_name(self.current_scope),
+        );
         self.current_scope = scope
+    }
+
+    /// Ensure we are already in the given scope
+    pub fn assert_in_scope(&self, scope: ScopeIndex) {
+        assert_eq!(
+            scope,
+            self.current_scope,
+            "left: {:?} | right: {:?}",
+            self.get_scope_name(scope),
+            self.get_scope_name(self.current_scope),
+        );
     }
 
     /// Enter a scope again
@@ -427,7 +471,7 @@ impl Context {
             let struct_template_data = &mut self.struct_template_data[id.0 as usize];
             let sid_res = match struct_template_data.instantiations.get(&final_params) {
                 Some(sid) => Ok(*sid),
-                None => build_struct_from_template(ast, inst_scope, self),
+                None => build_struct_from_template(ast, id, inst_scope, self),
             };
 
             // Back to calling scope
@@ -681,13 +725,12 @@ impl Context {
         Ok(id)
     }
 
-    /// Register a new struct type
-    pub fn begin_struct(
+    /// Register a new struct name
+    pub fn register_struct_name(
         &mut self,
         name: Located<String>,
-        is_non_template: bool,
     ) -> Result<ir::StructId, ir::TypeId> {
-        let namespace = self.get_current_namespace();
+        let namespace = self.get_containing_namespace();
 
         let id = ir::StructId(self.module.struct_registry.len() as u32);
         let type_id = self
@@ -703,29 +746,49 @@ impl Context {
             methods: Default::default(),
         });
         let data = self.module.struct_registry.last().unwrap();
-        if is_non_template {
-            let existing_symbols = self.scopes[self.current_scope]
-                .symbols
-                .entry(data.name.to_string())
-                .or_default();
 
-            // Check for existing symbols
-            for symbol in &*existing_symbols {
-                if let ScopeSymbol::Type(id) = symbol {
-                    return Err(*id);
-                }
+        let containing_scope = self.scopes[self.current_scope].parent_scope;
+        let existing_symbols = self.scopes[containing_scope]
+            .symbols
+            .entry(data.name.to_string())
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::Type(id) = symbol {
+                return Err(*id);
             }
-
-            existing_symbols.push(ScopeSymbol::Type(type_id));
         }
+
+        existing_symbols.push(ScopeSymbol::Type(type_id));
+
         Ok(id)
     }
 
+    /// Register a new struct type
+    pub fn begin_struct_template_instance(&mut self, name: Located<String>) -> ir::StructId {
+        let namespace = self.get_containing_namespace();
+
+        let id = ir::StructId(self.module.struct_registry.len() as u32);
+        let type_id = self
+            .module
+            .type_registry
+            .register_type(ir::TypeLayer::Struct(id));
+        self.module.struct_registry.push(ir::StructDefinition {
+            id,
+            type_id,
+            name,
+            namespace,
+            members: Default::default(),
+            methods: Default::default(),
+        });
+        id
+    }
+
     /// Register a new struct template
-    pub fn register_struct_template(
+    pub fn register_struct_template_name(
         &mut self,
         name: Located<String>,
-        ast: ast::StructDefinition,
     ) -> Result<ir::StructTemplateId, ir::TypeId> {
         let id = ir::StructTemplateId(self.struct_template_data.len() as u32);
         assert_eq!(
@@ -747,7 +810,12 @@ impl Context {
                 id,
                 type_id,
                 name,
-                ast,
+                ast: ast::StructDefinition {
+                    name: Located::none(Default::default()),
+                    base_types: Default::default(),
+                    template_params: ast::TemplateParamList(Default::default()),
+                    members: Default::default(),
+                },
             });
         let data = self.module.struct_template_registry.last().unwrap();
         {
@@ -766,6 +834,15 @@ impl Context {
             existing_symbols.push(ScopeSymbol::Type(type_id));
         }
         Ok(id)
+    }
+
+    /// Register a new struct template
+    pub fn register_struct_template(
+        &mut self,
+        id: ir::StructTemplateId,
+        ast: ast::StructDefinition,
+    ) {
+        self.module.struct_template_registry[id.0 as usize].ast = ast;
     }
 
     /// Register a new enum type
@@ -1059,6 +1136,12 @@ impl Context {
     /// Get the namespace we are currently processing
     pub fn get_current_namespace(&self) -> Option<ir::NamespaceId> {
         self.scopes[self.current_scope].namespace
+    }
+
+    /// Get the namespace we are currently inside
+    pub fn get_containing_namespace(&self) -> Option<ir::NamespaceId> {
+        let scope = self.scopes[self.current_scope].parent_scope;
+        self.scopes[scope].namespace
     }
 
     /// Register a new constant buffer
