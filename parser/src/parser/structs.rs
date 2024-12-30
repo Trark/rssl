@@ -52,7 +52,7 @@ pub fn parse_struct_definition<'t>(
     let (input, _) = parse_token(Token::RightBrace)(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
     let sd = StructDefinition {
-        name,
+        name: Located::none(String::new()),
         base_types,
         template_params: TemplateParamList(Vec::new()),
         members,

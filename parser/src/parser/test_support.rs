@@ -232,6 +232,21 @@ fn parse_for_test(source: &[LexToken]) -> Result<Module, ParseError> {
                     break;
                 }
             },
+            Ok(ParserItem::Struct(name)) => {
+                let mut def = parser.parse_struct(&resolver)?;
+                // TODO:
+                def.name = name;
+                let mut defs = &mut root_definitions;
+                for _ in 0..namespace_depth {
+                    match defs.last_mut().unwrap() {
+                        RootDefinition::Namespace(_, next_defs) => {
+                            defs = next_defs;
+                        }
+                        _ => panic!(),
+                    }
+                }
+                defs.push(RootDefinition::Struct(def));
+            }
             Ok(ParserItem::NamespaceEnter(name)) => {
                 let mut defs = &mut root_definitions;
                 for _ in 0..namespace_depth {

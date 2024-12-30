@@ -101,7 +101,15 @@ impl Parser {
         resolver: &dyn SymbolResolver,
     ) -> Result<StructDefinition, ParseError> {
         let rest = &self.tokens[self.current..];
-        let (rest, sd) = structs::parse_struct_definition(rest, resolver)?;
+        let (rest, mut sd) = structs::parse_struct_definition(rest, resolver)?;
+
+        // Apply processed_template to return value
+        // TODO: Remove template parameters as return from this completely
+        // TODO: Remove processed_template when other root definitions do not need it
+        if let Some(template_params) = std::mem::take(&mut self.processed_template) {
+            sd.template_params = template_params;
+        }
+
         self.set_remaining(rest.len());
         Ok(sd)
     }

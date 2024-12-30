@@ -60,6 +60,11 @@ pub fn parse_rootdefinition_struct(
         Ok(sd) => sd,
         Err(err) => return Err(TyperError::ParseError(err)),
     };
+
+    // TODO: Remove
+    let mut sd = sd;
+    sd.name = name;
+
     let def = match id {
         StructOrTemplate::Template(id) => {
             // Check template arguments
