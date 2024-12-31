@@ -818,21 +818,22 @@ impl Context {
                 },
             });
         let data = self.module.struct_template_registry.last().unwrap();
-        {
-            let existing_symbols = self.scopes[self.current_scope]
-                .symbols
-                .entry(data.name.to_string())
-                .or_default();
 
-            // Check for existing symbols
-            for symbol in &*existing_symbols {
-                if let ScopeSymbol::Type(id) = symbol {
-                    return Err(*id);
-                }
+        let containing_scope = self.scopes[self.current_scope].parent_scope;
+        let existing_symbols = self.scopes[containing_scope]
+            .symbols
+            .entry(data.name.to_string())
+            .or_default();
+
+        // Check for existing symbols
+        for symbol in &*existing_symbols {
+            if let ScopeSymbol::Type(id) = symbol {
+                return Err(*id);
             }
-
-            existing_symbols.push(ScopeSymbol::Type(type_id));
         }
+
+        existing_symbols.push(ScopeSymbol::Type(type_id));
+
         Ok(id)
     }
 

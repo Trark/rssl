@@ -51,9 +51,7 @@ fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<(
                         Ok(Some(template_param)) => {
                             let param = match template_param {
                                 ast::TemplateParam::Type(ty_param) => {
-                                    if ty_param.default.is_some() {
-                                        todo!("default template arguments not implemented");
-                                    }
+                                    // TODO: Default will need processing here when not present elsewhere
                                     let id = context.module.type_registry.register_template_type(
                                         ty_param.name.clone(),
                                         template_params.len() as u32,
@@ -64,9 +62,7 @@ fn parse_internal(tokens: Vec<LexToken>, context: &mut Context) -> TyperResult<(
                                     ir::TemplateParam::Type(id)
                                 }
                                 ast::TemplateParam::Value(ty_param) => {
-                                    if ty_param.default.is_some() {
-                                        todo!("default template arguments not implemented");
-                                    }
+                                    // TODO: Default will need processing here when not present elsewhere
                                     // TODO: Ensure allowed type modifiers are as expected
                                     let ty = parse_type_for_usage(
                                         &ty_param.value_type,
