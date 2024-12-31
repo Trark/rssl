@@ -1300,7 +1300,7 @@ fn check_struct_method_templates() {
     check_types("struct S { template<typename T> T f(T t) { return t; } }; struct M {}; void main() { S s; M m1; M m2 = s.f<M>(m1); };");
 
     // Check we can have type dependent operations in an uninstantiated template
-    check_types("struct S { template<typename T> void f() { t + 1; } };");
+    check_types("struct S { template<typename T> void f(T t) { t + 1; } };");
 
     // And do the above test but with a valid instantiation
     check_types(
