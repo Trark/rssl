@@ -63,7 +63,6 @@ pub fn parse_struct_definition<'t>(
 #[test]
 fn test_struct() {
     use test_support::*;
-    let structdefinition = ParserTester::new(parse_struct_definition);
 
     check_root(
         "struct MyStruct {};",

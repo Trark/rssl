@@ -109,7 +109,6 @@ pub fn parse_rootdefinition_struct(
 /// Build a struct from a struct template
 pub fn build_struct_from_template(
     sd: &ast::StructDefinition,
-    id: ir::StructTemplateId,
     scope_index: ScopeIndex,
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
@@ -132,8 +131,6 @@ fn parse_struct_internal(
     id: ir::StructId,
     context: &mut Context,
 ) -> TyperResult<ir::StructId> {
-    let name = &sd.name;
-
     let mut base_structs = Vec::new();
     for parent in &sd.base_types {
         // TODO: Evaluate which keywords are allowed here

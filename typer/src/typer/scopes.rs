@@ -471,7 +471,7 @@ impl Context {
             let struct_template_data = &mut self.struct_template_data[id.0 as usize];
             let sid_res = match struct_template_data.instantiations.get(&final_params) {
                 Some(sid) => Ok(*sid),
-                None => build_struct_from_template(ast, id, inst_scope, self),
+                None => build_struct_from_template(ast, inst_scope, self),
             };
 
             // Back to calling scope
