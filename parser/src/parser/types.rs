@@ -6,7 +6,7 @@ fn parse_type_layout_internal<'t>(
     input: &'t [LexToken],
     resolver: &dyn SymbolResolver,
 ) -> ParseResult<'t, TypeLayout> {
-    let (input, name) = expressions::parse_scoped_identifier(input)?;
+    let (input, name) = expressions::parse_scoped_identifier(input, false, resolver)?;
     let (input, args) = expressions::parse_template_args(input, resolver)?;
     let tyl = TypeLayout(name, args.into_boxed_slice());
     if resolver.is_type(&tyl) {

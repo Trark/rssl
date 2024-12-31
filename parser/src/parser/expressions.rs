@@ -41,7 +41,12 @@ fn expr_in_paren<'t>(
 }
 
 /// Parse an identifier that may be a variable name
-pub fn parse_scoped_identifier(input: &[LexToken]) -> ParseResult<ScopedIdentifier> {
+pub fn parse_scoped_identifier<'t>(
+    input: &'t [LexToken],
+    is_known: bool,
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, ScopedIdentifier> {
+    let start = input;
     let (base, input) = match parse_token(Token::ScopeResolution)(input) {
         Ok((input, _)) => (ScopedIdentifierBase::Absolute, input),
         _ => (ScopedIdentifierBase::Relative, input),
@@ -50,12 +55,34 @@ pub fn parse_scoped_identifier(input: &[LexToken]) -> ParseResult<ScopedIdentifi
     let (input, identifiers) =
         parse_list_nonempty(parse_token(Token::ScopeResolution), parse_variable_name)(input)?;
 
-    Ok((input, ScopedIdentifier { base, identifiers }))
+    let identifier = ScopedIdentifier { base, identifiers };
+
+    if is_known && !resolver.is_known(&identifier) {
+        return Err(ParseErrorContext(
+            start,
+            input.len(),
+            ParseErrorReason::UnknownIdentifier(identifier),
+        ));
+    }
+
+    Ok((input, identifier))
+}
+
+/// Parse an identifier that may be a variable name
+fn parse_scoped_identifier_located<'t>(
+    input: &'t [LexToken],
+    is_known: bool,
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Located<ScopedIdentifier>> {
+    locate(|input| parse_scoped_identifier(input, is_known, resolver))(input)
 }
 
 /// Parse an identifier that may be a variable name to an expression
-fn parse_scoped_identifier_expr(input: &[LexToken]) -> ParseResult<Located<Expression>> {
-    let (rest, id) = parse_scoped_identifier(input)?;
+fn parse_scoped_identifier_expr<'t>(
+    input: &'t [LexToken],
+    resolver: &dyn SymbolResolver,
+) -> ParseResult<'t, Located<Expression>> {
+    let (rest, id) = parse_scoped_identifier(input, true, resolver)?;
 
     assert_ne!(input.len(), rest.len());
     let loc = input[0].1;
@@ -72,7 +99,7 @@ fn expr_leaf<'t>(
     let res = expr_in_paren(input, resolver);
 
     // Try to parse a variable identifier
-    let res = res.select(parse_scoped_identifier_expr(input));
+    let res = res.select(parse_scoped_identifier_expr(input, resolver));
 
     // Try to parse a literal
     res.select(expr_literal(input))
@@ -145,9 +172,12 @@ fn expr_p1<'t>(
         ))
     }
 
-    fn expr_p1_member(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
+    fn expr_p1_member<'t>(
+        input: &'t [LexToken],
+        resolver: &dyn SymbolResolver,
+    ) -> ParseResult<'t, Located<Precedence1Postfix>> {
         let (input, _) = parse_token(Token::Period)(input)?;
-        let (input, member) = locate(parse_scoped_identifier)(input)?;
+        let (input, member) = parse_scoped_identifier_located(input, false, resolver)?;
         Ok((
             input,
             Located::new(
@@ -216,7 +246,7 @@ fn expr_p1<'t>(
         expr_p1_increment(input)
             .select(expr_p1_decrement(input))
             .select(expr_p1_call(input, resolver))
-            .select(expr_p1_member(input))
+            .select(expr_p1_member(input, resolver))
             .select(expr_p1_subscript(input, resolver))
     }
 

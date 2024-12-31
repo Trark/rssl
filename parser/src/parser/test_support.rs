@@ -202,8 +202,8 @@ impl SymbolResolver for TestResolver {
         false
     }
 
-    fn is_function(&self, _: &TypeLayout) -> bool {
-        false
+    fn is_known(&self, _: &ScopedIdentifier) -> bool {
+        true
     }
 }
 

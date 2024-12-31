@@ -23,7 +23,7 @@ pub struct Parser {
 /// Callback to provide contextual state for the parser
 pub trait SymbolResolver {
     fn is_type(&self, ty: &TypeLayout) -> bool;
-    fn is_function(&self, ty: &TypeLayout) -> bool;
+    fn is_known(&self, identifier: &ScopedIdentifier) -> bool;
 }
 
 impl Parser {

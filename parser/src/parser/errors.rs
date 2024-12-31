@@ -42,6 +42,11 @@ impl CompileError for ParseError {
         };
 
         match &self.0 {
+            ParseErrorReason::UnknownIdentifier(id) => w.write_message(
+                &|f| write!(f, "unknown identifier '{id}'"),
+                loc,
+                Severity::Error,
+            ),
             ParseErrorReason::InvalidSlotType(slot_string) => w.write_message(
                 &|f| write!(f, "register type is not supported in '{slot_string}'"),
                 loc,
@@ -79,6 +84,7 @@ pub enum ParseErrorReason {
     TokensUnconsumed,
     WrongToken,
     SymbolIsNotAType,
+    UnknownIdentifier(ScopedIdentifier),
     InvalidSlotType(String),
     InvalidSlotIndex(String),
     InvalidSpaceIdentifier(String),

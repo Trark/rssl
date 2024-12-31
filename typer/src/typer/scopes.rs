@@ -1830,8 +1830,8 @@ impl rssl_parser::SymbolResolver for ParserSymbolResolver<'_> {
         parse_typelayout(ty, &mut self.0.borrow_mut()).is_ok()
     }
 
-    fn is_function(&self, _: &rssl_ast::TypeLayout) -> bool {
-        todo!()
+    fn is_known(&self, id: &rssl_ast::ScopedIdentifier) -> bool {
+        self.0.borrow_mut().find_identifier(id).is_ok()
     }
 }
 
