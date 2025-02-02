@@ -850,6 +850,7 @@ fn generate_function_inner(
     } else if out_trampoline {
         Some(generate_function_out_trampoline_body(
             &name,
+            id,
             sig,
             decl,
             &return_type,
@@ -878,9 +879,52 @@ fn generate_function_inner(
     })
 }
 
+/// Append the global variables that are passed around as extra parameters into a list of arguments
+fn append_arguments_for_globals(
+    args: &mut Vec<Located<ast::Expression>>,
+    id: ir::FunctionId,
+    context: &mut GenerateContext,
+) {
+    let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
+    for param in parameters_for_globals {
+        match param {
+            ImplicitFunctionParameter::ThreadIndexInSimdgroup => {
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("thread_index_in_simdgroup"),
+                )))
+            }
+            ImplicitFunctionParameter::ThreadsPerSimdgroup => {
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
+                )))
+            }
+            ImplicitFunctionParameter::MeshOutput => args.push(Located::none(
+                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME)),
+            )),
+            ImplicitFunctionParameter::PayloadOutput(_) => args.push(Located::none(
+                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(PAYLOAD_OUTPUT_NAME)),
+            )),
+            ImplicitFunctionParameter::MeshGridProperties => {
+                args.push(Located::none(ast::Expression::Identifier(
+                    ast::ScopedIdentifier::trivial(MESH_GRID_PROPERTIES_OUTPUT_NAME),
+                )))
+            }
+            ImplicitFunctionParameter::Global(gid) => {
+                match context.global_variable_modes.get(gid).unwrap() {
+                    GlobalMode::Parameter { argument, .. } => {
+                        args.push(Located::none(argument.clone()));
+                    }
+                    GlobalMode::Constant => panic!("global does not require a parameter"),
+                }
+            }
+        }
+    }
+}
+
 /// Generate the function body for the out/inout trampoline
 fn generate_function_out_trampoline_body(
     name: &str,
+    id: ir::FunctionId,
     sig: &ir::FunctionSignature,
     decl: &ir::FunctionImplementation,
     return_type: &ast::Type,
@@ -959,6 +1003,12 @@ fn generate_function_out_trampoline_body(
             Vec::new(),
             Vec::new(),
         )));
+    }
+
+    // Add arguments for passing global variable references into subfunctions
+    append_arguments_for_globals(&mut params, id, context);
+
+    {
         let expr = ast::Expression::Call(
             Box::new(Located::none(ast::Expression::Identifier(
                 ast::ScopedIdentifier::trivial(name),
@@ -2376,40 +2426,7 @@ fn generate_user_call(
     let mut args = generate_invocation_args(arguments, context)?;
 
     // Add arguments for passing global variable references into subfunctions
-    let parameters_for_globals = context.function_required_globals.get(&id).unwrap();
-    for param in parameters_for_globals {
-        match param {
-            ImplicitFunctionParameter::ThreadIndexInSimdgroup => {
-                args.push(Located::none(ast::Expression::Identifier(
-                    ast::ScopedIdentifier::trivial("thread_index_in_simdgroup"),
-                )))
-            }
-            ImplicitFunctionParameter::ThreadsPerSimdgroup => {
-                args.push(Located::none(ast::Expression::Identifier(
-                    ast::ScopedIdentifier::trivial("threads_per_simdgroup"),
-                )))
-            }
-            ImplicitFunctionParameter::MeshOutput => args.push(Located::none(
-                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(MESH_OUTPUT_NAME)),
-            )),
-            ImplicitFunctionParameter::PayloadOutput(_) => args.push(Located::none(
-                ast::Expression::Identifier(ast::ScopedIdentifier::trivial(PAYLOAD_OUTPUT_NAME)),
-            )),
-            ImplicitFunctionParameter::MeshGridProperties => {
-                args.push(Located::none(ast::Expression::Identifier(
-                    ast::ScopedIdentifier::trivial(MESH_GRID_PROPERTIES_OUTPUT_NAME),
-                )))
-            }
-            ImplicitFunctionParameter::Global(gid) => {
-                match context.global_variable_modes.get(gid).unwrap() {
-                    GlobalMode::Parameter { argument, .. } => {
-                        args.push(Located::none(argument.clone()));
-                    }
-                    GlobalMode::Constant => panic!("global does not require a parameter"),
-                }
-            }
-        }
-    }
+    append_arguments_for_globals(&mut args, id, context);
 
     let expr = ast::Expression::Call(Box::new(Located::none(object)), type_args, args);
     Ok(expr)
