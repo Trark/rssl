@@ -17,6 +17,15 @@ pub struct PipelineProperty {
     /// The name of a property for a pipeline
     pub property: Located<String>,
 
+    /// The value or set of values bound
+    pub value: Located<PipelinePropertyValue>,
+}
+
+/// Value bound to a property
+#[derive(PartialEq, Debug, Clone)]
+pub enum PipelinePropertyValue {
     /// An expression which describes a value bound to a property
-    pub value: Located<Expression>,
+    Single(Expression),
+    /// A set of sub properties
+    Aggregate(Vec<PipelineProperty>),
 }

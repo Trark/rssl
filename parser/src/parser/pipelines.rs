@@ -16,10 +16,23 @@ pub fn parse_pipeline_definition(input: &[LexToken]) -> ParseResult<PipelineDefi
 fn parse_pipeline_property(input: &[LexToken]) -> ParseResult<PipelineProperty> {
     let (input, property) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::Equals)(input)?;
-    let (input, value) = parse_expression(input)?;
+    let (input, value) = match parse_token(Token::LeftBrace)(input) {
+        Ok((input, tok)) => {
+            let (input, values) = parse_multiple(parse_pipeline_property)(input)?;
+            let (input, _) = parse_token(Token::RightBrace)(input)?;
+            let values = Located::new(PipelinePropertyValue::Aggregate(values), tok.1);
+            (input, values)
+        }
+        _ => {
+            let (input, value) = parse_expression(input)?;
+            let value = Located::new(PipelinePropertyValue::Single(value.node), value.location);
 
-    // Property ends with a single semicolon - multiple or zero are forbidden
-    let (input, _) = parse_token(Token::Semicolon)(input)?;
+            // Property ends with a single semicolon - multiple or zero are forbidden
+            let (input, _) = parse_token(Token::Semicolon)(input)?;
+
+            (input, value)
+        }
+    };
 
     let pp = PipelineProperty { property, value };
     Ok((input, pp))
@@ -44,7 +57,13 @@ fn test_pipeline() {
             name: "Test".to_string().loc(9),
             properties: Vec::from([PipelineProperty {
                 property: "PixelShader".to_string().loc(16),
-                value: "PSMain".as_var(30),
+                value: Located::new(
+                    PipelinePropertyValue::Single(Expression::Identifier(ScopedIdentifier {
+                        base: ScopedIdentifierBase::Relative,
+                        identifiers: Vec::from([String::from("PSMain").loc(30)]),
+                    })),
+                    SourceLocation::first().offset(30),
+                ),
             }]),
         },
     );
