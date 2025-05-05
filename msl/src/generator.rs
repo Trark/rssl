@@ -2320,18 +2320,32 @@ fn generate_expression(
                     }
                 }
             } else if !to_literal {
-                // We may have cast from vectors to scalars but Metal does not support vector to scalar casts
-                let inner = if matches!(input_tyl, ir::TypeLayer::Vector(..))
-                    && matches!(unmod_tyl, ir::TypeLayer::Scalar(_))
-                {
-                    // Insert swizzle to select the scalar channel
-                    ast::Expression::Member(
-                        Box::new(Located::none(inner)),
-                        ast::ScopedIdentifier::trivial("x"),
-                    )
-                } else {
-                    inner
-                };
+                // We may have cast from vectors to scalars or smaller vectors but Metal does not support vector to scalar casts
+                fn try_implicit_truncate(
+                    input_tyl: ir::TypeLayer,
+                    unmod_tyl: ir::TypeLayer,
+                    expr: ast::Expression,
+                ) -> ast::Expression {
+                    match input_tyl {
+                        ir::TypeLayer::Vector(_, in_dim) => {
+                            let swizzle = match unmod_tyl {
+                                ir::TypeLayer::Scalar(_) => "x",
+                                ir::TypeLayer::Vector(_, 2) if 2 < in_dim => "xy",
+                                ir::TypeLayer::Vector(_, 3) if 3 < in_dim => "xyz",
+                                _ => return expr,
+                            };
+
+                            // Insert swizzle to select the scalar channel
+                            ast::Expression::Member(
+                                Box::new(Located::none(expr)),
+                                ast::ScopedIdentifier::trivial(swizzle),
+                            )
+                        }
+                        _ => expr,
+                    }
+                }
+
+                let inner = try_implicit_truncate(input_tyl, unmod_tyl, inner);
 
                 let ty = generate_type_id(*type_id, context)?;
                 ast::Expression::Cast(Box::new(ty), Box::new(Located::none(inner)))

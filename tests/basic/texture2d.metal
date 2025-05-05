@@ -114,6 +114,7 @@ void test(const metal::texture2d<float> g_input, const metal::texture2d<float, m
     const float4 load_srv_offset = helper::Load(g_input, int3(0, 0, 0), int2(0, 0));
     const float4 load_srv_status = helper::Load(g_input, int3(0, 0, 0), int2(0, 0), outInt);
     const float4 sample_base = helper::Sample(g_input, (metal::sampler)g_sampler, float2(0.0f, 0.0f));
+    const float4 sample_base_3 = helper::Sample(g_input, (metal::sampler)g_sampler, (float2)float3(0.0f, 0.0f, 0.0f).xy);
     const float4 sample_offset = helper::Sample(g_input, (metal::sampler)g_sampler, float2(0.0f, 0.0f), int2(0, 0));
     const float4 sample_clamp = helper::Sample(g_input, (metal::sampler)g_sampler, float2(0.0f, 0.0f), int2(0, 0), 0.0f);
     const float4 sample_status = helper::Sample(g_input, (metal::sampler)g_sampler, float2(0.0f, 0.0f), int2(0, 0), 0.0f, outInt);

@@ -12,6 +12,7 @@ void test() {
     const float4 load_srv_offset = g_input.Load(int3(0, 0, 0), int2(0, 0));
     const float4 load_srv_status = g_input.Load(int3(0, 0, 0), int2(0, 0), outInt);
     const float4 sample_base = g_input.Sample((SamplerState)g_sampler, float2(0.0f, 0.0f));
+    const float4 sample_base_3 = g_input.Sample((SamplerState)g_sampler, (float2)float3(0.0f, 0.0f, 0.0f));
     const float4 sample_offset = g_input.Sample((SamplerState)g_sampler, float2(0.0f, 0.0f), int2(0, 0));
     const float4 sample_clamp = g_input.Sample((SamplerState)g_sampler, float2(0.0f, 0.0f), int2(0, 0), 0.0f);
     const float4 sample_status = g_input.Sample((SamplerState)g_sampler, float2(0.0f, 0.0f), int2(0, 0), 0.0f, outInt);
