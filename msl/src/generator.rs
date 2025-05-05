@@ -143,15 +143,17 @@ pub fn generate_module(
 
     let mut root_definitions = simplify_namespaces(root_definitions);
 
-    let pipeline_description = if let Some(selected_pipeline) = module.selected_pipeline {
-        let (mut pipeline_defs, pipeline_metadata) =
-            generate_pipeline(&module.pipelines[selected_pipeline], &mut context)?;
-        root_definitions.append(&mut pipeline_defs);
-        pipeline_metadata
+    let selected_pipeline = if let Some(selected_pipeline) = module.selected_pipeline {
+        Some(&module.pipelines[selected_pipeline])
     } else {
-        // Generating a shader without a usable pipeline - return the empty binding set
-        PipelineDescription::default()
+        None
     };
+
+    let (mut pipeline_defs, pipeline_description) =
+        generate_pipeline(selected_pipeline, &mut context)?;
+    if selected_pipeline.is_some() {
+        root_definitions.append(&mut pipeline_defs);
+    }
 
     if let Some(helpers) = generate_helpers(context.required_helpers)? {
         root_definitions.insert(0, helpers);

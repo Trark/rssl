@@ -14,7 +14,7 @@ use crate::names::*;
 
 /// Generate the entry point and helper structs for a pipeline definition
 pub(crate) fn generate_pipeline(
-    def: &ir::PipelineDefinition,
+    def: Option<&ir::PipelineDefinition>,
     context: &mut GenerateContext,
 ) -> Result<(Vec<ast::RootDefinition>, PipelineDescription), GenerateError> {
     // Generate binding info
@@ -25,12 +25,14 @@ pub(crate) fn generate_pipeline(
 
     // Find all used globals
     let mut all_used_globals = Vec::new();
-    for stage in &def.stages {
-        let stage_used_globals = context
-            .function_required_globals
-            .get(&stage.entry_point)
-            .unwrap();
-        all_used_globals.extend_from_slice(stage_used_globals);
+    if let Some(def) = def {
+        for stage in &def.stages {
+            let stage_used_globals = context
+                .function_required_globals
+                .get(&stage.entry_point)
+                .unwrap();
+            all_used_globals.extend_from_slice(stage_used_globals);
+        }
     }
 
     // Mark all bindings as used / unused
@@ -149,7 +151,7 @@ pub(crate) fn generate_pipeline(
     }
 
     // Sort stages so vertex is processed before pixel
-    let mut ordered_stages = def.stages.clone();
+    let mut ordered_stages = def.map_or(Vec::new(), |def| def.stages.clone());
     ordered_stages.sort_by(|lhs, rhs| lhs.stage.cmp(&rhs.stage));
 
     // Maintain a map of the interpolator output names in the vertex / mesh stage
