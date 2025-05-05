@@ -362,7 +362,10 @@ impl<'a> CompileArgs<'a> {
         self
     }
 
-    /// Enable mode where shader sources can be generated without any pipeline definitions for testing
+    /// Enable mode where shader sources can be generated without any pipeline definitions
+    ///
+    /// This can be used to extract bindings information
+    /// This can be used for testing by generating output without the pipeline boilerplate
     pub fn no_pipeline_mode(mut self) -> Self {
         self.no_pipeline_mode = true;
         self
