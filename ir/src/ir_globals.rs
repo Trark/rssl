@@ -25,6 +25,9 @@ pub struct GlobalVariable {
     /// Initializer for the global variable
     pub init: Option<Initializer>,
 
+    /// Static sampler parameters if the global variable is a static sampler
+    pub static_sampler: Option<StaticSampler>,
+
     /// Compile time evaluated value
     pub constexpr_value: Option<Constant>,
 

@@ -95,6 +95,9 @@ pub struct AssignBindingsParams {
 
     /// Count number of slots for object types based on how many fields we need to fill for a Metal argument buffer
     pub metal_slot_layout: bool,
+
+    /// If static samplers need API slots
+    pub static_samplers_have_slots: bool,
 }
 
 impl Module {
@@ -323,6 +326,11 @@ impl Module {
                     let decl = &mut module.global_registry[id.0 as usize];
                     let set = decl.lang_slot.set.unwrap_or(default_set);
 
+                    // If static samplers are implemented purely in shader source then do not give them slots
+                    if decl.static_sampler.is_some() && !params.static_samplers_have_slots {
+                        return;
+                    }
+
                     // Remove outer layer of modifier
                     let unmodified_ty_id = module.type_registry.remove_modifier(decl.type_id);
 
@@ -451,6 +459,7 @@ impl Default for AssignBindingsParams {
             require_slot_type: true,
             support_buffer_address: false,
             metal_slot_layout: false,
+            static_samplers_have_slots: true,
         }
     }
 }

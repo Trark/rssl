@@ -618,6 +618,10 @@ fn parse_initializer(
                 }
             }
         }
+        ast::Initializer::StaticSampler(_) => {
+            // These are handled in global variable processing
+            return Err(TyperError::StaticSamplerNotExpected(variable_location));
+        }
     })
 }
 

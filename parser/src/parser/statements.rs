@@ -19,16 +19,25 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
         init_expr(input).select(init_aggregate(input))
     }
 
-    if input.is_empty() {
-        ParseErrorReason::end_of_stream()
-    } else {
-        match input[0].0 {
-            Token::Equals => match init_any(&input[1..]) {
+    match input {
+        [LexToken(Token::Equals, _), LexToken(Token::Id(id), _), input @ ..]
+            if id.0 == "StaticSampler" =>
+        {
+            let (input, properties) = pipelines::parse_static_sampler_properties(input)?;
+            Ok((input, Some(Initializer::StaticSampler(properties))))
+        }
+        [LexToken(Token::Equals, _), LexToken(Token::LeftBrace, _), ..] => {
+            match init_aggregate(&input[1..]) {
                 Ok((input, init)) => Ok((input, Some(init))),
                 Err(err) => Err(err),
-            },
-            _ => Ok((input, None)),
+            }
         }
+        [LexToken(Token::Equals, _), rest @ ..] => match init_expr(rest) {
+            Ok((input, init)) => Ok((input, Some(init))),
+            Err(err) => Err(err),
+        },
+        [] => ParseErrorReason::end_of_stream(),
+        _ => Ok((input, None)),
     }
 }
 

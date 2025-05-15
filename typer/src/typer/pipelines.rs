@@ -366,6 +366,37 @@ fn extract_uint32(
     }
 }
 
+/// Attempt to view an expression as a float
+fn extract_float(
+    property: &Located<ast::PipelinePropertyValue>,
+    context: &mut Context,
+) -> TyperResult<f32> {
+    let property_value = match &property.node {
+        rssl_ast::PipelinePropertyValue::Single(expr) => expr,
+        rssl_ast::PipelinePropertyValue::Aggregate(_) => {
+            return Err(TyperError::PipelinePropertyRequiresFloatArgument(
+                property.location,
+            ))
+        }
+    };
+    let value_expr = super::expressions::parse_expr(property_value, context)?;
+    let value_res = crate::evaluator::evaluate_constexpr(&value_expr.0, &mut context.module);
+    let value = match value_res {
+        Ok(value) => value,
+        _ => {
+            return Err(TyperError::PipelinePropertyRequiresFloatArgument(
+                property.location,
+            ))
+        }
+    };
+    match value.to_f32() {
+        Some(v) => Ok(v),
+        _ => Err(TyperError::PipelinePropertyRequiresFloatArgument(
+            property.location,
+        )),
+    }
+}
+
 /// Attempt to view an expression as a string
 fn extract_string(value: &Located<ast::PipelinePropertyValue>) -> TyperResult<&str> {
     match &value.node {
@@ -443,6 +474,142 @@ fn extract_blend_op(property: &ast::PipelineProperty) -> TyperResult<ir::BlendOp
         "RevSubtract" => ir::BlendOp::RevSubtract,
         "Min" => ir::BlendOp::Min,
         "Max" => ir::BlendOp::Max,
+        _ => {
+            return Err(TyperError::PipelinePropertyArgumentUnknown(
+                property.property.location,
+            ))
+        }
+    })
+}
+
+/// Process an AST static sampler definition
+pub fn parse_static_sampler(
+    properties: &[ast::PipelineProperty],
+    context: &mut Context,
+) -> TyperResult<ir::StaticSampler> {
+    // Check for duplicate properties
+    for i in 1..properties.len() {
+        let new_property = &properties[i];
+        let before_properties = &properties[..i];
+        for before_prop in before_properties {
+            if new_property.property.as_str() == before_prop.property.as_str() {
+                return Err(TyperError::PipelinePropertyDuplicate(
+                    new_property.property.location,
+                ));
+            }
+        }
+    }
+
+    let mut static_sampler = ir::StaticSampler {
+        filter: Default::default(),
+        address_u: Default::default(),
+        address_v: Default::default(),
+        address_w: Default::default(),
+        compare_func: Default::default(),
+        max_anisotropy: 1,
+        lod_clamp_min: 0.0,
+        lod_clamp_max: f32::MAX,
+        border_color: Default::default(),
+    };
+
+    for property in properties {
+        match property.property.as_str() {
+            "Filter" => static_sampler.filter = extract_sampler_filter(property)?,
+            "AddressU" => static_sampler.address_u = extract_sampler_address_mode(property)?,
+            "AddressV" => static_sampler.address_v = extract_sampler_address_mode(property)?,
+            "AddressW" => static_sampler.address_w = extract_sampler_address_mode(property)?,
+            "CompareFunc" => static_sampler.compare_func = extract_sampler_compare_func(property)?,
+            "MaxAnisotropy" => {
+                static_sampler.max_anisotropy = extract_uint32(&property.value, context)?
+            }
+            "MinLOD" => static_sampler.lod_clamp_min = extract_float(&property.value, context)?,
+            "MaxLOD" => static_sampler.lod_clamp_max = extract_float(&property.value, context)?,
+            "BorderColor" => static_sampler.border_color = extract_sampler_border_color(property)?,
+            _ => {
+                return Err(TyperError::StaticSamplerUnexpectedProperty(
+                    property.property.clone(),
+                ))
+            }
+        }
+    }
+
+    Ok(static_sampler)
+}
+
+/// Attempt to view an expression as an identifier
+fn extract_identifier(value: &Located<ast::PipelinePropertyValue>) -> TyperResult<&str> {
+    match &value.node {
+        ast::PipelinePropertyValue::Single(ast::Expression::Identifier(s)) => match s.try_trivial()
+        {
+            Some(name) => Ok(name.as_str()),
+            None => Err(TyperError::PipelinePropertyRequiresStringArgument(
+                value.location,
+            )),
+        },
+        _ => Err(TyperError::PipelinePropertyRequiresStringArgument(
+            value.location,
+        )),
+    }
+}
+
+fn extract_sampler_filter(property: &ast::PipelineProperty) -> TyperResult<ir::SamplerFilterMode> {
+    Ok(match extract_identifier(&property.value)? {
+        "MIN_MAG_MIP_POINT" => ir::SamplerFilterMode::Point,
+        "MIN_MAG_MIP_LINEAR" => ir::SamplerFilterMode::Linear,
+        _ => {
+            return Err(TyperError::PipelinePropertyArgumentUnknown(
+                property.property.location,
+            ))
+        }
+    })
+}
+
+fn extract_sampler_address_mode(
+    property: &ast::PipelineProperty,
+) -> TyperResult<ir::SamplerAddressMode> {
+    Ok(match extract_identifier(&property.value)? {
+        "Wrap" => ir::SamplerAddressMode::Wrap,
+        "Clamp" => ir::SamplerAddressMode::Clamp,
+        "Border" => ir::SamplerAddressMode::Border,
+        _ => {
+            return Err(TyperError::PipelinePropertyArgumentUnknown(
+                property.property.location,
+            ))
+        }
+    })
+}
+
+fn extract_sampler_border_color(
+    property: &ast::PipelineProperty,
+) -> TyperResult<ir::SamplerBorderColor> {
+    Ok(match extract_identifier(&property.value)? {
+        "TransparentBlack" => ir::SamplerBorderColor::TransparentBlack,
+        "OpaqueBlack" => ir::SamplerBorderColor::OpaqueBlack,
+        "OpaqueWhite" => ir::SamplerBorderColor::OpaqueWhite,
+        "TransparentBlackInt" => ir::SamplerBorderColor::TransparentBlackInt,
+        "OpaqueBlackInt" => ir::SamplerBorderColor::OpaqueBlackInt,
+        "OpaqueWhiteInt" => ir::SamplerBorderColor::OpaqueWhiteInt,
+        _ => {
+            return Err(TyperError::PipelinePropertyArgumentUnknown(
+                property.property.location,
+            ))
+        }
+    })
+}
+
+fn extract_sampler_compare_func(
+    property: &ast::PipelineProperty,
+) -> TyperResult<ir::SamplerCompareFunc> {
+    Ok(match extract_identifier(&property.value)? {
+        "None" => ir::SamplerCompareFunc::None,
+        "Never" => ir::SamplerCompareFunc::Never,
+        "Less" => ir::SamplerCompareFunc::Less,
+        "Equal" => ir::SamplerCompareFunc::Equal,
+        "LessEqual" => ir::SamplerCompareFunc::LessEqual,
+        "Greater" => ir::SamplerCompareFunc::Greater,
+        "NotEqual" => ir::SamplerCompareFunc::NotEqual,
+        "GreaterEqual" => ir::SamplerCompareFunc::GreaterEqual,
+        "Always" => ir::SamplerCompareFunc::Always,
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,

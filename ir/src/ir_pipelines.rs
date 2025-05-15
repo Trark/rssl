@@ -162,3 +162,61 @@ impl Default for ComponentMask {
         ComponentMask(0xF)
     }
 }
+
+/// A definition for a static sampler
+#[derive(PartialEq, Clone, Debug)]
+pub struct StaticSampler {
+    pub filter: SamplerFilterMode,
+    pub address_u: SamplerAddressMode,
+    pub address_v: SamplerAddressMode,
+    pub address_w: SamplerAddressMode,
+    pub compare_func: SamplerCompareFunc,
+    pub max_anisotropy: u32,
+    pub lod_clamp_min: f32,
+    pub lod_clamp_max: f32,
+    pub border_color: SamplerBorderColor,
+}
+
+/// Filter mode for a static sampler
+#[derive(PartialEq, Default, Copy, Clone, Debug)]
+pub enum SamplerFilterMode {
+    #[default]
+    Point,
+    Linear,
+}
+
+/// Address mode for a static sampler
+#[derive(PartialEq, Default, Copy, Clone, Debug)]
+pub enum SamplerAddressMode {
+    Wrap,
+    #[default]
+    Clamp,
+    Border,
+}
+
+/// Border color for a static sampler with a clamp to border address mode
+#[derive(PartialEq, Default, Copy, Clone, Debug)]
+pub enum SamplerBorderColor {
+    #[default]
+    TransparentBlack,
+    OpaqueBlack,
+    OpaqueWhite,
+    TransparentBlackInt,
+    OpaqueBlackInt,
+    OpaqueWhiteInt,
+}
+
+/// Compare func for a static sampler
+#[derive(PartialEq, Default, Copy, Clone, Debug)]
+pub enum SamplerCompareFunc {
+    #[default]
+    None,
+    Never,
+    Less,
+    Equal,
+    LessEqual,
+    Greater,
+    NotEqual,
+    GreaterEqual,
+    Always,
+}

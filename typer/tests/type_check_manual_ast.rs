@@ -367,6 +367,7 @@ fn test_ast_to_ir() {
                     init: Some(ir::Initializer::Expression(ir::Expression::Literal(
                         ir::Constant::Int32(4),
                     ))),
+                    static_sampler: None,
                     constexpr_value: Some(ir::Constant::Int32(4)),
                     is_intrinsic: false,
                     is_bindless: false,

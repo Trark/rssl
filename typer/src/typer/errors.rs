@@ -211,6 +211,18 @@ pub enum TyperError {
     /// `[outputtopology]` not valid
     InvalidOutputTopology(SourceLocation, String),
 
+    /// A static sampler was not expected at this location
+    StaticSamplerNotExpected(SourceLocation),
+
+    /// A static sampler was not expected to have a binding index
+    StaticSamplerUnexpectedBindingIndex(SourceLocation),
+
+    /// A static sampler must be on a global that is an extern
+    StaticSamplerUnexpectedStorageClass(SourceLocation),
+
+    /// A static sampler had a property that does not exist
+    StaticSamplerUnexpectedProperty(Located<String>),
+
     /// assert_type had invalid format
     AssertTypeInvalid(SourceLocation),
 
@@ -244,8 +256,14 @@ pub enum TyperError {
     /// A state value expects a string argument but received a different expression
     PipelinePropertyRequiresStringArgument(SourceLocation),
 
+    /// A state value expects an identifier argument but received a different expression
+    PipelinePropertyRequiresIdentifierArgument(SourceLocation),
+
     /// A state value expects an integer argument but received a different expression
     PipelinePropertyRequiresIntegerArgument(SourceLocation),
+
+    /// A state value expects a float argument but received a different expression
+    PipelinePropertyRequiresFloatArgument(SourceLocation),
 
     /// A state value received an argument that is not valid
     PipelinePropertyArgumentUnknown(SourceLocation),
@@ -1001,6 +1019,26 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
+            TyperError::StaticSamplerNotExpected(loc) => w.write_message(
+                &|f| write!(f, "static sampler not expected"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StaticSamplerUnexpectedBindingIndex(loc) => w.write_message(
+                &|f| write!(f, "static sampler has unexpected binding index"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StaticSamplerUnexpectedStorageClass(loc) => w.write_message(
+                &|f| write!(f, "static sampler has unexpected storage class"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::StaticSamplerUnexpectedProperty(property) => w.write_message(
+                &|f| write!(f, "unknown sampler property: {}", property.node),
+                property.location,
+                Severity::Error,
+            ),
             TyperError::AssertTypeInvalid(loc) => w.write_message(
                 &|f| write!(f, "invalid assert_type arguments"),
                 *loc,
@@ -1071,8 +1109,18 @@ impl CompileError for TyperExternalError {
                 *loc,
                 Severity::Error,
             ),
+            TyperError::PipelinePropertyRequiresIdentifierArgument(loc) => w.write_message(
+                &|f| write!(f, "state requires an identifier argument"),
+                *loc,
+                Severity::Error,
+            ),
             TyperError::PipelinePropertyRequiresIntegerArgument(loc) => w.write_message(
                 &|f| write!(f, "state requires an integer argument"),
+                *loc,
+                Severity::Error,
+            ),
+            TyperError::PipelinePropertyRequiresFloatArgument(loc) => w.write_message(
+                &|f| write!(f, "state requires a float argument"),
                 *loc,
                 Severity::Error,
             ),

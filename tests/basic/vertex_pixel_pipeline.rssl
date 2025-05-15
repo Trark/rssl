@@ -1,5 +1,11 @@
 const Texture2D g_input;
 const Texture3D g_unused;
+const SamplerState g_linearSampler = StaticSampler
+{
+    Filter = MIN_MAG_MIP_LINEAR;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
 const RWTexture2D<float4> g_output : register(space1);
 
 static int s_value = 0;
@@ -22,6 +28,7 @@ void VSMAIN(uint vid : SV_VertexID, uint iid : SV_InstanceID, out float4 o_pos :
 float4 PSMAIN(uint pid : SV_PrimitiveID, float2 i_texcoord : TEXCOORD, out float4 o_target0 : SV_Target0) : SV_Target1 {
     g_input;
     g_output;
+    g_linearSampler;
     o_target0 = float4(i_texcoord.xy, 0, 0);
     return float4(0, 0, 0, 0);
 }

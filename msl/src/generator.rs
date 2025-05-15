@@ -221,7 +221,8 @@ fn analyse_globals(context: &mut GenerateContext) -> Result<(), GenerateError> {
         }
 
         let is_const = context.module.type_registry.is_const(def.type_id);
-        let is_global_constant = is_const && def.storage_class == ir::GlobalStorage::Static;
+        let is_global_constant = (is_const && def.storage_class == ir::GlobalStorage::Static)
+            || def.static_sampler.is_some();
 
         let mode = if is_global_constant {
             GlobalMode::Constant
@@ -582,7 +583,105 @@ fn generate_global_constant(
     let storage_modifier = Some(ast::TypeModifier::AddressSpace(ast::AddressSpace::Constant));
     let global_type = prepend_modifiers(type_base, &[storage_modifier]);
 
-    let init = generate_initializer(&decl.init, decl.type_id, context)?;
+    let init = if let Some(static_sampler) = &decl.static_sampler {
+        assert_eq!(decl.storage_class, ir::GlobalStorage::Extern);
+
+        fn address_mode_to_str(mode: ir::SamplerAddressMode) -> &'static str {
+            match mode {
+                ir::SamplerAddressMode::Wrap => "repeat",
+                ir::SamplerAddressMode::Clamp => "clamp_to_edge",
+                ir::SamplerAddressMode::Border => "clamp_to_border",
+            }
+        }
+
+        Some(ast::Initializer::Expression(Located::none(
+            ast::Expression::Call(
+                Box::new(Located::none(ast::Expression::Identifier(
+                    metal_lib_identifier("sampler"),
+                ))),
+                Vec::new(),
+                Vec::from([
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &["s_address", address_mode_to_str(static_sampler.address_u)],
+                    ))),
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &["t_address", address_mode_to_str(static_sampler.address_v)],
+                    ))),
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &["r_address", address_mode_to_str(static_sampler.address_w)],
+                    ))),
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &[
+                            "min_filter",
+                            match static_sampler.filter {
+                                ir::SamplerFilterMode::Point => "nearest",
+                                ir::SamplerFilterMode::Linear => "linear",
+                            },
+                        ],
+                    ))),
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &[
+                            "mag_filter",
+                            match static_sampler.filter {
+                                ir::SamplerFilterMode::Point => "nearest",
+                                ir::SamplerFilterMode::Linear => "linear",
+                            },
+                        ],
+                    ))),
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &[
+                            "mip_filter",
+                            match static_sampler.filter {
+                                ir::SamplerFilterMode::Point => "nearest",
+                                ir::SamplerFilterMode::Linear => "linear",
+                            },
+                        ],
+                    ))),
+                    Located::none(ast::Expression::Identifier(metal_lib_identifier_complex(
+                        &[
+                            "compare_func",
+                            match static_sampler.compare_func {
+                                ir::SamplerCompareFunc::None => "never",
+                                ir::SamplerCompareFunc::Never => "never",
+                                ir::SamplerCompareFunc::Less => "less",
+                                ir::SamplerCompareFunc::Equal => "equal",
+                                ir::SamplerCompareFunc::LessEqual => "less_equal",
+                                ir::SamplerCompareFunc::Greater => "greater",
+                                ir::SamplerCompareFunc::NotEqual => "not_equal",
+                                ir::SamplerCompareFunc::GreaterEqual => "greater_equal",
+                                ir::SamplerCompareFunc::Always => "always",
+                            },
+                        ],
+                    ))),
+                    Located::none(ast::Expression::Call(
+                        Box::new(Located::none(ast::Expression::Identifier(
+                            metal_lib_identifier("max_anisotropy"),
+                        ))),
+                        Vec::new(),
+                        Vec::from([Located::none(ast::Expression::Literal(
+                            ast::Literal::IntUnsigned32(static_sampler.max_anisotropy as u64),
+                        ))]),
+                    )),
+                    Located::none(ast::Expression::Call(
+                        Box::new(Located::none(ast::Expression::Identifier(
+                            metal_lib_identifier("lod_clamp"),
+                        ))),
+                        Vec::new(),
+                        Vec::from([
+                            Located::none(ast::Expression::Literal(ast::Literal::Float32(
+                                static_sampler.lod_clamp_min,
+                            ))),
+                            Located::none(ast::Expression::Literal(ast::Literal::Float32(
+                                static_sampler.lod_clamp_max,
+                            ))),
+                        ]),
+                    )),
+                ]),
+            ),
+        )))
+    } else {
+        generate_initializer(&decl.init, decl.type_id, context)?
+    };
 
     let init_declarator = ast::InitDeclarator {
         declarator,

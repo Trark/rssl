@@ -422,7 +422,7 @@ pub struct TypeModifier {
 /// Storage type for global variables
 #[derive(PartialEq, Eq, Copy, Clone, Default)]
 pub enum GlobalStorage {
-    // Input from outside the shader (default)
+    /// Input from outside the shader (default)
     #[default]
     Extern,
 
@@ -972,6 +972,22 @@ impl Constant {
             Constant::UInt32(v) => Some(*v as u64),
             Constant::Int64(v) if *v >= 0 => Some(*v as u64),
             Constant::UInt64(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    /// Cast a constant to a f32 value
+    pub fn to_f32(&self) -> Option<f32> {
+        match self {
+            Constant::Bool(v) => Some(f32::from(*v)),
+            Constant::IntLiteral(v) if *v <= f32::MAX as i128 => Some(*v as f32),
+            Constant::Int32(v) if *v >= 0 => Some(*v as f32),
+            Constant::UInt32(v) => Some(*v as f32),
+            Constant::Int64(v) if *v >= 0 => Some(*v as f32),
+            Constant::UInt64(v) => Some(*v as f32),
+            Constant::Float16(v) => Some(*v),
+            Constant::Float32(v) => Some(*v),
+            Constant::Float64(v) => Some(*v as f32),
             _ => None,
         }
     }

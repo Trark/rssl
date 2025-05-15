@@ -83,11 +83,13 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
             require_slot_type: false,
             support_buffer_address: args.support_buffer_address,
             metal_slot_layout: false,
+            static_samplers_have_slots: true,
         },
         Target::Msl | Target::MetalBytecode => AssignBindingsParams {
             require_slot_type: false,
             support_buffer_address: false,
             metal_slot_layout: true,
+            static_samplers_have_slots: false,
         },
     };
 

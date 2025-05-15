@@ -1147,6 +1147,13 @@ fn format_initializer_inner(
             }
             output.push_str(" }");
         }
+        ast::Initializer::StaticSampler(_) => {
+            if context.target == Target::Rssl {
+                panic!("static sampler definitions are not supported in formatter");
+            } else {
+                panic!("static sampler definitions are not supported outside of RSSL");
+            }
+        }
     }
     Ok(())
 }

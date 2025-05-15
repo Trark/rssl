@@ -1,13 +1,13 @@
-pub use crate::ApiLocation;
+pub use crate::{ApiLocation, StaticSampler};
 
 /// Description of a shader pipeline
-#[derive(Clone, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug)]
 pub struct PipelineDescription {
     pub bind_groups: Vec<BindGroup>,
 }
 
 /// Group of bindings
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct BindGroup {
     /// Bindings of resource views
     pub bindings: Vec<DescriptorBinding>,
@@ -17,7 +17,7 @@ pub struct BindGroup {
 }
 
 /// Individual binding of a resource
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct DescriptorBinding {
     /// Name of the binding
     pub name: String,
@@ -36,10 +36,13 @@ pub struct DescriptorBinding {
 
     /// If the descriptor is used by the shader
     pub is_used: bool,
+
+    /// If the descriptor is a static sampler then the parameters
+    pub static_sampler: Option<Box<StaticSampler>>,
 }
 
 /// Type of a descriptor
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum DescriptorType {
     /// A constant buffer object - for constants stored in a buffer
     ConstantBuffer,
@@ -109,7 +112,7 @@ pub enum DescriptorType {
 }
 
 /// A definition of a constant buffer that serves other bindings
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+#[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub struct InlineConstantBuffer {
     /// Api binding slot
     pub api_location: u32,

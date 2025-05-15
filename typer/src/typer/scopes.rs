@@ -624,6 +624,7 @@ impl Context {
             lang_slot: ir::LanguageBinding::default(),
             api_slot: None,
             init: None,
+            static_sampler: None,
             constexpr_value: None,
             is_intrinsic: false,
             is_bindless: false,

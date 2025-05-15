@@ -364,6 +364,7 @@ pub fn add_intrinsics(module: &mut Module) {
                 lang_slot: LanguageBinding::default(),
                 api_slot: None,
                 init: None,
+                static_sampler: None,
                 constexpr_value: value,
                 is_intrinsic: true,
                 is_bindless: false,

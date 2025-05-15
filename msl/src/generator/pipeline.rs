@@ -484,7 +484,14 @@ pub(crate) fn generate_pipeline(
                         )));
                     }
                     ImplicitFunctionParameter::Global(ref gid) => {
-                        match context.module.global_registry[gid.0 as usize].storage_class {
+                        let var = &context.module.global_registry[gid.0 as usize];
+                        let remapped_class = match var.storage_class {
+                            ir::GlobalStorage::Extern if var.static_sampler.is_some() => {
+                                ir::GlobalStorage::Static
+                            }
+                            v => v,
+                        };
+                        match remapped_class {
                             ir::GlobalStorage::Extern => {
                                 match context.global_variable_modes.get(gid).unwrap() {
                                     GlobalMode::Parameter { .. } => {
@@ -957,6 +964,8 @@ fn analyse_bindings(
                     descriptor_count,
                     is_bindless: decl.is_bindless,
                     is_used: true, // We will update this later
+                    // Static samplers are in source code so are not reflected
+                    static_sampler: None,
                 };
 
                 layout.register_binding(api_slot.set, binding, *id);

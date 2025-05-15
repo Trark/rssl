@@ -390,6 +390,39 @@ fn test_global_variable() {
         },
     );
 }
+#[test]
+fn test_sampler_state() {
+    use test_support::*;
+    let globalvariable = ParserTester::new(parse_global_variable);
+
+    let s = "SamplerState s = StaticSampler { Filter = MIN_MAG_MIP_LINEAR; };";
+    globalvariable.check(
+        s,
+        GlobalVariable {
+            global_type: Type::from("SamplerState".loc(0)),
+            defs: Vec::from([InitDeclarator {
+                declarator: Declarator::Identifier(
+                    ScopedIdentifier {
+                        base: ScopedIdentifierBase::Relative,
+                        identifiers: Vec::from(["s".to_string().loc(13)]),
+                    },
+                    Vec::new(),
+                ),
+                location_annotations: Vec::new(),
+                init: Some(Initializer::StaticSampler(Vec::from([PipelineProperty {
+                    property: String::from("Filter").loc(33),
+                    value: Located::new(
+                        PipelinePropertyValue::Single(Expression::Identifier(
+                            ScopedIdentifier::from("MIN_MAG_MIP_LINEAR".loc(42)),
+                        )),
+                        SourceLocation::first().offset(42),
+                    ),
+                }]))),
+            }]),
+            attributes: Vec::new(),
+        },
+    );
+}
 
 #[test]
 fn test_constant_buffer() {

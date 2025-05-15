@@ -48,6 +48,7 @@ fn parse_from_str(source: &str) -> (rssl_ir::Module, SourceManager) {
         require_slot_type: false,
         support_buffer_address: false,
         metal_slot_layout: true,
+        static_samplers_have_slots: false,
     });
 
     // Remove explicit cbuffer as the exporter only supports object types

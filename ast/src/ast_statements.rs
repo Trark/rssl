@@ -61,6 +61,8 @@ pub enum Initializer {
     Expression(Located<Expression>),
     /// Variable is initialized in parts (composite types and arrays)
     Aggregate(Vec<Initializer>),
+    /// Global is initialised with a static sampler
+    StaticSampler(Vec<PipelineProperty>),
 }
 
 /// An attribute that is applied to a block of code

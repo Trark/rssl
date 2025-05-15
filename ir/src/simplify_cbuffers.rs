@@ -55,6 +55,7 @@ pub fn simplify_cbuffers(module: &mut Module) {
             lang_slot: cbuffer.lang_binding,
             api_slot: cbuffer.api_binding,
             init: None,
+            static_sampler: None,
             constexpr_value: None,
             is_intrinsic: false,
             is_bindless: false,

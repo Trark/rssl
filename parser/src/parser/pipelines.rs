@@ -38,6 +38,14 @@ fn parse_pipeline_property(input: &[LexToken]) -> ParseResult<PipelineProperty> 
     Ok((input, pp))
 }
 
+/// Parse a static sampler definition
+pub fn parse_static_sampler_properties(input: &[LexToken]) -> ParseResult<Vec<PipelineProperty>> {
+    let (input, _) = parse_token(Token::LeftBrace)(input)?;
+    let (input, properties) = parse_multiple(parse_pipeline_property)(input)?;
+    let (input, _) = parse_token(Token::RightBrace)(input)?;
+    Ok((input, properties))
+}
+
 #[test]
 fn test_pipeline() {
     use test_support::*;

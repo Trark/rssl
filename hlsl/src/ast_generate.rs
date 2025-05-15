@@ -84,6 +84,7 @@ fn analyse_bindings(
                     descriptor_count: Some(1),
                     is_bindless: false,
                     is_used: true, // We do not currently check for usage
+                    static_sampler: None,
                 };
 
                 context.register_binding(api_slot.set, binding);
@@ -173,6 +174,7 @@ fn analyse_bindings(
                     descriptor_count,
                     is_bindless: decl.is_bindless,
                     is_used: true, // We do not currently check for usage
+                    static_sampler: decl.static_sampler.clone().map(Box::new),
                 };
 
                 context.register_binding(api_slot.set, binding);

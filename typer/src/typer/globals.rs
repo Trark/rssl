@@ -40,8 +40,26 @@ pub fn parse_rootdefinition_globalvariable(
         }
 
         // Parse the initializer
-        let var_init =
-            parse_initializer_opt(&global_variable.init, type_id, name.get_location(), context)?;
+        let var_init;
+        let static_sampler;
+        if let Some(ast::Initializer::StaticSampler(properties)) = &global_variable.init {
+            var_init = None;
+            static_sampler = Some(super::pipelines::parse_static_sampler(properties, context)?);
+            // Ensure the sampler is an extern
+            if storage_class != ir::GlobalStorage::Extern {
+                return Err(TyperError::StaticSamplerUnexpectedStorageClass(
+                    name.location,
+                ));
+            }
+        } else {
+            var_init = parse_initializer_opt(
+                &global_variable.init,
+                type_id,
+                name.get_location(),
+                context,
+            )?;
+            static_sampler = None;
+        }
 
         // Attempt to resolve the initializer as a constant expression
         let evaluated_value = (|| {
@@ -127,10 +145,17 @@ pub fn parse_rootdefinition_globalvariable(
         }
 
         gv_ir.init = var_init;
+        gv_ir.static_sampler = static_sampler;
 
         gv_ir.constexpr_value = evaluated_value;
 
         gv_ir.is_bindless = attribute_result.is_bindless;
+
+        if gv_ir.static_sampler.is_some() && gv_ir.lang_slot.index.is_some() {
+            return Err(TyperError::StaticSamplerUnexpectedBindingIndex(
+                name.location,
+            ));
+        }
 
         defs.push(ir::RootDefinition::GlobalVariable(var_id));
     }
