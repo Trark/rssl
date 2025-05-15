@@ -140,7 +140,7 @@ fn check_float_literal() {
     check("static const float x = 0.5;", "constant float x = 0.5f;\n");
     check(
         "static const float x = 3.402823466e+38f;",
-        "constant float x = 340282350000000000000000000000000000000.0f;\n",
+        "constant float x = FLT_MAX;\n",
     );
     check(
         "static const float x = -3.402823466e+38f;",

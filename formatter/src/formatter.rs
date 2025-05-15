@@ -644,6 +644,9 @@ fn format_literal(
             output.push('-');
             write_infinity_f32(output, context);
         }
+        ast::Literal::Float32(v) if *v == f32::MAX && context.target == Target::Msl => {
+            output.write_str("FLT_MAX").unwrap()
+        }
         ast::Literal::Float32(v) if *v == (*v as i64 as f32) => {
             write!(output, "{}.0f", *v as i64).unwrap()
         }
