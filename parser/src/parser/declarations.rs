@@ -3,12 +3,12 @@ use super::*;
 use crate::parser::types::parse_type_modifiers_after;
 
 /// Parse multiple declarators on a declaration
-pub fn parse_init_declarators(input: &[LexToken]) -> ParseResult<Vec<InitDeclarator>> {
+pub fn parse_init_declarators(input: &[LexToken]) -> ParseResult<'_, Vec<InitDeclarator>> {
     parse_list_nonempty(parse_token(Token::Comma), parse_init_declarator)(input)
 }
 
 /// Parse the declarator and initialiser of a declaration
-fn parse_init_declarator(input: &[LexToken]) -> ParseResult<InitDeclarator> {
+fn parse_init_declarator(input: &[LexToken]) -> ParseResult<'_, InitDeclarator> {
     let (input, declarator) = parse_declarator(input)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
     let (input, init) = parse_initializer(input)?;
@@ -21,12 +21,12 @@ fn parse_init_declarator(input: &[LexToken]) -> ParseResult<InitDeclarator> {
 }
 
 /// Parse the declarator part of a declaration
-pub fn parse_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
+pub fn parse_declarator(input: &[LexToken]) -> ParseResult<'_, Declarator> {
     parse_declarator_internal(input, false)
 }
 
 /// Parse the declarator part of a type id
-pub fn parse_abstract_declarator(input: &[LexToken]) -> ParseResult<Declarator> {
+pub fn parse_abstract_declarator(input: &[LexToken]) -> ParseResult<'_, Declarator> {
     parse_declarator_internal(input, true)
 }
 
@@ -34,7 +34,7 @@ pub fn parse_abstract_declarator(input: &[LexToken]) -> ParseResult<Declarator> 
 fn parse_declarator_internal(
     input: &[LexToken],
     abstract_declarator: bool,
-) -> ParseResult<Declarator> {
+) -> ParseResult<'_, Declarator> {
     if let Ok((input, _)) = parse_token(Token::Asterix)(input) {
         let (input, attributes) = parse_multiple(parse_attribute)(input)?;
 
@@ -93,7 +93,7 @@ fn parse_declarator_internal(
 }
 
 /// Parse register(), packoffset(), and semantic annotations
-pub fn parse_location_annotation(input: &[LexToken]) -> ParseResult<LocationAnnotation> {
+pub fn parse_location_annotation(input: &[LexToken]) -> ParseResult<'_, LocationAnnotation> {
     // Attempt to consume a :
     // If successful then we expect to parse some form of annotation
     let input = match parse_token(Token::Colon)(input) {
@@ -118,7 +118,7 @@ pub fn parse_location_annotation(input: &[LexToken]) -> ParseResult<LocationAnno
 }
 
 /// Parse a register slot for a resource
-fn parse_register(input: &[LexToken]) -> ParseResult<Register> {
+fn parse_register(input: &[LexToken]) -> ParseResult<'_, Register> {
     let (input, _) = parse_token(Token::Register)(input)?;
     let (input, _) = parse_token(Token::LeftParen)(input)?;
     let identifier_input_start = input;
@@ -197,23 +197,19 @@ fn parse_register(input: &[LexToken]) -> ParseResult<Register> {
 /// Attempt to turn a space identifier into a space index
 fn parse_space_identifier(space_identifier: &str) -> Option<u32> {
     if let Some(index_string) = space_identifier.strip_prefix("space") {
-        if let Ok(index) = index_string.parse::<u32>() {
-            Some(index)
-        } else {
-            None
-        }
+        index_string.parse::<u32>().ok()
     } else {
         None
     }
 }
 
 /// Parse a packoffset annotation
-pub fn parse_packoffset(_: &[LexToken]) -> ParseResult<PackOffset> {
+pub fn parse_packoffset(_: &[LexToken]) -> ParseResult<'_, PackOffset> {
     unimplemented!("packoffset")
 }
 
 /// Parse a semantic
-pub fn parse_semantic(input: &[LexToken]) -> ParseResult<Semantic> {
+pub fn parse_semantic(input: &[LexToken]) -> ParseResult<'_, Semantic> {
     match input.first() {
         Some(LexToken(Token::Id(Identifier(name)), _)) => {
             let semantic = match name[..].to_lowercase().as_str() {

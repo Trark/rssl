@@ -172,12 +172,12 @@ struct LexErrorContext<'b>(&'b [u8], LexerErrorReason);
 type LexResult<'b, O> = Result<(&'b [u8], O), LexErrorContext<'b>>;
 
 /// Make an error for when the wrong characters were encountered to parse a certain token
-fn wrong_chars<T>(input: &[u8]) -> LexResult<T> {
+fn wrong_chars<T>(input: &[u8]) -> LexResult<'_, T> {
     Err(LexErrorContext(input, LexerErrorReason::UnexpectedBytes))
 }
 
 /// Make an error for when the characters are encountered which indicate we are another token
-fn other_token_chars<T>(input: &[u8]) -> LexResult<T> {
+fn other_token_chars<T>(input: &[u8]) -> LexResult<'_, T> {
     Err(LexErrorContext(input, LexerErrorReason::OtherTokenBytes))
 }
 
@@ -230,7 +230,7 @@ fn choose<'b, T: std::fmt::Debug>(lex_fns: &[DynLexFn<T>], input: &'b [u8]) -> L
 }
 
 /// Parse a single decimal digit
-fn digit(input: &[u8]) -> LexResult<u64> {
+fn digit(input: &[u8]) -> LexResult<'_, u64> {
     // Handle end of stream
     if input.is_empty() {
         return end_of_stream();
@@ -259,7 +259,7 @@ fn digit(input: &[u8]) -> LexResult<u64> {
 }
 
 /// Parse multiple decimal digits into a 64-bit value
-fn digits(input: &[u8]) -> LexResult<u64> {
+fn digits(input: &[u8]) -> LexResult<'_, u64> {
     let (mut input, mut value) = digit(input)?;
     while let Ok((next_input, d)) = digit(input) {
         input = next_input;
@@ -277,7 +277,7 @@ fn test_digits() {
 }
 
 /// Parse a single hexadecimal digit
-fn digit_hex(input: &[u8]) -> LexResult<u64> {
+fn digit_hex(input: &[u8]) -> LexResult<'_, u64> {
     // Handle end of stream
     if input.is_empty() {
         return end_of_stream();
@@ -318,7 +318,7 @@ fn digit_hex(input: &[u8]) -> LexResult<u64> {
 }
 
 /// Parse multiple hexadecimal digits into a 64-bit value
-fn digits_hex(input: &[u8]) -> LexResult<u64> {
+fn digits_hex(input: &[u8]) -> LexResult<'_, u64> {
     let (mut input, mut value) = digit_hex(input)?;
     while let Ok((next_input, d)) = digit_hex(input) {
         input = next_input;
@@ -336,7 +336,7 @@ fn test_digits_hex() {
 }
 
 /// Parse a single octal digit
-fn digit_octal(input: &[u8]) -> LexResult<u64> {
+fn digit_octal(input: &[u8]) -> LexResult<'_, u64> {
     // Handle end of stream
     if input.is_empty() {
         return end_of_stream();
@@ -363,7 +363,7 @@ fn digit_octal(input: &[u8]) -> LexResult<u64> {
 }
 
 /// Parse multiple octal digits into a 64-bit value
-fn digits_octal(input: &[u8]) -> LexResult<u64> {
+fn digits_octal(input: &[u8]) -> LexResult<'_, u64> {
     let (mut input, mut value) = digit_octal(input)?;
     while let Ok((next_input, d)) = digit_octal(input) {
         input = next_input;
@@ -388,7 +388,7 @@ enum IntType {
 }
 
 /// Parse an integer literal suffix
-fn int_type(input: &[u8]) -> LexResult<IntType> {
+fn int_type(input: &[u8]) -> LexResult<'_, IntType> {
     match input {
         [b'u' | b'U', b'l' | b'L', rest @ ..] => Ok((rest, IntType::Unsigned64)),
         [b'l' | b'L', b'u' | b'U', rest @ ..] => Ok((rest, IntType::Unsigned64)),
@@ -399,7 +399,7 @@ fn int_type(input: &[u8]) -> LexResult<IntType> {
 }
 
 /// Parse a decimal literal
-fn literal_decimal_int(input: &[u8]) -> LexResult<Token> {
+fn literal_decimal_int(input: &[u8]) -> LexResult<'_, Token> {
     let (input, value) = digits(input)?;
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
@@ -412,7 +412,7 @@ fn literal_decimal_int(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a hexadecimal literal
-fn literal_hex_int(input: &[u8]) -> LexResult<Token> {
+fn literal_hex_int(input: &[u8]) -> LexResult<'_, Token> {
     let (input, value) = digits_hex(input)?;
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
@@ -425,7 +425,7 @@ fn literal_hex_int(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse an octal literal
-fn literal_octal_int(input: &[u8]) -> LexResult<Token> {
+fn literal_octal_int(input: &[u8]) -> LexResult<'_, Token> {
     let (input, value) = digits_octal(input)?;
     let (input, int_type_opt) = opt(int_type)(input)?;
     let token = match int_type_opt {
@@ -438,7 +438,7 @@ fn literal_octal_int(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse an integer literal
-fn literal_int(input: &[u8]) -> LexResult<Token> {
+fn literal_int(input: &[u8]) -> LexResult<'_, Token> {
     if input.starts_with(b"0x") {
         literal_hex_int(&input[2..])
     } else if input.starts_with(b"0") && (digit_octal(&input[1..]).is_ok()) {
@@ -475,7 +475,7 @@ fn test_literal_int() {
 }
 
 /// Parse a literal string
-fn literal_string(input: &[u8]) -> LexResult<Token> {
+fn literal_string(input: &[u8]) -> LexResult<'_, Token> {
     if let Some((b'"', rest)) = input.split_first() {
         let end_res = rest.iter().position(|c| *c == b'"');
         match end_res {
@@ -505,7 +505,7 @@ fn literal_string(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a header name inside <>
-fn header_name(input: &[u8]) -> LexResult<Token> {
+fn header_name(input: &[u8]) -> LexResult<'_, Token> {
     if let Some((b'<', rest)) = input.split_first() {
         let end_res = rest.iter().position(|c| *c == b'>');
         match end_res {
@@ -571,7 +571,7 @@ fn test_literal_string() {
 type DigitSequence = Vec<u64>;
 
 /// Parse a sequence of digits into an array
-fn digit_sequence(input: &[u8]) -> LexResult<DigitSequence> {
+fn digit_sequence(input: &[u8]) -> LexResult<'_, DigitSequence> {
     let (mut input, first) = digit(input)?;
     let mut digits = Vec::from([first]);
     while let Ok((rest, next)) = digit(input) {
@@ -585,7 +585,7 @@ fn digit_sequence(input: &[u8]) -> LexResult<DigitSequence> {
 struct Fraction(DigitSequence, DigitSequence);
 
 /// Parse the main fractional parts of a float literal
-fn fractional_constant(input: &[u8]) -> LexResult<Fraction> {
+fn fractional_constant(input: &[u8]) -> LexResult<'_, Fraction> {
     let (input, whole_part) = opt(digit_sequence)(input)?;
     let (input, _) = specific_text(input, ".")?;
 
@@ -610,7 +610,7 @@ enum FloatType {
 }
 
 /// Parse a float literal
-fn float_type(input: &[u8]) -> LexResult<FloatType> {
+fn float_type(input: &[u8]) -> LexResult<'_, FloatType> {
     // Match on the first character
     let n = match input.first() {
         Some(b'h') | Some(b'H') => FloatType::Half,
@@ -630,7 +630,7 @@ enum Sign {
 }
 
 /// Parse a sign marker
-fn sign(input: &[u8]) -> LexResult<Sign> {
+fn sign(input: &[u8]) -> LexResult<'_, Sign> {
     match input.first() {
         Some(b'+') => Ok((&input[1..], Sign::Positive)),
         Some(b'-') => Ok((&input[1..], Sign::Negative)),
@@ -643,7 +643,7 @@ fn sign(input: &[u8]) -> LexResult<Sign> {
 struct Exponent(i64);
 
 /// Parse an exponent in a float literal
-fn float_exponent(input: &[u8]) -> LexResult<Exponent> {
+fn float_exponent(input: &[u8]) -> LexResult<'_, Exponent> {
     let input = match input {
         [b'e', ..] | [b'E', ..] => &input[1..],
         _ => return wrong_chars(input),
@@ -710,7 +710,7 @@ fn calculate_float64_from_parts(left: DigitSequence, right: DigitSequence, expon
 }
 
 /// Parse a float literal
-fn literal_float(input: &[u8]) -> LexResult<Token> {
+fn literal_float(input: &[u8]) -> LexResult<'_, Token> {
     let base_input = input;
 
     // First try to parse a fraction
@@ -871,7 +871,7 @@ fn test_literal_float() {
 }
 
 /// Parse the first character of an identifier
-fn identifier_firstchar(input: &[u8]) -> LexResult<u8> {
+fn identifier_firstchar(input: &[u8]) -> LexResult<'_, u8> {
     if input.is_empty() {
         end_of_stream()
     } else {
@@ -884,7 +884,7 @@ fn identifier_firstchar(input: &[u8]) -> LexResult<u8> {
 }
 
 /// Parse characters in an identifier after the first
-fn identifier_char(input: &[u8]) -> LexResult<u8> {
+fn identifier_char(input: &[u8]) -> LexResult<'_, u8> {
     if input.is_empty() {
         end_of_stream()
     } else {
@@ -897,7 +897,7 @@ fn identifier_char(input: &[u8]) -> LexResult<u8> {
 }
 
 /// Parse an identifier or a keyword as an identifier
-fn identifier(input: &[u8]) -> LexResult<Identifier> {
+fn identifier(input: &[u8]) -> LexResult<'_, Identifier> {
     let mut chars = Vec::new();
     let first_result = identifier_firstchar(input);
 
@@ -926,7 +926,7 @@ fn identifier(input: &[u8]) -> LexResult<Identifier> {
 }
 
 /// Parse an identifier or keyword
-fn any_word(input: &[u8]) -> LexResult<Token> {
+fn any_word(input: &[u8]) -> LexResult<'_, Token> {
     let (stream, id) = identifier(input)?;
 
     let tok = match id.0.as_str() {
@@ -999,7 +999,7 @@ fn specific_text<'a>(input: &'a [u8], text: &'static str) -> LexResult<'a, &'a [
 }
 
 /// Parse trivial whitespace
-fn whitespace_simple(input: &[u8]) -> LexResult<Token> {
+fn whitespace_simple(input: &[u8]) -> LexResult<'_, Token> {
     match input {
         [b' ', rest @ ..] | [b'\t', rest @ ..] => Ok((rest, Token::Whitespace)),
         _ => other_token_chars(input),
@@ -1007,7 +1007,7 @@ fn whitespace_simple(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse trivial whitespace
-fn whitespace_endline(input: &[u8]) -> LexResult<Token> {
+fn whitespace_endline(input: &[u8]) -> LexResult<'_, Token> {
     match input {
         // File has an actual line ending but it is ignored and treated as normal whitespace
         [b'\\', b'\r', b'\n', rest @ ..] | [b'\\', b'\n', rest @ ..] => {
@@ -1020,7 +1020,7 @@ fn whitespace_endline(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a line comment
-fn line_comment(input: &[u8]) -> LexResult<Token> {
+fn line_comment(input: &[u8]) -> LexResult<'_, Token> {
     if input.starts_with(b"//") {
         let mut pos = 2;
         while pos < input.len() {
@@ -1038,7 +1038,7 @@ fn line_comment(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a block comment
-fn block_comment(input: &[u8]) -> LexResult<Token> {
+fn block_comment(input: &[u8]) -> LexResult<'_, Token> {
     if input.starts_with(b"/*") {
         // Find the end of the block
         // We do not supported nested blocks
@@ -1091,7 +1091,7 @@ fn test_whitespace() {
 }
 
 /// Peek at what token is coming next unless there is whitespace
-fn lookahead_token(input: &[u8]) -> LexResult<Option<Token>> {
+fn lookahead_token(input: &[u8]) -> LexResult<'_, Option<Token>> {
     match token_intermediate(input, false) {
         Ok((_, o)) => Ok((input, Some(o))),
         Err(_) => Ok((input, None)),
@@ -1099,7 +1099,7 @@ fn lookahead_token(input: &[u8]) -> LexResult<Option<Token>> {
 }
 
 /// Parse a < token
-fn leftanglebracket(input: &[u8]) -> LexResult<Token> {
+fn leftanglebracket(input: &[u8]) -> LexResult<'_, Token> {
     match input.first() {
         Some(b'<') => {
             let input = &input[1..];
@@ -1133,7 +1133,7 @@ fn test_leftanglebracket() {
 }
 
 /// Parse a > token
-fn rightanglebracket(input: &[u8]) -> LexResult<Token> {
+fn rightanglebracket(input: &[u8]) -> LexResult<'_, Token> {
     match input.first() {
         Some(b'>') => {
             let input = &input[1..];
@@ -1167,7 +1167,7 @@ fn test_rightanglebracket() {
 }
 
 /// Parse a single character symbol into a token
-fn symbol_single(op_char: u8, op_token: Token) -> impl Fn(&[u8]) -> LexResult<Token> {
+fn symbol_single(op_char: u8, op_token: Token) -> impl Fn(&[u8]) -> LexResult<'_, Token> {
     move |input: &[u8]| match input {
         [c, ..] if *c == op_char => Ok((&input[1..], op_token.clone())),
         _ => other_token_chars(input),
@@ -1180,7 +1180,7 @@ fn symbol_op_or_op_equals(
     op_token: Token,
     op_equals_token: Token,
     op_op_token: Token,
-) -> impl Fn(&[u8]) -> LexResult<Token> {
+) -> impl Fn(&[u8]) -> LexResult<'_, Token> {
     move |input: &[u8]| match input {
         [c, b'=', ..] if *c == op_char && op_equals_token != Token::Eof => {
             Ok((&input[2..], op_equals_token.clone()))
@@ -1194,17 +1194,17 @@ fn symbol_op_or_op_equals(
 }
 
 /// Parse a = or == token
-fn symbol_equals(input: &[u8]) -> LexResult<Token> {
+fn symbol_equals(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'=', Token::Equals, Token::EqualsEquals, Token::Eof)(input)
 }
 
 /// Parse a # or ## token
-fn symbol_hash(input: &[u8]) -> LexResult<Token> {
+fn symbol_hash(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'#', Token::Hash, Token::Eof, Token::HashHash)(input)
 }
 
 /// Parse a : or :: token
-fn symbol_colon(input: &[u8]) -> LexResult<Token> {
+fn symbol_colon(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b':', Token::Colon, Token::Eof, Token::ScopeResolution)(input)
 }
 
@@ -1221,17 +1221,17 @@ fn test_symbol_equals() {
 }
 
 /// Parse a + token
-fn symbol_plus(input: &[u8]) -> LexResult<Token> {
+fn symbol_plus(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'+', Token::Plus, Token::PlusEquals, Token::PlusPlus)(input)
 }
 
 /// Parse a - token
-fn symbol_minus(input: &[u8]) -> LexResult<Token> {
+fn symbol_minus(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'-', Token::Minus, Token::MinusEquals, Token::MinusMinus)(input)
 }
 
 /// Parse a / token
-fn symbol_forward_slash(input: &[u8]) -> LexResult<Token> {
+fn symbol_forward_slash(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(
         b'/',
         Token::ForwardSlash,
@@ -1241,17 +1241,17 @@ fn symbol_forward_slash(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a % token
-fn symbol_percent(input: &[u8]) -> LexResult<Token> {
+fn symbol_percent(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'%', Token::Percent, Token::PercentEquals, Token::Eof)(input)
 }
 
 /// Parse a * token
-fn symbol_asterix(input: &[u8]) -> LexResult<Token> {
+fn symbol_asterix(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'*', Token::Asterix, Token::AsterixEquals, Token::Eof)(input)
 }
 
 /// Parse a & token
-fn symbol_ampersand(input: &[u8]) -> LexResult<Token> {
+fn symbol_ampersand(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(
         b'&',
         Token::Ampersand,
@@ -1261,7 +1261,7 @@ fn symbol_ampersand(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a | token
-fn symbol_verticalbar(input: &[u8]) -> LexResult<Token> {
+fn symbol_verticalbar(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(
         b'|',
         Token::VerticalBar,
@@ -1271,12 +1271,12 @@ fn symbol_verticalbar(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a ^ token
-fn symbol_hat(input: &[u8]) -> LexResult<Token> {
+fn symbol_hat(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(b'^', Token::Hat, Token::HatEquals, Token::Eof)(input)
 }
 
 /// Parse a ! or != token
-fn symbol_exclamation(input: &[u8]) -> LexResult<Token> {
+fn symbol_exclamation(input: &[u8]) -> LexResult<'_, Token> {
     symbol_op_or_op_equals(
         b'!',
         Token::ExclamationPoint,
@@ -1313,7 +1313,7 @@ fn test_symbol_ampersand() {
 }
 
 /// Parse symbol into a token
-fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
+fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<'_, Token> {
     choose(
         &[
             &symbol_single(b';', Token::Semicolon),
@@ -1340,7 +1340,7 @@ fn token_no_whitespace_symbols(input: &[u8]) -> LexResult<Token> {
 }
 
 /// Parse a single token - without a location
-fn token_intermediate(input: &[u8], inside_include: bool) -> LexResult<Token> {
+fn token_intermediate(input: &[u8], inside_include: bool) -> LexResult<'_, Token> {
     match input.first() {
         Some(b'0'..=b'9') => {
             // Numeric token

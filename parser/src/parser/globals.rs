@@ -3,7 +3,7 @@ use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a single line in a constant buffer definition
-fn parse_constant_variable(input: &[LexToken]) -> ParseResult<ConstantVariable> {
+fn parse_constant_variable(input: &[LexToken]) -> ParseResult<'_, ConstantVariable> {
     let (input, typename) = parse_type(input)?;
     let (input, defs) = parse_init_declarators(input)?;
     let (input, _) = parse_token(Token::Semicolon)(input)?;
@@ -35,7 +35,7 @@ fn test_constant_variable() {
 }
 
 /// Parse a constant buffer definition
-pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<ConstantBuffer> {
+pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<'_, ConstantBuffer> {
     let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, _) = parse_token(Token::ConstantBuffer)(input)?;
     let (input, name) = parse_variable_name(input)?;
@@ -53,7 +53,7 @@ pub fn parse_constant_buffer(input: &[LexToken]) -> ParseResult<ConstantBuffer> 
 }
 
 /// Parse a global variable definition
-pub fn parse_global_variable(input: &[LexToken]) -> ParseResult<GlobalVariable> {
+pub fn parse_global_variable(input: &[LexToken]) -> ParseResult<'_, GlobalVariable> {
     let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, typename) = parse_type(input)?;
     let (input, defs) = parse_init_declarators(input)?;

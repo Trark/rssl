@@ -3,7 +3,7 @@ use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a struct member variable - with potentially multiple members per line
-fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
+fn parse_struct_member(input: &[LexToken]) -> ParseResult<'_, StructMember> {
     let (input, attributes) = parse_multiple(parse_attribute)(input)?;
     let (input, typename) = parse_type(input)?;
     let (input, defs) = parse_init_declarators(input)?;
@@ -17,7 +17,7 @@ fn parse_struct_member(input: &[LexToken]) -> ParseResult<StructMember> {
 }
 
 /// Parse a struct member variable or method
-fn parse_struct_entry(input: &[LexToken]) -> ParseResult<StructEntry> {
+fn parse_struct_entry(input: &[LexToken]) -> ParseResult<'_, StructEntry> {
     let variable_res =
         parse_struct_member(input).map(|(input, def)| (input, StructEntry::Variable(def)));
     let method_res =
@@ -28,7 +28,7 @@ fn parse_struct_entry(input: &[LexToken]) -> ParseResult<StructEntry> {
 }
 
 /// Parse a full struct definition
-pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<StructDefinition> {
+pub fn parse_struct_definition(input: &[LexToken]) -> ParseResult<'_, StructDefinition> {
     let (input, template_params) = parse_template_params(input)?;
     let (input, _) = parse_token(Token::Struct)(input)?;
     let (input, name) = parse_variable_name(input)?;

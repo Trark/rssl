@@ -4,6 +4,8 @@
 
 mod casting;
 mod evaluator;
+
+#[allow(clippy::result_large_err)]
 mod typer;
 
 pub use typer::type_check;

@@ -144,7 +144,7 @@ fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, L
 }
 
 /// Match a single identifier token
-fn match_identifier(input: &[LexToken]) -> ParseResult<&Identifier> {
+fn match_identifier(input: &[LexToken]) -> ParseResult<'_, &Identifier> {
     match input {
         [LexToken(Token::Id(ref id), _), rest @ ..] => Ok((rest, id)),
         _ => ParseErrorReason::wrong_token(input),
@@ -163,7 +163,7 @@ fn match_named_identifier<'t>(
 }
 
 /// Match a single < that may or may not be followed by whitespace
-fn match_left_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
+fn match_left_angle_bracket(input: &[LexToken]) -> ParseResult<'_, LexToken> {
     match input {
         [first @ LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => Ok((rest, first.clone())),
         _ => ParseErrorReason::wrong_token(input),
@@ -171,7 +171,7 @@ fn match_left_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
 }
 
 /// Match a single > that may or may not be followed by whitespace
-fn match_right_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
+fn match_right_angle_bracket(input: &[LexToken]) -> ParseResult<'_, LexToken> {
     match input {
         [first @ LexToken(Token::RightAngleBracket(_), _), rest @ ..] => Ok((rest, first.clone())),
         _ => ParseErrorReason::wrong_token(input),
@@ -179,7 +179,7 @@ fn match_right_angle_bracket(input: &[LexToken]) -> ParseResult<LexToken> {
 }
 
 /// Parsing identifier that may be a variable name
-fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
+fn parse_variable_name(input: &[LexToken]) -> ParseResult<'_, Located<String>> {
     match input {
         [LexToken(Token::Id(Identifier(name)), loc), rest @ ..] => {
             Ok((rest, Located::new(name.clone(), *loc)))
@@ -192,7 +192,7 @@ fn parse_variable_name(input: &[LexToken]) -> ParseResult<Located<String>> {
 mod types;
 use types::{parse_template_params, parse_type};
 
-fn parse_arraydim(input: &[LexToken]) -> ParseResult<Option<Box<Located<Expression>>>> {
+fn parse_arraydim(input: &[LexToken]) -> ParseResult<'_, Option<Box<Located<Expression>>>> {
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
     let (input, constant_expression) = match parse_expression_no_seq(input) {
         Ok((rest, constant_expression)) => (rest, Some(Box::new(constant_expression))),
@@ -234,7 +234,7 @@ mod pipelines;
 mod root_definitions;
 use root_definitions::parse_root_definition_with_semicolon;
 
-fn parse_internal(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
+fn parse_internal(input: &[LexToken]) -> ParseResult<'_, Vec<RootDefinition>> {
     let mut roots = Vec::new();
     let mut rest = input;
     loop {

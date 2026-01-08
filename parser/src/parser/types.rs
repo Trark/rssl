@@ -128,7 +128,7 @@ pub fn parse_type_modifiers_after<'t>(
 }
 
 /// Parse a type
-pub fn parse_type(input: &[LexToken]) -> ParseResult<Type> {
+pub fn parse_type(input: &[LexToken]) -> ParseResult<'_, Type> {
     parse_type_internal(input, None)
 }
 
@@ -141,7 +141,7 @@ pub fn parse_type_id_with_symbols<'t>(
 }
 
 /// Parse a type id
-pub fn parse_type_id(input: &[LexToken]) -> ParseResult<TypeId> {
+pub fn parse_type_id(input: &[LexToken]) -> ParseResult<'_, TypeId> {
     parse_type_id_internal(input, None)
 }
 
@@ -309,7 +309,7 @@ fn test_type() {
 }
 
 /// Parse a list of template parameters or no template parameters
-pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamList> {
+pub fn parse_template_params(input: &[LexToken]) -> ParseResult<'_, TemplateParamList> {
     let input = match parse_token(Token::Template)(input) {
         Ok((input, _)) => input,
         Err(_) => return Ok((input, TemplateParamList(Vec::new()))),
@@ -407,7 +407,7 @@ pub fn parse_template_params(input: &[LexToken]) -> ParseResult<TemplateParamLis
 }
 
 /// Parse a typedef
-pub fn parse_typedef(input: &[LexToken]) -> ParseResult<Typedef> {
+pub fn parse_typedef(input: &[LexToken]) -> ParseResult<'_, Typedef> {
     let (input, _) = parse_token(Token::Typedef)(input)?;
     let (input, ty) = parse_type(input)?;
     let (input, declarator) = parse_declarator(input)?;

@@ -3,7 +3,7 @@ use super::statements::parse_attribute;
 use super::*;
 
 /// Parse a parameter for a function
-fn parse_function_param(input: &[LexToken]) -> ParseResult<FunctionParam> {
+fn parse_function_param(input: &[LexToken]) -> ParseResult<'_, FunctionParam> {
     let (input, param_type) = parse_type(input)?;
     let (input, declarator) = parse_declarator(input)?;
     let (input, location_annotations) = parse_multiple(parse_location_annotation)(input)?;
@@ -165,7 +165,7 @@ fn test_function_param() {
 }
 
 /// Parse a function definition
-pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<FunctionDefinition> {
+pub fn parse_function_definition(input: &[LexToken]) -> ParseResult<'_, FunctionDefinition> {
     // Not clear on ordering of template args and attributes
     // Attributes are used on entry points which can not be template functions
     let (input, template_params) = parse_template_params(input)?;

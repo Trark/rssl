@@ -1,7 +1,7 @@
 use super::*;
 
 /// Parse a pipeline definition
-pub fn parse_pipeline_definition(input: &[LexToken]) -> ParseResult<PipelineDefinition> {
+pub fn parse_pipeline_definition(input: &[LexToken]) -> ParseResult<'_, PipelineDefinition> {
     let (input, _) = match_named_identifier("Pipeline", input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
@@ -13,7 +13,7 @@ pub fn parse_pipeline_definition(input: &[LexToken]) -> ParseResult<PipelineDefi
 }
 
 /// Parse a struct member variable or method
-fn parse_pipeline_property(input: &[LexToken]) -> ParseResult<PipelineProperty> {
+fn parse_pipeline_property(input: &[LexToken]) -> ParseResult<'_, PipelineProperty> {
     let (input, property) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::Equals)(input)?;
     let (input, value) = match parse_token(Token::LeftBrace)(input) {
@@ -39,7 +39,9 @@ fn parse_pipeline_property(input: &[LexToken]) -> ParseResult<PipelineProperty> 
 }
 
 /// Parse a static sampler definition
-pub fn parse_static_sampler_properties(input: &[LexToken]) -> ParseResult<Vec<PipelineProperty>> {
+pub fn parse_static_sampler_properties(
+    input: &[LexToken],
+) -> ParseResult<'_, Vec<PipelineProperty>> {
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
     let (input, properties) = parse_multiple(parse_pipeline_property)(input)?;
     let (input, _) = parse_token(Token::RightBrace)(input)?;

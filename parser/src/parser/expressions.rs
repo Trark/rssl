@@ -3,7 +3,7 @@ use super::types::{parse_type_id, parse_type_id_with_symbols};
 use super::*;
 
 /// Try to parse a literal
-fn expr_literal(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+fn expr_literal(input: &[LexToken]) -> ParseResult<'_, Located<Expression>> {
     match input.first() {
         Some(LexToken(tok, ref loc)) => {
             let literal = match *tok {
@@ -42,7 +42,7 @@ fn expr_in_paren<'t>(
 }
 
 /// Parse an identifier that may be a variable name
-pub fn parse_scoped_identifier(input: &[LexToken]) -> ParseResult<ScopedIdentifier> {
+pub fn parse_scoped_identifier(input: &[LexToken]) -> ParseResult<'_, ScopedIdentifier> {
     let (base, input) = match parse_token(Token::ScopeResolution)(input) {
         Ok((input, _)) => (ScopedIdentifierBase::Absolute, input),
         _ => (ScopedIdentifierBase::Relative, input),
@@ -55,7 +55,7 @@ pub fn parse_scoped_identifier(input: &[LexToken]) -> ParseResult<ScopedIdentifi
 }
 
 /// Parse an identifier that may be a variable name to an expression
-fn parse_scoped_identifier_expr(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+fn parse_scoped_identifier_expr(input: &[LexToken]) -> ParseResult<'_, Located<Expression>> {
     let (rest, id) = parse_scoped_identifier(input)?;
 
     assert_ne!(input.len(), rest.len());
@@ -111,12 +111,12 @@ fn parse_expression_or_type_with_symbols<'t>(
 }
 
 /// Parse either an expression or a type
-fn parse_expression_or_type(input: &[LexToken]) -> ParseResult<ExpressionOrType> {
+fn parse_expression_or_type(input: &[LexToken]) -> ParseResult<'_, ExpressionOrType> {
     parse_expression_or_type_with_or_without_symbols(input, None)
 }
 
 /// Parse a list of template arguments
-fn parse_template_args_req(input: &[LexToken]) -> ParseResult<Vec<ExpressionOrType>> {
+fn parse_template_args_req(input: &[LexToken]) -> ParseResult<'_, Vec<ExpressionOrType>> {
     let (input, _) = match_left_angle_bracket(input)?;
     let (input, type_args) =
         parse_list(parse_token(Token::Comma), parse_expression_or_type)(input)?;
@@ -125,7 +125,7 @@ fn parse_template_args_req(input: &[LexToken]) -> ParseResult<Vec<ExpressionOrTy
 }
 
 /// Parse a list of template arguments or no arguments
-pub fn parse_template_args(input: &[LexToken]) -> ParseResult<Vec<ExpressionOrType>> {
+pub fn parse_template_args(input: &[LexToken]) -> ParseResult<'_, Vec<ExpressionOrType>> {
     match parse_template_args_req(input) {
         Ok(ok) => Ok(ok),
         Err(_) => Ok((input, Vec::new())),
@@ -145,7 +145,7 @@ fn expr_p1<'t>(
         Member(ScopedIdentifier),
     }
 
-    fn expr_p1_increment(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
+    fn expr_p1_increment(input: &[LexToken]) -> ParseResult<'_, Located<Precedence1Postfix>> {
         let (input, start) = parse_token(Token::PlusPlus)(input)?;
         Ok((
             input,
@@ -153,7 +153,7 @@ fn expr_p1<'t>(
         ))
     }
 
-    fn expr_p1_decrement(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
+    fn expr_p1_decrement(input: &[LexToken]) -> ParseResult<'_, Located<Precedence1Postfix>> {
         let (input, start) = parse_token(Token::MinusMinus)(input)?;
         Ok((
             input,
@@ -161,7 +161,7 @@ fn expr_p1<'t>(
         ))
     }
 
-    fn expr_p1_member(input: &[LexToken]) -> ParseResult<Located<Precedence1Postfix>> {
+    fn expr_p1_member(input: &[LexToken]) -> ParseResult<'_, Located<Precedence1Postfix>> {
         let (input, _) = parse_token(Token::Period)(input)?;
         let (input, member) = locate(parse_scoped_identifier)(input)?;
         Ok((
@@ -294,8 +294,8 @@ fn expr_p1<'t>(
     right_side_ops(input, st)
 }
 
-fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
-    fn unaryop_increment(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+fn unaryop_prefix(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
+    fn unaryop_increment(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::PlusPlus)(input)?;
         Ok((
             input,
@@ -303,7 +303,7 @@ fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
         ))
     }
 
-    fn unaryop_decrement(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_decrement(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::MinusMinus)(input)?;
         Ok((
             input,
@@ -311,32 +311,32 @@ fn unaryop_prefix(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
         ))
     }
 
-    fn unaryop_add(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_add(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::Plus)(input)?;
         Ok((input, Located::new(UnaryOp::Plus, start.to_loc())))
     }
 
-    fn unaryop_subtract(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_subtract(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::Minus)(input)?;
         Ok((input, Located::new(UnaryOp::Minus, start.to_loc())))
     }
 
-    fn unaryop_logical_not(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_logical_not(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::ExclamationPoint)(input)?;
         Ok((input, Located::new(UnaryOp::LogicalNot, start.to_loc())))
     }
 
-    fn unaryop_bitwise_not(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_bitwise_not(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::Tilde)(input)?;
         Ok((input, Located::new(UnaryOp::BitwiseNot, start.to_loc())))
     }
 
-    fn unaryop_dereference(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_dereference(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::Asterix)(input)?;
         Ok((input, Located::new(UnaryOp::Dereference, start.to_loc())))
     }
 
-    fn unaryop_address_of(input: &[LexToken]) -> ParseResult<Located<UnaryOp>> {
+    fn unaryop_address_of(input: &[LexToken]) -> ParseResult<'_, Located<UnaryOp>> {
         let (input, start) = parse_token(Token::Ampersand)(input)?;
         Ok((input, Located::new(UnaryOp::AddressOf, start.to_loc())))
     }
@@ -470,7 +470,7 @@ fn expr_p3<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input.first() {
             Some(LexToken(tok, _)) => {
                 let op = match *tok {
@@ -492,7 +492,7 @@ fn expr_p4<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input.first() {
             Some(LexToken(tok, _)) => {
                 let op = match *tok {
@@ -586,7 +586,7 @@ fn expr_p7<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::EqualsEquals, _), rest @ ..] => Ok((rest, BinOp::Equality)),
             [LexToken(Token::ExclamationPointEquals, _), rest @ ..] => {
@@ -604,7 +604,7 @@ fn expr_p8<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::Ampersand, _), rest @ ..] => Ok((rest, BinOp::BitwiseAnd)),
             [] => ParseErrorReason::end_of_stream(),
@@ -619,7 +619,7 @@ fn expr_p9<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::Hat, _), rest @ ..] => Ok((rest, BinOp::BitwiseXor)),
             [] => ParseErrorReason::end_of_stream(),
@@ -634,7 +634,7 @@ fn expr_p10<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::VerticalBar, _), rest @ ..] => Ok((rest, BinOp::BitwiseOr)),
             [] => ParseErrorReason::end_of_stream(),
@@ -649,7 +649,7 @@ fn expr_p11<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::AmpersandAmpersand, _), rest @ ..] => Ok((rest, BinOp::BooleanAnd)),
             [] => ParseErrorReason::end_of_stream(),
@@ -664,7 +664,7 @@ fn expr_p12<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::VerticalBarVerticalBar, _), rest @ ..] => Ok((rest, BinOp::BooleanOr)),
             [] => ParseErrorReason::end_of_stream(),
@@ -708,7 +708,7 @@ fn expr_p14<'t>(
     input: &'t [LexToken],
     st: &mut SymbolTable,
 ) -> ParseResult<'t, Located<Expression>> {
-    fn parse_op(input: &[LexToken]) -> ParseResult<BinOp> {
+    fn parse_op(input: &[LexToken]) -> ParseResult<'_, BinOp> {
         match input {
             [LexToken(Token::Equals, _), rest @ ..] => Ok((rest, BinOp::Assignment)),
             [LexToken(Token::PlusEquals, _), rest @ ..] => Ok((rest, BinOp::SumAssignment)),
@@ -822,7 +822,7 @@ impl SymbolQueue {
 pub fn parse_expression_resolve_symbols(
     input: &[LexToken],
     terminator: Terminator,
-) -> ParseResult<Located<Expression>> {
+) -> ParseResult<'_, Located<Expression>> {
     // Assume any symbol may be a type on the first pass
     let mut st = SymbolTable {
         reject_symbols: HashSet::new(),
@@ -952,12 +952,12 @@ pub fn parse_expression_resolve_symbols(
 }
 
 /// Parse an expression
-pub fn parse_expression(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+pub fn parse_expression(input: &[LexToken]) -> ParseResult<'_, Located<Expression>> {
     parse_expression_resolve_symbols(input, Terminator::Standard)
 }
 
 /// Parse an expression in a context where a comma has a different meaning at the top level
-pub fn parse_expression_no_seq(input: &[LexToken]) -> ParseResult<Located<Expression>> {
+pub fn parse_expression_no_seq(input: &[LexToken]) -> ParseResult<'_, Located<Expression>> {
     parse_expression_resolve_symbols(input, Terminator::Sequence)
 }
 

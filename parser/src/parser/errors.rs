@@ -86,11 +86,11 @@ pub enum ParseErrorReason {
 }
 
 impl ParseErrorReason {
-    pub fn into_result<T>(self, remaining: &[LexToken]) -> ParseResult<T> {
+    pub fn into_result<T>(self, remaining: &[LexToken]) -> ParseResult<'_, T> {
         Err(ParseErrorContext(remaining, remaining.len(), self))
     }
 
-    pub fn wrong_token<T>(remaining: &[LexToken]) -> ParseResult<T> {
+    pub fn wrong_token<T>(remaining: &[LexToken]) -> ParseResult<'_, T> {
         Err(ParseErrorContext(
             remaining,
             remaining.len(),
@@ -139,7 +139,7 @@ impl<T> ParseResultExt for ParseResult<'_, T> {
 pub struct ParseErrorContext<'a>(pub &'a [LexToken], pub usize, pub ParseErrorReason);
 
 /// Get the significance value for a result
-pub fn get_result_significance<T>(result: &ParseResult<T>) -> usize {
+pub fn get_result_significance<T>(result: &ParseResult<'_, T>) -> usize {
     match result {
         Ok((rest, _)) => rest.len() * 2,
         Err(ParseErrorContext(_, significance, _)) => significance * 2 + 1,

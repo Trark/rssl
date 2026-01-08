@@ -1,13 +1,13 @@
 use super::*;
 
 /// Parse an initializer statement for a variable
-pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>> {
-    fn init_expr(input: &[LexToken]) -> ParseResult<Initializer> {
+pub fn parse_initializer(input: &[LexToken]) -> ParseResult<'_, Option<Initializer>> {
+    fn init_expr(input: &[LexToken]) -> ParseResult<'_, Initializer> {
         let (input, expr) = parse_expression_no_seq(input)?;
         Ok((input, Initializer::Expression(expr)))
     }
 
-    fn init_aggregate(input: &[LexToken]) -> ParseResult<Initializer> {
+    fn init_aggregate(input: &[LexToken]) -> ParseResult<'_, Initializer> {
         let (input, _) = parse_token(Token::LeftBrace)(input)?;
         let (input, exprs) = parse_list(parse_token(Token::Comma), init_any)(input)?;
         let (input, _) = parse_optional(parse_token(Token::Comma))(input)?;
@@ -15,7 +15,7 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
         Ok((input, Initializer::Aggregate(exprs)))
     }
 
-    fn init_any(input: &[LexToken]) -> ParseResult<Initializer> {
+    fn init_any(input: &[LexToken]) -> ParseResult<'_, Initializer> {
         init_expr(input).select(init_aggregate(input))
     }
 
@@ -43,7 +43,7 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>>
 
 #[test]
 fn test_initializer() {
-    fn initializer(input: &[LexToken]) -> ParseResult<Option<Initializer>> {
+    fn initializer(input: &[LexToken]) -> ParseResult<'_, Option<Initializer>> {
         parse_initializer(input)
     }
 
@@ -151,7 +151,7 @@ fn test_initializer() {
 }
 
 /// Parse a local variable definition
-fn parse_vardef(input: &[LexToken]) -> ParseResult<VarDef> {
+fn parse_vardef(input: &[LexToken]) -> ParseResult<'_, VarDef> {
     let (input, typename) = parse_type(input)?;
     let (input, defs) = parse_init_declarators(input)?;
     let defs = VarDef {
@@ -173,7 +173,7 @@ fn test_vardef() {
 }
 
 /// Parse the init statement for a for loop
-fn parse_init_statement(input: &[LexToken]) -> ParseResult<InitStatement> {
+fn parse_init_statement(input: &[LexToken]) -> ParseResult<'_, InitStatement> {
     let res_expr = match parse_expression(input) {
         Ok((input, vd)) => Ok((input, InitStatement::Expression(vd))),
         Err(err) => Err(err),
@@ -213,17 +213,17 @@ fn test_init_statement() {
 }
 
 /// Parse an attribute with either [ ] or [[ ]]
-pub fn parse_attribute(input: &[LexToken]) -> ParseResult<Attribute> {
+pub fn parse_attribute(input: &[LexToken]) -> ParseResult<'_, Attribute> {
     parse_attribute_base(input, true)
 }
 
 /// Parse an attribute with [[ ]]
-pub fn parse_attribute_double_only(input: &[LexToken]) -> ParseResult<Attribute> {
+pub fn parse_attribute_double_only(input: &[LexToken]) -> ParseResult<'_, Attribute> {
     parse_attribute_base(input, false)
 }
 
 /// Parse an attribute
-fn parse_attribute_base(input: &[LexToken], allow_single: bool) -> ParseResult<Attribute> {
+fn parse_attribute_base(input: &[LexToken], allow_single: bool) -> ParseResult<'_, Attribute> {
     let original = input;
 
     let (input, _) = parse_token(Token::LeftSquareBracket)(input)?;
@@ -362,7 +362,7 @@ fn test_attribute() {
 }
 
 /// Parse a single statement
-fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
+fn parse_statement(input: &[LexToken]) -> ParseResult<'_, Statement> {
     // Parse attributes before a statement
     let (input, attributes) = parse_multiple(parse_attribute)(input)?;
 
@@ -382,7 +382,7 @@ fn parse_statement(input: &[LexToken]) -> ParseResult<Statement> {
 }
 
 /// Parse the main part of a statement
-fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
+fn parse_statement_kind(input: &[LexToken]) -> ParseResult<'_, StatementKind> {
     if input.is_empty() {
         return ParseErrorReason::end_of_stream();
     }
@@ -483,14 +483,14 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
         }
         _ => {
             // Try parsing a variable definition
-            fn variable_def(input: &[LexToken]) -> ParseResult<VarDef> {
+            fn variable_def(input: &[LexToken]) -> ParseResult<'_, VarDef> {
                 let (input, var) = parse_vardef(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, var))
             }
 
             // Try parsing an expression statement
-            fn expr_statement(input: &[LexToken]) -> ParseResult<Expression> {
+            fn expr_statement(input: &[LexToken]) -> ParseResult<'_, Expression> {
                 let (input, expression_statement) = parse_expression(input)?;
                 let (input, _) = parse_token(Token::Semicolon)(input)?;
                 Ok((input, expression_statement.node))
@@ -532,7 +532,7 @@ fn parse_statement_kind(input: &[LexToken]) -> ParseResult<StatementKind> {
 }
 
 /// Parse a block of statements
-pub fn statement_block(input: &[LexToken]) -> ParseResult<Vec<Statement>> {
+pub fn statement_block(input: &[LexToken]) -> ParseResult<'_, Vec<Statement>> {
     let mut statements = Vec::new();
     let mut rest = match parse_token(Token::LeftBrace)(input) {
         Ok((rest, _)) => rest,

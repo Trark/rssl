@@ -7,7 +7,7 @@ use structs::parse_struct_definition;
 use types::parse_typedef;
 
 /// Parse a root element in a shader document
-fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
+fn parse_root_definition(input: &[LexToken]) -> ParseResult<'_, RootDefinition> {
     let res = match parse_struct_definition(input) {
         Ok((rest, structdef)) => Ok((rest, RootDefinition::Struct(structdef))),
         Err(err) => Err(err),
@@ -54,14 +54,14 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<RootDefinition> {
 }
 
 /// Parse a root definition which may have many semicolons after it
-pub fn parse_root_definition_with_semicolon(input: &[LexToken]) -> ParseResult<RootDefinition> {
+pub fn parse_root_definition_with_semicolon(input: &[LexToken]) -> ParseResult<'_, RootDefinition> {
     let (input, def) = parse_root_definition(input)?;
     let (input, _) = parse_multiple(parse_token(Token::Semicolon))(input)?;
     Ok((input, def))
 }
 
 /// Parse a namespace
-fn parse_namespace(input: &[LexToken]) -> ParseResult<RootDefinition> {
+fn parse_namespace(input: &[LexToken]) -> ParseResult<'_, RootDefinition> {
     let (input, _) = parse_token(Token::Namespace)(input)?;
     let (input, name) = parse_optional(parse_variable_name)(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
@@ -76,7 +76,7 @@ fn parse_namespace(input: &[LexToken]) -> ParseResult<RootDefinition> {
 }
 
 /// Parse the insides of a namespace
-fn parse_namespace_contents(input: &[LexToken]) -> ParseResult<Vec<RootDefinition>> {
+fn parse_namespace_contents(input: &[LexToken]) -> ParseResult<'_, Vec<RootDefinition>> {
     parse_multiple(parse_root_definition_with_semicolon)(input)
 }
 

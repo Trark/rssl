@@ -1412,7 +1412,7 @@ fn generate_scope_block(
                 ..
             } = **current
             {
-                *current = Box::new(statement);
+                **current = statement;
                 continue;
             }
         }

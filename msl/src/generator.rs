@@ -189,6 +189,7 @@ impl CompileError for GenerateError {
 }
 
 /// How we will handle generating a global variable
+#[allow(clippy::large_enum_variant)]
 enum GlobalMode {
     /// Variables that need passing between all functions - with additional metadata on the entry function
     Parameter {
@@ -2094,7 +2095,7 @@ fn generate_scope_block(
                 ..
             } = **current
             {
-                *current = Box::new(statement);
+                **current = statement;
                 continue;
             }
         }
@@ -3915,7 +3916,7 @@ fn vector_n_to_vector_4(
     let vec_4 = generate_invoke_helper(
         IntrinsicHelper::Extend(component_count),
         &[],
-        &[value_expr.clone()],
+        std::slice::from_ref(value_expr),
         context,
     )?;
 

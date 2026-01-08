@@ -1,7 +1,7 @@
 use super::*;
 
 /// Parse a declaration of a value inside an enum
-fn parse_enum_value(input: &[LexToken]) -> ParseResult<EnumValue> {
+fn parse_enum_value(input: &[LexToken]) -> ParseResult<'_, EnumValue> {
     let (input, name) = parse_variable_name(input)?;
     let (input, value) = match parse_token(Token::Equals)(input) {
         Ok((input, _)) => {
@@ -15,7 +15,7 @@ fn parse_enum_value(input: &[LexToken]) -> ParseResult<EnumValue> {
 }
 
 /// Parse an enum definition
-pub fn parse_enum_definition(input: &[LexToken]) -> ParseResult<EnumDefinition> {
+pub fn parse_enum_definition(input: &[LexToken]) -> ParseResult<'_, EnumDefinition> {
     let (input, _) = parse_token(Token::Enum)(input)?;
     let (input, name) = parse_variable_name(input)?;
     let (input, _) = parse_token(Token::LeftBrace)(input)?;
