@@ -2625,7 +2625,7 @@ fn generate_intrinsic_function(
         Select => {
             // metal's select intrinsic has the condition at the end instead of the start
             // Reordering is okay as evaluation order is not defined anyway
-            let reordered_exprs = &[exprs[1].clone(), exprs[2].clone(), exprs[0].clone()];
+            let reordered_exprs = &[exprs[2].clone(), exprs[1].clone(), exprs[0].clone()];
             generate_invoke_simple("select", tys, reordered_exprs, context)
         }
 

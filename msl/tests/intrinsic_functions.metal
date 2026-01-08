@@ -11,7 +11,7 @@ void test() {
     bool any_2 = metal::any(bool2(true, true));
     bool any_3 = metal::any(bool3(true, true, true));
     bool any_4 = metal::any(bool4(true, true, true, true));
-    uint select_u1 = metal::select(0u, 1u, true);
+    uint select_u1 = metal::select(1u, 0u, true);
     int3 select_u3 = metal::select(int3(0, 0, 0), int3(0, 0, 0), bool3(true, true, true));
     float4 select_f4 = metal::select(float4(0.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 0.0f, 0.0f), bool4(true, true, true, true));
     int abs_i1 = metal::abs(0);
