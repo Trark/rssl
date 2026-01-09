@@ -43,3 +43,5 @@ mod simplify_cbuffers;
 pub use simplify_cbuffers::simplify_cbuffers;
 
 pub mod usage_analysis;
+
+pub mod layout_checker;

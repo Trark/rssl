@@ -76,6 +76,15 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
         }
     };
 
+    if args.validate_layout_consistency {
+        if let Err(err) = ir::layout_checker::check_layout(&ir) {
+            return Err(CompileError::Text(format!(
+                "{}",
+                err.display(&source_manager)
+            )));
+        }
+    }
+
     // Pick how we will bind api binding slots based on the target API
     let binding_params = match args.target {
         Target::HlslForDirectX => AssignBindingsParams::default(),
@@ -325,6 +334,7 @@ pub struct CompileArgs<'a> {
     pipeline_name: Option<&'a str>,
     no_pipeline_mode: bool,
     source_info: bool,
+    validate_layout_consistency: bool,
 }
 
 impl<'a> CompileArgs<'a> {
@@ -343,6 +353,7 @@ impl<'a> CompileArgs<'a> {
             pipeline_name: None,
             no_pipeline_mode: false,
             source_info: false,
+            validate_layout_consistency: false,
         }
     }
 
@@ -376,6 +387,12 @@ impl<'a> CompileArgs<'a> {
     // Ensure source information is preserved to assist shader debuggers
     pub fn source_info(mut self, enabled: bool) -> Self {
         self.source_info = enabled;
+        self
+    }
+
+    /// Enable or disable validation that buffers have similar layout between targets
+    pub fn validate_layout_consistency(mut self, enabled: bool) -> Self {
+        self.validate_layout_consistency = enabled;
         self
     }
 }
