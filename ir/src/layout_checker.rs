@@ -1,9 +1,13 @@
 use rssl_text::*;
+use std::collections::HashSet;
 
 use crate::*;
 
 /// Check that buffers have similar layout between different platforms
 pub fn check_layout(module: &Module) -> Result<(), LayoutError> {
+    let mut types_to_check = Vec::new();
+    let mut types_seen = HashSet::new();
+
     for global in &module.global_registry {
         let ty = module.type_registry.remove_modifier(global.type_id);
         let tyl = module.type_registry.get_type_layer(ty);
@@ -13,30 +17,75 @@ pub fn check_layout(module: &Module) -> Result<(), LayoutError> {
         };
         match o {
             ObjectType::StructuredBuffer(st) | ObjectType::RWStructuredBuffer(st) => {
-                let mut layout_hlsl =
-                    match get_type_layout(module, st, PackingMode::HlslStructuredBuffer) {
-                        Some(layout) => layout,
-                        None => return Err(LayoutError::UnknownLayout(global.name.location)),
-                    };
-                let mut layout_metal = match get_type_layout(module, st, PackingMode::Metal) {
-                    Some(layout) => layout,
-                    None => return Err(LayoutError::UnknownLayout(global.name.location)),
-                };
-
-                layout_hlsl.size = layout_hlsl.size.next_multiple_of(layout_hlsl.align);
-                layout_metal.size = layout_metal.size.next_multiple_of(layout_metal.align);
-
-                if layout_hlsl.size != layout_metal.size {
-                    return Err(LayoutError::MismatchedLayout(
-                        global.name.location,
-                        layout_hlsl,
-                        layout_metal,
-                    ));
+                if types_seen.insert(st) {
+                    types_to_check.push((st, global.name.location));
                 }
             }
             _ => {}
         }
     }
+
+    for i in 0..module.function_registry.get_function_count() {
+        let id = FunctionId(i);
+
+        let intrinsic_data = match module.function_registry.get_intrinsic_data(id) {
+            Some(intrinsic_data) => intrinsic_data,
+            None => continue,
+        };
+
+        if !matches!(
+            intrinsic_data,
+            Intrinsic::ByteAddressBufferLoadT
+                | Intrinsic::RWByteAddressBufferLoadT
+                | Intrinsic::RWByteAddressBufferStore
+                | Intrinsic::BufferAddressLoad
+                | Intrinsic::RWBufferAddressLoad
+                | Intrinsic::RWBufferAddressStore
+        ) {
+            continue;
+        }
+
+        let template_data = match module.function_registry.get_template_instantiation_data(id) {
+            Some(template_data) => template_data,
+            None => continue,
+        };
+
+        if template_data.template_args.len() != 1 {
+            panic!("invalid {:?} intrinsic", intrinsic_data);
+        }
+
+        let ty = match template_data.template_args[0] {
+            TypeOrConstant::Type(ty) => ty,
+            TypeOrConstant::Constant(_) => panic!("invalid {:?} intrinsic", intrinsic_data),
+        };
+
+        if types_seen.insert(ty) {
+            types_to_check.push((ty, module.get_type_location(ty)));
+        }
+    }
+
+    for (ty, loc) in types_to_check {
+        let mut layout_hlsl = match get_type_layout(module, ty, PackingMode::HlslStructuredBuffer) {
+            Some(layout) => layout,
+            None => return Err(LayoutError::UnknownLayout(loc)),
+        };
+        let mut layout_metal = match get_type_layout(module, ty, PackingMode::Metal) {
+            Some(layout) => layout,
+            None => return Err(LayoutError::UnknownLayout(loc)),
+        };
+
+        layout_hlsl.size = layout_hlsl.size.next_multiple_of(layout_hlsl.align);
+        layout_metal.size = layout_metal.size.next_multiple_of(layout_metal.align);
+
+        if layout_hlsl.size != layout_metal.size {
+            return Err(LayoutError::MismatchedLayout(
+                loc,
+                layout_hlsl,
+                layout_metal,
+            ));
+        }
+    }
+
     Ok(())
 }
 
