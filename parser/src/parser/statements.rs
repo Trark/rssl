@@ -54,7 +54,10 @@ fn test_initializer() {
     let done_toks = &[semicolon.clone()][..];
 
     // No initializer tests
-    assert_eq!(initializer(&[semicolon.clone()]), Ok((done_toks, None)));
+    assert_eq!(
+        initializer(std::slice::from_ref(&semicolon)),
+        Ok((done_toks, None))
+    );
 
     // Expression initialization tests
     // = [expr]
