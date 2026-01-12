@@ -2223,7 +2223,7 @@ fn generate_expression(
 
             let object = generate_expression(expr_object, context)?;
             match object_tyl {
-                ir::TypeLayer::Scalar(_) => {
+                ir::TypeLayer::Scalar(st) => {
                     // Swizzle on scalar does not exist in MSL
                     let output_size = swizzle.len();
                     for channel in swizzle {
@@ -2234,10 +2234,23 @@ fn generate_expression(
                         object
                     } else {
                         // Swizzle to construct a vector can be implemented with the constructor for the vector type with a single argument
-                        let output_ty = context
-                            .module
-                            .type_registry
-                            .register_type(ir::TypeLayer::Vector(object_ty, output_size as u32));
+                        let output_ty = {
+                            // Remove literal types
+                            // We expect these will be cast away quickly
+                            let st = match st {
+                                ir::ScalarType::IntLiteral => ir::ScalarType::Int32,
+                                ir::ScalarType::FloatLiteral => ir::ScalarType::Float32,
+                                st => st,
+                            };
+                            let inner = context
+                                .module
+                                .type_registry
+                                .register_type(ir::TypeLayer::Scalar(st));
+                            context
+                                .module
+                                .type_registry
+                                .register_type(ir::TypeLayer::Vector(inner, output_size as u32))
+                        };
                         let ty = generate_type(output_ty, context)?;
                         assert_eq!(ty.layout.1.len(), 0);
                         assert!(ty.modifiers.modifiers.is_empty());

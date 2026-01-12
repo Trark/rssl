@@ -534,12 +534,14 @@ fn check_expression_scalar_swizzle() {
     float v0 = 1;
     float4 v1 = v0.xxxx;
     float v2 = v0.x;
+    float2 v3 = 0.0.xx;
 }
 ",
         "void f() {
     float v0 = 1.0f;
     float4 v1 = float4(v0);
     float v2 = v0;
+    float2 v3 = (float2)float2(0.0);
 }
 ",
     );
