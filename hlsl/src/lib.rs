@@ -10,9 +10,12 @@ mod names;
 /// We assume the generated code will be built with:
 /// * HLSL version 2021
 /// * If using half: -enable-16bit-types
-pub fn export_to_hlsl(module: &rssl_ir::Module) -> Result<ExportedSource, ExportError> {
+pub fn export_to_hlsl(
+    module: &rssl_ir::Module,
+    for_spirv: bool,
+) -> Result<ExportedSource, ExportError> {
     // Generate HLSL in the form of RSSL ast from RSSL ir module
-    let generate_output = match ast_generate::generate_module(module) {
+    let generate_output = match ast_generate::generate_module(module, for_spirv) {
         Ok(output) => output,
         Err(err) => return Err(ExportError::GenerateError(err)),
     };

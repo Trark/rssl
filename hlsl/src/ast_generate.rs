@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_ir::export::*;
@@ -32,13 +34,21 @@ pub enum GenerateError {
 /// We assume the generated code will be built with:
 /// * HLSL version 2021
 /// * If using half: -enable-16bit-types
-pub fn generate_module(module: &ir::Module) -> Result<GeneratedAST, GenerateError> {
+pub fn generate_module(
+    module: &ir::Module,
+    for_spirv: bool,
+) -> Result<GeneratedAST, GenerateError> {
     let mut context = GenerateContext::new(module);
     let mut root_definitions = Vec::new();
 
     // Generate binding info
     for decl in &module.root_definitions {
         analyse_bindings(decl, &mut context)?;
+    }
+
+    // Find per-primitive attributes if we need to add attributes to them
+    if for_spirv {
+        analyse_per_primitive_attributes(&mut context);
     }
 
     // Create inline constant buffers from bindings
@@ -182,6 +192,63 @@ fn analyse_bindings(
         }
     }
     Ok(())
+}
+
+/// Find per-primitive attributes
+fn analyse_per_primitive_attributes(context: &mut GenerateContext) {
+    if let Some(pipeline) = context.module.selected_pipeline {
+        let mut has_mesh = false;
+        for stage in &context.module.pipelines[pipeline].stages {
+            if stage.stage == ir::ShaderStage::Mesh {
+                has_mesh = true;
+                if let Some(function) = context
+                    .module
+                    .function_registry
+                    .get_function_implementation(stage.entry_point)
+                {
+                    for param in &function.params {
+                        if matches!(
+                            param.interpolation_modifier,
+                            Some(ir::InterpolationModifier::Primitives)
+                        ) {
+                            // Find semantics in the input with the primitives modifier
+                            // This assumes that semantic names are not reused in other contexts
+
+                            if let Some(ir::Semantic::User(semantic)) = &param.semantic {
+                                context.per_primitive_semantics.insert(semantic.clone());
+                            }
+
+                            // Find all semantics in the struct
+                            // This does not support multiple levels of structs
+                            let ty = context
+                                .module
+                                .type_registry
+                                .remove_modifier(param.param_type.type_id);
+                            let tyl = context.module.type_registry.get_non_array_layer(ty);
+                            if let ir::TypeLayer::Struct(sid) = tyl {
+                                for member in
+                                    &context.module.struct_registry[sid.0 as usize].members
+                                {
+                                    if let Some(ir::Semantic::User(semantic)) = &member.semantic {
+                                        context.per_primitive_semantics.insert(semantic.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if has_mesh {
+            for stage in &context.module.pipelines[pipeline].stages {
+                if stage.stage == ir::ShaderStage::Pixel {
+                    context.pixel_entry_for_mesh = Some(stage.entry_point);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 /// Take the binding definitions and build the inline constant buffers required
@@ -661,9 +728,34 @@ fn generate_function_inner(
 
     let name = Located::none(context.get_function_name(id)?.to_string());
 
+    let for_pixel_entry = context.pixel_entry_for_mesh == Some(id);
+    if for_pixel_entry {
+        attributes.push(ast::Attribute {
+            name: Vec::from([
+                Located::none("vk".to_string()),
+                Located::none("ext_extension".to_string()),
+            ]),
+            arguments: Vec::from([Located::none(ast::Expression::Literal(
+                ast::Literal::String(String::from("SPV_EXT_mesh_shader")),
+            ))]),
+            two_square_brackets: true,
+        });
+
+        attributes.push(ast::Attribute {
+            name: Vec::from([
+                Located::none("vk".to_string()),
+                Located::none("ext_capability".to_string()),
+            ]),
+            arguments: Vec::from([Located::none(ast::Expression::Literal(
+                ast::Literal::IntUntyped(5283),
+            ))]),
+            two_square_brackets: true,
+        });
+    }
+
     let mut params = Vec::new();
     for param in &decl.params {
-        params.push(generate_function_param(param, context)?);
+        params.push(generate_function_param(param, context, for_pixel_entry)?);
     }
 
     let location_annotations = if let Some(semantic) = &sig.return_type.semantic {
@@ -748,6 +840,7 @@ fn generate_function_attribute(
 fn generate_function_param(
     param: &ir::FunctionParam,
     context: &mut GenerateContext,
+    for_pixel_entry: bool,
 ) -> Result<ast::FunctionParam, GenerateError> {
     let input_modifier = match param.param_type.input_modifier {
         // payload modified parameters require an explicit in instead of an implicit in
@@ -770,7 +863,7 @@ fn generate_function_param(
     let interpolation_modifier = generate_interpolation_modifier(&param.interpolation_modifier)?;
 
     let name = context.get_variable_name(param.id)?.to_string();
-    let (base_type, declarator) =
+    let (base_type, mut declarator) =
         generate_type_and_declarator(param.param_type.type_id, &name, false, context)?;
 
     let type_with_interp = prepend_modifiers(base_type, &interpolation_modifier);
@@ -781,6 +874,29 @@ fn generate_function_param(
     } else {
         Vec::new()
     };
+
+    if for_pixel_entry {
+        if let Some(ir::Semantic::User(semantic)) = &param.semantic {
+            if context.per_primitive_semantics.contains(semantic) {
+                declarator = declarator.insert_base(|d| match d {
+                    ast::Declarator::Identifier(id, mut attributes) => {
+                        attributes.push(ast::Attribute {
+                            name: Vec::from([
+                                Located::none("vk".to_string()),
+                                Located::none("ext_decorate".to_string()),
+                            ]),
+                            arguments: Vec::from([Located::none(ast::Expression::Literal(
+                                ast::Literal::IntUntyped(5271),
+                            ))]),
+                            two_square_brackets: true,
+                        });
+                        ast::Declarator::Identifier(id, attributes)
+                    }
+                    _ => panic!("unexpected declarator: {:?}", d),
+                });
+            }
+        }
+    }
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
         Some(generate_expression(default_expr, context)?)
@@ -2205,10 +2321,27 @@ fn generate_struct(
             init: None,
         };
 
+        let mut attributes = Vec::new();
+
+        if let Some(ir::Semantic::User(semantic)) = &member.semantic {
+            if context.per_primitive_semantics.contains(semantic) {
+                attributes.push(ast::Attribute {
+                    name: Vec::from([
+                        Located::none("vk".to_string()),
+                        Located::none("ext_decorate".to_string()),
+                    ]),
+                    arguments: Vec::from([Located::none(ast::Expression::Literal(
+                        ast::Literal::IntUntyped(5271),
+                    ))]),
+                    two_square_brackets: true,
+                });
+            }
+        }
+
         members.push(ast::StructEntry::Variable(ast::StructMember {
             ty,
             defs: Vec::from([init_declarator]),
-            attributes: Vec::new(),
+            attributes,
         }));
     }
 
@@ -2349,6 +2482,16 @@ struct GenerateContext<'m> {
     name_map: NameMap,
 
     pipeline_description: PipelineDescription,
+
+    /// Entry point function for pixel shader in a mesh-pixel pipeline
+    ///
+    /// Non-None only if generating for SPIR-V
+    pixel_entry_for_mesh: Option<ir::FunctionId>,
+
+    /// Set of semantics used on per-primitive attributes
+    ///
+    /// Non-empty only if generating for SPIR-V
+    per_primitive_semantics: HashSet<String>,
 }
 
 impl<'m> GenerateContext<'m> {
@@ -2362,6 +2505,8 @@ impl<'m> GenerateContext<'m> {
             pipeline_description: PipelineDescription {
                 bind_groups: Vec::new(),
             },
+            pixel_entry_for_mesh: Default::default(),
+            per_primitive_semantics: Default::default(),
         }
     }
 

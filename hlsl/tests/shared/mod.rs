@@ -38,6 +38,7 @@ pub fn check_rssl_to_hlsl_params(
     source_rssl: &str,
     expected_hlsl: &str,
     assign_bindings_params: Option<rssl_ir::AssignBindingsParams>,
+    for_spirv: bool,
 ) {
     let (ir, source_manager) = parse_from_str(source_rssl);
 
@@ -57,7 +58,7 @@ pub fn check_rssl_to_hlsl_params(
         None => ir,
     };
 
-    match rssl_hlsl::export_to_hlsl(&ir) {
+    match rssl_hlsl::export_to_hlsl(&ir, for_spirv) {
         Ok(output) => {
             let output_hlsl = output.source;
             let output_hlsl_lines = output_hlsl.lines();
@@ -78,7 +79,7 @@ pub fn check_rssl_to_hlsl_params(
 
 #[track_caller]
 pub fn check_rssl_to_hlsl(source_rssl: &str, expected_hlsl: &str) {
-    check_rssl_to_hlsl_params(source_rssl, expected_hlsl, None)
+    check_rssl_to_hlsl_params(source_rssl, expected_hlsl, None, false)
 }
 
 #[track_caller]
@@ -87,6 +88,7 @@ pub fn check_rssl_to_hlsl_dx(source_rssl: &str, expected_hlsl: &str) {
         source_rssl,
         expected_hlsl,
         Some(rssl_ir::AssignBindingsParams::default()),
+        false,
     )
 }
 
@@ -101,5 +103,6 @@ pub fn check_rssl_to_hlsl_vk(source_rssl: &str, expected_hlsl: &str) {
             metal_slot_layout: false,
             static_samplers_have_slots: true,
         }),
+        true,
     )
 }

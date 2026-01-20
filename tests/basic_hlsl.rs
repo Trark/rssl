@@ -121,11 +121,21 @@ fn check_mesh_pixel_pipeline() {
         include_str!("basic/mesh_pixel_pipeline.rssl"),
         include_str!("basic/mesh_pixel_pipeline.hlsl"),
     );
+
+    check_hlsl_vk(
+        include_str!("basic/mesh_pixel_pipeline.rssl"),
+        include_str!("basic/mesh_pixel_pipeline.vk.hlsl"),
+    );
 }
 
 #[test]
 fn check_task_mesh_pipeline() {
     check_hlsl(
+        include_str!("basic/task_mesh_pipeline.rssl"),
+        include_str!("basic/task_mesh_pipeline.hlsl"),
+    );
+
+    check_hlsl_vk(
         include_str!("basic/task_mesh_pipeline.rssl"),
         include_str!("basic/task_mesh_pipeline.hlsl"),
     );

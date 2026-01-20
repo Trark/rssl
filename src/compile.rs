@@ -184,15 +184,16 @@ fn build_pipeline(
 
     let compiled = match args.target {
         Target::HlslForDirectX | Target::HlslForVulkan => {
-            let exported_source = match hlsl::export_to_hlsl(&ir) {
-                Ok(exported_source) => exported_source,
-                Err(err) => {
-                    return Err(CompileError::Text(format!(
-                        "{}",
-                        err.display(source_manager)
-                    )))
-                }
-            };
+            let exported_source =
+                match hlsl::export_to_hlsl(&ir, matches!(args.target, Target::HlslForVulkan)) {
+                    Ok(exported_source) => exported_source,
+                    Err(err) => {
+                        return Err(CompileError::Text(format!(
+                            "{}",
+                            err.display(source_manager)
+                        )))
+                    }
+                };
 
             let mut stages = Vec::new();
             if let Some(pipeline) = pipeline {
