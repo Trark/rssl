@@ -4,5 +4,5 @@
 
 mod parser;
 
-pub use parser::parse;
 pub use parser::ParseError;
+pub use parser::parse;

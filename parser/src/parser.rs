@@ -77,7 +77,7 @@ fn parse_list_base<'t, T, G>(
                         // If we failed to parse the element then finish
                         // We finish before the last separator so trailing separators are not captured
                         Err(ParseErrorContext(rest, _, _)) if rest.len() == after_sep.len() => {
-                            break
+                            break;
                         }
                         // If we failed to parse but made progress into parsing then fail
                         Err(err) => return Err(err),
@@ -138,7 +138,7 @@ fn parse_optional<'t, T>(
 /// Parse an exact token from the start of the stream
 fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, LexToken> {
     move |input: &'t [LexToken]| match input {
-        [tok @ LexToken(ref t, _), rest @ ..] if *t == token => Ok((rest, tok.clone())),
+        [tok @ LexToken(t, _), rest @ ..] if *t == token => Ok((rest, tok.clone())),
         _ => ParseErrorReason::wrong_token(input),
     }
 }
@@ -146,7 +146,7 @@ fn parse_token<'t>(token: Token) -> impl Fn(&'t [LexToken]) -> ParseResult<'t, L
 /// Match a single identifier token
 fn match_identifier(input: &[LexToken]) -> ParseResult<'_, &Identifier> {
     match input {
-        [LexToken(Token::Id(ref id), _), rest @ ..] => Ok((rest, id)),
+        [LexToken(Token::Id(id), _), rest @ ..] => Ok((rest, id)),
         _ => ParseErrorReason::wrong_token(input),
     }
 }
@@ -157,7 +157,7 @@ fn match_named_identifier<'t>(
     input: &'t [LexToken],
 ) -> ParseResult<'t, &'t Identifier> {
     match input {
-        [LexToken(Token::Id(ref id), _), rest @ ..] if id.0 == name => Ok((rest, id)),
+        [LexToken(Token::Id(id), _), rest @ ..] if id.0 == name => Ok((rest, id)),
         _ => ParseErrorReason::wrong_token(input),
     }
 }

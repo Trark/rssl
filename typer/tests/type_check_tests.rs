@@ -972,7 +972,9 @@ fn check_function_templates() {
     );
 
     // Check support for using template parameters in template arguments
-    check_types("template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }");
+    check_types(
+        "template<typename T> T g(T v) { return v + 1; } template<typename T> T f(T v) { return g<T>(v); } void main() { f<float>(0.0); }",
+    );
 
     // Check that we do not fail type checking due to function contents
     check_types("template<typename T> T f(T v) { return v + 1; }");
@@ -994,25 +996,39 @@ fn check_function_templates() {
     );
 
     // Check multiple type arguments are accepted
-    check_types("template<typename T1, typename T2> T1 f(T1 v1, T2 v2) { return v1 + v2; } void main() { f<float, int>(0.0, 0); }");
+    check_types(
+        "template<typename T1, typename T2> T1 f(T1 v1, T2 v2) { return v1 + v2; } void main() { f<float, int>(0.0, 0); }",
+    );
 
     // Check that the template arguments can make an array
-    check_types("template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f<float>(a); }");
+    check_types(
+        "template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f<float>(a); }",
+    );
 
     // Check that array parameters can infer the required type
-    check_types("template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f(a); }");
+    check_types(
+        "template<typename T> T f(T v[2]) { return v[1]; } void main() { float a[2] = { 0, 1 }; f(a); }",
+    );
 
     // Check that the template arguments can make a vector
-    check_types("template<typename T> T f(vector<T, 2> v) { return v[1]; } void main() { float2 a = { 0, 1 }; f<float>(a); }");
+    check_types(
+        "template<typename T> T f(vector<T, 2> v) { return v[1]; } void main() { float2 a = { 0, 1 }; f<float>(a); }",
+    );
 
     // Check that vector parameters can infer the required type
-    check_types("template<typename T> T f(vector<T, 2> v) { return v[1]; } void main() { float2 a = { 0, 1 }; f(a); }");
+    check_types(
+        "template<typename T> T f(vector<T, 2> v) { return v[1]; } void main() { float2 a = { 0, 1 }; f(a); }",
+    );
 
     // Check that the template arguments can make a matrix
-    check_types("template<typename T> T f(matrix<T, 2, 2> v) { return v[1][0]; } void main() { float2x2 a; f<float>(a); }");
+    check_types(
+        "template<typename T> T f(matrix<T, 2, 2> v) { return v[1][0]; } void main() { float2x2 a; f<float>(a); }",
+    );
 
     // Check that matrix parameters can infer the required type
-    check_types("template<typename T> T f(matrix<T, 2, 2> v) { return v[1][0]; } void main() { float2x2 a; f(a); }");
+    check_types(
+        "template<typename T> T f(matrix<T, 2, 2> v) { return v[1][0]; } void main() { float2x2 a; f(a); }",
+    );
 
     // Redefinitions should fail - different typename
     check_fail("template<typename T> void f() {} template<typename G> void f() {}");
@@ -1031,7 +1047,9 @@ fn check_function_template_non_type() {
     check_types("template<uint L> void f() { float data[L]; } void main() { f<2>(); f<4>(); }");
 
     // Check we can pass a value argument with a type from a type argument
-    check_types("template<typename T, T L> void f() { T data[L]; } void main() { f<uint, 2>(); f<float, 4>(); }");
+    check_types(
+        "template<typename T, T L> void f() { T data[L]; } void main() { f<uint, 2>(); f<float, 4>(); }",
+    );
 
     // Redefinitions should fail - different name
     check_fail("template<uint X> void f() {} template<uint Y> void f() {}");
@@ -1113,7 +1131,9 @@ fn check_intrinsic_calls() {
     check_types("RWBuffer<float4> buf; void main() { buf.Load(0); }");
     check_fail("RWBuffer buf;");
 
-    check_types("RWByteAddressBuffer buf; void main() { uint previous; buf.InterlockedAdd(0, 1, previous); }");
+    check_types(
+        "RWByteAddressBuffer buf; void main() { uint previous; buf.InterlockedAdd(0, 1, previous); }",
+    );
 }
 
 #[test]
@@ -1250,9 +1270,13 @@ fn check_struct_methods() {
     check_types("struct S { void f() { g(); } void g() { f(); } };");
     check_types("struct S { int x; void f() { x = x + 1; } };");
     check_types("struct S { void f() { x = x + 1; } int x; };");
-    check_types("struct S { float x; bool f() { if (y) { x = x + 1; return false; } return true; } int y; };");
+    check_types(
+        "struct S { float x; bool f() { if (y) { x = x + 1; return false; } return true; } int y; };",
+    );
     check_types("struct S { void f(S s) {} };");
-    check_types("struct S { float x; bool f(S s) { if (y || s.y) { x = x + 1; s.x = s.x + 1; return false; } return true; } int y; };");
+    check_types(
+        "struct S { float x; bool f(S s) { if (y || s.y) { x = x + 1; s.x = s.x + 1; return false; } return true; } int y; };",
+    );
 
     // Methods can be declared to be defined later out of line - but defining them later is not currently supported
     check_types("struct S { void f(); };");
@@ -1293,11 +1317,15 @@ fn check_struct_method_with_contextual_keyword_names() {
 #[test]
 fn check_struct_method_templates() {
     // Check a non-method template function can return the struct types we will use in the next test
-    check_types("template<typename T> T f(T t) { return t; } struct M {}; void main() { M m1; M m2 = f<M>(m1); };");
+    check_types(
+        "template<typename T> T f(T t) { return t; } struct M {}; void main() { M m1; M m2 = f<M>(m1); };",
+    );
 
     // Check a (non-templated) struct template method can have template arguments to the function
     // Currently limited to explicitly listing the types in the call
-    check_types("struct S { template<typename T> T f(T t) { return t; } }; struct M {}; void main() { S s; M m1; M m2 = s.f<M>(m1); };");
+    check_types(
+        "struct S { template<typename T> T f(T t) { return t; } }; struct M {}; void main() { S s; M m1; M m2 = s.f<M>(m1); };",
+    );
 
     // Check we can have type dependent operations in an uninstantiated template
     check_types("struct S { template<typename T> void f() { t + 1; } };");
@@ -1313,7 +1341,9 @@ fn check_struct_method_templates() {
     );
 
     // Check (non-templated) struct template method can access both the template type and the containing struct type
-    check_types("struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };");
+    check_types(
+        "struct S { template<typename T> void f() { S s1; T t1; { S s2; T t2; return; } } }; struct M {}; void main() { S s; s.f<M>(); };",
+    );
 
     // Check a templated method on a templated struct receives the correct types
     check_types(
@@ -1374,7 +1404,9 @@ fn check_struct_templates() {
     );
 
     // Check template arguments can have default values
-    check_types("template<typename T = float> struct S { T f() { return 0; } }; void main() { S<float> s1; S<> s2; S s3; s1 = s2; s2 = s3; }");
+    check_types(
+        "template<typename T = float> struct S { T f() { return 0; } }; void main() { S<float> s1; S<> s2; S s3; s1 = s2; s2 = s3; }",
+    );
 
     // Check a non-default parameter can not appear after a default parameter
     check_fail("template<typename X = uint, typename T> struct S {};");
@@ -1394,13 +1426,19 @@ fn check_struct_templates_non_type() {
     check_types("template<uint T> struct S { uint f() { return T; } }; S<0> s;");
 
     // Check that the same template arguments give the same type
-    check_types("template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<4> s2; s1 = s2; }");
+    check_types(
+        "template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<4> s2; s1 = s2; }",
+    );
 
     // Check that different template arguments give different types
-    check_fail("template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<5> s2; s1 = s2; }");
+    check_fail(
+        "template<uint T> struct S { uint f() { return T; } }; void main() { S<4> s1; S<5> s2; s1 = s2; }",
+    );
 
     // Check template arguments can have default values
-    check_types("template<uint T = 4> struct S { uint f() { return T; } }; void main() { S<4> s1; S<> s2; S s3; s1 = s2; s2 = s3; }");
+    check_types(
+        "template<uint T = 4> struct S { uint f() { return T; } }; void main() { S<4> s1; S<> s2; S s3; s1 = s2; s2 = s3; }",
+    );
 
     // Check a non-default parameter can not appear after a default parameter
     check_fail("template<uint X = 4, uint Y> struct S {};");
@@ -1478,8 +1516,12 @@ fn check_enum_int_cast() {
     check_types("enum S { A = 1 }; void f() { int s = S::A; }");
 
     // Test that A and B implicitly cast to int before evaluating
-    check_types("enum S1 { A, B }; enum S2 { X = A | B, Z = assert_type<S1>(assert_type<S1>(A) | assert_type<S1>(B)) };");
-    check_types("enum S1 { A, B }; enum S2 { X = A + B, Z = assert_type<S1>(assert_type<S1>(A) + assert_type<S1>(B)) };");
+    check_types(
+        "enum S1 { A, B }; enum S2 { X = A | B, Z = assert_type<S1>(assert_type<S1>(A) | assert_type<S1>(B)) };",
+    );
+    check_types(
+        "enum S1 { A, B }; enum S2 { X = A + B, Z = assert_type<S1>(assert_type<S1>(A) + assert_type<S1>(B)) };",
+    );
 
     // Most unary operations should convert to int
     check_types("enum S1 { A }; enum S2 { Z = ~A };");
@@ -1898,8 +1940,12 @@ fn check_swizzle() {
 
 #[test]
 fn check_matrix_swizzle() {
-    check_types("void main() { float4x4 t; t._m00; t._m01; t._m02; t._m03; t._m10; t._m11; t._m12; t._m13; t._m20; t._m21; t._m22; t._m23; t._m30; t._m31; t._m32; t._m33; }");
-    check_types("void main() { float4x4 t; t._11; t._12; t._13; t._14; t._21; t._22; t._23; t._24; t._31; t._32; t._33; t._34; t._41; t._42; t._43; t._44; }");
+    check_types(
+        "void main() { float4x4 t; t._m00; t._m01; t._m02; t._m03; t._m10; t._m11; t._m12; t._m13; t._m20; t._m21; t._m22; t._m23; t._m30; t._m31; t._m32; t._m33; }",
+    );
+    check_types(
+        "void main() { float4x4 t; t._11; t._12; t._13; t._14; t._21; t._22; t._23; t._24; t._31; t._32; t._33; t._34; t._41; t._42; t._43; t._44; }",
+    );
     check_types("void main() { float4x4 t; t._m00_m01; t._m00_m01_m02; t._m00_m01_m02_m03; }");
     check_fail("void main() { float4x4 t; t._m00_m01_m02_m03_m10; }");
     check_fail("void main() { float3x3 t; t._m00_m01_m02_m03; }");

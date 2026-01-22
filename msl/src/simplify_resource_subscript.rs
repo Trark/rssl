@@ -131,45 +131,45 @@ fn process_expression(expr: &mut Expression, is_read_only: bool, reference_modul
                     Err(_) => panic!("Invalid module"),
                 };
 
-                if let Some(lhs_object_type) = get_object_type(ety, reference_module) {
-                    if let Some(load) = get_remapped_load(lhs_object_type) {
-                        let object = *object.clone();
-                        let index = *index.clone();
+                if let Some(lhs_object_type) = get_object_type(ety, reference_module)
+                    && let Some(load) = get_remapped_load(lhs_object_type)
+                {
+                    let object = *object.clone();
+                    let index = *index.clone();
 
-                        let index = match lhs_object_type {
-                            ObjectType::Texture2D(_)
-                            | ObjectType::Texture2DArray(_)
-                            | ObjectType::Texture3D(_) => Expression::IntrinsicOp(
-                                IntrinsicOp::MakeSignedPushZero,
-                                Vec::from([index]),
-                            ),
+                    let index = match lhs_object_type {
+                        ObjectType::Texture2D(_)
+                        | ObjectType::Texture2DArray(_)
+                        | ObjectType::Texture3D(_) => Expression::IntrinsicOp(
+                            IntrinsicOp::MakeSignedPushZero,
+                            Vec::from([index]),
+                        ),
 
-                            ObjectType::RWBuffer(_)
-                            | ObjectType::RWTexture2D(_)
-                            | ObjectType::RWTexture2DArray(_)
-                            | ObjectType::RWTexture3D(_) => {
-                                Expression::IntrinsicOp(IntrinsicOp::MakeSigned, Vec::from([index]))
-                            }
-                            ObjectType::Buffer(_)
-                            | ObjectType::StructuredBuffer(_)
-                            | ObjectType::RWStructuredBuffer(_) => {
-                                // Int should already exist as intrinsics will create it
-                                let int_ty = reference_module
-                                    .type_registry
-                                    .try_find_type(TypeLayer::Scalar(ScalarType::Int32))
-                                    .unwrap();
+                        ObjectType::RWBuffer(_)
+                        | ObjectType::RWTexture2D(_)
+                        | ObjectType::RWTexture2DArray(_)
+                        | ObjectType::RWTexture3D(_) => {
+                            Expression::IntrinsicOp(IntrinsicOp::MakeSigned, Vec::from([index]))
+                        }
+                        ObjectType::Buffer(_)
+                        | ObjectType::StructuredBuffer(_)
+                        | ObjectType::RWStructuredBuffer(_) => {
+                            // Int should already exist as intrinsics will create it
+                            let int_ty = reference_module
+                                .type_registry
+                                .try_find_type(TypeLayer::Scalar(ScalarType::Int32))
+                                .unwrap();
 
-                                Expression::Cast(int_ty, Box::new(index))
-                            }
-                            _ => panic!("Unexpected object type {:?}", lhs_object_type),
-                        };
+                            Expression::Cast(int_ty, Box::new(index))
+                        }
+                        _ => panic!("Unexpected object type {:?}", lhs_object_type),
+                    };
 
-                        let arguments = Vec::from([object, index]);
-                        let function_id =
-                            find_function_for_intrinsic(load, &arguments, reference_module);
+                    let arguments = Vec::from([object, index]);
+                    let function_id =
+                        find_function_for_intrinsic(load, &arguments, reference_module);
 
-                        *expr = Expression::Call(function_id, CallType::MethodExternal, arguments);
-                    }
+                    *expr = Expression::Call(function_id, CallType::MethodExternal, arguments);
                 }
             }
         }
@@ -389,27 +389,27 @@ fn find_function_for_intrinsic(
 
     let mut found = None;
     for id in object_functions.iter().cloned() {
-        if let Some(data) = reference_module.function_registry.get_intrinsic_data(id) {
-            if *data == intrinsic {
-                let sig = &reference_module
-                    .function_registry
-                    .get_function_signature(id);
-                if argument_types.len() >= sig.non_default_params
-                    && argument_types.len() <= sig.param_types.len()
-                {
-                    let mut same_params = true;
-                    for (i, argument_type) in argument_types.iter().enumerate() {
-                        let param_type = &sig.param_types[i];
-                        if *argument_type != param_type.type_id {
-                            same_params = false;
-                            break;
-                        }
+        if let Some(data) = reference_module.function_registry.get_intrinsic_data(id)
+            && *data == intrinsic
+        {
+            let sig = &reference_module
+                .function_registry
+                .get_function_signature(id);
+            if argument_types.len() >= sig.non_default_params
+                && argument_types.len() <= sig.param_types.len()
+            {
+                let mut same_params = true;
+                for (i, argument_type) in argument_types.iter().enumerate() {
+                    let param_type = &sig.param_types[i];
+                    if *argument_type != param_type.type_id {
+                        same_params = false;
+                        break;
                     }
+                }
 
-                    if same_params {
-                        assert!(found.is_none());
-                        found = Some(id);
-                    }
+                if same_params {
+                    assert!(found.is_none());
+                    found = Some(id);
                 }
             }
         }

@@ -87,10 +87,8 @@ fn lex_from_str(source: &str) -> (Vec<LexToken>, SourceManager) {
 /// Helper type to invoke parsing on fragments of text
 pub struct ParserTester<F, T>(F, std::marker::PhantomData<T>);
 
-impl<
-        T: std::cmp::PartialEq + std::fmt::Debug,
-        F: for<'t> Fn(&'t [LexToken]) -> ParseResult<'t, T>,
-    > ParserTester<F, T>
+impl<T: std::cmp::PartialEq + std::fmt::Debug, F: for<'t> Fn(&'t [LexToken]) -> ParseResult<'t, T>>
+    ParserTester<F, T>
 {
     /// Create a new tester object from a parse function
     pub fn new(parse_fn: F) -> Self {

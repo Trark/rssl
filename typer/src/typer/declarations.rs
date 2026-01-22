@@ -66,7 +66,7 @@ pub fn parse_declarator(
                             Some(0) => {
                                 return Err(TyperError::ArrayDimensionsMustBeNonZero(
                                     dim_expr.get_location(),
-                                ))
+                                ));
                             }
                             Some(val) => Some(val),
                             None => {
@@ -82,12 +82,10 @@ pub fn parse_declarator(
                         if is_last {
                             // The "first" array dimension (closest to name) can be taken from initializer length
                             match init {
-                                Some(ast::Initializer::Aggregate(ref exprs))
-                                    if exprs.is_empty() =>
-                                {
-                                    return Err(TyperError::ArrayDimensionsMustBeNonZero(loc))
+                                Some(ast::Initializer::Aggregate(exprs)) if exprs.is_empty() => {
+                                    return Err(TyperError::ArrayDimensionsMustBeNonZero(loc));
                                 }
-                                Some(ast::Initializer::Aggregate(ref exprs)) => {
+                                Some(ast::Initializer::Aggregate(exprs)) => {
                                     Some(exprs.len() as u64)
                                 }
                                 _ if allow_unbounded => None,

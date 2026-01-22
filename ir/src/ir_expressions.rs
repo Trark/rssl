@@ -247,33 +247,33 @@ impl Expression {
                 let mut tyl = module.type_registry.get_type_layer(ty);
 
                 // Handle mips member of Texture2D
-                if let TypeLayer::Object(ObjectType::Texture2D(inner)) = tyl {
-                    if name == "mips" {
-                        let mips_oty = ObjectType::Texture2DMips(inner);
-                        let mips_tyl = TypeLayer::Object(mips_oty);
-                        let mips_ty = module.type_registry.register_type(mips_tyl);
-                        return Ok(mips_ty.to_lvalue());
-                    }
+                if let TypeLayer::Object(ObjectType::Texture2D(inner)) = tyl
+                    && name == "mips"
+                {
+                    let mips_oty = ObjectType::Texture2DMips(inner);
+                    let mips_tyl = TypeLayer::Object(mips_oty);
+                    let mips_ty = module.type_registry.register_type(mips_tyl);
+                    return Ok(mips_ty.to_lvalue());
                 }
 
                 // Handle mips member of Texture2DArray
-                if let TypeLayer::Object(ObjectType::Texture2DArray(inner)) = tyl {
-                    if name == "mips" {
-                        let mips_oty = ObjectType::Texture2DArrayMips(inner);
-                        let mips_tyl = TypeLayer::Object(mips_oty);
-                        let mips_ty = module.type_registry.register_type(mips_tyl);
-                        return Ok(mips_ty.to_lvalue());
-                    }
+                if let TypeLayer::Object(ObjectType::Texture2DArray(inner)) = tyl
+                    && name == "mips"
+                {
+                    let mips_oty = ObjectType::Texture2DArrayMips(inner);
+                    let mips_tyl = TypeLayer::Object(mips_oty);
+                    let mips_ty = module.type_registry.register_type(mips_tyl);
+                    return Ok(mips_ty.to_lvalue());
                 }
 
                 // Handle mips member of Texture3D
-                if let TypeLayer::Object(ObjectType::Texture3D(inner)) = tyl {
-                    if name == "mips" {
-                        let mips_oty = ObjectType::Texture3DMips(inner);
-                        let mips_tyl = TypeLayer::Object(mips_oty);
-                        let mips_ty = module.type_registry.register_type(mips_tyl);
-                        return Ok(mips_ty.to_lvalue());
-                    }
+                if let TypeLayer::Object(ObjectType::Texture3D(inner)) = tyl
+                    && name == "mips"
+                {
+                    let mips_oty = ObjectType::Texture3DMips(inner);
+                    let mips_tyl = TypeLayer::Object(mips_oty);
+                    let mips_ty = module.type_registry.register_type(mips_tyl);
+                    return Ok(mips_ty.to_lvalue());
                 }
 
                 // If it is a constant buffer then auto unwrap the inner type

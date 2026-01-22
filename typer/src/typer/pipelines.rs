@@ -174,7 +174,7 @@ pub fn parse_pipeline(def: &ast::PipelineDefinition, context: &mut Context) -> T
             _ => {
                 return Err(TyperError::PipelinePropertyUnknown(
                     property.property.location,
-                ))
+                ));
             }
         }
     }
@@ -250,7 +250,7 @@ fn add_stage(
                     _ => {
                         return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
                             SourceLocation::UNKNOWN,
-                        ))
+                        ));
                     }
                 };
                 let integer = match value.to_uint64() {
@@ -258,7 +258,7 @@ fn add_stage(
                     _ => {
                         return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
                             SourceLocation::UNKNOWN,
-                        ))
+                        ));
                     }
                 };
                 Ok(integer)
@@ -288,7 +288,7 @@ fn parse_blend_state(
         rssl_ast::PipelinePropertyValue::Single(_) => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 properties.location,
-            ))
+            ));
         }
         rssl_ast::PipelinePropertyValue::Aggregate(properties) => properties,
     };
@@ -310,7 +310,7 @@ fn parse_blend_state(
                     _ => {
                         return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
                             property.value.location,
-                        ))
+                        ));
                     }
                 };
                 state.write_mask = ir::ComponentMask(value);
@@ -318,7 +318,7 @@ fn parse_blend_state(
             _ => {
                 return Err(TyperError::PipelinePropertyUnknown(
                     property.property.location,
-                ))
+                ));
             }
         }
     }
@@ -345,7 +345,7 @@ fn extract_uint32(
         rssl_ast::PipelinePropertyValue::Aggregate(_) => {
             return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
                 property.location,
-            ))
+            ));
         }
     };
     let value_expr = super::expressions::parse_expr(property_value, context)?;
@@ -355,7 +355,7 @@ fn extract_uint32(
         _ => {
             return Err(TyperError::PipelinePropertyRequiresIntegerArgument(
                 property.location,
-            ))
+            ));
         }
     };
     match value.to_uint64() {
@@ -376,7 +376,7 @@ fn extract_float(
         rssl_ast::PipelinePropertyValue::Aggregate(_) => {
             return Err(TyperError::PipelinePropertyRequiresFloatArgument(
                 property.location,
-            ))
+            ));
         }
     };
     let value_expr = super::expressions::parse_expr(property_value, context)?;
@@ -386,7 +386,7 @@ fn extract_float(
         _ => {
             return Err(TyperError::PipelinePropertyRequiresFloatArgument(
                 property.location,
-            ))
+            ));
         }
     };
     match value.to_f32() {
@@ -418,7 +418,7 @@ fn extract_cull_mode(property: &ast::PipelineProperty) -> TyperResult<ir::CullMo
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -431,7 +431,7 @@ fn extract_winding_order(property: &ast::PipelineProperty) -> TyperResult<ir::Wi
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -461,7 +461,7 @@ fn extract_blend_factor(property: &ast::PipelineProperty) -> TyperResult<ir::Ble
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -477,7 +477,7 @@ fn extract_blend_op(property: &ast::PipelineProperty) -> TyperResult<ir::BlendOp
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -528,7 +528,7 @@ pub fn parse_static_sampler(
             _ => {
                 return Err(TyperError::StaticSamplerUnexpectedProperty(
                     property.property.clone(),
-                ))
+                ));
             }
         }
     }
@@ -559,7 +559,7 @@ fn extract_sampler_filter(property: &ast::PipelineProperty) -> TyperResult<ir::S
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -574,7 +574,7 @@ fn extract_sampler_address_mode(
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -592,7 +592,7 @@ fn extract_sampler_border_color(
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }
@@ -613,7 +613,7 @@ fn extract_sampler_compare_func(
         _ => {
             return Err(TyperError::PipelinePropertyArgumentUnknown(
                 property.property.location,
-            ))
+            ));
         }
     })
 }

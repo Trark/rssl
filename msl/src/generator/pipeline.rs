@@ -6,9 +6,8 @@ use rssl_ir::export::*;
 use rssl_text::{Located, SourceLocation};
 
 use super::{
-    generate_function_param, generate_semantic_annotation, generate_type,
-    scoped_name_to_identifier, GenerateContext, GenerateError, GlobalMode,
-    ImplicitFunctionParameter,
+    GenerateContext, GenerateError, GlobalMode, ImplicitFunctionParameter, generate_function_param,
+    generate_semantic_annotation, generate_type, scoped_name_to_identifier,
 };
 use crate::names::*;
 
@@ -587,32 +586,32 @@ pub(crate) fn generate_pipeline(
         }
 
         // Generate input struct for pixel shader if required
-        if stage.stage == ir::ShaderStage::Pixel {
-            if let Some((name, Some(pixel_in_members))) = &pixel_in {
-                let mut members = Vec::new();
-                for (ty, name) in pixel_in_members {
-                    members.push(ast::StructEntry::Variable(ast::StructMember {
-                        ty: generate_type(*ty, context)?,
-                        defs: Vec::from([ast::InitDeclarator {
-                            declarator: ast::Declarator::Identifier(
-                                ast::ScopedIdentifier::trivial(name),
-                                Default::default(),
-                            ),
-                            location_annotations: Default::default(),
-                            init: None,
-                        }]),
-                        attributes: Default::default(),
-                    }));
-                }
-
-                let entry_point = ast::StructDefinition {
-                    name: Located::none(String::from(*name)),
-                    base_types: Default::default(),
-                    template_params: ast::TemplateParamList(Vec::new()),
-                    members,
-                };
-                defs.push(ast::RootDefinition::Struct(entry_point));
+        if stage.stage == ir::ShaderStage::Pixel
+            && let Some((name, Some(pixel_in_members))) = &pixel_in
+        {
+            let mut members = Vec::new();
+            for (ty, name) in pixel_in_members {
+                members.push(ast::StructEntry::Variable(ast::StructMember {
+                    ty: generate_type(*ty, context)?,
+                    defs: Vec::from([ast::InitDeclarator {
+                        declarator: ast::Declarator::Identifier(
+                            ast::ScopedIdentifier::trivial(name),
+                            Default::default(),
+                        ),
+                        location_annotations: Default::default(),
+                        init: None,
+                    }]),
+                    attributes: Default::default(),
+                }));
             }
+
+            let entry_point = ast::StructDefinition {
+                name: Located::none(String::from(*name)),
+                base_types: Default::default(),
+                template_params: ast::TemplateParamList(Vec::new()),
+                members,
+            };
+            defs.push(ast::RootDefinition::Struct(entry_point));
         }
 
         // Generate output struct for stage

@@ -425,22 +425,22 @@ impl ImplicitConversion {
             let target_type_unmodified = module.type_registry.remove_modifier(target_type.0);
             match module.type_registry.get_type_layer(target_type_unmodified) {
                 TypeLayer::Scalar(ScalarType::Bool) => {
-                    return Expression::Literal(Constant::Bool(v != 0))
+                    return Expression::Literal(Constant::Bool(v != 0));
                 }
                 TypeLayer::Scalar(ScalarType::UInt32) => {
-                    return Expression::Literal(Constant::UInt32(v as u32))
+                    return Expression::Literal(Constant::UInt32(v as u32));
                 }
                 TypeLayer::Scalar(ScalarType::Int32) => {
-                    return Expression::Literal(Constant::Int32(v as i32))
+                    return Expression::Literal(Constant::Int32(v as i32));
                 }
                 TypeLayer::Scalar(ScalarType::Float16) => {
-                    return Expression::Literal(Constant::Float16(v as f32))
+                    return Expression::Literal(Constant::Float16(v as f32));
                 }
                 TypeLayer::Scalar(ScalarType::Float32) => {
-                    return Expression::Literal(Constant::Float32(v as f32))
+                    return Expression::Literal(Constant::Float32(v as f32));
                 }
                 TypeLayer::Scalar(ScalarType::Float64) => {
-                    return Expression::Literal(Constant::Float64(v as f64))
+                    return Expression::Literal(Constant::Float64(v as f64));
                 }
                 _ => {}
             }
@@ -451,22 +451,22 @@ impl ImplicitConversion {
             let target_type_unmodified = module.type_registry.remove_modifier(target_type.0);
             match module.type_registry.get_type_layer(target_type_unmodified) {
                 TypeLayer::Scalar(ScalarType::Bool) => {
-                    return Expression::Literal(Constant::Bool(v != 0.0))
+                    return Expression::Literal(Constant::Bool(v != 0.0));
                 }
                 TypeLayer::Scalar(ScalarType::UInt32) => {
-                    return Expression::Literal(Constant::UInt32(v as u32))
+                    return Expression::Literal(Constant::UInt32(v as u32));
                 }
                 TypeLayer::Scalar(ScalarType::Int32) => {
-                    return Expression::Literal(Constant::Int32(v as i32))
+                    return Expression::Literal(Constant::Int32(v as i32));
                 }
                 TypeLayer::Scalar(ScalarType::Float16) => {
-                    return Expression::Literal(Constant::Float16(v as f32))
+                    return Expression::Literal(Constant::Float16(v as f32));
                 }
                 TypeLayer::Scalar(ScalarType::Float32) => {
-                    return Expression::Literal(Constant::Float32(v as f32))
+                    return Expression::Literal(Constant::Float32(v as f32));
                 }
                 TypeLayer::Scalar(ScalarType::Float64) => {
-                    return Expression::Literal(Constant::Float64(v))
+                    return Expression::Literal(Constant::Float64(v));
                 }
                 _ => {}
             }

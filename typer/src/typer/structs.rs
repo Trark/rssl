@@ -3,15 +3,15 @@ use super::errors::*;
 use super::functions::{parse_function_body, parse_function_signature};
 use super::scopes::*;
 use super::types::{
-    is_illegal_type_name, is_illegal_variable_name, parse_interpolation_modifier, parse_precise,
-    parse_type_for_usage, TypePosition,
+    TypePosition, is_illegal_type_name, is_illegal_variable_name, parse_interpolation_modifier,
+    parse_precise, parse_type_for_usage,
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::hash_map::Entry;
 
 /// Process a struct definition
 pub fn parse_rootdefinition_struct(
@@ -183,7 +183,9 @@ fn parse_struct_internal(
                     let name = match scoped_name.try_trivial() {
                         Some(name) => name,
                         _ => {
-                            return Err(TyperError::IllegalVariableName(scoped_name.get_location()))
+                            return Err(TyperError::IllegalVariableName(
+                                scoped_name.get_location(),
+                            ));
                         }
                     };
 

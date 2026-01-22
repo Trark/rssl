@@ -710,9 +710,9 @@ impl TypeLayer {
     pub fn most_significant_dimension(lhs: Self, rhs: Self) -> Option<NumericDimension> {
         assert!(!lhs.is_modifier());
         assert!(!rhs.is_modifier());
+        use TypeLayer::*;
         use std::cmp::max;
         use std::cmp::min;
-        use TypeLayer::*;
         match (lhs, rhs) {
             (Scalar(_), Scalar(_)) => Some(NumericDimension::Scalar),
             (Scalar(_), Vector(_, ref x)) => Some(NumericDimension::Vector(*x)),

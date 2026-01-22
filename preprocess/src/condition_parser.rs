@@ -138,12 +138,16 @@ fn parse_p7(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionPar
 fn parse_p6(stream: &[Token]) -> Result<(&[Token], ConditionValue), ConditionParseError> {
     fn parse_op(input: &[Token]) -> Result<(&[Token], BinOp), ConditionParseError> {
         match input {
-            [Token::LeftAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
-                Ok((rest, BinOp::LessEqual))
-            }
-            [Token::RightAngleBracket(FollowedBy::Token), Token::Equals, rest @ ..] => {
-                Ok((rest, BinOp::GreaterEqual))
-            }
+            [
+                Token::LeftAngleBracket(FollowedBy::Token),
+                Token::Equals,
+                rest @ ..,
+            ] => Ok((rest, BinOp::LessEqual)),
+            [
+                Token::RightAngleBracket(FollowedBy::Token),
+                Token::Equals,
+                rest @ ..,
+            ] => Ok((rest, BinOp::GreaterEqual)),
             [Token::LeftAngleBracket(_), rest @ ..] => Ok((rest, BinOp::LessThan)),
             [Token::RightAngleBracket(_), rest @ ..] => Ok((rest, BinOp::GreaterThan)),
             _ => Err(ConditionParseError),

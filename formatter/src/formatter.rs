@@ -322,7 +322,9 @@ fn format_template_param_list(
                     }
 
                     if type_param.default.is_some() {
-                        todo!("template parameters with default values are not supported for formatting");
+                        todo!(
+                            "template parameters with default values are not supported for formatting"
+                        );
                     }
                 }
                 ast::TemplateParam::Value(value_param) => {
@@ -334,7 +336,9 @@ fn format_template_param_list(
                     }
 
                     if value_param.default.is_some() {
-                        todo!("template parameters with default values are not supported for formatting");
+                        todo!(
+                            "template parameters with default values are not supported for formatting"
+                        );
                     }
                 }
             }

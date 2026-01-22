@@ -47,26 +47,26 @@ fn parse_rootdefinition(
     context: &mut Context,
 ) -> TyperResult<Vec<ir::RootDefinition>> {
     match ast {
-        ast::RootDefinition::Struct(ref sd) => {
+        ast::RootDefinition::Struct(sd) => {
             let def = structs::parse_rootdefinition_struct(sd, context)?;
             Ok(Vec::from([def]))
         }
-        ast::RootDefinition::Enum(ref ed) => {
+        ast::RootDefinition::Enum(ed) => {
             let def = enums::parse_rootdefinition_enum(ed, context)?;
             Ok(Vec::from([def]))
         }
-        ast::RootDefinition::Typedef(ref td) => {
+        ast::RootDefinition::Typedef(td) => {
             types::parse_rootdefinition_typedef(td, context)?;
             Ok(Vec::new())
         }
-        ast::RootDefinition::ConstantBuffer(ref cb) => {
+        ast::RootDefinition::ConstantBuffer(cb) => {
             let def = globals::parse_rootdefinition_constantbuffer(cb, context)?;
             Ok(Vec::from([def]))
         }
-        ast::RootDefinition::GlobalVariable(ref gv) => {
+        ast::RootDefinition::GlobalVariable(gv) => {
             globals::parse_rootdefinition_globalvariable(gv, context)
         }
-        ast::RootDefinition::Function(ref fd) => {
+        ast::RootDefinition::Function(fd) => {
             let def = functions::parse_rootdefinition_function(fd, context)?;
             Ok(Vec::from([def]))
         }
@@ -79,7 +79,7 @@ fn parse_rootdefinition(
             context.exit_namespace();
             Ok(ir_defs)
         }
-        ast::RootDefinition::Pipeline(ref def) => {
+        ast::RootDefinition::Pipeline(def) => {
             pipelines::parse_pipeline(def, context)?;
             Ok(Vec::new())
         }

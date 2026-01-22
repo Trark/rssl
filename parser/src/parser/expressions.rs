@@ -5,7 +5,7 @@ use super::*;
 /// Try to parse a literal
 fn expr_literal(input: &[LexToken]) -> ParseResult<'_, Located<Expression>> {
     match input.first() {
-        Some(LexToken(tok, ref loc)) => {
+        Some(LexToken(tok, loc)) => {
             let literal = match *tok {
                 Token::LiteralInt(v) => Literal::IntUntyped(v),
                 Token::LiteralIntUnsigned32(v) => Literal::IntUnsigned32(v),
@@ -515,24 +515,35 @@ fn expr_p5<'t>(
 ) -> ParseResult<'t, Located<Expression>> {
     fn parse_op<'t>(input: &'t [LexToken], st: &mut SymbolTable) -> ParseResult<'t, BinOp> {
         match input {
-            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
-            {
+            [
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                ..,
+            ] => {
                 // Reject tokens that will become <<=
                 ParseErrorReason::wrong_token(input)
             }
-            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(_), _), rest @ ..]
-                if rest.is_empty() || rest[0].0 != Token::Equals =>
-            {
-                Ok((rest, BinOp::LeftShift))
-            }
-            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
-            {
+            [
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::LeftAngleBracket(_), _),
+                rest @ ..,
+            ] if rest.is_empty() || rest[0].0 != Token::Equals => Ok((rest, BinOp::LeftShift)),
+            [
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                ..,
+            ] => {
                 // Reject tokens that will become >>=
                 ParseErrorReason::wrong_token(input)
             }
-            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(_), _), rest @ ..]
-                if st.terminator != Terminator::TypeList
-                    && (rest.is_empty() || rest[0].0 != Token::Equals) =>
+            [
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::RightAngleBracket(_), _),
+                rest @ ..,
+            ] if st.terminator != Terminator::TypeList
+                && (rest.is_empty() || rest[0].0 != Token::Equals) =>
             {
                 Ok((rest, BinOp::RightShift))
             }
@@ -550,22 +561,32 @@ fn expr_p6<'t>(
 ) -> ParseResult<'t, Located<Expression>> {
     fn parse_op<'t>(input: &'t [LexToken], st: &mut SymbolTable) -> ParseResult<'t, BinOp> {
         match input {
-            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..] => {
-                Ok((rest, BinOp::LessEqual))
-            }
-            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..]
-                if st.terminator != Terminator::TypeList =>
-            {
-                Ok((rest, BinOp::GreaterEqual))
-            }
-            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
-            {
+            [
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                rest @ ..,
+            ] => Ok((rest, BinOp::LessEqual)),
+            [
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                rest @ ..,
+            ] if st.terminator != Terminator::TypeList => Ok((rest, BinOp::GreaterEqual)),
+            [
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                ..,
+            ] => {
                 // Reject tokens that will become <<=
                 ParseErrorReason::wrong_token(input)
             }
             [LexToken(Token::LeftAngleBracket(_), _), rest @ ..] => Ok((rest, BinOp::LessThan)),
-            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), ..] =>
-            {
+            [
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                ..,
+            ] => {
                 // Reject tokens that will become >>=
                 ParseErrorReason::wrong_token(input)
             }
@@ -720,12 +741,18 @@ fn expr_p14<'t>(
             [LexToken(Token::PercentEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::RemainderAssignment))
             }
-            [LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::LeftAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..] => {
-                Ok((rest, BinOp::LeftShiftAssignment))
-            }
-            [LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::RightAngleBracket(FollowedBy::Token), _), LexToken(Token::Equals, _), rest @ ..] => {
-                Ok((rest, BinOp::RightShiftAssignment))
-            }
+            [
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::LeftAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                rest @ ..,
+            ] => Ok((rest, BinOp::LeftShiftAssignment)),
+            [
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::RightAngleBracket(FollowedBy::Token), _),
+                LexToken(Token::Equals, _),
+                rest @ ..,
+            ] => Ok((rest, BinOp::RightShiftAssignment)),
             [LexToken(Token::AmpersandEquals, _), rest @ ..] => {
                 Ok((rest, BinOp::BitwiseAndAssignment))
             }
@@ -910,8 +937,8 @@ pub fn parse_expression_resolve_symbols(
         // If the expression is the same and has a more restrictive symbol requirement then discard it
         let mut same = false;
         for selected_result in &reduced_results {
-            if selected_result.0 .1 == result.0 .1 {
-                assert_eq!(selected_result.0 .0.len(), result.0 .0.len());
+            if selected_result.0.1 == result.0.1 {
+                assert_eq!(selected_result.0.0.len(), result.0.0.len());
                 let mut symbol_not_covered = false;
                 for s in &selected_result.1 {
                     if !result.1.contains(s) {
@@ -935,11 +962,11 @@ pub fn parse_expression_resolve_symbols(
         Ok(results.pop().unwrap().0)
     } else {
         let mut output_expressions = Vec::new();
-        let tokens = results[0].0 .0;
+        let tokens = results[0].0.0;
         for next_result in results.into_iter().rev() {
-            assert_eq!(tokens, next_result.0 .0);
+            assert_eq!(tokens, next_result.0.0);
             output_expressions.push(ConstrainedExpression {
-                expr: next_result.0 .1,
+                expr: next_result.0.1,
                 expected_type_names: next_result.1,
             })
         }
@@ -1578,16 +1605,18 @@ fn test_method_call() {
         Expression::Call(
             Expression::Member("array".as_bvar(0), "Load".loc(6).into()).bloc(0),
             vec![ExpressionOrType::from("float4".loc(11))],
-            vec![Expression::BinaryOperation(
-                BinOp::Multiply,
-                "i".as_bvar(19),
-                Expression::SizeOf(Box::new(ExpressionOrType::Either(
-                    Expression::Identifier("float4".loc(30).into()).loc(30),
-                    TypeId::from("float4".loc(30)),
-                )))
-                .bloc(23),
-            )
-            .loc(19)],
+            vec![
+                Expression::BinaryOperation(
+                    BinOp::Multiply,
+                    "i".as_bvar(19),
+                    Expression::SizeOf(Box::new(ExpressionOrType::Either(
+                        Expression::Identifier("float4".loc(30).into()).loc(30),
+                        TypeId::from("float4".loc(30)),
+                    )))
+                    .bloc(23),
+                )
+                .loc(19),
+            ],
         )
         .loc(0),
     );

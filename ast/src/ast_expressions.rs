@@ -1,5 +1,5 @@
-use crate::ast_types::{Type, TypeId};
 use crate::Initializer;
+use crate::ast_types::{Type, TypeId};
 use rssl_text::{Locate, Located, SourceLocation};
 
 /// An RSSL expression

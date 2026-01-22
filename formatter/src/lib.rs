@@ -4,6 +4,6 @@
 
 mod formatter;
 
-pub use formatter::format;
 pub use formatter::FormatError;
 pub use formatter::Target;
+pub use formatter::format;

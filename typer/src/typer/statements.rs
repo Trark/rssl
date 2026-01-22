@@ -9,7 +9,7 @@ use rssl_text::*;
 
 use super::declarations::parse_declarator;
 use super::expressions::parse_expr;
-use super::types::{is_illegal_variable_name, parse_precise, parse_type_for_usage, TypePosition};
+use super::types::{TypePosition, is_illegal_variable_name, parse_precise, parse_type_for_usage};
 
 /// Type check a list of ast statements into ir statements
 pub fn parse_statement_list(
@@ -300,7 +300,7 @@ fn parse_statement_attribute(
             return Err(TyperError::StatementAttributeUnknown(
                 first.node.clone(),
                 first.location,
-            ))
+            ));
         }
         _ => panic!("Attribute with no name"),
     };
@@ -338,7 +338,7 @@ fn parse_statement_attribute(
                         Err(_) => {
                             return Err(TyperError::AttributeUnrollArgumentMustBeIntegerConstant(
                                 attribute_name.location,
-                            ))
+                            ));
                         }
                     };
                     let value = match value.to_uint64() {
@@ -346,7 +346,7 @@ fn parse_statement_attribute(
                         None => {
                             return Err(TyperError::AttributeUnrollArgumentMustBeIntegerConstant(
                                 attribute_name.location,
-                            ))
+                            ));
                         }
                     };
                     Ok(ir::StatementAttribute::Unroll(Some(value)))
@@ -400,10 +400,10 @@ fn parse_vardef(ast: &ast::VarDef, context: &mut Context) -> TyperResult<Vec<ir:
         let evaluated_value = (|| {
             if let Some(ir::Initializer::Expression(expr)) = &var_init {
                 let (_, type_mod) = context.module.type_registry.extract_modifier(type_id);
-                if type_mod.is_const {
-                    if let Ok(value) = evaluate_constexpr(expr, &mut context.module) {
-                        return Some(value);
-                    }
+                if type_mod.is_const
+                    && let Ok(value) = evaluate_constexpr(expr, &mut context.module)
+                {
+                    return Some(value);
                 }
             }
             None
@@ -466,7 +466,7 @@ fn parse_localtype(
                     modifier.node,
                     modifier.get_location(),
                     TypePosition::Local,
-                ))
+                ));
             }
             _ => continue,
         };
@@ -533,7 +533,7 @@ fn parse_initializer(
                         expr_ty.0,
                         ety.0,
                         expr.location,
-                    ))
+                    ));
                 }
             }
         }
@@ -614,7 +614,7 @@ fn parse_initializer(
                     return Err(TyperError::InitializerAggregateDoesNotMatchType(
                         ty,
                         variable_location,
-                    ))
+                    ));
                 }
             }
         }

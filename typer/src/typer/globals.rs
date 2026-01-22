@@ -3,7 +3,7 @@ use super::errors::*;
 use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::parse_initializer_opt;
-use super::types::{is_illegal_variable_name, parse_type_for_usage, TypePosition};
+use super::types::{TypePosition, is_illegal_variable_name, parse_type_for_usage};
 use crate::evaluator::evaluate_constexpr;
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -65,10 +65,10 @@ pub fn parse_rootdefinition_globalvariable(
         let evaluated_value = (|| {
             if let Some(ir::Initializer::Expression(expr)) = &var_init {
                 let (_, type_mod) = context.module.type_registry.extract_modifier(type_id);
-                if type_mod.is_const {
-                    if let Ok(value) = evaluate_constexpr(expr, &mut context.module) {
-                        return Some(value);
-                    }
+                if type_mod.is_const
+                    && let Ok(value) = evaluate_constexpr(expr, &mut context.module)
+                {
+                    return Some(value);
                 }
             }
             None
@@ -401,7 +401,7 @@ fn parse_attributes_for_global(
                                 return Err(TyperError::GlobalAttributeUnknown(
                                     leaf.node.clone(),
                                     leaf.location,
-                                ))
+                                ));
                             }
                         }
                     }
@@ -433,7 +433,7 @@ fn parse_attributes_for_global(
                                 return Err(TyperError::GlobalAttributeUnknown(
                                     leaf.node.clone(),
                                     leaf.location,
-                                ))
+                                ));
                             }
                         }
                     }
@@ -441,7 +441,7 @@ fn parse_attributes_for_global(
                         return Err(TyperError::GlobalAttributeUnknown(
                             namespace.node.clone(),
                             namespace.location,
-                        ))
+                        ));
                     }
                 }
             }
@@ -449,7 +449,7 @@ fn parse_attributes_for_global(
                 return Err(TyperError::GlobalAttributeUnknown(
                     first.node.clone(),
                     first.location,
-                ))
+                ));
             }
             _ => panic!("Attribute with no name"),
         }

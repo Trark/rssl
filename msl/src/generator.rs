@@ -447,10 +447,9 @@ fn simplify_namespaces(original: Vec<ast::RootDefinition>) -> Vec<ast::RootDefin
         use ast::RootDefinition::Namespace;
         match (root_definition, simplified.last_mut()) {
             // Matching namespaces are merged with the existing namespace
-            (
-                Namespace(next_name, mut next_defs),
-                Some(Namespace(last_name, ref mut last_defs)),
-            ) if last_name.node == next_name.node => {
+            (Namespace(next_name, mut next_defs), Some(Namespace(last_name, last_defs)))
+                if last_name.node == next_name.node =>
+            {
                 last_defs.append(&mut next_defs);
             }
             // Non-matching namespaces and other root definitions are appended to the output unchanged
@@ -460,7 +459,7 @@ fn simplify_namespaces(original: Vec<ast::RootDefinition>) -> Vec<ast::RootDefin
 
     // Apply recursively
     for root_definition in &mut simplified {
-        if let ast::RootDefinition::Namespace(_, ref mut defs) = root_definition {
+        if let ast::RootDefinition::Namespace(_, defs) = root_definition {
             let v = std::mem::take(defs);
             let v = simplify_namespaces(v);
             *defs = v;
@@ -716,10 +715,9 @@ fn generate_function(
                 .module
                 .function_registry
                 .get_template_instantiation_data(child_id)
+                && data.parent_id == id
             {
-                if data.parent_id == id {
-                    generate_function_and_trampoline(child_id, only_declare, &mut fs, context)?;
-                }
+                generate_function_and_trampoline(child_id, only_declare, &mut fs, context)?;
             }
         }
 
@@ -1292,10 +1290,12 @@ fn generate_interpolation_modifier(
             SampleNoPerspective => make_attribute("sample_no_perspective"),
             Flat => make_attribute("flat"),
             Point | Line | Triangle | LineAdj | TriangleAdj => {
-                return Err(GenerateError::UnsupportedGeometryShader)
+                return Err(GenerateError::UnsupportedGeometryShader);
             }
             Vertices | Primitives | Indices | Payload => {
-                panic!("Mesh shader output modifiers not expected in any place we generate an interpolation modifier")
+                panic!(
+                    "Mesh shader output modifiers not expected in any place we generate an interpolation modifier"
+                )
             }
         }))
     } else {
@@ -1327,7 +1327,7 @@ fn generate_semantic_annotation(
                         ast::Literal::IntUntyped(*i as u64),
                     ))]),
                     two_square_brackets: true,
-                }))
+                }));
             }
             Depth => {
                 return Ok(Some(ast::Attribute {
@@ -1336,7 +1336,7 @@ fn generate_semantic_annotation(
                         ast::ScopedIdentifier::trivial("any"),
                     ))]),
                     two_square_brackets: true,
-                }))
+                }));
             }
             DepthGreaterEqual => {
                 return Ok(Some(ast::Attribute {
@@ -1345,7 +1345,7 @@ fn generate_semantic_annotation(
                         ast::ScopedIdentifier::trivial("greater"),
                     ))]),
                     two_square_brackets: true,
-                }))
+                }));
             }
             DepthLessEqual => {
                 return Ok(Some(ast::Attribute {
@@ -1354,7 +1354,7 @@ fn generate_semantic_annotation(
                         ast::ScopedIdentifier::trivial("less"),
                     ))]),
                     two_square_brackets: true,
-                }))
+                }));
             }
             User(name) => {
                 return Ok(Some(ast::Attribute {
@@ -1363,7 +1363,7 @@ fn generate_semantic_annotation(
                         ast::ScopedIdentifier::trivial(name),
                     ))]),
                     two_square_brackets: true,
-                }))
+                }));
             }
         };
         Ok(Some(ast::Attribute {
@@ -1594,10 +1594,11 @@ fn generate_type_impl(
                 ConstantBuffer(id) => {
                     let mut ty = generate_type(id, context)?;
 
-                    assert!(!ty
-                        .modifiers
-                        .modifiers
-                        .contains(&Located::none(ast::TypeModifier::Const)));
+                    assert!(
+                        !ty.modifiers
+                            .modifiers
+                            .contains(&Located::none(ast::TypeModifier::Const))
+                    );
 
                     ty.modifiers
                         .prepend(Located::none(ast::TypeModifier::AddressSpace(
@@ -1809,7 +1810,7 @@ fn generate_literal(
                 Box::new(Located::none(ast::Expression::Literal(
                     ast::Literal::IntUntyped(-v as u64),
                 ))),
-            ))
+            ));
         }
         ir::Constant::IntLiteral(v) if v >= 0 && v <= u64::MAX as i128 => {
             ast::Literal::IntUntyped(v as u64)
@@ -2089,15 +2090,13 @@ fn generate_scope_block(
                 ast::StatementKind::CaseLabel(_, current) | ast::StatementKind::DefaultLabel(current),
             ..
         }) = statements.last_mut()
-        {
-            if let ast::Statement {
+            && let ast::Statement {
                 kind: ast::StatementKind::Empty,
                 ..
             } = **current
-            {
-                **current = statement;
-                continue;
-            }
+        {
+            **current = statement;
+            continue;
         }
 
         statements.push(statement);
@@ -4092,7 +4091,7 @@ fn generate_intrinsic_op(
                 | Some(ir::ScalarType::Float32)
                 | Some(ir::ScalarType::Float64)
                 | Some(ir::ScalarType::FloatLiteral) => {
-                    return generate_invoke_simple("fmod", &[], exprs, context)
+                    return generate_invoke_simple("fmod", &[], exprs, context);
                 }
                 _ => Form::Binary(ast::BinOp::Modulus),
             }

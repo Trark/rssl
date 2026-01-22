@@ -1,15 +1,15 @@
 use super::errors::ErrorType;
 use super::errors::{ToErrorType, TyperError, TyperResult};
 use super::expressions::{UnresolvedFunction, VariableExpression};
-use super::functions::{parse_function_body, ApplyTemplates};
+use super::functions::{ApplyTemplates, parse_function_body};
 use super::structs::build_struct_from_template;
-use super::types::{parse_and_evaluate_constant_expression, parse_type_for_usage, TypePosition};
+use super::types::{TypePosition, parse_and_evaluate_constant_expression, parse_type_for_usage};
 use ir::ExpressionType;
 use rssl_ast as ast;
 use rssl_ir as ir;
 use rssl_text::*;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 /// Stores all ids for types and variables by a module
 #[derive(Debug, Clone)]
@@ -108,11 +108,13 @@ impl Context {
 
         // For each intrinsic function
         for id in context.module.function_registry.iter() {
-            assert!(context
-                .module
-                .function_registry
-                .get_intrinsic_data(id)
-                .is_some());
+            assert!(
+                context
+                    .module
+                    .function_registry
+                    .get_intrinsic_data(id)
+                    .is_some()
+            );
 
             // Register the function into the root scope
             context
@@ -158,10 +160,12 @@ impl Context {
 
     /// Leave the current scope
     pub fn pop_scope(&mut self) {
-        assert!(self.scopes[self.current_scope]
-            .variables
-            .variables
-            .is_empty());
+        assert!(
+            self.scopes[self.current_scope]
+                .variables
+                .variables
+                .is_empty()
+        );
         self.current_scope = self.scopes[self.current_scope].parent_scope;
         assert_ne!(self.current_scope, usize::MAX);
     }
@@ -360,7 +364,7 @@ impl Context {
                                 return Err(TyperError::TemplateArgumentExpectedType(
                                     error_loc,
                                     ty_param.name.clone(),
-                                ))
+                                ));
                             }
                         }
                     }
@@ -396,7 +400,7 @@ impl Context {
                                 return Err(TyperError::TemplateArgumentExpectedNonType(
                                     error_loc,
                                     val_param.name.clone(),
-                                ))
+                                ));
                             }
                         }
                     }

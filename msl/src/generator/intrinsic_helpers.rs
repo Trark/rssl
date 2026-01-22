@@ -5,7 +5,7 @@ use rssl_ir as ir;
 use rssl_text::{Located, SourceLocation};
 
 use super::{
-    metal_lib_identifier, metal_lib_identifier_complex, metal_raytracing_identifier, GenerateError,
+    GenerateError, metal_lib_identifier, metal_lib_identifier_complex, metal_raytracing_identifier,
 };
 use crate::names::HELPER_NAMESPACE_NAME;
 

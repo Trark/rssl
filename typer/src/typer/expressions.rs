@@ -97,7 +97,7 @@ fn parse_identifier(
         VariableExpression::Function(func) => TypedExpression::Function(func),
         VariableExpression::Method(func) => TypedExpression::MethodInternal(func),
         VariableExpression::Type(ty) => {
-            return Err(TyperError::ExpectedExpressionReceivedType(id.clone(), ty))
+            return Err(TyperError::ExpectedExpressionReceivedType(id.clone(), ty));
         }
     })
 }
@@ -219,10 +219,10 @@ fn try_infer_template_type(
         .get_type_layer(required_type_id);
 
     // If we have reached the template type then return the matched type
-    if let ir::TypeLayer::TemplateParam(id) = layer_required {
-        if id == template_type_id {
-            return Some(input_type_id);
-        }
+    if let ir::TypeLayer::TemplateParam(id) = layer_required
+        && id == template_type_id
+    {
+        return Some(input_type_id);
     }
 
     // Drill down into the type
@@ -322,12 +322,10 @@ fn find_function_type(
             .get_function_signature(*overload);
         if param_types.len() <= signature.param_types.len()
             && param_types.len() >= signature.non_default_params
-        {
-            if let Ok((new_id, param_casts)) =
+            && let Ok((new_id, param_casts)) =
                 find_overload_casts(*overload, template_args, param_types, context)
-            {
-                casts.push((new_id, param_casts))
-            }
+        {
+            casts.push((new_id, param_casts))
         }
     }
 
@@ -568,7 +566,7 @@ fn parse_literal(ast: &ast::Literal, context: &mut Context) -> TyperResult<Typed
         ast::Literal::Float32(f) => ir::Constant::Float32(*f),
         ast::Literal::Float64(f) => ir::Constant::Float64(*f),
         ast::Literal::String(_) => {
-            return Err(TyperError::StringNotSupported(SourceLocation::UNKNOWN))
+            return Err(TyperError::StringNotSupported(SourceLocation::UNKNOWN));
         }
     };
 
@@ -677,7 +675,7 @@ fn parse_expr_unaryop(
                                     op.clone(),
                                     ErrorType::Unknown,
                                     base_location,
-                                ))
+                                ));
                             }
                         };
 
@@ -748,7 +746,7 @@ fn parse_expr_unaryop(
                                     op.clone(),
                                     ErrorType::Unknown,
                                     base_location,
-                                ))
+                                ));
                             }
                         };
 
@@ -804,7 +802,7 @@ fn parse_expr_unaryop(
                                     op.clone(),
                                     ErrorType::Unknown,
                                     base_location,
-                                ))
+                                ));
                             }
                         };
 
@@ -830,10 +828,9 @@ fn parse_expr_unaryop(
             // Collapse some simple operations - so for example negated literals become literals with negative values
             // We do not do this in the general case as we do not need to simplify the tree as much as possible
             // But removing certain patterns can make the tree feel more natural
-            if is_trivial {
-                if let Ok(value) = evaluate_constexpr(&expr_with_op, &mut context.module) {
-                    expr_with_op = ir::Expression::Literal(value);
-                }
+            if is_trivial && let Ok(value) = evaluate_constexpr(&expr_with_op, &mut context.module)
+            {
+                expr_with_op = ir::Expression::Literal(value);
             }
 
             Ok(TypedExpression::Value(expr_with_op, ety))
@@ -978,13 +975,13 @@ fn parse_expr_binop(
                 )?;
 
                 // Remap all bool types to int
-                if let Some(scalar) = context.module.type_registry.extract_scalar(target) {
-                    if scalar == ir::ScalarType::Bool {
-                        target = context
-                            .module
-                            .type_registry
-                            .transform_scalar(target, ir::ScalarType::Int32)
-                    }
+                if let Some(scalar) = context.module.type_registry.extract_scalar(target)
+                    && scalar == ir::ScalarType::Bool
+                {
+                    target = context
+                        .module
+                        .type_registry
+                        .transform_scalar(target, ir::ScalarType::Int32)
                 }
 
                 target
@@ -1001,7 +998,7 @@ fn parse_expr_binop(
                         lhs_type.to_error_type(),
                         rhs_type.to_error_type(),
                         base_location,
-                    ))
+                    ));
                 }
             };
 
@@ -1348,7 +1345,7 @@ fn parse_expr_ternary(
                 return Err(TyperError::TernaryConditionRequiresBoolean(
                     cond_ety.to_error_type(),
                     cond_location,
-                ))
+                ));
             }
         };
     let cond_casted = Box::new(cond_cast.apply(cond, &mut context.module));
@@ -1513,7 +1510,7 @@ fn parse_expr_unchecked(
                 Err(_) => {
                     return Err(TyperError::ArraySubscriptIndexNotInteger(
                         subscript.get_location(),
-                    ))
+                    ));
                 }
                 Ok(cast) => cast.apply(subscript_ir, &mut context.module),
             };
@@ -1539,7 +1536,7 @@ fn parse_expr_unchecked(
                     return Err(TyperError::TypeDoesNotHaveMembers(
                         composite_pt,
                         composite.get_location(),
-                    ))
+                    ));
                 }
             };
             let ExpressionType(composite_ty, vt) = composite_ety;
@@ -1591,12 +1588,12 @@ fn parse_expr_unchecked(
                                         return Err(TyperError::IdentifierIsNotAMember(
                                             composite_ty,
                                             path,
-                                        ))
+                                        ));
                                     }
                                 }
                             }
                             Ok(_) => {
-                                return Err(TyperError::IdentifierIsNotAMember(composite_ty, path))
+                                return Err(TyperError::IdentifierIsNotAMember(composite_ty, path));
                             }
                             Err(err) => return Err(err),
                         }
@@ -1626,7 +1623,7 @@ fn parse_expr_unchecked(
                             return Err(TyperError::MemberDoesNotExist(
                                 composite_ty,
                                 member.clone(),
-                            ))
+                            ));
                         }
                     };
 
@@ -1639,7 +1636,7 @@ fn parse_expr_unchecked(
                                 return Err(TyperError::TypeDoesNotHaveMembers(
                                     composite_pt,
                                     composite.get_location(),
-                                ))
+                                ));
                             }
                         });
                     }
@@ -1670,7 +1667,7 @@ fn parse_expr_unchecked(
                             return Err(TyperError::MemberDoesNotExist(
                                 composite_ty,
                                 member.clone(),
-                            ))
+                            ));
                         }
                     };
 
@@ -1686,7 +1683,7 @@ fn parse_expr_unchecked(
                                     composite_ty,
                                     member.node.clone(),
                                     member.get_location(),
-                                ))
+                                ));
                             }
                         });
                     }
@@ -1722,7 +1719,7 @@ fn parse_expr_unchecked(
                             return Err(TyperError::MemberDoesNotExist(
                                 composite_ty,
                                 member.clone(),
-                            ))
+                            ));
                         }
                     };
 
@@ -1754,7 +1751,7 @@ fn parse_expr_unchecked(
                             return Err(TyperError::MemberDoesNotExist(
                                 composite_ty,
                                 member.clone(),
-                            ))
+                            ));
                         }
                     };
 
@@ -1778,46 +1775,43 @@ fn parse_expr_unchecked(
                             return Err(TyperError::MemberDoesNotExist(
                                 composite_ty,
                                 member.clone(),
-                            ))
+                            ));
                         }
                     };
 
                     // Handle mips mips member explicitly as it is the only member on an intrinsic object type
-                    if let ir::ObjectType::Texture2D(ty) = object_type {
-                        if member.node == "mips" {
-                            let composite = Box::new(composite_ir);
-                            let member =
-                                ir::Expression::ObjectMember(composite, member.node.clone());
-                            let mips_oty = ir::ObjectType::Texture2DMips(ty);
-                            let mips_tyl = ir::TypeLayer::Object(mips_oty);
-                            let mips_ty = context.module.type_registry.register_type(mips_tyl);
-                            return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
-                        }
+                    if let ir::ObjectType::Texture2D(ty) = object_type
+                        && member.node == "mips"
+                    {
+                        let composite = Box::new(composite_ir);
+                        let member = ir::Expression::ObjectMember(composite, member.node.clone());
+                        let mips_oty = ir::ObjectType::Texture2DMips(ty);
+                        let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                        let mips_ty = context.module.type_registry.register_type(mips_tyl);
+                        return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
                     }
 
                     // Handle mips mips member explicitly as it is the only member on an intrinsic object type
-                    if let ir::ObjectType::Texture2DArray(ty) = object_type {
-                        if member.node == "mips" {
-                            let composite = Box::new(composite_ir);
-                            let member =
-                                ir::Expression::ObjectMember(composite, member.node.clone());
-                            let mips_oty = ir::ObjectType::Texture2DArrayMips(ty);
-                            let mips_tyl = ir::TypeLayer::Object(mips_oty);
-                            let mips_ty = context.module.type_registry.register_type(mips_tyl);
-                            return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
-                        }
+                    if let ir::ObjectType::Texture2DArray(ty) = object_type
+                        && member.node == "mips"
+                    {
+                        let composite = Box::new(composite_ir);
+                        let member = ir::Expression::ObjectMember(composite, member.node.clone());
+                        let mips_oty = ir::ObjectType::Texture2DArrayMips(ty);
+                        let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                        let mips_ty = context.module.type_registry.register_type(mips_tyl);
+                        return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
                     }
 
-                    if let ir::ObjectType::Texture3D(ty) = object_type {
-                        if member.node == "mips" {
-                            let composite = Box::new(composite_ir);
-                            let member =
-                                ir::Expression::ObjectMember(composite, member.node.clone());
-                            let mips_oty = ir::ObjectType::Texture3DMips(ty);
-                            let mips_tyl = ir::TypeLayer::Object(mips_oty);
-                            let mips_ty = context.module.type_registry.register_type(mips_tyl);
-                            return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
-                        }
+                    if let ir::ObjectType::Texture3D(ty) = object_type
+                        && member.node == "mips"
+                    {
+                        let composite = Box::new(composite_ir);
+                        let member = ir::Expression::ObjectMember(composite, member.node.clone());
+                        let mips_oty = ir::ObjectType::Texture3DMips(ty);
+                        let mips_tyl = ir::TypeLayer::Object(mips_oty);
+                        let mips_ty = context.module.type_registry.register_type(mips_tyl);
+                        return Ok(TypedExpression::Value(member, mips_ty.to_lvalue()));
                     }
 
                     // Get the object id or register it if it was not already seen
@@ -1864,7 +1858,7 @@ fn parse_expr_unchecked(
                                 template_args,
                                 args,
                                 context,
-                            )
+                            );
                         }
                         "assert_eval" => {
                             return parse_assert_eval(
@@ -1872,7 +1866,7 @@ fn parse_expr_unchecked(
                                 template_args,
                                 args,
                                 context,
-                            )
+                            );
                         }
                         _ => {}
                     }
@@ -1925,7 +1919,7 @@ fn parse_expr_unchecked(
                     (ty, ast_ty.get_location())
                 }
                 ast::ExpressionOrType::Expression(ref ast_expr) => {
-                    let ty = parse_expr(ast_expr, context)?.1 .0;
+                    let ty = parse_expr(ast_expr, context)?.1.0;
                     (ty, ast_expr.get_location())
                 }
                 ast::ExpressionOrType::Either(ref ast_expr, ref ast_ty) => {
@@ -1936,7 +1930,7 @@ fn parse_expr_unchecked(
                     if let Ok(ir_ty) = parse_type(&ast_ty.base, context) {
                         (ir_ty, ast_ty.get_location())
                     } else {
-                        let ty = parse_expr(ast_expr, context)?.1 .0;
+                        let ty = parse_expr(ast_expr, context)?.1.0;
                         (ty, ast_expr.get_location())
                     }
                 }
@@ -1944,10 +1938,10 @@ fn parse_expr_unchecked(
 
             // Forbid sizeof() on untyped literals
             let ty_nomod = context.module.type_registry.remove_modifier(ty);
-            if let Some(scalar) = context.module.type_registry.extract_scalar(ty_nomod) {
-                if scalar == ir::ScalarType::IntLiteral {
-                    return Err(TyperError::SizeOfHasLiteralType(ty, loc));
-                }
+            if let Some(scalar) = context.module.type_registry.extract_scalar(ty_nomod)
+                && scalar == ir::ScalarType::IntLiteral
+            {
+                return Err(TyperError::SizeOfHasLiteralType(ty, loc));
             }
 
             let uint_ty = context
@@ -2014,7 +2008,7 @@ fn parse_expr_call(
                     func_texp.to_error_type(),
                     texp.to_error_type(),
                     arg.get_location(),
-                ))
+                ));
             }
         };
         args_ir.push(expr_ir);
@@ -2129,7 +2123,7 @@ fn parse_assert_type(
     let ty = match parse_expression_or_type(&template_args[0], context)? {
         ir::TypeOrConstant::Type(ty) => ty,
         ir::TypeOrConstant::Constant(_) => {
-            return Err(TyperError::AssertTypeInvalid(call_location))
+            return Err(TyperError::AssertTypeInvalid(call_location));
         }
     };
 
@@ -2141,7 +2135,7 @@ fn parse_assert_type(
                 ErrorType::Unknown,
                 texp.to_error_type(),
                 args[0].get_location(),
-            ))
+            ));
         }
     };
 
@@ -2176,7 +2170,7 @@ fn parse_assert_eval(
         match parse_expression_or_type(&template_args[0], context)? {
             ir::TypeOrConstant::Type(ty) => Some(ty),
             ir::TypeOrConstant::Constant(_) => {
-                return Err(TyperError::AssertEvalInvalid(call_location))
+                return Err(TyperError::AssertEvalInvalid(call_location));
             }
         }
     };
@@ -2189,7 +2183,7 @@ fn parse_assert_eval(
                 ErrorType::Unknown,
                 texp.to_error_type(),
                 args[0].get_location(),
-            ))
+            ));
         }
     };
 
@@ -2201,7 +2195,7 @@ fn parse_assert_eval(
                 ErrorType::Unknown,
                 texp.to_error_type(),
                 args[0].get_location(),
-            ))
+            ));
         }
     };
 
@@ -2230,7 +2224,7 @@ fn parse_assert_eval(
         Err(_) => {
             return Err(TyperError::ExpressionIsNotConstantExpression(
                 args[0].get_location(),
-            ))
+            ));
         }
     };
 
@@ -2240,7 +2234,7 @@ fn parse_assert_eval(
         Err(_) => {
             return Err(TyperError::ExpressionIsNotConstantExpression(
                 args[1].get_location(),
-            ))
+            ));
         }
     };
 

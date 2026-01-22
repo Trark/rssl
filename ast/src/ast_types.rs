@@ -1,7 +1,7 @@
-use crate::ast_declarations::Declarator;
 use crate::Expression;
 use crate::ExpressionOrType;
 use crate::ScopedIdentifier;
+use crate::ast_declarations::Declarator;
 use rssl_text::{Locate, Located, SourceLocation};
 
 /// The type part of a declaration

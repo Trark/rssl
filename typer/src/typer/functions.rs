@@ -4,8 +4,8 @@ use super::expressions::parse_expr;
 use super::scopes::*;
 use super::statements::parse_statement_list;
 use super::types::{
-    apply_template_type_substitution, is_illegal_variable_name, parse_input_modifier,
-    parse_interpolation_modifier, parse_precise, parse_type_for_usage, TypePosition,
+    TypePosition, apply_template_type_substitution, is_illegal_variable_name, parse_input_modifier,
+    parse_interpolation_modifier, parse_precise, parse_type_for_usage,
 };
 use rssl_ast as ast;
 use rssl_ir as ir;
@@ -297,7 +297,7 @@ fn parse_returntype(
                     modifier.node,
                     modifier.location,
                     TypePosition::Local,
-                ))
+                ));
             }
             _ => continue,
         }
@@ -498,7 +498,7 @@ fn parse_function_attribute(
             return Err(TyperError::FunctionAttributeUnknown(
                 first.node.clone(),
                 first.location,
-            ))
+            ));
         }
         _ => panic!("Attribute with no name"),
     };
@@ -551,7 +551,7 @@ fn parse_function_attribute(
                                 return Err(TyperError::InvalidOutputTopology(
                                     attribute.arguments[0].location,
                                     s.clone(),
-                                ))
+                                ));
                             }
                         };
                         Ok(ir::FunctionAttribute::OutputTopology(topology))

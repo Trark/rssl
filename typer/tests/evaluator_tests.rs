@@ -85,7 +85,9 @@ fn check_constexpr_logical_not() {
     check_types("static const uint x = 0; void f() { assert_eval<bool>(!x, true); }");
     check_types("static const int x = 0; void f() { assert_eval<bool>(!x, true); }");
     check_types("static const float x = 0; void f() { assert_eval<bool>(!x, true); }");
-    check_types("enum E { ZERO, ONE }; void f() { assert_eval<bool>(!ZERO, true); assert_eval<bool>(!ONE, false); }");
+    check_types(
+        "enum E { ZERO, ONE }; void f() { assert_eval<bool>(!ZERO, true); assert_eval<bool>(!ONE, false); }",
+    );
 }
 
 #[test]

@@ -1318,10 +1318,10 @@ fn preprocess_included_file(
                 command_state = CommandParseState::CommandContents;
 
                 // Enable special lex mode for #include
-                if let Token::Id(id) = tok {
-                    if id.0 == "include" {
-                        inside_include = true;
-                    }
+                if let Token::Id(id) = tok
+                    && id.0 == "include"
+                {
+                    inside_include = true;
                 }
 
                 // Discard the # and any whitespace between the # and command name

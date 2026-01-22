@@ -20,18 +20,22 @@ pub fn parse_initializer(input: &[LexToken]) -> ParseResult<'_, Option<Initializ
     }
 
     match input {
-        [LexToken(Token::Equals, _), LexToken(Token::Id(id), _), input @ ..]
-            if id.0 == "StaticSampler" =>
-        {
+        [
+            LexToken(Token::Equals, _),
+            LexToken(Token::Id(id), _),
+            input @ ..,
+        ] if id.0 == "StaticSampler" => {
             let (input, properties) = pipelines::parse_static_sampler_properties(input)?;
             Ok((input, Some(Initializer::StaticSampler(properties))))
         }
-        [LexToken(Token::Equals, _), LexToken(Token::LeftBrace, _), ..] => {
-            match init_aggregate(&input[1..]) {
-                Ok((input, init)) => Ok((input, Some(init))),
-                Err(err) => Err(err),
-            }
-        }
+        [
+            LexToken(Token::Equals, _),
+            LexToken(Token::LeftBrace, _),
+            ..,
+        ] => match init_aggregate(&input[1..]) {
+            Ok((input, init)) => Ok((input, Some(init))),
+            Err(err) => Err(err),
+        },
         [LexToken(Token::Equals, _), rest @ ..] => match init_expr(rest) {
             Ok((input, init)) => Ok((input, Some(init))),
             Err(err) => Err(err),

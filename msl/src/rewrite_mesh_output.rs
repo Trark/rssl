@@ -348,26 +348,25 @@ fn process_expression(
     context: &ProcessContext,
 ) -> Result<(), GenerateError> {
     // Attempt to find assignments of mesh output arrays
-    if let ir::Expression::IntrinsicOp(ir::IntrinsicOp::Assignment, exprs) = expr {
-        if let [ir::Expression::ArraySubscript(object, index), value] = &exprs[..] {
-            if let ir::Expression::Variable(id) = **object {
-                if Some(id) == context.vertices_id {
-                    *expr = ir::Expression::IntrinsicOp(
-                        ir::IntrinsicOp::MeshOutputSetVertex,
-                        Vec::from([(**index).clone(), value.clone()]),
-                    )
-                } else if Some(id) == context.primitives_id {
-                    *expr = ir::Expression::IntrinsicOp(
-                        ir::IntrinsicOp::MeshOutputSetPrimitive,
-                        Vec::from([(**index).clone(), value.clone()]),
-                    )
-                } else if Some(id) == context.indices_id {
-                    *expr = ir::Expression::IntrinsicOp(
-                        ir::IntrinsicOp::MeshOutputSetIndices,
-                        Vec::from([(**index).clone(), value.clone()]),
-                    )
-                }
-            }
+    if let ir::Expression::IntrinsicOp(ir::IntrinsicOp::Assignment, exprs) = expr
+        && let [ir::Expression::ArraySubscript(object, index), value] = &exprs[..]
+        && let ir::Expression::Variable(id) = **object
+    {
+        if Some(id) == context.vertices_id {
+            *expr = ir::Expression::IntrinsicOp(
+                ir::IntrinsicOp::MeshOutputSetVertex,
+                Vec::from([(**index).clone(), value.clone()]),
+            )
+        } else if Some(id) == context.primitives_id {
+            *expr = ir::Expression::IntrinsicOp(
+                ir::IntrinsicOp::MeshOutputSetPrimitive,
+                Vec::from([(**index).clone(), value.clone()]),
+            )
+        } else if Some(id) == context.indices_id {
+            *expr = ir::Expression::IntrinsicOp(
+                ir::IntrinsicOp::MeshOutputSetIndices,
+                Vec::from([(**index).clone(), value.clone()]),
+            )
         }
     }
 

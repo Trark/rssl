@@ -141,7 +141,7 @@ fn parse_register(input: &[LexToken]) -> ParseResult<'_, Register> {
             "s" => RegisterType::S,
             _ => {
                 return ParseErrorReason::InvalidSlotType(id.0.clone())
-                    .into_result(identifier_input_start)
+                    .into_result(identifier_input_start);
             }
         };
 
@@ -151,7 +151,7 @@ fn parse_register(input: &[LexToken]) -> ParseResult<'_, Register> {
                     Ok(v) => v,
                     Err(_) => {
                         return ParseErrorReason::InvalidSlotIndex(id.0.clone())
-                            .into_result(identifier_input_start)
+                            .into_result(identifier_input_start);
                     }
                 }
             } else {
@@ -179,7 +179,7 @@ fn parse_register(input: &[LexToken]) -> ParseResult<'_, Register> {
                 Some(index) => Some(index),
                 None => {
                     return ParseErrorReason::InvalidSpaceIdentifier(id.0.clone())
-                        .into_result(space_start)
+                        .into_result(space_start);
                 }
             },
             None => None,

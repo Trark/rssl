@@ -343,10 +343,9 @@ fn simplify_namespaces(original: Vec<ast::RootDefinition>) -> Vec<ast::RootDefin
         use ast::RootDefinition::Namespace;
         match (root_definition, simplified.last_mut()) {
             // Matching namespaces are merged with the existing namespace
-            (
-                Namespace(next_name, mut next_defs),
-                Some(Namespace(last_name, ref mut last_defs)),
-            ) if last_name.node == next_name.node => {
+            (Namespace(next_name, mut next_defs), Some(Namespace(last_name, last_defs)))
+                if last_name.node == next_name.node =>
+            {
                 last_defs.append(&mut next_defs);
             }
             // Non-matching namespaces and other root definitions are appended to the output unchanged
@@ -356,7 +355,7 @@ fn simplify_namespaces(original: Vec<ast::RootDefinition>) -> Vec<ast::RootDefin
 
     // Apply recursively
     for root_definition in &mut simplified {
-        if let ast::RootDefinition::Namespace(_, ref mut defs) = root_definition {
+        if let ast::RootDefinition::Namespace(_, defs) = root_definition {
             let v = std::mem::take(defs);
             let v = simplify_namespaces(v);
             *defs = v;
@@ -629,11 +628,10 @@ fn generate_function(
                 .module
                 .function_registry
                 .get_template_instantiation_data(child_id)
+                && data.parent_id == id
             {
-                if data.parent_id == id {
-                    let def = generate_function_inner(child_id, only_declare, context)?;
-                    fs.push(def);
-                }
+                let def = generate_function_inner(child_id, only_declare, context)?;
+                fs.push(def);
             }
         }
 
@@ -875,27 +873,26 @@ fn generate_function_param(
         Vec::new()
     };
 
-    if for_pixel_entry {
-        if let Some(ir::Semantic::User(semantic)) = &param.semantic {
-            if context.per_primitive_semantics.contains(semantic) {
-                declarator = declarator.insert_base(|d| match d {
-                    ast::Declarator::Identifier(id, mut attributes) => {
-                        attributes.push(ast::Attribute {
-                            name: Vec::from([
-                                Located::none("vk".to_string()),
-                                Located::none("ext_decorate".to_string()),
-                            ]),
-                            arguments: Vec::from([Located::none(ast::Expression::Literal(
-                                ast::Literal::IntUntyped(5271),
-                            ))]),
-                            two_square_brackets: true,
-                        });
-                        ast::Declarator::Identifier(id, attributes)
-                    }
-                    _ => panic!("unexpected declarator: {:?}", d),
+    if for_pixel_entry
+        && let Some(ir::Semantic::User(semantic)) = &param.semantic
+        && context.per_primitive_semantics.contains(semantic)
+    {
+        declarator = declarator.insert_base(|d| match d {
+            ast::Declarator::Identifier(id, mut attributes) => {
+                attributes.push(ast::Attribute {
+                    name: Vec::from([
+                        Located::none("vk".to_string()),
+                        Located::none("ext_decorate".to_string()),
+                    ]),
+                    arguments: Vec::from([Located::none(ast::Expression::Literal(
+                        ast::Literal::IntUntyped(5271),
+                    ))]),
+                    two_square_brackets: true,
                 });
+                ast::Declarator::Identifier(id, attributes)
             }
-        }
+            _ => panic!("unexpected declarator: {:?}", d),
+        });
     }
 
     let default_expr = if let Some(default_expr) = &param.default_expr {
@@ -1217,7 +1214,7 @@ fn generate_literal(
                 Box::new(Located::none(ast::Expression::Literal(
                     ast::Literal::IntUntyped(-v as u64),
                 ))),
-            ))
+            ));
         }
         ir::Constant::IntLiteral(v) if v >= 0 && v <= u64::MAX as i128 => {
             ast::Literal::IntUntyped(v as u64)
@@ -1522,15 +1519,13 @@ fn generate_scope_block(
                 ast::StatementKind::CaseLabel(_, current) | ast::StatementKind::DefaultLabel(current),
             ..
         }) = statements.last_mut()
-        {
-            if let ast::Statement {
+            && let ast::Statement {
                 kind: ast::StatementKind::Empty,
                 ..
             } = **current
-            {
-                **current = statement;
-                continue;
-            }
+        {
+            **current = statement;
+            continue;
         }
 
         statements.push(statement);
@@ -1595,7 +1590,7 @@ fn generate_expression(
             context.get_global_name_full(*v)?,
         )),
         ir::Expression::ConstantVariable(id) => {
-            let def = &context.module.cbuffer_registry[id.0 .0 as usize].members[id.1 as usize];
+            let def = &context.module.cbuffer_registry[id.0.0 as usize].members[id.1 as usize];
             ast::Expression::Identifier(ast::ScopedIdentifier::trivial(&def.name))
         }
         ir::Expression::EnumValue(id) => ast::Expression::Identifier(scoped_name_to_identifier(
@@ -2323,19 +2318,19 @@ fn generate_struct(
 
         let mut attributes = Vec::new();
 
-        if let Some(ir::Semantic::User(semantic)) = &member.semantic {
-            if context.per_primitive_semantics.contains(semantic) {
-                attributes.push(ast::Attribute {
-                    name: Vec::from([
-                        Located::none("vk".to_string()),
-                        Located::none("ext_decorate".to_string()),
-                    ]),
-                    arguments: Vec::from([Located::none(ast::Expression::Literal(
-                        ast::Literal::IntUntyped(5271),
-                    ))]),
-                    two_square_brackets: true,
-                });
-            }
+        if let Some(ir::Semantic::User(semantic)) = &member.semantic
+            && context.per_primitive_semantics.contains(semantic)
+        {
+            attributes.push(ast::Attribute {
+                name: Vec::from([
+                    Located::none("vk".to_string()),
+                    Located::none("ext_decorate".to_string()),
+                ]),
+                arguments: Vec::from([Located::none(ast::Expression::Literal(
+                    ast::Literal::IntUntyped(5271),
+                ))]),
+                two_square_brackets: true,
+            });
         }
 
         members.push(ast::StructEntry::Variable(ast::StructMember {

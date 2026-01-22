@@ -48,7 +48,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
             return Err(CompileError::Text(format!(
                 "{}",
                 err.display(&source_manager)
-            )))
+            )));
         }
     };
 
@@ -61,7 +61,7 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
             return Err(CompileError::Text(format!(
                 "{}",
                 err.display(&source_manager)
-            )))
+            )));
         }
     };
 
@@ -72,17 +72,17 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
             return Err(CompileError::Text(format!(
                 "{}",
                 err.display(&source_manager)
-            )))
+            )));
         }
     };
 
-    if args.validate_layout_consistency {
-        if let Err(err) = ir::layout_checker::check_layout(&ir) {
-            return Err(CompileError::Text(format!(
-                "{}",
-                err.display(&source_manager)
-            )));
-        }
+    if args.validate_layout_consistency
+        && let Err(err) = ir::layout_checker::check_layout(&ir)
+    {
+        return Err(CompileError::Text(format!(
+            "{}",
+            err.display(&source_manager)
+        )));
     }
 
     // Pick how we will bind api binding slots based on the target API
@@ -116,10 +116,10 @@ pub fn compile(args: CompileArgs) -> Result<Vec<CompiledPipeline>, CompileError>
         )?);
     } else {
         for pipeline in &ir.pipelines {
-            if let Some(name) = args.pipeline_name {
-                if pipeline.name.node != name {
-                    continue;
-                }
+            if let Some(name) = args.pipeline_name
+                && pipeline.name.node != name
+            {
+                continue;
             }
 
             output_pipelines.push(build_pipeline(
@@ -191,7 +191,7 @@ fn build_pipeline(
                         return Err(CompileError::Text(format!(
                             "{}",
                             err.display(source_manager)
-                        )))
+                        )));
                     }
                 };
 
@@ -224,7 +224,7 @@ fn build_pipeline(
                     return Err(CompileError::Text(format!(
                         "{}",
                         err.display(source_manager)
-                    )))
+                    )));
                 }
             };
 

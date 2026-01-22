@@ -30,7 +30,7 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<'_, RootDefinition> 
 
     let res = res.select(match parse_global_variable(input) {
         Ok((rest, globalvariable)) => {
-            return Ok((rest, RootDefinition::GlobalVariable(globalvariable)))
+            return Ok((rest, RootDefinition::GlobalVariable(globalvariable)));
         }
         Err(err) => Err(err),
     });
@@ -45,12 +45,10 @@ fn parse_root_definition(input: &[LexToken]) -> ParseResult<'_, RootDefinition> 
         Err(err) => Err(err),
     });
 
-    let res = res.select(match parse_pipeline_definition(input) {
+    res.select(match parse_pipeline_definition(input) {
         Ok((rest, def)) => return Ok((rest, RootDefinition::Pipeline(def))),
         Err(err) => Err(err),
-    });
-
-    res
+    })
 }
 
 /// Parse a root definition which may have many semicolons after it

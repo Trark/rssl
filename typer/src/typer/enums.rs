@@ -23,7 +23,7 @@ pub fn parse_rootdefinition_enum(
         let (value, ty) = if let Some(expr) = &member.value {
             let mut expr_ir = parse_expr(expr, context)?;
 
-            let unmodified_id = context.module.type_registry.remove_modifier(expr_ir.1 .0);
+            let unmodified_id = context.module.type_registry.remove_modifier(expr_ir.1.0);
             match context.module.type_registry.get_type_layer(unmodified_id) {
                 ir::TypeLayer::Scalar(ir::ScalarType::Bool)
                 | ir::TypeLayer::Scalar(ir::ScalarType::IntLiteral)
@@ -52,7 +52,7 @@ pub fn parse_rootdefinition_enum(
                 Ok(value) => value,
                 Err(_) => return Err(TyperError::ExpressionIsNotConstantExpression(expr.location)),
             };
-            (evaluated, expr_ir.1 .0)
+            (evaluated, expr_ir.1.0)
         } else {
             match last_value {
                 None => (
